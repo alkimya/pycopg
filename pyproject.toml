@@ -1,0 +1,85 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pycopg"
+version = "0.1.0"
+description = "High-level Python API for PostgreSQL/PostGIS/TimescaleDB"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Loc Cosnier", email = "loc.cosnier@pm.me" }
+]
+keywords = [
+    "postgresql",
+    "postgis",
+    "timescaledb",
+    "database",
+    "sql",
+    "psycopg",
+    "pandas",
+    "geopandas",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg[binary]>=3.1.0",
+    "psycopg_pool>=3.2.0",
+    "sqlalchemy>=2.0.0",
+    "pandas>=2.0.0",
+]
+
+[project.optional-dependencies]
+dotenv = [
+    "python-dotenv>=1.0.0",
+]
+geo = [
+    "geopandas>=0.14.0",
+    "geoalchemy2>=0.14.0",
+    "shapely>=2.0.0",
+]
+timescale = []  # No additional deps, just PostgreSQL extension
+all = [
+    "python-dotenv>=1.0.0",
+    "geopandas>=0.14.0",
+    "geoalchemy2>=0.14.0",
+    "shapely>=2.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/alkimya/pycopg"
+Documentation = "https://github.com/alkimya/pycopg#readme"
+Repository = "https://github.com/alkimya/pycopg"
+Issues = "https://github.com/alkimya/pycopg/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pycopg"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=pycopg --cov-report=term-missing"
