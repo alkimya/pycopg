@@ -1,0 +1,199 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../migrations.md:1
+msgid "Migrations"
+msgstr "Migrations"
+
+#: ../../migrations.md:3
+msgid ""
+"pycopg includes a simple SQL-based migration system for managing database"
+" schema changes."
+msgstr ""
+"pycopg inclut un système de migration SQL simple pour gérer les "
+"changements de schéma de base de données."
+
+#: ../../migrations.md:5
+msgid "Quick Start"
+msgstr "Prise en main"
+
+#: ../../migrations.md:7
+msgid "1. Create Migration Directory"
+msgstr "1. Créer le répertoire de migrations"
+
+#: ../../migrations.md:13
+msgid "2. Create Migration Files"
+msgstr "2. Créer les fichiers de migration"
+
+#: ../../migrations.md:30
+msgid "3. Run Migrations"
+msgstr "3. Exécuter les migrations"
+
+#: ../../migrations.md:48
+msgid "Migration File Format"
+msgstr "Format des fichiers de migration"
+
+#: ../../migrations.md:50
+msgid "File Naming"
+msgstr "Nommage des fichiers"
+
+#: ../../migrations.md:52
+msgid "Migration files must follow this naming convention:"
+msgstr "Les fichiers de migration doivent suivre cette convention de nommage :"
+
+#: ../../migrations.md:58
+msgid "`NNN`: Version number (1, 01, 001, etc.)"
+msgstr "`NNN` : Numéro de version (1, 01, 001, etc.)"
+
+#: ../../migrations.md:59
+msgid "`description`: Snake_case description"
+msgstr "`description` : Description en snake_case"
+
+#: ../../migrations.md:60
+msgid "`.sql`: Required extension"
+msgstr "`.sql` : Extension requise"
+
+#: ../../migrations.md:62
+msgid "Examples:"
+msgstr "Exemples :"
+
+#: ../../migrations.md:63
+msgid "`001_create_users.sql`"
+msgstr "`001_create_users.sql`"
+
+#: ../../migrations.md:64
+msgid "`002_add_email_column.sql`"
+msgstr "`002_add_email_column.sql`"
+
+#: ../../migrations.md:65
+msgid "`003_create_orders.sql`"
+msgstr "`003_create_orders.sql`"
+
+#: ../../migrations.md:67
+msgid "File Structure"
+msgstr "Structure des fichiers"
+
+#: ../../migrations.md:69
+msgid "Migrations can have optional UP and DOWN sections:"
+msgstr "Les migrations peuvent avoir des sections UP et DOWN optionnelles :"
+
+#: ../../migrations.md:89
+msgid ""
+"If no UP/DOWN sections are present, the entire file is treated as the UP "
+"migration."
+msgstr ""
+"Si aucune section UP/DOWN n'est présente, le fichier entier est traité "
+"comme la migration UP."
+
+#: ../../migrations.md:91
+msgid "Migrator API"
+msgstr "API Migrator"
+
+#: ../../migrations.md:93
+msgid "Creating a Migrator"
+msgstr "Créer un Migrator"
+
+#: ../../migrations.md:105
+msgid "Checking Status"
+msgstr "Vérifier le statut"
+
+#: ../../migrations.md:123
+msgid "Running Migrations"
+msgstr "Exécuter les migrations"
+
+#: ../../migrations.md:135
+msgid "Rolling Back"
+msgstr "Annulation (rollback)"
+
+#: ../../migrations.md:148
+msgid "Creating New Migrations"
+msgstr "Créer de nouvelles migrations"
+
+#: ../../migrations.md:157
+msgid "The created file includes a template:"
+msgstr "Le fichier créé inclut un modèle :"
+
+#: ../../migrations.md:172
+msgid "Listing Migrations"
+msgstr "Lister les migrations"
+
+#: ../../migrations.md:186
+msgid "Migration Tracking"
+msgstr "Suivi des migrations"
+
+#: ../../migrations.md:188
+msgid "Migrations are tracked in a database table (default: `schema_migrations`):"
+msgstr "Les migrations sont suivies dans une table de base de données (défaut : `schema_migrations`) :"
+
+#: ../../migrations.md:198
+msgid "Examples"
+msgstr "Exemples"
+
+#: ../../migrations.md:200
+msgid "Creating Tables"
+msgstr "Création de tables"
+
+#: ../../migrations.md:223
+msgid "Adding Columns"
+msgstr "Ajout de colonnes"
+
+#: ../../migrations.md:239
+msgid "Creating Relations"
+msgstr "Création de relations"
+
+#: ../../migrations.md:260
+msgid "Data Migrations"
+msgstr "Migrations de données"
+
+#: ../../migrations.md:278
+msgid "Complex Migrations"
+msgstr "Migrations complexes"
+
+#: ../../migrations.md:326
+msgid "Error Handling"
+msgstr "Gestion des erreurs"
+
+#: ../../migrations.md:339
+msgid "Best Practices"
+msgstr "Bonnes pratiques"
+
+#: ../../migrations.md:341
+msgid "1. Make Migrations Idempotent"
+msgstr "1. Rendez les migrations idempotentes"
+
+#: ../../migrations.md:352
+msgid "2. Always Include DOWN Migrations"
+msgstr "2. Incluez toujours les migrations DOWN"
+
+#: ../../migrations.md:362
+msgid "3. Keep Migrations Small and Focused"
+msgstr "3. Gardez les migrations petites et ciblées"
+
+#: ../../migrations.md:370
+msgid "4. Never Modify Applied Migrations"
+msgstr "4. Ne modifiez jamais les migrations appliquées"
+
+#: ../../migrations.md:372
+msgid "Once a migration is applied, create a new migration for changes:"
+msgstr "Une fois une migration appliquée, créez une nouvelle migration pour les modifications :"
+
+#: ../../migrations.md:379
+msgid "5. Test Migrations Both Directions"
+msgstr "5. Testez les migrations dans les deux sens"

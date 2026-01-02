@@ -1,0 +1,155 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../backup-restore.md:1
+msgid "Backup & Restore"
+msgstr "Sauvegarde et restauration"
+
+#: ../../backup-restore.md:3
+msgid ""
+"pycopg provides convenient wrappers around PostgreSQL's backup and "
+"restore tools."
+msgstr ""
+"pycopg fournit des wrappers pratiques autour des outils de sauvegarde "
+"et restauration de PostgreSQL."
+
+#: ../../backup-restore.md:5
+msgid "pg_dump"
+msgstr "pg_dump"
+
+#: ../../backup-restore.md:7
+msgid "Full Database Backup"
+msgstr "Sauvegarde complète de la base"
+
+#: ../../backup-restore.md:23
+msgid "Backup Options"
+msgstr "Options de sauvegarde"
+
+#: ../../backup-restore.md:39
+msgid "Schema Only"
+msgstr "Schéma uniquement"
+
+#: ../../backup-restore.md:46
+msgid "Data Only"
+msgstr "Données uniquement"
+
+#: ../../backup-restore.md:53
+msgid "Specific Tables"
+msgstr "Tables spécifiques"
+
+#: ../../backup-restore.md:63
+msgid "Specific Schemas"
+msgstr "Schémas spécifiques"
+
+#: ../../backup-restore.md:70
+msgid "Parallel Backup"
+msgstr "Sauvegarde parallèle"
+
+#: ../../backup-restore.md:77
+msgid "pg_restore"
+msgstr "pg_restore"
+
+#: ../../backup-restore.md:79
+msgid "Full Restore"
+msgstr "Restauration complète"
+
+#: ../../backup-restore.md:89
+msgid "Restore Options"
+msgstr "Options de restauration"
+
+#: ../../backup-restore.md:107
+msgid "Clean Restore"
+msgstr "Restauration propre"
+
+#: ../../backup-restore.md:114
+msgid "Parallel Restore"
+msgstr "Restauration parallèle"
+
+#: ../../backup-restore.md:121
+msgid "Restore Specific Tables"
+msgstr "Restaurer des tables spécifiques"
+
+#: ../../backup-restore.md:128
+msgid "Restore Without Ownership"
+msgstr "Restaurer sans les propriétés"
+
+#: ../../backup-restore.md:135
+msgid "Plain SQL Restore"
+msgstr "Restauration SQL brut"
+
+#: ../../backup-restore.md:137
+msgid "For plain SQL backups, pycopg uses psql automatically."
+msgstr "Pour les sauvegardes SQL brut, pycopg utilise psql automatiquement."
+
+#: ../../backup-restore.md:143
+msgid "CSV Export/Import"
+msgstr "Export/Import CSV"
+
+#: ../../backup-restore.md:145
+msgid "Export to CSV"
+msgstr "Exporter en CSV"
+
+#: ../../backup-restore.md:165
+msgid "Import from CSV"
+msgstr "Importer depuis un CSV"
+
+#: ../../backup-restore.md:185
+msgid "Complete Backup Strategy"
+msgstr "Stratégie de sauvegarde complète"
+
+#: ../../backup-restore.md:187
+msgid "Development Backup"
+msgstr "Sauvegarde de développement"
+
+#: ../../backup-restore.md:205
+msgid "Production Backup Script"
+msgstr "Script de sauvegarde production"
+
+#: ../../backup-restore.md:248
+msgid "Migration with Backup"
+msgstr "Migration avec sauvegarde"
+
+#: ../../backup-restore.md:286
+msgid "Clone Database"
+msgstr "Cloner une base de données"
+
+#: ../../backup-restore.md:317
+msgid "Error Handling"
+msgstr "Gestion des erreurs"
+
+#: ../../backup-restore.md:333
+msgid "Best Practices"
+msgstr "Bonnes pratiques"
+
+#: ../../backup-restore.md:335
+msgid "1. Use Custom Format for Production"
+msgstr "1. Utilisez le format custom en production"
+
+#: ../../backup-restore.md:342
+msgid "2. Test Restores Regularly"
+msgstr "2. Testez les restaurations régulièrement"
+
+#: ../../backup-restore.md:361
+msgid "3. Include Backup in CI/CD"
+msgstr "3. Intégrez les sauvegardes au CI/CD"
+
+#: ../../backup-restore.md:374
+msgid "4. Monitor Backup Size"
+msgstr "4. Surveillez la taille des sauvegardes"

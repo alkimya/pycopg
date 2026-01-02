@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "psycopg[binary]>=3.1.0",
+    "psycopg>=3.1.0",
     "psycopg_pool>=3.2.0",
     "sqlalchemy>=2.0.0",
     "pandas>=2.0.0",
@@ -67,7 +67,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/alkimya/pycopg"
-Documentation = "https://github.com/alkimya/pycopg#readme"
+Documentation = "https://pycopg.readthedocs.io"
 Repository = "https://github.com/alkimya/pycopg"
 Issues = "https://github.com/alkimya/pycopg/issues"
 

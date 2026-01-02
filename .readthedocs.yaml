@@ -4,17 +4,18 @@
 version: 2
 
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
-    python: "3.11"
-
-sphinx:
-  configuration: docs/conf.py
+    python: "3.12"
+  commands:
+    # Build all languages (EN + FR) with our custom target
+    - pip install -r docs/requirements.txt
+    - cd docs && make html-all
+    # Move to RTD expected location
+    - mkdir -p $READTHEDOCS_OUTPUT/html
+    - cp -r docs/_build/html/* $READTHEDOCS_OUTPUT/html/
 
 python:
   install:
     - method: pip
       path: .
-      extra_requirements:
-        - dev
-    - requirements: docs/requirements.txt

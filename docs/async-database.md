@@ -37,6 +37,8 @@ await db.execute("CREATE DATABASE newdb", autocommit=True)
 
 ### execute_many()
 
+Execute SQL for multiple parameter sets. Uses `executemany()` internally for better performance.
+
 ```python
 count = await db.execute_many(
     "INSERT INTO users (name, email) VALUES (%s, %s)",
@@ -46,6 +48,30 @@ count = await db.execute_many(
     ]
 )
 print(f"Inserted {count} rows")
+```
+
+### insert_batch()
+
+High-performance batch insert using a single INSERT with multiple VALUES tuples.
+
+```python
+count = await db.insert_batch("users", [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"},
+])
+print(f"Inserted {count} rows")
+
+# With ON CONFLICT (upsert)
+await db.insert_batch("users", rows, on_conflict="(email) DO UPDATE SET name = EXCLUDED.name")
+```
+
+### copy_insert()
+
+Ultra-fast bulk insert using PostgreSQL's COPY protocol.
+
+```python
+rows = [{"name": f"User {i}", "email": f"user{i}@example.com"} for i in range(100000)]
+count = await db.copy_insert("users", rows)
 ```
 
 ### fetch_one()
@@ -67,6 +93,33 @@ count = await db.fetch_val("SELECT COUNT(*) FROM users")
 name = await db.fetch_val("SELECT name FROM users WHERE id = %s", [1])
 # 'Alice'
 ```
+
+## Session Mode
+
+Session mode keeps a single connection open for multiple operations, reducing connection overhead.
+
+```python
+# Without session: each operation opens/closes a connection
+await db.execute("SELECT 1")  # Open, execute, close
+await db.execute("SELECT 2")  # Open, execute, close
+
+# With session: single connection for all operations
+async with db.session() as session:
+    await session.execute("SELECT 1")
+    await session.execute("SELECT 2")
+    await session.insert_batch("users", rows)
+    # Connection closed automatically at end
+
+# With autocommit mode
+async with db.session(autocommit=True) as session:
+    await session.execute("CREATE DATABASE newdb")
+
+# Check if in session mode
+if db.in_session:
+    print("Currently in session mode")
+```
+
+> **Note:** Nested sessions are not supported and will raise a `RuntimeError`.
 
 ## Context Managers
 
@@ -212,7 +265,8 @@ await db.create_schema("new_schema")
 # Tables
 tables = await db.list_tables("public")
 exists = await db.table_exists("users")
-info = await db.table_info("users")
+info = await db.table_info("users")  # Column details
+# Returns: column_name, data_type, is_nullable, column_default, etc.
 count = await db.row_count("users")
 
 # Extensions

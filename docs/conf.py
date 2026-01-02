@@ -24,7 +24,12 @@ extensions = [
     'sphinx.ext.viewcode',   # Add links to source code
     'sphinx.ext.napoleon',   # Google/NumPy docstring support
     'sphinx.ext.intersphinx', # Link to other projects
+    'sphinx_copybutton',     # Copy button for code blocks
 ]
+
+# Copy button settings
+copybutton_prompt_text = r">>> |\.\.\. |\$ "
+copybutton_prompt_is_regexp = True
 
 # MyST parser settings
 myst_enable_extensions = [
@@ -62,6 +67,26 @@ html_theme_options = {
     },
 }
 
+# Sidebar with language switcher
+html_sidebars = {
+    "**": [
+        "sidebar/brand.html",
+        "sidebar/search.html",
+        "sidebar/scroll-start.html",
+        "sidebar/navigation.html",
+        "sidebar/scroll-end.html",
+        "sidebar/language-switcher.html",
+    ],
+}
+
+# Language switcher context
+html_context = {
+    "languages": [
+        ("en", "../en/"),
+        ("fr", "../fr/"),
+    ],
+}
+
 # -- Options for autodoc -----------------------------------------------------
 
 autodoc_default_options = {
@@ -79,3 +104,10 @@ intersphinx_mapping = {
     'pandas': ('https://pandas.pydata.org/docs/', None),
     'geopandas': ('https://geopandas.org/en/stable/', None),
 }
+
+# -- Internationalization (i18n) ---------------------------------------------
+
+language = 'en'
+locale_dirs = ['locale/']
+gettext_compact = False  # One .po file per source file
+gettext_uuid = False     # Disable UUIDs (cleaner .po files)

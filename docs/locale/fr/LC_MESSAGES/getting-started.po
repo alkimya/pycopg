@@ -1,0 +1,115 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../getting-started.md:1
+msgid "Getting Started"
+msgstr "Démarrage rapide"
+
+#: ../../getting-started.md:3
+msgid "Installation"
+msgstr "Installation"
+
+#: ../../getting-started.md:5
+msgid "Basic Installation"
+msgstr "Installation de base"
+
+#: ../../getting-started.md:11
+msgid "With Optional Dependencies"
+msgstr "Avec les dépendances optionnelles"
+
+#: ../../getting-started.md:27
+msgid "Quick Start"
+msgstr "Prise en main"
+
+#: ../../getting-started.md:29
+msgid "Connecting to a Database"
+msgstr "Connexion à une base de données"
+
+#: ../../getting-started.md:31
+msgid "There are three ways to connect:"
+msgstr "Il y a trois façons de se connecter :"
+
+#: ../../getting-started.md:33
+msgid "From Environment Variables"
+msgstr "Depuis les variables d'environnement"
+
+#: ../../getting-started.md:42
+msgid "From URL"
+msgstr "Depuis une URL"
+
+#: ../../getting-started.md:48
+msgid "From Config Object"
+msgstr "Depuis un objet Config"
+
+#: ../../getting-started.md:63
+msgid "Create a New Database"
+msgstr "Créer une nouvelle base de données"
+
+#: ../../getting-started.md:65
+msgid "Create a new database and connect to it in one step:"
+msgstr "Créer une nouvelle base de données et s'y connecter en une seule étape :"
+
+#: ../../getting-started.md:83
+msgid "Basic Operations"
+msgstr "Opérations de base"
+
+#: ../../getting-started.md:123
+msgid "Session Mode"
+msgstr "Mode session"
+
+#: ../../getting-started.md:125
+msgid ""
+"For multiple sequential operations, use session mode to reuse a single "
+"connection:"
+msgstr ""
+"Pour plusieurs opérations séquentielles, utilisez le mode session pour "
+"réutiliser une seule connexion :"
+
+#: ../../getting-started.md:140
+msgid "Using Context Managers"
+msgstr "Utilisation des gestionnaires de contexte"
+
+#: ../../getting-started.md:155
+msgid "Closing Connections"
+msgstr "Fermeture des connexions"
+
+#: ../../getting-started.md:167
+msgid "Next Steps"
+msgstr "Étapes suivantes"
+
+#: ../../getting-started.md:169
+#, python-brace-format
+msgid "{doc}`configuration` - Learn about all configuration options"
+msgstr "{doc}`configuration` - Découvrir toutes les options de configuration"
+
+#: ../../getting-started.md:170
+#, python-brace-format
+msgid "{doc}`database` - Explore the full Database API"
+msgstr "{doc}`database` - Explorer l'API Database complète"
+
+#: ../../getting-started.md:171
+#, python-brace-format
+msgid "{doc}`async-database` - Use async/await with AsyncDatabase"
+msgstr "{doc}`async-database` - Utiliser async/await avec AsyncDatabase"
+
+#: ../../getting-started.md:172
+#, python-brace-format
+msgid "{doc}`connection-pooling` - Connection pooling for production"
+msgstr "{doc}`connection-pooling` - Pool de connexions pour la production"

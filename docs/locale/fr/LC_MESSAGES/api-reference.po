@@ -1,0 +1,1022 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../api-reference.md:1
+msgid "API Reference"
+msgstr "Référence API"
+
+#: ../../api-reference.md:3
+msgid "Complete API reference for all pycopg classes and methods."
+msgstr "Référence API complète pour toutes les classes et méthodes de pycopg."
+
+#: ../../api-reference.md:5
+msgid "Config"
+msgstr "Config"
+
+#: ../../api-reference.md:7
+msgid "Configuration for database connections."
+msgstr "Configuration pour les connexions à la base de données."
+
+#: ../../api-reference.md:13 ../../api-reference.md:65
+#: ../../api-reference.md:257 ../../api-reference.md:299
+#: ../../api-reference.md:328
+msgid "Constructor"
+msgstr "Constructeur"
+
+#: ../../api-reference.md:27 ../../api-reference.md:71
+msgid "Class Methods"
+msgstr "Méthodes de classe"
+
+#: ../../api-reference.md
+msgid "Method"
+msgstr "Méthode"
+
+#: ../../api-reference.md
+msgid "Description"
+msgstr "Description"
+
+#: ../../api-reference.md
+msgid "`from_url(url)`"
+msgstr "`from_url(url)`"
+
+#: ../../api-reference.md
+msgid "Create Config from PostgreSQL URL"
+msgstr "Créer un Config depuis une URL PostgreSQL"
+
+#: ../../api-reference.md
+msgid "`from_env(dotenv_path=None, *, load_dotenv_file=True)`"
+msgstr "`from_env(dotenv_path=None, *, load_dotenv_file=True)`"
+
+#: ../../api-reference.md
+msgid "Create Config from environment variables"
+msgstr "Créer un Config depuis les variables d'environnement"
+
+#: ../../api-reference.md:34
+msgid "from_env Parameters"
+msgstr "Paramètres de from_env"
+
+#: ../../api-reference.md
+msgid "Parameter"
+msgstr "Paramètre"
+
+#: ../../api-reference.md
+msgid "Type"
+msgstr "Type"
+
+#: ../../api-reference.md
+msgid "Default"
+msgstr "Défaut"
+
+#: ../../api-reference.md
+msgid "`dotenv_path`"
+msgstr "`dotenv_path`"
+
+#: ../../api-reference.md
+msgid "`str`, `Path`, or `None`"
+msgstr "`str`, `Path`, ou `None`"
+
+#: ../../api-reference.md
+msgid "`None`"
+msgstr "`None`"
+
+#: ../../api-reference.md
+msgid "Path to .env file"
+msgstr "Chemin vers le fichier .env"
+
+#: ../../api-reference.md
+msgid "`load_dotenv_file`"
+msgstr "`load_dotenv_file`"
+
+#: ../../api-reference.md
+msgid "`bool`"
+msgstr "`bool`"
+
+#: ../../api-reference.md
+msgid "`True`"
+msgstr "`True`"
+
+#: ../../api-reference.md
+msgid "Whether to load .env file. Set `False` to use only existing env vars"
+msgstr "Charger le fichier .env. Mettre `False` pour utiliser uniquement les variables existantes"
+
+#: ../../api-reference.md:41 ../../api-reference.md:283
+msgid "Properties"
+msgstr "Propriétés"
+
+#: ../../api-reference.md
+msgid "Property"
+msgstr "Propriété"
+
+#: ../../api-reference.md
+msgid "`dsn`"
+msgstr "`dsn`"
+
+#: ../../api-reference.md
+msgid "`str`"
+msgstr "`str`"
+
+#: ../../api-reference.md
+msgid "psycopg-compatible DSN string"
+msgstr "Chaîne DSN compatible psycopg"
+
+#: ../../api-reference.md
+msgid "`url`"
+msgstr "`url`"
+
+#: ../../api-reference.md
+msgid "SQLAlchemy-compatible URL"
+msgstr "URL compatible SQLAlchemy"
+
+#: ../../api-reference.md:48 ../../api-reference.md:271
+#: ../../api-reference.md:303 ../../api-reference.md:338
+msgid "Methods"
+msgstr "Méthodes"
+
+#: ../../api-reference.md
+msgid "`connect_params()`"
+msgstr "`connect_params()`"
+
+#: ../../api-reference.md
+msgid "Return dict for psycopg.connect()"
+msgstr "Retourner un dict pour psycopg.connect()"
+
+#: ../../api-reference.md
+msgid "`with_database(name)`"
+msgstr "`with_database(name)`"
+
+#: ../../api-reference.md
+msgid "Create new Config with different database"
+msgstr "Créer un nouveau Config avec une autre base"
+
+#: ../../api-reference.md:57
+msgid "Database"
+msgstr "Database"
+
+#: ../../api-reference.md:59
+msgid "Synchronous database interface."
+msgstr "Interface de base de données synchrone."
+
+#: ../../api-reference.md
+msgid "Create from PostgreSQL URL"
+msgstr "Créer depuis une URL PostgreSQL"
+
+#: ../../api-reference.md
+msgid "`from_env(dotenv_path=None)`"
+msgstr "`from_env(dotenv_path=None)`"
+
+#: ../../api-reference.md
+msgid "Create from environment"
+msgstr "Créer depuis l'environnement"
+
+#: ../../api-reference.md
+msgid "`create(name, host, port, user, password, ...)`"
+msgstr "`create(name, host, port, user, password, ...)`"
+
+#: ../../api-reference.md
+msgid "Create a new database and connect to it"
+msgstr "Créer une nouvelle base et s'y connecter"
+
+#: ../../api-reference.md
+msgid "`create_from_env(name, ...)`"
+msgstr "`create_from_env(name, ...)`"
+
+#: ../../api-reference.md
+msgid "Create database using env credentials"
+msgstr "Créer une base avec les identifiants de l'environnement"
+
+#: ../../api-reference.md:80
+msgid "Query Methods"
+msgstr "Méthodes de requête"
+
+#: ../../api-reference.md
+msgid "Parameters"
+msgstr "Paramètres"
+
+#: ../../api-reference.md
+msgid "Returns"
+msgstr "Retourne"
+
+#: ../../api-reference.md
+msgid "`execute`"
+msgstr "`execute`"
+
+#: ../../api-reference.md
+msgid "`sql, params=None, autocommit=False`"
+msgstr "`sql, params=None, autocommit=False`"
+
+#: ../../api-reference.md
+msgid "`list[dict]`"
+msgstr "`list[dict]`"
+
+#: ../../api-reference.md
+msgid "Execute SQL, return results"
+msgstr "Exécuter SQL, retourner les résultats"
+
+#: ../../api-reference.md
+msgid "`execute_many`"
+msgstr "`execute_many`"
+
+#: ../../api-reference.md
+msgid "`sql, params_seq`"
+msgstr "`sql, params_seq`"
+
+#: ../../api-reference.md
+msgid "`int`"
+msgstr "`int`"
+
+#: ../../api-reference.md
+msgid "Execute for multiple params"
+msgstr "Exécuter pour plusieurs paramètres"
+
+#: ../../api-reference.md
+msgid "`fetch_one`"
+msgstr "`fetch_one`"
+
+#: ../../api-reference.md
+msgid "`sql, params=None`"
+msgstr "`sql, params=None`"
+
+#: ../../api-reference.md
+msgid "`Optional[dict]`"
+msgstr "`Optional[dict]`"
+
+#: ../../api-reference.md
+msgid "Fetch single row"
+msgstr "Récupérer une seule ligne"
+
+#: ../../api-reference.md
+msgid "`fetch_val`"
+msgstr "`fetch_val`"
+
+#: ../../api-reference.md
+msgid "`Any`"
+msgstr "`Any`"
+
+#: ../../api-reference.md
+msgid "Fetch single value"
+msgstr "Récupérer une seule valeur"
+
+#: ../../api-reference.md:89
+msgid "Context Managers"
+msgstr "Gestionnaires de contexte"
+
+#: ../../api-reference.md
+msgid "Yields"
+msgstr "Produit"
+
+#: ../../api-reference.md
+msgid "`connect`"
+msgstr "`connect`"
+
+#: ../../api-reference.md
+msgid "`autocommit=False`"
+msgstr "`autocommit=False`"
+
+#: ../../api-reference.md
+msgid "`Connection`"
+msgstr "`Connection`"
+
+#: ../../api-reference.md
+msgid "Connection context"
+msgstr "Contexte de connexion"
+
+#: ../../api-reference.md
+msgid "`cursor`"
+msgstr "`cursor`"
+
+#: ../../api-reference.md
+msgid "`Cursor`"
+msgstr "`Cursor`"
+
+#: ../../api-reference.md
+msgid "Cursor with dict rows"
+msgstr "Curseur avec lignes dict"
+
+#: ../../api-reference.md:96
+msgid "Schema Methods"
+msgstr "Méthodes de schéma"
+
+#: ../../api-reference.md
+msgid "`list_schemas`"
+msgstr "`list_schemas`"
+
+#: ../../api-reference.md
+msgid "-"
+msgstr "-"
+
+#: ../../api-reference.md
+msgid "`list[str]`"
+msgstr "`list[str]`"
+
+#: ../../api-reference.md
+msgid "`schema_exists`"
+msgstr "`schema_exists`"
+
+#: ../../api-reference.md
+msgid "`name`"
+msgstr "`name`"
+
+#: ../../api-reference.md
+msgid "`create_schema`"
+msgstr "`create_schema`"
+
+#: ../../api-reference.md
+msgid "`name, if_not_exists=True, owner=None`"
+msgstr "`name, if_not_exists=True, owner=None`"
+
+#: ../../api-reference.md
+msgid "`drop_schema`"
+msgstr "`drop_schema`"
+
+#: ../../api-reference.md
+msgid "`name, if_exists=True, cascade=False`"
+msgstr "`name, if_exists=True, cascade=False`"
+
+#: ../../api-reference.md:105
+msgid "Table Methods"
+msgstr "Méthodes de table"
+
+#: ../../api-reference.md
+msgid "`list_tables`"
+msgstr "`list_tables`"
+
+#: ../../api-reference.md
+msgid "`schema=\"public\"`"
+msgstr "`schema=\"public\"`"
+
+#: ../../api-reference.md
+msgid "`table_exists`"
+msgstr "`table_exists`"
+
+#: ../../api-reference.md
+msgid "`name, schema=\"public\"`"
+msgstr "`name, schema=\"public\"`"
+
+#: ../../api-reference.md
+msgid "`table_info`"
+msgstr "`table_info`"
+
+#: ../../api-reference.md
+msgid "`row_count`"
+msgstr "`row_count`"
+
+#: ../../api-reference.md
+msgid "`drop_table`"
+msgstr "`drop_table`"
+
+#: ../../api-reference.md
+msgid "`name, schema=\"public\", if_exists=True, cascade=False`"
+msgstr "`name, schema=\"public\", if_exists=True, cascade=False`"
+
+#: ../../api-reference.md
+msgid "`truncate_table`"
+msgstr "`truncate_table`"
+
+#: ../../api-reference.md
+msgid "`name, schema=\"public\", cascade=False`"
+msgstr "`name, schema=\"public\", cascade=False`"
+
+#: ../../api-reference.md:116
+msgid "Extension Methods"
+msgstr "Méthodes d'extension"
+
+#: ../../api-reference.md
+msgid "`list_extensions`"
+msgstr "`list_extensions`"
+
+#: ../../api-reference.md
+msgid "`has_extension`"
+msgstr "`has_extension`"
+
+#: ../../api-reference.md
+msgid "`create_extension`"
+msgstr "`create_extension`"
+
+#: ../../api-reference.md
+msgid "`name, schema=None, if_not_exists=True`"
+msgstr "`name, schema=None, if_not_exists=True`"
+
+#: ../../api-reference.md
+msgid "`drop_extension`"
+msgstr "`drop_extension`"
+
+#: ../../api-reference.md:125
+msgid "Index Methods"
+msgstr "Méthodes d'index"
+
+#: ../../api-reference.md
+msgid "`create_index`"
+msgstr "`create_index`"
+
+#: ../../api-reference.md
+msgid ""
+"`table, columns, schema=\"public\", name=None, unique=False, "
+"method=\"btree\", if_not_exists=True`"
+msgstr ""
+"`table, columns, schema=\"public\", name=None, unique=False, "
+"method=\"btree\", if_not_exists=True`"
+
+#: ../../api-reference.md
+msgid "`drop_index`"
+msgstr "`drop_index`"
+
+#: ../../api-reference.md
+msgid "`name, schema=\"public\", if_exists=True`"
+msgstr "`name, schema=\"public\", if_exists=True`"
+
+#: ../../api-reference.md
+msgid "`list_indexes`"
+msgstr "`list_indexes`"
+
+#: ../../api-reference.md
+msgid "`table, schema=\"public\"`"
+msgstr "`table, schema=\"public\"`"
+
+#: ../../api-reference.md:133
+msgid "Constraint Methods"
+msgstr "Méthodes de contrainte"
+
+#: ../../api-reference.md
+msgid "`add_primary_key`"
+msgstr "`add_primary_key`"
+
+#: ../../api-reference.md
+msgid "`table, columns, schema=\"public\", name=None`"
+msgstr "`table, columns, schema=\"public\", name=None`"
+
+#: ../../api-reference.md
+msgid "`add_foreign_key`"
+msgstr "`add_foreign_key`"
+
+#: ../../api-reference.md
+msgid "`table, columns, ref_table, ref_columns, ...`"
+msgstr "`table, columns, ref_table, ref_columns, ...`"
+
+#: ../../api-reference.md
+msgid "`add_unique_constraint`"
+msgstr "`add_unique_constraint`"
+
+#: ../../api-reference.md
+msgid "`list_constraints`"
+msgstr "`list_constraints`"
+
+#: ../../api-reference.md:142
+msgid "DataFrame Methods"
+msgstr "Méthodes DataFrame"
+
+#: ../../api-reference.md
+msgid "`from_dataframe`"
+msgstr "`from_dataframe`"
+
+#: ../../api-reference.md
+msgid "`df, table, schema=\"public\", if_exists=\"fail\", primary_key=None, ...`"
+msgstr "`df, table, schema=\"public\", if_exists=\"fail\", primary_key=None, ...`"
+
+#: ../../api-reference.md
+msgid "`to_dataframe`"
+msgstr "`to_dataframe`"
+
+#: ../../api-reference.md
+msgid "`table=None, schema=\"public\", sql=None, params=None`"
+msgstr "`table=None, schema=\"public\", sql=None, params=None`"
+
+#: ../../api-reference.md
+msgid "`DataFrame`"
+msgstr "`DataFrame`"
+
+#: ../../api-reference.md
+msgid "`from_geodataframe`"
+msgstr "`from_geodataframe`"
+
+#: ../../api-reference.md
+msgid "`gdf, table, schema=\"public\", ...`"
+msgstr "`gdf, table, schema=\"public\", ...`"
+
+#: ../../api-reference.md
+msgid "`to_geodataframe`"
+msgstr "`to_geodataframe`"
+
+#: ../../api-reference.md
+msgid ""
+"`table=None, schema=\"public\", sql=None, geometry_column=\"geometry\", "
+"...`"
+msgstr ""
+"`table=None, schema=\"public\", sql=None, geometry_column=\"geometry\", "
+"...`"
+
+#: ../../api-reference.md
+msgid "`GeoDataFrame`"
+msgstr "`GeoDataFrame`"
+
+#: ../../api-reference.md:151
+msgid "PostGIS Methods"
+msgstr "Méthodes PostGIS"
+
+#: ../../api-reference.md
+msgid "`create_spatial_index`"
+msgstr "`create_spatial_index`"
+
+#: ../../api-reference.md
+msgid "`table, column=\"geometry\", schema=\"public\", name=None`"
+msgstr "`table, column=\"geometry\", schema=\"public\", name=None`"
+
+#: ../../api-reference.md
+msgid "`list_geometry_columns`"
+msgstr "`list_geometry_columns`"
+
+#: ../../api-reference.md
+msgid "`schema=None`"
+msgstr "`schema=None`"
+
+#: ../../api-reference.md:158
+msgid "TimescaleDB Methods"
+msgstr "Méthodes TimescaleDB"
+
+#: ../../api-reference.md
+msgid "`create_hypertable`"
+msgstr "`create_hypertable`"
+
+#: ../../api-reference.md
+msgid ""
+"`table, time_column, schema=\"public\", chunk_time_interval=\"1 day\", "
+"...`"
+msgstr ""
+"`table, time_column, schema=\"public\", chunk_time_interval=\"1 day\", "
+"...`"
+
+#: ../../api-reference.md
+msgid "`enable_compression`"
+msgstr "`enable_compression`"
+
+#: ../../api-reference.md
+msgid "`table, segment_by=None, order_by=None, schema=\"public\"`"
+msgstr "`table, segment_by=None, order_by=None, schema=\"public\"`"
+
+#: ../../api-reference.md
+msgid "`add_compression_policy`"
+msgstr "`add_compression_policy`"
+
+#: ../../api-reference.md
+msgid "`table, compress_after=\"7 days\", schema=\"public\"`"
+msgstr "`table, compress_after=\"7 days\", schema=\"public\"`"
+
+#: ../../api-reference.md
+msgid "`add_retention_policy`"
+msgstr "`add_retention_policy`"
+
+#: ../../api-reference.md
+msgid "`table, drop_after, schema=\"public\"`"
+msgstr "`table, drop_after, schema=\"public\"`"
+
+#: ../../api-reference.md
+msgid "`list_hypertables`"
+msgstr "`list_hypertables`"
+
+#: ../../api-reference.md
+msgid "`hypertable_info`"
+msgstr "`hypertable_info`"
+
+#: ../../api-reference.md
+msgid "`dict`"
+msgstr "`dict`"
+
+#: ../../api-reference.md:169
+msgid "Role Methods"
+msgstr "Méthodes de rôle"
+
+#: ../../api-reference.md
+msgid "`create_role`"
+msgstr "`create_role`"
+
+#: ../../api-reference.md
+msgid "`name, password=None, login=True, superuser=False, ...`"
+msgstr "`name, password=None, login=True, superuser=False, ...`"
+
+#: ../../api-reference.md
+msgid "`drop_role`"
+msgstr "`drop_role`"
+
+#: ../../api-reference.md
+msgid "`name, if_exists=True`"
+msgstr "`name, if_exists=True`"
+
+#: ../../api-reference.md
+msgid "`role_exists`"
+msgstr "`role_exists`"
+
+#: ../../api-reference.md
+msgid "`list_roles`"
+msgstr "`list_roles`"
+
+#: ../../api-reference.md
+msgid "`include_system=False`"
+msgstr "`include_system=False`"
+
+#: ../../api-reference.md
+msgid "`alter_role`"
+msgstr "`alter_role`"
+
+#: ../../api-reference.md
+msgid "`name, password=None, login=None, ...`"
+msgstr "`name, password=None, login=None, ...`"
+
+#: ../../api-reference.md
+msgid "`grant_role`"
+msgstr "`grant_role`"
+
+#: ../../api-reference.md
+msgid "`role, member, with_admin=False`"
+msgstr "`role, member, with_admin=False`"
+
+#: ../../api-reference.md
+msgid "`revoke_role`"
+msgstr "`revoke_role`"
+
+#: ../../api-reference.md
+msgid "`role, member`"
+msgstr "`role, member`"
+
+#: ../../api-reference.md
+msgid "`grant`"
+msgstr "`grant`"
+
+#: ../../api-reference.md
+msgid "`privileges, on, to, object_type=\"TABLE\", schema=\"public\", ...`"
+msgstr "`privileges, on, to, object_type=\"TABLE\", schema=\"public\", ...`"
+
+#: ../../api-reference.md
+msgid "`revoke`"
+msgstr "`revoke`"
+
+#: ../../api-reference.md
+msgid "`privileges, on, from_role, object_type=\"TABLE\", schema=\"public\", ...`"
+msgstr "`privileges, on, from_role, object_type=\"TABLE\", schema=\"public\", ...`"
+
+#: ../../api-reference.md
+msgid "`list_role_members`"
+msgstr "`list_role_members`"
+
+#: ../../api-reference.md
+msgid "`role`"
+msgstr "`role`"
+
+#: ../../api-reference.md
+msgid "`list_role_grants`"
+msgstr "`list_role_grants`"
+
+#: ../../api-reference.md:185
+msgid "Backup Methods"
+msgstr "Méthodes de sauvegarde"
+
+#: ../../api-reference.md
+msgid "`pg_dump`"
+msgstr "`pg_dump`"
+
+#: ../../api-reference.md
+msgid "`output_file, format=\"custom\", schema_only=False, ...`"
+msgstr "`output_file, format=\"custom\", schema_only=False, ...`"
+
+#: ../../api-reference.md
+msgid "`pg_restore`"
+msgstr "`pg_restore`"
+
+#: ../../api-reference.md
+msgid "`input_file, clean=False, if_exists=True, ...`"
+msgstr "`input_file, clean=False, if_exists=True, ...`"
+
+#: ../../api-reference.md
+msgid "`copy_to_csv`"
+msgstr "`copy_to_csv`"
+
+#: ../../api-reference.md
+msgid "`table, output_file, schema=\"public\", ...`"
+msgstr "`table, output_file, schema=\"public\", ...`"
+
+#: ../../api-reference.md
+msgid "`copy_from_csv`"
+msgstr "`copy_from_csv`"
+
+#: ../../api-reference.md
+msgid "`table, input_file, schema=\"public\", ...`"
+msgstr "`table, input_file, schema=\"public\", ...`"
+
+#: ../../api-reference.md:194
+msgid "Database Admin Methods"
+msgstr "Méthodes d'administration"
+
+#: ../../api-reference.md
+msgid "`create_database`"
+msgstr "`create_database`"
+
+#: ../../api-reference.md
+msgid "`name, owner=None, template=\"template1\"`"
+msgstr "`name, owner=None, template=\"template1\"`"
+
+#: ../../api-reference.md
+msgid "`drop_database`"
+msgstr "`drop_database`"
+
+#: ../../api-reference.md
+msgid "`database_exists`"
+msgstr "`database_exists`"
+
+#: ../../api-reference.md
+msgid "`list_databases`"
+msgstr "`list_databases`"
+
+#: ../../api-reference.md:203
+msgid "Size/Stats Methods"
+msgstr "Méthodes de taille/stats"
+
+#: ../../api-reference.md
+msgid "`size`"
+msgstr "`size`"
+
+#: ../../api-reference.md
+msgid "`pretty=True`"
+msgstr "`pretty=True`"
+
+#: ../../api-reference.md
+msgid "`str` or `int`"
+msgstr "`str` ou `int`"
+
+#: ../../api-reference.md
+msgid "`table_size`"
+msgstr "`table_size`"
+
+#: ../../api-reference.md
+msgid "`table, schema=\"public\", pretty=True`"
+msgstr "`table, schema=\"public\", pretty=True`"
+
+#: ../../api-reference.md
+msgid "`table_sizes`"
+msgstr "`table_sizes`"
+
+#: ../../api-reference.md
+msgid "`schema=\"public\", limit=20`"
+msgstr "`schema=\"public\", limit=20`"
+
+#: ../../api-reference.md:211
+msgid "Maintenance Methods"
+msgstr "Méthodes de maintenance"
+
+#: ../../api-reference.md
+msgid "`vacuum`"
+msgstr "`vacuum`"
+
+#: ../../api-reference.md
+msgid "`table=None, schema=\"public\", analyze=True, full=False`"
+msgstr "`table=None, schema=\"public\", analyze=True, full=False`"
+
+#: ../../api-reference.md
+msgid "`analyze`"
+msgstr "`analyze`"
+
+#: ../../api-reference.md
+msgid "`table=None, schema=\"public\"`"
+msgstr "`table=None, schema=\"public\"`"
+
+#: ../../api-reference.md
+msgid "`explain`"
+msgstr "`explain`"
+
+#: ../../api-reference.md
+msgid "`sql, params=None, analyze=False, format=\"text\"`"
+msgstr "`sql, params=None, analyze=False, format=\"text\"`"
+
+#: ../../api-reference.md:221
+msgid "AsyncDatabase"
+msgstr "AsyncDatabase"
+
+#: ../../api-reference.md:223
+msgid ""
+"Asynchronous database interface. Same methods as Database with "
+"async/await."
+msgstr ""
+"Interface de base de données asynchrone. Mêmes méthodes que Database avec "
+"async/await."
+
+#: ../../api-reference.md:229
+msgid "Additional Async Methods"
+msgstr "Méthodes async supplémentaires"
+
+#: ../../api-reference.md
+msgid "`stream`"
+msgstr "`stream`"
+
+#: ../../api-reference.md
+msgid "`sql, params=None, batch_size=1000`"
+msgstr "`sql, params=None, batch_size=1000`"
+
+#: ../../api-reference.md
+msgid "`AsyncIterator[dict]`"
+msgstr "`AsyncIterator[dict]`"
+
+#: ../../api-reference.md
+msgid "`insert_many`"
+msgstr "`insert_many`"
+
+#: ../../api-reference.md
+msgid "`table, rows, schema=\"public\", on_conflict=None`"
+msgstr "`table, rows, schema=\"public\", on_conflict=None`"
+
+#: ../../api-reference.md
+msgid "`upsert_many`"
+msgstr "`upsert_many`"
+
+#: ../../api-reference.md
+msgid "`table, rows, conflict_columns, update_columns=None, ...`"
+msgstr "`table, rows, conflict_columns, update_columns=None, ...`"
+
+#: ../../api-reference.md
+msgid "`listen`"
+msgstr "`listen`"
+
+#: ../../api-reference.md
+msgid "`channel`"
+msgstr "`channel`"
+
+#: ../../api-reference.md
+msgid "`AsyncIterator[str]`"
+msgstr "`AsyncIterator[str]`"
+
+#: ../../api-reference.md
+msgid "`notify`"
+msgstr "`notify`"
+
+#: ../../api-reference.md
+msgid "`channel, payload=\"\"`"
+msgstr "`channel, payload=\"\"`"
+
+#: ../../api-reference.md:239
+msgid "Async Context Managers"
+msgstr "Gestionnaires de contexte async"
+
+#: ../../api-reference.md
+msgid "`AsyncConnection`"
+msgstr "`AsyncConnection`"
+
+#: ../../api-reference.md
+msgid "`AsyncCursor`"
+msgstr "`AsyncCursor`"
+
+#: ../../api-reference.md
+msgid "`transaction`"
+msgstr "`transaction`"
+
+#: ../../api-reference.md:249
+msgid "PooledDatabase"
+msgstr "PooledDatabase"
+
+#: ../../api-reference.md:251
+msgid "Synchronous connection pool."
+msgstr "Pool de connexions synchrone."
+
+#: ../../api-reference.md
+msgid "`connection`"
+msgstr "`connection`"
+
+#: ../../api-reference.md
+msgid "`ContextManager[Connection]`"
+msgstr "`ContextManager[Connection]`"
+
+#: ../../api-reference.md
+msgid "`resize`"
+msgstr "`resize`"
+
+#: ../../api-reference.md
+msgid "`min_size, max_size`"
+msgstr "`min_size, max_size`"
+
+#: ../../api-reference.md
+msgid "`check`"
+msgstr "`check`"
+
+#: ../../api-reference.md
+msgid "`wait`"
+msgstr "`wait`"
+
+#: ../../api-reference.md
+msgid "`timeout=30.0`"
+msgstr "`timeout=30.0`"
+
+#: ../../api-reference.md
+msgid "`close`"
+msgstr "`close`"
+
+#: ../../api-reference.md
+msgid "`stats`"
+msgstr "`stats`"
+
+#: ../../api-reference.md
+msgid "Pool statistics"
+msgstr "Statistiques du pool"
+
+#: ../../api-reference.md:291
+msgid "AsyncPooledDatabase"
+msgstr "AsyncPooledDatabase"
+
+#: ../../api-reference.md:293
+msgid "Asynchronous connection pool."
+msgstr "Pool de connexions asynchrone."
+
+#: ../../api-reference.md:301
+msgid "Same as PooledDatabase."
+msgstr "Identique à PooledDatabase."
+
+#: ../../api-reference.md
+msgid "`open`"
+msgstr "`open`"
+
+#: ../../api-reference.md
+msgid "`Coroutine`"
+msgstr "`Coroutine`"
+
+#: ../../api-reference.md
+msgid "`AsyncContextManager[AsyncConnection]`"
+msgstr "`AsyncContextManager[AsyncConnection]`"
+
+#: ../../api-reference.md
+msgid "`Coroutine[list[dict]]`"
+msgstr "`Coroutine[list[dict]]`"
+
+#: ../../api-reference.md
+msgid "`Coroutine[int]`"
+msgstr "`Coroutine[int]`"
+
+#: ../../api-reference.md
+msgid "`Coroutine[Optional[dict]]`"
+msgstr "`Coroutine[Optional[dict]]`"
+
+#: ../../api-reference.md
+msgid "`Coroutine[Any]`"
+msgstr "`Coroutine[Any]`"
+
+#: ../../api-reference.md:320
+msgid "Migrator"
+msgstr "Migrator"
+
+#: ../../api-reference.md:322
+msgid "SQL migration manager."
+msgstr "Gestionnaire de migrations SQL."
+
+#: ../../api-reference.md
+msgid "`status`"
+msgstr "`status`"
+
+#: ../../api-reference.md
+msgid "`pending`"
+msgstr "`pending`"
+
+#: ../../api-reference.md
+msgid "`list[Migration]`"
+msgstr "`list[Migration]`"
+
+#: ../../api-reference.md
+msgid "`applied`"
+msgstr "`applied`"
+
+#: ../../api-reference.md
+msgid "`migrate`"
+msgstr "`migrate`"
+
+#: ../../api-reference.md
+msgid "`target=None`"
+msgstr "`target=None`"
+
+#: ../../api-reference.md
+msgid "`rollback`"
+msgstr "`rollback`"
+
+#: ../../api-reference.md
+msgid "`steps=1`"
+msgstr "`steps=1`"
+
+#: ../../api-reference.md
+msgid "`create`"
+msgstr "`create`"
+
+#: ../../api-reference.md
+msgid "`Path`"
+msgstr "`Path`"
+
+#: ../../api-reference.md:351
+msgid "Exceptions"
+msgstr "Exceptions"

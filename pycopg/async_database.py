@@ -6,19 +6,16 @@ Provides async/await interface for PostgreSQL operations using psycopg's async s
 
 from __future__ import annotations
 
-import re
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Optional, Sequence
+from typing import Any, AsyncIterator, Optional, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
 from psycopg import AsyncConnection, AsyncCursor
 
 from pycopg.config import Config
-
-if TYPE_CHECKING:
-    from psycopg_pool import AsyncConnectionPool
+from pycopg.utils import validate_identifier, validate_identifiers
 
 
 class AsyncDatabase:
@@ -51,7 +48,7 @@ class AsyncDatabase:
             config: Database configuration.
         """
         self.config = config
-        self._pool: Optional[AsyncConnectionPool] = None
+        self._session_conn: Optional[AsyncConnection] = None
 
     @classmethod
     def from_env(cls, dotenv_path: Optional[str | Path] = None) -> "AsyncDatabase":
@@ -115,11 +112,73 @@ class AsyncDatabase:
                 await cur.execute("SELECT * FROM users WHERE id = %s", [1])
                 user = await cur.fetchone()  # Returns dict
         """
-        async with self.connect(autocommit=autocommit) as conn:
-            async with conn.cursor(row_factory=dict_row) as cur:
+        # Use session connection if available
+        if self._session_conn is not None:
+            async with self._session_conn.cursor(row_factory=dict_row) as cur:
                 yield cur
                 if not autocommit:
-                    await conn.commit()
+                    await self._session_conn.commit()
+        else:
+            async with self.connect(autocommit=autocommit) as conn:
+                async with conn.cursor(row_factory=dict_row) as cur:
+                    yield cur
+                    if not autocommit:
+                        await conn.commit()
+
+    @asynccontextmanager
+    async def session(self, autocommit: bool = False) -> AsyncIterator["AsyncDatabase"]:
+        """Async context manager for session mode with connection reuse.
+
+        In session mode, all operations reuse the same connection,
+        significantly reducing overhead for multiple sequential operations.
+
+        Args:
+            autocommit: Enable autocommit mode for the session.
+
+        Yields:
+            Self (AsyncDatabase instance with active session).
+
+        Example:
+            # Without session: each operation opens/closes a connection
+            await db.execute("SELECT 1")  # Open, execute, close
+            await db.execute("SELECT 2")  # Open, execute, close
+
+            # With session: single connection for all operations
+            async with db.session() as session:
+                await session.execute("SELECT 1")  # Reuse connection
+                await session.execute("SELECT 2")  # Reuse connection
+                await session.insert_batch("users", rows)  # Reuse connection
+                # Connection closed automatically at end
+
+            # Useful for batch operations
+            async with db.session() as session:
+                for table in tables:
+                    await session.execute(f"TRUNCATE {table}")
+                    await session.insert_batch(table, data[table])
+        """
+        if self._session_conn is not None:
+            raise RuntimeError("Already in session mode. Nested sessions are not supported.")
+
+        self._session_conn = await psycopg.AsyncConnection.connect(
+            **self.config.connect_params(),
+            autocommit=autocommit
+        )
+        try:
+            yield self
+        finally:
+            if not autocommit:
+                await self._session_conn.commit()
+            await self._session_conn.close()
+            self._session_conn = None
+
+    @property
+    def in_session(self) -> bool:
+        """Check if currently in session mode.
+
+        Returns:
+            True if in session mode, False otherwise.
+        """
+        return self._session_conn is not None
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[AsyncConnection]:
@@ -169,6 +228,8 @@ class AsyncDatabase:
     async def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
         """Execute SQL for multiple parameter sets.
 
+        Uses psycopg's executemany() for better performance.
+
         Args:
             sql: SQL query with placeholders.
             params_seq: Sequence of parameter sequences.
@@ -182,12 +243,116 @@ class AsyncDatabase:
                 [("Alice", "alice@example.com"), ("Bob", "bob@example.com")]
             )
         """
+        async with self.cursor() as cur:
+            await cur.executemany(sql, params_seq)
+            return cur.rowcount
+
+    async def insert_batch(
+        self,
+        table: str,
+        rows: list[dict],
+        schema: str = "public",
+        on_conflict: Optional[str] = None,
+        batch_size: int = 1000,
+    ) -> int:
+        """Insert multiple rows efficiently using batch VALUES.
+
+        This method builds a single INSERT with multiple VALUES tuples,
+        which is significantly faster than individual INSERT statements.
+
+        Args:
+            table: Table name.
+            rows: List of row dicts (all must have same keys).
+            schema: Schema name.
+            on_conflict: Optional ON CONFLICT clause.
+            batch_size: Max rows per INSERT statement (default 1000).
+
+        Returns:
+            Total number of rows inserted.
+
+        Example:
+            await db.insert_batch("users", [
+                {"name": "Alice", "email": "alice@example.com"},
+                {"name": "Bob", "email": "bob@example.com"},
+            ])
+        """
+        if not rows:
+            return 0
+
+        validate_identifiers(table, schema)
+
+        columns = list(rows[0].keys())
+        for col in columns:
+            validate_identifier(col)
+
+        cols_str = ", ".join(columns)
+        conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
+
         total = 0
         async with self.cursor() as cur:
-            for params in params_seq:
+            for i in range(0, len(rows), batch_size):
+                batch = rows[i:i + batch_size]
+
+                placeholders = []
+                params = []
+                for row in batch:
+                    row_placeholders = ", ".join(["%s"] * len(columns))
+                    placeholders.append(f"({row_placeholders})")
+                    params.extend(row.get(col) for col in columns)
+
+                values_str = ", ".join(placeholders)
+                sql = f"INSERT INTO {schema}.{table} ({cols_str}) VALUES {values_str}{conflict_clause}"
+
                 await cur.execute(sql, params)
                 total += cur.rowcount
+
         return total
+
+    async def copy_insert(
+        self,
+        table: str,
+        rows: list[dict],
+        schema: str = "public",
+        columns: Optional[list[str]] = None,
+    ) -> int:
+        """Insert rows using PostgreSQL COPY protocol.
+
+        This is the fastest method for bulk inserts (10-100x faster than
+        regular INSERT for large datasets). Best for >10000 rows.
+
+        Note: COPY doesn't support ON CONFLICT. For upserts, use insert_batch().
+
+        Args:
+            table: Table name.
+            rows: List of row dicts.
+            schema: Schema name.
+            columns: Optional list of column names.
+
+        Returns:
+            Number of rows inserted.
+
+        Example:
+            await db.copy_insert("events", events_list)
+        """
+        if not rows:
+            return 0
+
+        validate_identifiers(table, schema)
+
+        if columns is None:
+            columns = list(rows[0].keys())
+        for col in columns:
+            validate_identifier(col)
+
+        cols_str = ", ".join(columns)
+
+        async with self.connect() as conn:
+            async with conn.cursor() as cur:
+                async with cur.copy(f"COPY {schema}.{table} ({cols_str}) FROM STDIN") as copy:
+                    for row in rows:
+                        await copy.write_row([row.get(col) for col in columns])
+            await conn.commit()
+            return len(rows)
 
     async def fetch_one(self, sql: str, params: Optional[Sequence] = None) -> Optional[dict]:
         """Execute SQL and return single row.
@@ -248,7 +413,7 @@ class AsyncDatabase:
 
     async def create_schema(self, name: str, if_not_exists: bool = True) -> None:
         """Create a schema."""
-        self._validate_identifier(name)
+        validate_identifier(name)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
         await self.execute(f"CREATE SCHEMA {if_clause}{name}")
 
@@ -272,14 +437,26 @@ class AsyncDatabase:
         return len(result) > 0
 
     async def table_info(self, name: str, schema: str = "public") -> list[dict]:
-        """Get column information for a table."""
+        """Get column information for a table.
+
+        Args:
+            name: Table name.
+            schema: Schema name.
+
+        Returns:
+            List of column info dicts with:
+            - column_name, data_type, is_nullable, column_default, ordinal_position
+        """
         return await self.execute("""
             SELECT
                 column_name,
                 data_type,
                 is_nullable,
                 column_default,
-                ordinal_position
+                ordinal_position,
+                character_maximum_length,
+                numeric_precision,
+                numeric_scale
             FROM information_schema.columns
             WHERE table_schema = %s AND table_name = %s
             ORDER BY ordinal_position
@@ -410,8 +587,7 @@ class AsyncDatabase:
         if not rows:
             return 0
 
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
+        validate_identifiers(table, schema)
 
         columns = list(rows[0].keys())
         placeholders = ", ".join(["%s"] * len(columns))
@@ -521,7 +697,7 @@ class AsyncDatabase:
                 event = json.loads(payload)
                 handle_event(event)
         """
-        self._validate_identifier(channel)
+        validate_identifier(channel)
 
         async with self.connect(autocommit=True) as conn:
             await conn.execute(f"LISTEN {channel}")
@@ -538,24 +714,17 @@ class AsyncDatabase:
         Example:
             await db.notify("events", json.dumps({"type": "user_created", "id": 1}))
         """
-        self._validate_identifier(channel)
+        validate_identifier(channel)
         await self.execute(f"NOTIFY {channel}, %s", [payload], autocommit=True)
 
-    # =========================================================================
-    # UTILITY
-    # =========================================================================
-
-    @staticmethod
-    def _validate_identifier(name: str) -> None:
-        """Validate SQL identifier to prevent injection."""
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
-            raise ValueError(f"Invalid identifier: {name}")
-
     async def close(self) -> None:
-        """Close database connections."""
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
+        """Close database connections.
+
+        Note: AsyncDatabase creates connections on-demand and closes them
+        after each operation. This method exists for API consistency with
+        the context manager protocol.
+        """
+        pass
 
     async def __aenter__(self) -> "AsyncDatabase":
         return self

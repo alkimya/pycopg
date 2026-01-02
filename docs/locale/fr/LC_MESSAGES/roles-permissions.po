@@ -1,0 +1,179 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../roles-permissions.md:1
+msgid "Roles & Permissions"
+msgstr "Rôles et permissions"
+
+#: ../../roles-permissions.md:3
+msgid ""
+"pycopg provides comprehensive role and permission management for "
+"PostgreSQL."
+msgstr ""
+"pycopg fournit une gestion complète des rôles et permissions pour "
+"PostgreSQL."
+
+#: ../../roles-permissions.md:5
+msgid "Creating Roles"
+msgstr "Création de rôles"
+
+#: ../../roles-permissions.md:7
+msgid "Basic User"
+msgstr "Utilisateur de base"
+
+#: ../../roles-permissions.md:14
+msgid "With Options"
+msgstr "Avec options"
+
+#: ../../roles-permissions.md:32
+msgid "Group Roles"
+msgstr "Rôles de groupe"
+
+#: ../../roles-permissions.md:34
+msgid "Group roles don't log in but grant permissions to members."
+msgstr "Les rôles de groupe ne se connectent pas mais accordent des permissions aux membres."
+
+#: ../../roles-permissions.md:44
+msgid "Managing Roles"
+msgstr "Gestion des rôles"
+
+#: ../../roles-permissions.md:46
+msgid "Alter Role"
+msgstr "Modifier un rôle"
+
+#: ../../roles-permissions.md:70
+msgid "Drop Role"
+msgstr "Supprimer un rôle"
+
+#: ../../roles-permissions.md:77
+msgid "Check Role Exists"
+msgstr "Vérifier si un rôle existe"
+
+#: ../../roles-permissions.md:84
+msgid "List Roles"
+msgstr "Lister les rôles"
+
+#: ../../roles-permissions.md:106
+msgid "Role Membership"
+msgstr "Appartenance aux rôles"
+
+#: ../../roles-permissions.md:108
+msgid "Grant Role"
+msgstr "Accorder un rôle"
+
+#: ../../roles-permissions.md:118
+msgid "Revoke Role"
+msgstr "Révoquer un rôle"
+
+#: ../../roles-permissions.md:124
+msgid "List Role Members"
+msgstr "Lister les membres d'un rôle"
+
+#: ../../roles-permissions.md:131
+msgid "Granting Privileges"
+msgstr "Accorder des privilèges"
+
+#: ../../roles-permissions.md:133
+msgid "On Tables"
+msgstr "Sur les tables"
+
+#: ../../roles-permissions.md:146
+msgid "On All Tables in Schema"
+msgstr "Sur toutes les tables d'un schéma"
+
+#: ../../roles-permissions.md:156
+msgid "On Schemas"
+msgstr "Sur les schémas"
+
+#: ../../roles-permissions.md:169
+msgid "On Databases"
+msgstr "Sur les bases de données"
+
+#: ../../roles-permissions.md:179
+msgid "With Grant Option"
+msgstr "Avec option de transmission"
+
+#: ../../roles-permissions.md:186
+msgid "Revoking Privileges"
+msgstr "Révoquer des privilèges"
+
+#: ../../roles-permissions.md:188
+msgid "Basic Revoke"
+msgstr "Révocation de base"
+
+#: ../../roles-permissions.md:195
+msgid "Cascade Revoke"
+msgstr "Révocation en cascade"
+
+#: ../../roles-permissions.md:202
+msgid "On Schemas and Databases"
+msgstr "Sur les schémas et bases de données"
+
+#: ../../roles-permissions.md:209
+msgid "Listing Grants"
+msgstr "Lister les autorisations"
+
+#: ../../roles-permissions.md:221
+msgid "Common Patterns"
+msgstr "Patterns courants"
+
+#: ../../roles-permissions.md:223
+msgid "Read-Only User"
+msgstr "Utilisateur en lecture seule"
+
+#: ../../roles-permissions.md:235
+msgid "Application User"
+msgstr "Utilisateur applicatif"
+
+#: ../../roles-permissions.md:245
+msgid "Admin User"
+msgstr "Utilisateur administrateur"
+
+#: ../../roles-permissions.md:260
+msgid "Team Hierarchy"
+msgstr "Hiérarchie d'équipe"
+
+#: ../../roles-permissions.md:277
+msgid "Row-Level Security"
+msgstr "Sécurité au niveau des lignes (RLS)"
+
+#: ../../roles-permissions.md:279
+msgid "For fine-grained access control, use PostgreSQL's RLS."
+msgstr "Pour un contrôle d'accès fin, utilisez le RLS de PostgreSQL."
+
+#: ../../roles-permissions.md:297
+msgid "Best Practices"
+msgstr "Bonnes pratiques"
+
+#: ../../roles-permissions.md:299
+msgid "1. Use Role Hierarchy"
+msgstr "1. Utilisez une hiérarchie de rôles"
+
+#: ../../roles-permissions.md:314
+msgid "2. Principle of Least Privilege"
+msgstr "2. Principe du moindre privilège"
+
+#: ../../roles-permissions.md:324
+msgid "3. Use Separate Roles for Apps"
+msgstr "3. Utilisez des rôles séparés pour les applications"
+
+#: ../../roles-permissions.md:333
+msgid "4. Regular Audits"
+msgstr "4. Audits réguliers"

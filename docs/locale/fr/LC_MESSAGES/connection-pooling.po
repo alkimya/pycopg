@@ -1,0 +1,191 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../connection-pooling.md:1
+msgid "Connection Pooling"
+msgstr "Pool de connexions"
+
+#: ../../connection-pooling.md:3
+msgid ""
+"Connection pooling improves performance by reusing database connections "
+"instead of creating new ones for each request."
+msgstr ""
+"Le pool de connexions améliore les performances en réutilisant les connexions "
+"à la base de données au lieu d'en créer de nouvelles pour chaque requête."
+
+#: ../../connection-pooling.md:5
+msgid "When to Use Pooling"
+msgstr "Quand utiliser le pooling"
+
+#: ../../connection-pooling.md:7
+msgid "Use connection pooling when:"
+msgstr "Utilisez le pool de connexions quand :"
+
+#: ../../connection-pooling.md:8
+msgid "Building web applications with many concurrent requests"
+msgstr "Vous construisez des applications web avec de nombreuses requêtes concurrentes"
+
+#: ../../connection-pooling.md:9
+msgid "Running background workers that need frequent database access"
+msgstr "Vous exécutez des workers en arrière-plan nécessitant des accès fréquents à la base"
+
+#: ../../connection-pooling.md:10
+msgid "Any application where connection overhead is significant"
+msgstr "Toute application où le surcoût de connexion est significatif"
+
+#: ../../connection-pooling.md:12
+msgid "Sync Pool: PooledDatabase"
+msgstr "Pool synchrone : PooledDatabase"
+
+#: ../../connection-pooling.md:41
+msgid "Context Manager"
+msgstr "Gestionnaire de contexte"
+
+#: ../../connection-pooling.md:51
+msgid "Pool Statistics"
+msgstr "Statistiques du pool"
+
+#: ../../connection-pooling.md:65
+msgid "Dynamic Resizing"
+msgstr "Redimensionnement dynamique"
+
+#: ../../connection-pooling.md:78
+msgid "Async Pool: AsyncPooledDatabase"
+msgstr "Pool asynchrone : AsyncPooledDatabase"
+
+#: ../../connection-pooling.md:115
+msgid "Async Context Manager"
+msgstr "Gestionnaire de contexte async"
+
+#: ../../connection-pooling.md:123
+msgid "Pool Configuration"
+msgstr "Configuration du pool"
+
+#: ../../connection-pooling.md
+msgid "Parameter"
+msgstr "Paramètre"
+
+#: ../../connection-pooling.md
+msgid "Default"
+msgstr "Défaut"
+
+#: ../../connection-pooling.md
+msgid "Description"
+msgstr "Description"
+
+#: ../../connection-pooling.md
+msgid "`min_size`"
+msgstr "`min_size`"
+
+#: ../../connection-pooling.md
+msgid "2"
+msgstr "2"
+
+#: ../../connection-pooling.md
+msgid "Minimum connections to maintain"
+msgstr "Nombre minimum de connexions à maintenir"
+
+#: ../../connection-pooling.md
+msgid "`max_size`"
+msgstr "`max_size`"
+
+#: ../../connection-pooling.md
+msgid "10"
+msgstr "10"
+
+#: ../../connection-pooling.md
+msgid "Maximum connections allowed"
+msgstr "Nombre maximum de connexions autorisées"
+
+#: ../../connection-pooling.md
+msgid "`max_idle`"
+msgstr "`max_idle`"
+
+#: ../../connection-pooling.md
+msgid "300.0"
+msgstr "300.0"
+
+#: ../../connection-pooling.md
+msgid "Close idle connections after N seconds"
+msgstr "Fermer les connexions inactives après N secondes"
+
+#: ../../connection-pooling.md
+msgid "`max_lifetime`"
+msgstr "`max_lifetime`"
+
+#: ../../connection-pooling.md
+msgid "3600.0"
+msgstr "3600.0"
+
+#: ../../connection-pooling.md
+msgid "Close connections after N seconds"
+msgstr "Fermer les connexions après N secondes"
+
+#: ../../connection-pooling.md
+msgid "`timeout`"
+msgstr "`timeout`"
+
+#: ../../connection-pooling.md
+msgid "30.0"
+msgstr "30.0"
+
+#: ../../connection-pooling.md
+msgid "Wait timeout for getting a connection"
+msgstr "Délai d'attente pour obtenir une connexion"
+
+#: ../../connection-pooling.md
+msgid "`num_workers`"
+msgstr "`num_workers`"
+
+#: ../../connection-pooling.md
+msgid "3"
+msgstr "3"
+
+#: ../../connection-pooling.md
+msgid "Background workers for pool management"
+msgstr "Workers en arrière-plan pour la gestion du pool"
+
+#: ../../connection-pooling.md:134
+msgid "Best Practices"
+msgstr "Bonnes pratiques"
+
+#: ../../connection-pooling.md:136
+msgid "1. Size Your Pool Appropriately"
+msgstr "1. Dimensionnez votre pool correctement"
+
+#: ../../connection-pooling.md:144
+msgid "2. Use Connection Context Managers"
+msgstr "2. Utilisez les gestionnaires de contexte de connexion"
+
+#: ../../connection-pooling.md:159
+msgid "3. Handle Pool Exhaustion"
+msgstr "3. Gérez l'épuisement du pool"
+
+#: ../../connection-pooling.md:173
+msgid "4. Monitor Pool Health"
+msgstr "4. Surveillez la santé du pool"
+
+#: ../../connection-pooling.md:187
+msgid "FastAPI Integration"
+msgstr "Intégration FastAPI"
+
+#: ../../connection-pooling.md:218
+msgid "Flask Integration"
+msgstr "Intégration Flask"

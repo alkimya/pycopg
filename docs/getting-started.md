@@ -104,11 +104,37 @@ db.execute(
     ["Alice", "alice@example.com"]
 )
 
-# Batch insert
+# Batch insert (uses executemany internally)
 db.execute_many(
     "INSERT INTO users (name) VALUES (%s)",
     [("Alice",), ("Bob",), ("Charlie",)]
 )
+
+# High-performance batch insert (single INSERT with multiple VALUES)
+db.insert_batch("users", [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"},
+])
+
+# Ultra-fast bulk insert using COPY protocol
+db.copy_insert("users", large_rows)
+```
+
+### Session Mode
+
+For multiple sequential operations, use session mode to reuse a single connection:
+
+```python
+# Without session: each operation opens/closes a connection
+db.execute("SELECT 1")  # Open, execute, close
+db.execute("SELECT 2")  # Open, execute, close
+
+# With session: single connection for all operations (much faster)
+with db.session() as session:
+    session.execute("SELECT 1")
+    session.execute("SELECT 2")
+    session.insert_batch("users", rows)
+    # Connection closed automatically at end
 ```
 
 ### Using Context Managers

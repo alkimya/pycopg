@@ -1,8 +1,11 @@
 # pycopg
 
-High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
+High-level Python API for PostgreSQL/PostGIS/TimescaleDB built on [psycopg 3](https://www.psycopg.org/psycopg3/).
 
 Simple, powerful, pythonic database operations with sync and async support.
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Installation
 
@@ -68,11 +71,47 @@ users = db.execute("SELECT * FROM users WHERE active = %s", [True])
 # Insert/Update
 db.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ["Alice", "alice@example.com"])
 
-# Batch insert
+# Batch insert (optimized with executemany)
 db.execute_many(
     "INSERT INTO users (name) VALUES (%s)",
     [("Alice",), ("Bob",), ("Charlie",)]
 )
+
+# High-performance batch insert (single INSERT with multiple VALUES)
+db.insert_batch("users", [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"},
+    {"name": "Charlie", "email": "charlie@example.com"},
+])
+
+# Upsert with conflict handling
+db.insert_batch("users", rows, on_conflict="(email) DO UPDATE SET name = EXCLUDED.name")
+
+# Ultra-fast bulk insert using COPY protocol (10-100x faster for large datasets)
+db.copy_insert("users", rows)
+```
+
+### Session Mode (Connection Reuse)
+
+For multiple sequential operations, use session mode to reuse a single connection:
+
+```python
+# Without session: each operation opens/closes a connection
+db.execute("SELECT 1")  # Open, execute, close
+db.execute("SELECT 2")  # Open, execute, close
+
+# With session: single connection for all operations (much faster)
+with db.session() as session:
+    session.execute("SELECT 1")
+    session.execute("SELECT 2")
+    session.insert_batch("users", rows)
+    # Connection closed automatically at end
+
+# Useful for batch operations
+with db.session() as session:
+    for table in tables:
+        session.truncate_table(table)
+        session.insert_batch(table, data[table])
 ```
 
 ### DataFrame Operations

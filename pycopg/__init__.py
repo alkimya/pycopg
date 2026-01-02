@@ -53,6 +53,12 @@ from pycopg.exceptions import (
     InvalidIdentifier,
     MigrationError,
 )
+from pycopg.utils import (
+    validate_identifier,
+    validate_identifiers,
+    validate_interval,
+    validate_index_method,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -73,6 +79,11 @@ __all__ = [
     "TableNotFound",
     "InvalidIdentifier",
     "MigrationError",
+    # Utilities
+    "validate_identifier",
+    "validate_identifiers",
+    "validate_interval",
+    "validate_index_method",
     # Metadata
     "__version__",
 ]

@@ -1,6 +1,6 @@
 # pycopg Documentation
 
-High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
+High-level Python API for PostgreSQL/PostGIS/TimescaleDB built on [psycopg 3](https://www.psycopg.org/psycopg3/).
 
 ```{toctree}
 :maxdepth: 2
@@ -21,7 +21,10 @@ api-reference
 
 ## Features
 
+- **Simple API**: Pythonic interface for common database operations
 - **Sync & Async**: Full async/await support with `AsyncDatabase`
+- **Session Mode**: Connection reuse for batch operations with `db.session()`
+- **High-Performance Inserts**: `insert_batch()` and `copy_insert()` for bulk operations
 - **Connection Pooling**: Built-in pooling with `PooledDatabase` and `AsyncPooledDatabase`
 - **DataFrame Integration**: Seamless pandas/geopandas support
 - **Migrations**: Simple SQL-based migration system
@@ -29,6 +32,7 @@ api-reference
 - **TimescaleDB**: Hypertables, compression, and retention policies
 - **Role Management**: Create roles, grant/revoke privileges
 - **Backup/Restore**: pg_dump/pg_restore and CSV import/export
+- **Type Safety**: Full type hints for IDE support
 
 ## Quick Example
 
@@ -45,6 +49,17 @@ print(db.size())
 
 # Query
 users = db.execute("SELECT * FROM users WHERE active = %s", [True])
+
+# High-performance batch insert
+db.insert_batch("users", [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"},
+])
+
+# Session mode for connection reuse
+with db.session() as session:
+    session.execute("SELECT 1")
+    session.insert_batch("events", rows)
 
 # Close
 db.close()

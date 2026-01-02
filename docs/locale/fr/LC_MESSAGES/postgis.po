@@ -1,0 +1,135 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../postgis.md:1
+msgid "PostGIS Support"
+msgstr "Support PostGIS"
+
+#: ../../postgis.md:3
+msgid ""
+"pycopg provides first-class support for PostGIS spatial operations with "
+"GeoPandas integration."
+msgstr ""
+"pycopg fournit un support de première classe pour les opérations spatiales "
+"PostGIS avec intégration GeoPandas."
+
+#: ../../postgis.md:5
+msgid "Prerequisites"
+msgstr "Prérequis"
+
+#: ../../postgis.md:7
+msgid "PostGIS extension installed on your PostgreSQL server"
+msgstr "Extension PostGIS installée sur votre serveur PostgreSQL"
+
+#: ../../postgis.md:8
+msgid "GeoPandas installed: `pip install pycopg[geo]`"
+msgstr "GeoPandas installé : `pip install pycopg[geo]`"
+
+#: ../../postgis.md:10
+msgid "Setup"
+msgstr "Configuration"
+
+#: ../../postgis.md:25
+msgid "Creating Spatial Tables"
+msgstr "Création de tables spatiales"
+
+#: ../../postgis.md:27
+msgid "From GeoDataFrame"
+msgstr "Depuis un GeoDataFrame"
+
+#: ../../postgis.md:44
+msgid "Options"
+msgstr "Options"
+
+#: ../../postgis.md:59
+msgid "Reading Spatial Data"
+msgstr "Lecture de données spatiales"
+
+#: ../../postgis.md:61
+msgid "Full Table"
+msgstr "Table complète"
+
+#: ../../postgis.md:69
+msgid "With SQL Query"
+msgstr "Avec une requête SQL"
+
+#: ../../postgis.md:97
+msgid "Spatial Indexes"
+msgstr "Index spatiaux"
+
+#: ../../postgis.md:99
+msgid "Create GIST Index"
+msgstr "Créer un index GIST"
+
+#: ../../postgis.md:112
+msgid "Using Regular Index API"
+msgstr "Utilisation de l'API d'index standard"
+
+#: ../../postgis.md:122
+msgid "Listing Geometry Columns"
+msgstr "Lister les colonnes géométriques"
+
+#: ../../postgis.md:143
+msgid "Common Spatial Operations"
+msgstr "Opérations spatiales courantes"
+
+#: ../../postgis.md:145
+msgid "Point in Polygon"
+msgstr "Point dans un polygone"
+
+#: ../../postgis.md:158
+msgid "Distance Queries"
+msgstr "Requêtes de distance"
+
+#: ../../postgis.md:178
+msgid "Intersection"
+msgstr "Intersection"
+
+#: ../../postgis.md:191
+msgid "Buffer"
+msgstr "Buffer (zone tampon)"
+
+#: ../../postgis.md:202
+msgid "Centroid"
+msgstr "Centroïde"
+
+#: ../../postgis.md:214
+msgid "Area and Perimeter"
+msgstr "Aire et périmètre"
+
+#: ../../postgis.md:228
+msgid "Coordinate Reference Systems"
+msgstr "Systèmes de référence de coordonnées"
+
+#: ../../postgis.md:230
+msgid "Checking CRS"
+msgstr "Vérifier le CRS"
+
+#: ../../postgis.md:237
+msgid "Transforming CRS"
+msgstr "Transformer le CRS"
+
+#: ../../postgis.md:251
+msgid "Setting SRID"
+msgstr "Définir le SRID"
+
+#: ../../postgis.md:265
+msgid "Example: Spatial Analysis"
+msgstr "Exemple : Analyse spatiale"

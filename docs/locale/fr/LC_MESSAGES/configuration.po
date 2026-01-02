@@ -1,0 +1,253 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../configuration.md:1
+msgid "Configuration"
+msgstr "Configuration"
+
+#: ../../configuration.md:3
+msgid "Config Class"
+msgstr "Classe Config"
+
+#: ../../configuration.md:5
+msgid "The `Config` class manages database connection settings."
+msgstr "La classe `Config` gère les paramètres de connexion à la base de données."
+
+#: ../../configuration.md:21
+msgid "Connection Methods"
+msgstr "Méthodes de connexion"
+
+#: ../../configuration.md:23
+msgid "From URL"
+msgstr "Depuis une URL"
+
+#: ../../configuration.md:34
+msgid "From Environment Variables"
+msgstr "Depuis les variables d'environnement"
+
+#: ../../configuration.md:44
+msgid "Environment Variables"
+msgstr "Variables d'environnement"
+
+#: ../../configuration.md:46
+msgid "pycopg reads configuration from environment variables in this order:"
+msgstr "pycopg lit la configuration depuis les variables d'environnement dans cet ordre :"
+
+#: ../../configuration.md:48
+msgid "`DATABASE_URL` - Full connection URL (takes precedence)"
+msgstr "`DATABASE_URL` - URL de connexion complète (prioritaire)"
+
+#: ../../configuration.md:49
+msgid "Individual variables:"
+msgstr "Variables individuelles :"
+
+#: ../../configuration.md
+msgid "Variable"
+msgstr "Variable"
+
+#: ../../configuration.md
+msgid "Alternative"
+msgstr "Alternative"
+
+#: ../../configuration.md
+msgid "Default"
+msgstr "Défaut"
+
+#: ../../configuration.md
+msgid "Description"
+msgstr "Description"
+
+#: ../../configuration.md
+msgid "`DB_HOST`"
+msgstr "`DB_HOST`"
+
+#: ../../configuration.md
+msgid "`PGHOST`"
+msgstr "`PGHOST`"
+
+#: ../../configuration.md
+msgid "localhost"
+msgstr "localhost"
+
+#: ../../configuration.md
+msgid "Database host"
+msgstr "Hôte de la base"
+
+#: ../../configuration.md
+msgid "`DB_PORT`"
+msgstr "`DB_PORT`"
+
+#: ../../configuration.md
+msgid "`PGPORT`"
+msgstr "`PGPORT`"
+
+#: ../../configuration.md
+msgid "5432"
+msgstr "5432"
+
+#: ../../configuration.md
+msgid "Database port"
+msgstr "Port de la base"
+
+#: ../../configuration.md
+msgid "`DB_NAME`"
+msgstr "`DB_NAME`"
+
+#: ../../configuration.md
+msgid "`PGDATABASE`"
+msgstr "`PGDATABASE`"
+
+#: ../../configuration.md
+msgid "postgres"
+msgstr "postgres"
+
+#: ../../configuration.md
+msgid "Database name"
+msgstr "Nom de la base"
+
+#: ../../configuration.md
+msgid "`DB_USER`"
+msgstr "`DB_USER`"
+
+#: ../../configuration.md
+msgid "`PGUSER`"
+msgstr "`PGUSER`"
+
+#: ../../configuration.md
+msgid "Username"
+msgstr "Nom d'utilisateur"
+
+#: ../../configuration.md
+msgid "`DB_PASSWORD`"
+msgstr "`DB_PASSWORD`"
+
+#: ../../configuration.md
+msgid "`PGPASSWORD`"
+msgstr "`PGPASSWORD`"
+
+#: ../../configuration.md
+msgid "(empty)"
+msgstr "(vide)"
+
+#: ../../configuration.md
+msgid "Password"
+msgstr "Mot de passe"
+
+#: ../../configuration.md
+msgid "`DB_SSLMODE`"
+msgstr "`DB_SSLMODE`"
+
+#: ../../configuration.md
+msgid "`PGSSLMODE`"
+msgstr "`PGSSLMODE`"
+
+#: ../../configuration.md
+msgid "(none)"
+msgstr "(aucun)"
+
+#: ../../configuration.md
+msgid "SSL mode"
+msgstr "Mode SSL"
+
+#: ../../configuration.md:60
+msgid "Using .env Files"
+msgstr "Utilisation des fichiers .env"
+
+#: ../../configuration.md:62
+msgid ""
+"If you have `python-dotenv` installed (`pip install pycopg[dotenv]`), the"
+" `Config.from_env()` method will automatically load variables from a "
+"`.env` file:"
+msgstr ""
+"Si vous avez installé `python-dotenv` (`pip install pycopg[dotenv]`), la "
+"méthode `Config.from_env()` chargera automatiquement les variables depuis "
+"un fichier `.env` :"
+
+#: ../../configuration.md:86
+msgid "Config Properties"
+msgstr "Propriétés de Config"
+
+#: ../../configuration.md:104
+msgid "Switching Databases"
+msgstr "Changer de base de données"
+
+#: ../../configuration.md:106
+msgid "Create a new config pointing to a different database:"
+msgstr "Créer une nouvelle configuration pointant vers une autre base de données :"
+
+#: ../../configuration.md:113
+msgid "SSL Modes"
+msgstr "Modes SSL"
+
+#: ../../configuration.md:115
+msgid "Supported SSL modes:"
+msgstr "Modes SSL supportés :"
+
+#: ../../configuration.md
+msgid "Mode"
+msgstr "Mode"
+
+#: ../../configuration.md
+msgid "`disable`"
+msgstr "`disable`"
+
+#: ../../configuration.md
+msgid "No SSL"
+msgstr "Pas de SSL"
+
+#: ../../configuration.md
+msgid "`allow`"
+msgstr "`allow`"
+
+#: ../../configuration.md
+msgid "Prefer non-SSL, allow SSL"
+msgstr "Préférer non-SSL, autoriser SSL"
+
+#: ../../configuration.md
+msgid "`prefer`"
+msgstr "`prefer`"
+
+#: ../../configuration.md
+msgid "Prefer SSL, allow non-SSL"
+msgstr "Préférer SSL, autoriser non-SSL"
+
+#: ../../configuration.md
+msgid "`require`"
+msgstr "`require`"
+
+#: ../../configuration.md
+msgid "Require SSL (no verification)"
+msgstr "Exiger SSL (sans vérification)"
+
+#: ../../configuration.md
+msgid "`verify-ca`"
+msgstr "`verify-ca`"
+
+#: ../../configuration.md
+msgid "Require SSL + verify CA"
+msgstr "Exiger SSL + vérifier le CA"
+
+#: ../../configuration.md
+msgid "`verify-full`"
+msgstr "`verify-full`"
+
+#: ../../configuration.md
+msgid "Require SSL + verify CA + hostname"
+msgstr "Exiger SSL + vérifier CA + nom d'hôte"

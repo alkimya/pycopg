@@ -1,0 +1,199 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../async-database.md:1
+msgid "AsyncDatabase Class"
+msgstr "Classe AsyncDatabase"
+
+#: ../../async-database.md:3
+msgid ""
+"The `AsyncDatabase` class provides async/await support for all database "
+"operations."
+msgstr ""
+"La classe `AsyncDatabase` fournit le support async/await pour toutes les "
+"opérations de base de données."
+
+#: ../../async-database.md:5
+msgid "Connection"
+msgstr "Connexion"
+
+#: ../../async-database.md:21
+msgid "Query Execution"
+msgstr "Exécution de requêtes"
+
+#: ../../async-database.md:23
+msgid "execute()"
+msgstr "execute()"
+
+#: ../../async-database.md:38
+msgid "execute_many()"
+msgstr "execute_many()"
+
+#: ../../async-database.md:40
+msgid ""
+"Execute SQL for multiple parameter sets. Uses `executemany()` internally "
+"for better performance."
+msgstr ""
+"Exécuter du SQL pour plusieurs jeux de paramètres. Utilise `executemany()` "
+"en interne pour de meilleures performances."
+
+#: ../../async-database.md:53
+msgid "insert_batch()"
+msgstr "insert_batch()"
+
+#: ../../async-database.md:55
+msgid ""
+"High-performance batch insert using a single INSERT with multiple VALUES "
+"tuples."
+msgstr ""
+"Insertion par lot haute performance utilisant un seul INSERT avec plusieurs "
+"tuples VALUES."
+
+#: ../../async-database.md:68
+msgid "copy_insert()"
+msgstr "copy_insert()"
+
+#: ../../async-database.md:70
+msgid "Ultra-fast bulk insert using PostgreSQL's COPY protocol."
+msgstr "Insertion en masse ultra-rapide utilisant le protocole COPY de PostgreSQL."
+
+#: ../../async-database.md:77
+msgid "fetch_one()"
+msgstr "fetch_one()"
+
+#: ../../async-database.md:87
+msgid "fetch_val()"
+msgstr "fetch_val()"
+
+#: ../../async-database.md:97
+msgid "Session Mode"
+msgstr "Mode session"
+
+#: ../../async-database.md:99
+msgid ""
+"Session mode keeps a single connection open for multiple operations, "
+"reducing connection overhead."
+msgstr ""
+"Le mode session maintient une seule connexion ouverte pour plusieurs "
+"opérations, réduisant le surcoût de connexion."
+
+#: ../../async-database.md:122
+msgid ""
+"**Note:** Nested sessions are not supported and will raise a "
+"`RuntimeError`."
+msgstr ""
+"**Note :** Les sessions imbriquées ne sont pas supportées et lèveront une "
+"`RuntimeError`."
+
+#: ../../async-database.md:124
+msgid "Context Managers"
+msgstr "Gestionnaires de contexte"
+
+#: ../../async-database.md:126
+msgid "connect()"
+msgstr "connect()"
+
+#: ../../async-database.md:128
+msgid "Async connection context manager."
+msgstr "Gestionnaire de contexte de connexion async."
+
+#: ../../async-database.md:140
+msgid "cursor()"
+msgstr "cursor()"
+
+#: ../../async-database.md:142
+msgid "Async cursor context manager with dict rows."
+msgstr "Gestionnaire de contexte de curseur async avec lignes dict."
+
+#: ../../async-database.md:151
+msgid "transaction()"
+msgstr "transaction()"
+
+#: ../../async-database.md:153
+msgid "Transaction context manager with automatic commit/rollback."
+msgstr "Gestionnaire de contexte de transaction avec commit/rollback automatique."
+
+#: ../../async-database.md:163
+msgid "Streaming Results"
+msgstr "Résultats en streaming"
+
+#: ../../async-database.md:165
+msgid ""
+"For large result sets, use streaming to avoid loading everything into "
+"memory."
+msgstr ""
+"Pour les gros jeux de résultats, utilisez le streaming pour éviter de tout "
+"charger en mémoire."
+
+#: ../../async-database.md:180
+msgid "Batch Operations"
+msgstr "Opérations par lot"
+
+#: ../../async-database.md:182
+msgid "insert_many()"
+msgstr "insert_many()"
+
+#: ../../async-database.md:184
+msgid "Efficiently insert multiple rows."
+msgstr "Insérer efficacement plusieurs lignes."
+
+#: ../../async-database.md:202
+msgid "upsert_many()"
+msgstr "upsert_many()"
+
+#: ../../async-database.md:204
+msgid "Insert or update rows based on conflict columns."
+msgstr "Insérer ou mettre à jour des lignes selon les colonnes de conflit."
+
+#: ../../async-database.md:218
+msgid "LISTEN/NOTIFY"
+msgstr "LISTEN/NOTIFY"
+
+#: ../../async-database.md:220
+msgid "PostgreSQL's pub/sub mechanism for real-time notifications."
+msgstr "Mécanisme pub/sub de PostgreSQL pour les notifications en temps réel."
+
+#: ../../async-database.md:222
+msgid "notify()"
+msgstr "notify()"
+
+#: ../../async-database.md:224
+msgid "Send a notification."
+msgstr "Envoyer une notification."
+
+#: ../../async-database.md:240
+msgid "listen()"
+msgstr "listen()"
+
+#: ../../async-database.md:242
+msgid "Listen for notifications."
+msgstr "Écouter les notifications."
+
+#: ../../async-database.md:255
+msgid "Schema Operations"
+msgstr "Opérations sur les schémas"
+
+#: ../../async-database.md:257
+msgid "All schema exploration methods are available asynchronously."
+msgstr "Toutes les méthodes d'exploration de schéma sont disponibles de manière asynchrone."
+
+#: ../../async-database.md:285
+msgid "Complete Example"
+msgstr "Exemple complet"

@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 import pytest
 
 from pycopg import AsyncDatabase, Config
+from pycopg.utils import validate_identifier
+from pycopg.exceptions import InvalidIdentifier
 
 
 def create_async_cursor_mock(description=None, fetchall_result=None, fetchone_result=None, rowcount=1):
@@ -14,6 +16,7 @@ def create_async_cursor_mock(description=None, fetchall_result=None, fetchone_re
     mock_cursor.description = description
     mock_cursor.rowcount = rowcount
     mock_cursor.execute = AsyncMock()
+    mock_cursor.executemany = AsyncMock()  # Add executemany for batch operations
     mock_cursor.fetchall = AsyncMock(return_value=fetchall_result or [])
     mock_cursor.fetchone = AsyncMock(return_value=fetchone_result)
     return mock_cursor
@@ -75,22 +78,22 @@ class TestAsyncDatabaseValidation:
 
     def test_validate_identifier_valid(self, config):
         """Test valid identifiers pass."""
-        # These should not raise
-        AsyncDatabase._validate_identifier("users")
-        AsyncDatabase._validate_identifier("user_accounts")
-        AsyncDatabase._validate_identifier("Users123")
-        AsyncDatabase._validate_identifier("_private")
+        # These should not raise - using utils.validate_identifier
+        validate_identifier("users")
+        validate_identifier("user_accounts")
+        validate_identifier("Users123")
+        validate_identifier("_private")
 
     def test_validate_identifier_invalid(self, config):
         """Test invalid identifiers raise."""
-        with pytest.raises(ValueError):
-            AsyncDatabase._validate_identifier("123users")
+        with pytest.raises(InvalidIdentifier):
+            validate_identifier("123users")
 
-        with pytest.raises(ValueError):
-            AsyncDatabase._validate_identifier("user-accounts")
+        with pytest.raises(InvalidIdentifier):
+            validate_identifier("user-accounts")
 
-        with pytest.raises(ValueError):
-            AsyncDatabase._validate_identifier("DROP TABLE")
+        with pytest.raises(InvalidIdentifier):
+            validate_identifier("DROP TABLE")
 
 
 @pytest.mark.asyncio
@@ -182,8 +185,8 @@ class TestAsyncDatabaseExecute:
             assert result == []
 
     async def test_execute_many(self, config):
-        """Test execute_many method."""
-        cursor_mock = create_async_cursor_mock(rowcount=1)
+        """Test execute_many method using executemany."""
+        cursor_mock = create_async_cursor_mock(rowcount=2)
         conn_mock = create_async_conn_mock(cursor_mock)
 
         with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
@@ -196,7 +199,7 @@ class TestAsyncDatabaseExecute:
             )
 
             assert result == 2
-            assert cursor_mock.execute.call_count == 2
+            cursor_mock.executemany.assert_called_once()
 
     async def test_fetch_one(self, config):
         """Test fetch_one method."""
@@ -357,7 +360,7 @@ class TestAsyncDatabaseBatch:
 
     async def test_insert_many(self, config):
         """Test insert_many method."""
-        cursor_mock = create_async_cursor_mock(rowcount=1)
+        cursor_mock = create_async_cursor_mock(rowcount=2)  # 2 rows inserted
         conn_mock = create_async_conn_mock(cursor_mock)
 
         with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
@@ -370,6 +373,7 @@ class TestAsyncDatabaseBatch:
             ])
 
             assert result == 2
+            cursor_mock.executemany.assert_called_once()
 
     async def test_insert_many_empty(self, config):
         """Test insert_many with empty list."""
@@ -407,9 +411,7 @@ class TestAsyncDatabaseContextManager:
             assert db is not None
             assert db.config == config
 
-    async def test_close_no_pool(self, config):
-        """Test close when no pool exists."""
+    async def test_close(self, config):
+        """Test close method does not raise."""
         db = AsyncDatabase(config)
-        assert db._pool is None
         await db.close()  # Should not raise
-        assert db._pool is None

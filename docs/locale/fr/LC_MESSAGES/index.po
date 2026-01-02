@@ -1,0 +1,160 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../index.md:5
+msgid "Contents"
+msgstr "Sommaire"
+
+#: ../../index.md:1
+msgid "pycopg Documentation"
+msgstr "Documentation pycopg"
+
+#: ../../index.md:3
+msgid ""
+"High-level Python API for PostgreSQL/PostGIS/TimescaleDB built on "
+"[psycopg 3](https://www.psycopg.org/psycopg3/)."
+msgstr ""
+"API Python haut niveau pour PostgreSQL/PostGIS/TimescaleDB basée sur "
+"[psycopg 3](https://www.psycopg.org/psycopg3/)."
+
+#: ../../index.md:22
+msgid "Features"
+msgstr "Fonctionnalités"
+
+#: ../../index.md:24
+msgid "**Simple API**: Pythonic interface for common database operations"
+msgstr "**API simple** : Interface pythonique pour les opérations courantes"
+
+#: ../../index.md:25
+msgid "**Sync & Async**: Full async/await support with `AsyncDatabase`"
+msgstr "**Sync & Async** : Support complet async/await avec `AsyncDatabase`"
+
+#: ../../index.md:26
+msgid ""
+"**Session Mode**: Connection reuse for batch operations with "
+"`db.session()`"
+msgstr ""
+"**Mode session** : Réutilisation de connexion pour les opérations par lot "
+"avec `db.session()`"
+
+#: ../../index.md:27
+msgid ""
+"**High-Performance Inserts**: `insert_batch()` and `copy_insert()` for "
+"bulk operations"
+msgstr ""
+"**Insertions haute performance** : `insert_batch()` et `copy_insert()` pour "
+"les opérations en masse"
+
+#: ../../index.md:28
+msgid ""
+"**Connection Pooling**: Built-in pooling with `PooledDatabase` and "
+"`AsyncPooledDatabase`"
+msgstr ""
+"**Pool de connexions** : Pooling intégré avec `PooledDatabase` et "
+"`AsyncPooledDatabase`"
+
+#: ../../index.md:29
+msgid "**DataFrame Integration**: Seamless pandas/geopandas support"
+msgstr "**Intégration DataFrame** : Support transparent pandas/geopandas"
+
+#: ../../index.md:30
+msgid "**Migrations**: Simple SQL-based migration system"
+msgstr "**Migrations** : Système de migration basé sur SQL"
+
+#: ../../index.md:31
+msgid "**PostGIS**: Spatial data operations with GeoDataFrame support"
+msgstr "**PostGIS** : Opérations spatiales avec support GeoDataFrame"
+
+#: ../../index.md:32
+msgid "**TimescaleDB**: Hypertables, compression, and retention policies"
+msgstr "**TimescaleDB** : Hypertables, compression et politiques de rétention"
+
+#: ../../index.md:33
+msgid "**Role Management**: Create roles, grant/revoke privileges"
+msgstr "**Gestion des rôles** : Création de rôles, attribution/révocation de privilèges"
+
+#: ../../index.md:34
+msgid "**Backup/Restore**: pg_dump/pg_restore and CSV import/export"
+msgstr "**Sauvegarde/Restauration** : pg_dump/pg_restore et import/export CSV"
+
+#: ../../index.md:35
+msgid "**Type Safety**: Full type hints for IDE support"
+msgstr "**Typage** : Annotations de type complètes pour le support IDE"
+
+#: ../../index.md:37
+msgid "Quick Example"
+msgstr "Exemple rapide"
+
+#: ../../index.md:68
+msgid "Installation"
+msgstr "Installation"
+
+#: ../../index.md:79
+msgid "License"
+msgstr "Licence"
+
+#: ../../index.md:81
+msgid "MIT License - Copyright (c) 2026 Loc Cosnier"
+msgstr "Licence MIT - Copyright (c) 2026 Loc Cosnier"
+
+#: ../../index.md:83
+msgid ""
+"Permission is hereby granted, free of charge, to any person obtaining a "
+"copy of this software and associated documentation files (the "
+"\"Software\"), to deal in the Software without restriction, including "
+"without limitation the rights to use, copy, modify, merge, publish, "
+"distribute, sublicense, and/or sell copies of the Software, and to permit"
+" persons to whom the Software is furnished to do so, subject to the "
+"following conditions:"
+msgstr ""
+"La permission est accordée, gratuitement, à toute personne obtenant une "
+"copie de ce logiciel et des fichiers de documentation associés (le "
+"« Logiciel »), de traiter le Logiciel sans restriction, y compris, sans "
+"limitation, les droits d'utiliser, copier, modifier, fusionner, publier, "
+"distribuer, sous-licencier et/ou vendre des copies du Logiciel, et de "
+"permettre aux personnes à qui le Logiciel est fourni de le faire, sous "
+"réserve des conditions suivantes :"
+
+#: ../../index.md:90
+msgid ""
+"The above copyright notice and this permission notice shall be included "
+"in all copies or substantial portions of the Software."
+msgstr ""
+"L'avis de copyright ci-dessus et cet avis de permission doivent être "
+"inclus dans toutes les copies ou parties substantielles du Logiciel."
+
+#: ../../index.md:93
+msgid ""
+"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS"
+" OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF "
+"MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN"
+" NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,"
+" DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR "
+"OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE"
+" USE OR OTHER DEALINGS IN THE SOFTWARE."
+msgstr ""
+"LE LOGICIEL EST FOURNI « TEL QUEL », SANS GARANTIE D'AUCUNE SORTE, "
+"EXPRESSE OU IMPLICITE, Y COMPRIS, MAIS SANS S'Y LIMITER, LES GARANTIES "
+"DE QUALITÉ MARCHANDE, D'ADÉQUATION À UN USAGE PARTICULIER ET DE "
+"NON-CONTREFAÇON. EN AUCUN CAS LES AUTEURS OU LES DÉTENTEURS DU COPYRIGHT "
+"NE SERONT RESPONSABLES DE TOUTE RÉCLAMATION, DOMMAGE OU AUTRE "
+"RESPONSABILITÉ, QUE CE SOIT DANS UNE ACTION CONTRACTUELLE, DÉLICTUELLE "
+"OU AUTRE, DÉCOULANT DE, OU EN RELATION AVEC LE LOGICIEL OU L'UTILISATION "
+"OU AUTRES TRANSACTIONS DU LOGICIEL."

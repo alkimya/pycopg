@@ -39,7 +39,7 @@ db.execute("UPDATE users SET active = %s WHERE id = %s", [False, 1])
 
 ### execute_many()
 
-Execute SQL for multiple parameter sets.
+Execute SQL for multiple parameter sets. Uses `executemany()` internally for better performance.
 
 ```python
 count = db.execute_many(
@@ -51,6 +51,38 @@ count = db.execute_many(
     ]
 )
 print(f"Inserted {count} rows")
+```
+
+### insert_batch()
+
+High-performance batch insert using a single INSERT with multiple VALUES tuples.
+Significantly faster than `execute_many()` for large inserts.
+
+```python
+# Basic batch insert
+count = db.insert_batch("users", [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"},
+    {"name": "Charlie", "email": "charlie@example.com"},
+])
+print(f"Inserted {count} rows")
+
+# With ON CONFLICT (upsert)
+db.insert_batch("users", rows, on_conflict="(email) DO UPDATE SET name = EXCLUDED.name")
+
+# With custom batch size (default 1000)
+db.insert_batch("users", large_rows, batch_size=5000)
+```
+
+### copy_insert()
+
+Ultra-fast bulk insert using PostgreSQL's COPY protocol. 10-100x faster than INSERT for large datasets.
+
+```python
+# Insert millions of rows efficiently
+rows = [{"name": f"User {i}", "email": f"user{i}@example.com"} for i in range(1000000)]
+count = db.copy_insert("users", rows)
+print(f"Inserted {count} rows using COPY protocol")
 ```
 
 ### fetch_one()
@@ -77,6 +109,41 @@ count = db.fetch_val("SELECT COUNT(*) FROM users")
 name = db.fetch_val("SELECT name FROM users WHERE id = %s", [1])
 # 'Alice'
 ```
+
+## Session Mode
+
+Session mode keeps a single connection open for multiple operations, significantly reducing connection overhead.
+
+### session()
+
+```python
+# Without session: each operation opens/closes a connection
+db.execute("SELECT 1")  # Open, execute, close
+db.execute("SELECT 2")  # Open, execute, close
+
+# With session: single connection for all operations
+with db.session() as session:
+    session.execute("SELECT 1")  # Reuse connection
+    session.execute("SELECT 2")  # Reuse connection
+    session.insert_batch("users", rows)
+    # Connection closed automatically at end
+
+# With autocommit mode
+with db.session(autocommit=True) as session:
+    session.execute("CREATE DATABASE newdb")
+
+# Check if in session mode
+if db.in_session:
+    print("Currently in session mode")
+
+# Useful for batch operations
+with db.session() as session:
+    for table in tables:
+        session.truncate_table(table)
+        session.insert_batch(table, data[table])
+```
+
+> **Note:** Nested sessions are not supported and will raise a `RuntimeError`.
 
 ## Context Managers
 
@@ -146,7 +213,15 @@ if db.table_exists("users"):
 
 # Get column info
 columns = db.table_info("users")
-# [{'column_name': 'id', 'data_type': 'integer', 'is_nullable': 'NO', ...}, ...]
+for col in columns:
+    print(f"{col['column_name']}: {col['data_type']} (nullable: {col['is_nullable']})")
+# id: integer (nullable: NO)
+# name: character varying (nullable: NO)
+# email: character varying (nullable: YES)
+
+# Returns: column_name, data_type, is_nullable, column_default,
+#          ordinal_position, character_maximum_length,
+#          numeric_precision, numeric_scale
 
 # Get row count (approximate, fast)
 count = db.row_count("users")

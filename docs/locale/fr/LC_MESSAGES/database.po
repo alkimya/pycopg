@@ -1,0 +1,192 @@
+# Documentation pycopg - Traduction française
+# Copyright (C) 2026, Loc Cosnier <loc.cosnier@pm.me>
+# This file is distributed under the same license as the pycopg package.
+# Loc Cosnier <loc.cosnier@pm.me>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: pycopg 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-02 21:50+0100\n"
+"PO-Revision-Date: 2026-01-02 22:00+0100\n"
+"Last-Translator: Loc Cosnier <loc.cosnier@pm.me>\n"
+"Language: fr\n"
+"Language-Team: fr <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../../database.md:1
+msgid "Database Class"
+msgstr "Classe Database"
+
+#: ../../database.md:3
+msgid "The `Database` class is the main synchronous interface for pycopg."
+msgstr "La classe `Database` est l'interface synchrone principale de pycopg."
+
+#: ../../database.md:5
+msgid "Connection"
+msgstr "Connexion"
+
+#: ../../database.md:24
+msgid "Query Execution"
+msgstr "Exécution de requêtes"
+
+#: ../../database.md:26
+msgid "execute()"
+msgstr "execute()"
+
+#: ../../database.md:28
+msgid "Execute SQL and return results as list of dicts."
+msgstr "Exécuter du SQL et retourner les résultats sous forme de liste de dicts."
+
+#: ../../database.md:40
+msgid "execute_many()"
+msgstr "execute_many()"
+
+#: ../../database.md:42
+msgid ""
+"Execute SQL for multiple parameter sets. Uses `executemany()` internally "
+"for better performance."
+msgstr ""
+"Exécuter du SQL pour plusieurs jeux de paramètres. Utilise `executemany()` "
+"en interne pour de meilleures performances."
+
+#: ../../database.md:56
+msgid "insert_batch()"
+msgstr "insert_batch()"
+
+#: ../../database.md:58
+msgid ""
+"High-performance batch insert using a single INSERT with multiple VALUES "
+"tuples. Significantly faster than `execute_many()` for large inserts."
+msgstr ""
+"Insertion par lot haute performance utilisant un seul INSERT avec plusieurs "
+"tuples VALUES. Significativement plus rapide que `execute_many()` pour les "
+"gros volumes."
+
+#: ../../database.md:77
+msgid "copy_insert()"
+msgstr "copy_insert()"
+
+#: ../../database.md:79
+msgid ""
+"Ultra-fast bulk insert using PostgreSQL's COPY protocol. 10-100x faster "
+"than INSERT for large datasets."
+msgstr ""
+"Insertion en masse ultra-rapide utilisant le protocole COPY de PostgreSQL. "
+"10 à 100 fois plus rapide que INSERT pour les gros jeux de données."
+
+#: ../../database.md:88
+msgid "fetch_one()"
+msgstr "fetch_one()"
+
+#: ../../database.md:90
+msgid "Fetch a single row as dict."
+msgstr "Récupérer une seule ligne sous forme de dict."
+
+#: ../../database.md:101
+msgid "fetch_val()"
+msgstr "fetch_val()"
+
+#: ../../database.md:103
+msgid "Fetch a single value."
+msgstr "Récupérer une seule valeur."
+
+#: ../../database.md:113
+msgid "Session Mode"
+msgstr "Mode session"
+
+#: ../../database.md:115
+msgid ""
+"Session mode keeps a single connection open for multiple operations, "
+"significantly reducing connection overhead."
+msgstr ""
+"Le mode session maintient une seule connexion ouverte pour plusieurs "
+"opérations, réduisant significativement le surcoût de connexion."
+
+#: ../../database.md:117
+msgid "session()"
+msgstr "session()"
+
+#: ../../database.md:146
+msgid ""
+"**Note:** Nested sessions are not supported and will raise a "
+"`RuntimeError`."
+msgstr ""
+"**Note :** Les sessions imbriquées ne sont pas supportées et lèveront une "
+"`RuntimeError`."
+
+#: ../../database.md:148
+msgid "Context Managers"
+msgstr "Gestionnaires de contexte"
+
+#: ../../database.md:150
+msgid "connect()"
+msgstr "connect()"
+
+#: ../../database.md:152
+msgid "Low-level connection context manager."
+msgstr "Gestionnaire de contexte de connexion bas niveau."
+
+#: ../../database.md:166
+msgid "cursor()"
+msgstr "cursor()"
+
+#: ../../database.md:168
+msgid "Cursor context manager with dict row factory."
+msgstr "Gestionnaire de contexte de curseur avec factory de lignes dict."
+
+#: ../../database.md:181
+msgid "Database Exploration"
+msgstr "Exploration de la base de données"
+
+#: ../../database.md:183
+msgid "Schemas"
+msgstr "Schémas"
+
+#: ../../database.md:203
+msgid "Tables"
+msgstr "Tables"
+
+#: ../../database.md:230
+msgid "Extensions"
+msgstr "Extensions"
+
+#: ../../database.md:250
+msgid "Size & Statistics"
+msgstr "Taille et statistiques"
+
+#: ../../database.md:265
+msgid "Indexes & Constraints"
+msgstr "Index et contraintes"
+
+#: ../../database.md:267
+msgid "Indexes"
+msgstr "Index"
+
+#: ../../database.md:283
+msgid "Constraints"
+msgstr "Contraintes"
+
+#: ../../database.md:302
+msgid "DataFrame Operations"
+msgstr "Opérations DataFrame"
+
+#: ../../database.md:304
+msgid "Pandas"
+msgstr "Pandas"
+
+#: ../../database.md:328
+msgid "GeoPandas"
+msgstr "GeoPandas"
+
+#: ../../database.md:349
+msgid "Maintenance"
+msgstr "Maintenance"
+
+#: ../../database.md:373
+msgid "Database Administration"
+msgstr "Administration de la base de données"

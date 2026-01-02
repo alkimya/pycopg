@@ -17,7 +17,7 @@ try:
 except ImportError:
     HAS_DOTENV = False
 
-    def load_dotenv(dotenv_path=None):
+    def load_dotenv(dotenv_path=None, *, override: bool = False, **kwargs):
         """No-op when python-dotenv is not installed."""
         pass
 

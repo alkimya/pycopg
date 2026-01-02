@@ -17,6 +17,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 from pycopg.config import Config
+from pycopg.utils import validate_identifier, validate_identifiers, validate_interval, validate_index_method
 
 if TYPE_CHECKING:
     import geopandas as gpd
@@ -65,6 +66,7 @@ class Database:
         """
         self.config = config
         self._engine: Optional[Engine] = None
+        self._session_conn: Optional[psycopg.Connection] = None
 
     @classmethod
     def from_env(cls, dotenv_path: Optional[str | Path] = None) -> "Database":
@@ -148,9 +150,11 @@ class Database:
             password=password,
         )
 
-        # Validate database name
-        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
-            raise ValueError(f"Invalid database name: {name}")
+        # Validate identifiers
+        validate_identifier(name)
+        if owner:
+            validate_identifier(owner)
+        validate_identifier(template)
 
         # Check if database exists
         with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
@@ -268,11 +272,73 @@ class Database:
                 cur.execute("SELECT * FROM users WHERE id = %s", [1])
                 user = cur.fetchone()  # Returns dict
         """
-        with self.connect(autocommit=autocommit) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
+        # Use session connection if available
+        if self._session_conn is not None:
+            with self._session_conn.cursor(row_factory=dict_row) as cur:
                 yield cur
                 if not autocommit:
-                    conn.commit()
+                    self._session_conn.commit()
+        else:
+            with self.connect(autocommit=autocommit) as conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    yield cur
+                    if not autocommit:
+                        conn.commit()
+
+    @contextmanager
+    def session(self, autocommit: bool = False) -> Iterator["Database"]:
+        """Context manager for session mode with connection reuse.
+
+        In session mode, all operations reuse the same connection,
+        significantly reducing overhead for multiple sequential operations.
+
+        Args:
+            autocommit: Enable autocommit mode for the session.
+
+        Yields:
+            Self (Database instance with active session).
+
+        Example:
+            # Without session: each operation opens/closes a connection
+            db.execute("SELECT 1")  # Open, execute, close
+            db.execute("SELECT 2")  # Open, execute, close
+
+            # With session: single connection for all operations
+            with db.session() as session:
+                session.execute("SELECT 1")  # Reuse connection
+                session.execute("SELECT 2")  # Reuse connection
+                session.insert_batch("users", rows)  # Reuse connection
+                # Connection closed automatically at end
+
+            # Useful for batch operations
+            with db.session() as session:
+                for table in tables:
+                    session.truncate_table(table)
+                    session.insert_batch(table, data[table])
+        """
+        if self._session_conn is not None:
+            raise RuntimeError("Already in session mode. Nested sessions are not supported.")
+
+        self._session_conn = psycopg.connect(
+            **self.config.connect_params(),
+            autocommit=autocommit
+        )
+        try:
+            yield self
+        finally:
+            if not autocommit:
+                self._session_conn.commit()
+            self._session_conn.close()
+            self._session_conn = None
+
+    @property
+    def in_session(self) -> bool:
+        """Check if currently in session mode.
+
+        Returns:
+            True if in session mode, False otherwise.
+        """
+        return self._session_conn is not None
 
     def execute(self, sql: str, params: Optional[Sequence] = None, autocommit: bool = False) -> list[dict]:
         """Execute SQL and return results as list of dicts.
@@ -298,6 +364,9 @@ class Database:
     def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
         """Execute SQL for multiple parameter sets.
 
+        Uses psycopg's executemany() for better performance than sequential
+        execute() calls.
+
         Args:
             sql: SQL query with placeholders.
             params_seq: Sequence of parameter sequences.
@@ -311,12 +380,125 @@ class Database:
                 [("Alice", "alice@example.com"), ("Bob", "bob@example.com")]
             )
         """
+        with self.cursor() as cur:
+            cur.executemany(sql, params_seq)
+            return cur.rowcount
+
+    def insert_batch(
+        self,
+        table: str,
+        rows: list[dict],
+        schema: str = "public",
+        on_conflict: Optional[str] = None,
+        batch_size: int = 1000,
+    ) -> int:
+        """Insert multiple rows efficiently using batch VALUES.
+
+        This method builds a single INSERT with multiple VALUES tuples,
+        which is significantly faster than individual INSERT statements.
+        For very large datasets (>10000 rows), consider using copy_insert().
+
+        Args:
+            table: Table name.
+            rows: List of row dicts (all must have same keys).
+            schema: Schema name.
+            on_conflict: Optional ON CONFLICT clause (e.g., "DO NOTHING",
+                        "(id) DO UPDATE SET name = EXCLUDED.name").
+            batch_size: Max rows per INSERT statement (default 1000).
+
+        Returns:
+            Total number of rows inserted.
+
+        Example:
+            db.insert_batch("users", [
+                {"name": "Alice", "email": "alice@example.com"},
+                {"name": "Bob", "email": "bob@example.com"},
+            ])
+
+            # With conflict handling
+            db.insert_batch("users", rows, on_conflict="(email) DO NOTHING")
+        """
+        if not rows:
+            return 0
+
+        validate_identifiers(table, schema)
+
+        columns = list(rows[0].keys())
+        for col in columns:
+            validate_identifier(col)
+
+        cols_str = ", ".join(columns)
+        conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
+
         total = 0
         with self.cursor() as cur:
-            for params in params_seq:
+            # Process in batches
+            for i in range(0, len(rows), batch_size):
+                batch = rows[i:i + batch_size]
+
+                # Build VALUES (...), (...), ...
+                placeholders = []
+                params = []
+                for row in batch:
+                    row_placeholders = ", ".join(["%s"] * len(columns))
+                    placeholders.append(f"({row_placeholders})")
+                    params.extend(row.get(col) for col in columns)
+
+                values_str = ", ".join(placeholders)
+                sql = f"INSERT INTO {schema}.{table} ({cols_str}) VALUES {values_str}{conflict_clause}"
+
                 cur.execute(sql, params)
                 total += cur.rowcount
+
         return total
+
+    def copy_insert(
+        self,
+        table: str,
+        rows: list[dict],
+        schema: str = "public",
+        columns: Optional[list[str]] = None,
+    ) -> int:
+        """Insert rows using PostgreSQL COPY protocol.
+
+        This is the fastest method for bulk inserts (10-100x faster than
+        regular INSERT for large datasets). Best for >10000 rows.
+
+        Note: COPY doesn't support ON CONFLICT. For upserts, use insert_batch().
+
+        Args:
+            table: Table name.
+            rows: List of row dicts.
+            schema: Schema name.
+            columns: Optional list of column names. If not provided,
+                    uses keys from first row.
+
+        Returns:
+            Number of rows inserted.
+
+        Example:
+            # Insert 100k rows efficiently
+            db.copy_insert("events", events_list)
+        """
+        if not rows:
+            return 0
+
+        validate_identifiers(table, schema)
+
+        if columns is None:
+            columns = list(rows[0].keys())
+        for col in columns:
+            validate_identifier(col)
+
+        cols_str = ", ".join(columns)
+
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                with cur.copy(f"COPY {schema}.{table} ({cols_str}) FROM STDIN") as copy:
+                    for row in rows:
+                        copy.write_row([row.get(col) for col in columns])
+            conn.commit()
+            return len(rows)
 
     def fetch_one(self, sql: str, params: Optional[Sequence] = None) -> Optional[dict]:
         """Execute SQL and return single row.
@@ -369,7 +551,10 @@ class Database:
             db.create_database("myapp")
             db.create_database("myapp", owner="appuser")
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
+        if owner:
+            validate_identifier(owner)
+        validate_identifier(template)
         owner_clause = f" OWNER {owner}" if owner else ""
         # Connect to postgres for database creation
         admin_config = self.config.with_database("postgres")
@@ -387,7 +572,7 @@ class Database:
         Example:
             db.drop_database("myapp")
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
         admin_config = self.config.with_database("postgres")
         with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
@@ -503,7 +688,9 @@ class Database:
             db.create_schema("data")
             db.create_schema("app", owner="appuser")
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
+        if owner:
+            validate_identifier(owner)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
         owner_clause = f" AUTHORIZATION {owner}" if owner else ""
         self.execute(f"CREATE SCHEMA {if_clause}{name}{owner_clause}")
@@ -516,7 +703,7 @@ class Database:
             if_exists: Don't error if schema doesn't exist.
             cascade: Drop all objects in schema.
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
         cascade_clause = " CASCADE" if cascade else ""
         self.execute(f"DROP SCHEMA {if_clause}{name}{cascade_clause}")
@@ -597,8 +784,7 @@ class Database:
             if_exists: Don't error if table doesn't exist.
             cascade: Drop dependent objects.
         """
-        self._validate_identifier(name)
-        self._validate_identifier(schema)
+        validate_identifiers(name, schema)
         if_clause = "IF EXISTS " if if_exists else ""
         cascade_clause = " CASCADE" if cascade else ""
         self.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
@@ -611,8 +797,7 @@ class Database:
             schema: Schema name.
             cascade: Truncate dependent tables.
         """
-        self._validate_identifier(name)
-        self._validate_identifier(schema)
+        validate_identifiers(name, schema)
         cascade_clause = " CASCADE" if cascade else ""
         self.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
 
@@ -681,10 +866,9 @@ class Database:
         """
         if isinstance(columns, str):
             columns = [columns]
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
-        for col in columns:
-            self._validate_identifier(col)
+        validate_identifiers(table, schema, *columns)
+        if name:
+            validate_identifier(name)
 
         cols_str = ", ".join(columns)
         constraint_name = name or f"{table}_pkey"
@@ -723,6 +907,18 @@ class Database:
         if isinstance(ref_columns, str):
             ref_columns = [ref_columns]
 
+        # Validate all identifiers
+        validate_identifiers(table, schema, ref_table, ref_schema, *columns, *ref_columns)
+        if name:
+            validate_identifier(name)
+
+        # Validate ON DELETE/UPDATE actions
+        valid_actions = {"NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"}
+        if on_delete.upper() not in valid_actions:
+            raise ValueError(f"Invalid ON DELETE action: {on_delete}. Must be one of: {valid_actions}")
+        if on_update.upper() not in valid_actions:
+            raise ValueError(f"Invalid ON UPDATE action: {on_update}. Must be one of: {valid_actions}")
+
         cols_str = ", ".join(columns)
         ref_cols_str = ", ".join(ref_columns)
         constraint_name = name or f"{table}_{columns[0]}_fkey"
@@ -751,6 +947,9 @@ class Database:
         """
         if isinstance(columns, str):
             columns = [columns]
+        validate_identifiers(table, schema, *columns)
+        if name:
+            validate_identifier(name)
         cols_str = ", ".join(columns)
         constraint_name = name or f"{table}_{'_'.join(columns)}_key"
         self.execute(f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} UNIQUE ({cols_str})")
@@ -783,8 +982,10 @@ class Database:
         """
         if isinstance(columns, str):
             columns = [columns]
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
+        validate_identifiers(table, schema, *columns)
+        if name:
+            validate_identifier(name)
+        validate_index_method(method)
 
         cols_str = ", ".join(columns)
         index_name = name or f"idx_{table}_{'_'.join(columns)}"
@@ -1093,9 +1294,8 @@ class Database:
         if not self.has_extension("timescaledb"):
             raise RuntimeError("TimescaleDB extension not installed. Run db.create_extension('timescaledb')")
 
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
-        self._validate_identifier(time_column)
+        validate_identifiers(table, schema, time_column)
+        validate_interval(chunk_time_interval)
 
         self.execute(f"""
             SELECT create_hypertable(
@@ -1125,17 +1325,23 @@ class Database:
         Example:
             db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
         """
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
+        validate_identifiers(table, schema)
 
         settings = ["timescaledb.compress"]
         if segment_by:
             if isinstance(segment_by, str):
                 segment_by = [segment_by]
+            for col in segment_by:
+                # Extract column name (may have DESC/ASC suffix)
+                col_name = col.split()[0]
+                validate_identifier(col_name)
             settings.append(f"timescaledb.compress_segmentby = '{','.join(segment_by)}'")
         if order_by:
             if isinstance(order_by, str):
                 order_by = [order_by]
+            for col in order_by:
+                col_name = col.split()[0]
+                validate_identifier(col_name)
             settings.append(f"timescaledb.compress_orderby = '{','.join(order_by)}'")
 
         self.execute(f"ALTER TABLE {schema}.{table} SET ({', '.join(settings)})")
@@ -1399,7 +1605,7 @@ class Database:
             # Create user in a group
             db.create_role("analyst", password="secret", in_roles=["readonly"])
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
 
         # Check if exists
         if if_not_exists and self.role_exists(name):
@@ -1452,7 +1658,7 @@ class Database:
         Example:
             db.drop_role("olduser")
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
         self.execute(f"DROP ROLE {if_clause}{name}", autocommit=True)
 
@@ -1523,10 +1729,10 @@ class Database:
             db.alter_role("appuser", connection_limit=10)
             db.alter_role("oldname", rename_to="newname")
         """
-        self._validate_identifier(name)
+        validate_identifier(name)
 
         if rename_to:
-            self._validate_identifier(rename_to)
+            validate_identifier(rename_to)
             self.execute(f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True)
             return
 
@@ -1566,8 +1772,7 @@ class Database:
             db.grant_role("readonly", "analyst")
             db.grant_role("admin", "lead_dev", with_admin=True)
         """
-        self._validate_identifier(role)
-        self._validate_identifier(member)
+        validate_identifiers(role, member)
         admin_clause = " WITH ADMIN OPTION" if with_admin else ""
         self.execute(f"GRANT {role} TO {member}{admin_clause}", autocommit=True)
 
@@ -1581,8 +1786,7 @@ class Database:
         Example:
             db.revoke_role("admin", "former_admin")
         """
-        self._validate_identifier(role)
-        self._validate_identifier(member)
+        validate_identifiers(role, member)
         self.execute(f"REVOKE {role} FROM {member}", autocommit=True)
 
     def grant(
@@ -1620,7 +1824,7 @@ class Database:
             # Grant on database
             db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
         """
-        self._validate_identifier(to)
+        validate_identifier(to)
 
         if isinstance(privileges, list):
             privileges = ", ".join(privileges)
@@ -1628,17 +1832,16 @@ class Database:
         grant_clause = " WITH GRANT OPTION" if with_grant_option else ""
 
         if object_type.upper() == "SCHEMA":
-            self._validate_identifier(on)
+            validate_identifier(on)
             self.execute(f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}", autocommit=True)
         elif object_type.upper() == "DATABASE":
-            self._validate_identifier(on)
+            validate_identifier(on)
             self.execute(f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}", autocommit=True)
         elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
-            self._validate_identifier(schema)
+            validate_identifier(schema)
             self.execute(f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}", autocommit=True)
         else:
-            self._validate_identifier(on)
-            self._validate_identifier(schema)
+            validate_identifiers(on, schema)
             self.execute(f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}", autocommit=True)
 
     def revoke(
@@ -1664,7 +1867,7 @@ class Database:
             db.revoke("INSERT", "users", "readonly")
             db.revoke("ALL", "orders", "former_user", cascade=True)
         """
-        self._validate_identifier(from_role)
+        validate_identifier(from_role)
 
         if isinstance(privileges, list):
             privileges = ", ".join(privileges)
@@ -1672,17 +1875,16 @@ class Database:
         cascade_clause = " CASCADE" if cascade else ""
 
         if object_type.upper() == "SCHEMA":
-            self._validate_identifier(on)
+            validate_identifier(on)
             self.execute(f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}", autocommit=True)
         elif object_type.upper() == "DATABASE":
-            self._validate_identifier(on)
+            validate_identifier(on)
             self.execute(f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}", autocommit=True)
         elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
-            self._validate_identifier(schema)
+            validate_identifier(schema)
             self.execute(f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}", autocommit=True)
         else:
-            self._validate_identifier(on)
-            self._validate_identifier(schema)
+            validate_identifiers(on, schema)
             self.execute(f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}", autocommit=True)
 
     def list_role_members(self, role: str) -> list[str]:
@@ -1959,8 +2161,9 @@ class Database:
             db.copy_to_csv("orders", "orders.csv", columns=["id", "total", "created_at"])
         """
         output_file = Path(output_file)
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
+        validate_identifiers(table, schema)
+        if columns:
+            validate_identifiers(*columns)
 
         cols = f"({', '.join(columns)})" if columns else ""
 
@@ -1980,8 +2183,8 @@ class Database:
                         f.write(data.decode(encoding) if isinstance(data, bytes) else data)
 
             # Get row count
-            cur.execute(f"SELECT COUNT(*) FROM {schema}.{table}")
-            return cur.fetchone()[0]
+            cur.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
+            return cur.fetchone()["count"]
 
     def copy_from_csv(
         self,
@@ -2013,8 +2216,9 @@ class Database:
             db.copy_from_csv("users", "users.csv")
         """
         input_file = Path(input_file)
-        self._validate_identifier(table)
-        self._validate_identifier(schema)
+        validate_identifiers(table, schema)
+        if columns:
+            validate_identifiers(*columns)
 
         cols = f"({', '.join(columns)})" if columns else ""
 
@@ -2034,16 +2238,6 @@ class Database:
                         copy.write(data.encode(encoding))
 
             return cur.rowcount
-
-    @staticmethod
-    def _validate_identifier(name: str) -> None:
-        """Validate SQL identifier to prevent injection.
-
-        Raises:
-            ValueError: If identifier contains invalid characters.
-        """
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
-            raise ValueError(f"Invalid identifier: {name}")
 
     def close(self) -> None:
         """Close database connections."""
