@@ -3,8 +3,8 @@
     <ul>
         {% for lang_code, lang_url in languages %}
         <li class="toctree-l1{% if language == lang_code %} current{% endif %}">
-            <a class="reference internal" href="{{ lang_url }}{{ pagename }}.html">
-                {% if lang_code == 'en' %}🇬🇧 English{% elif lang_code == 'fr' %}🇫🇷 Français{% else %}{{ lang_code }}{% endif %}
+            <a class="reference internal" href="{{ lang_url }}">
+                {% if lang_code == 'en' %}English{% elif lang_code == 'fr' %}Français{% else %}{{ lang_code }}{% endif %}
             </a>
         </li>
         {% endfor %}

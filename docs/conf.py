@@ -79,11 +79,11 @@ html_sidebars = {
     ],
 }
 
-# Language switcher context
+# Language switcher context (RTD URLs)
 html_context = {
     "languages": [
-        ("en", "../en/"),
-        ("fr", "../fr/"),
+        ("en", "https://pycopg.readthedocs.io/en/latest/"),
+        ("fr", "https://pycopg.readthedocs.io/fr/latest/"),
     ],
 }
 
