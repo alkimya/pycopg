@@ -267,6 +267,14 @@ tables = await db.list_tables("public")
 exists = await db.table_exists("users")
 info = await db.table_info("users")  # Column details
 # Returns: column_name, data_type, is_nullable, column_default, etc.
+
+# Lightweight column introspection
+cols = await db.list_columns("users")
+# ['id', 'name', 'email']
+
+types = await db.columns_with_types("users")
+# [('id', 'integer'), ('name', 'text')]
+
 count = await db.row_count("users")
 
 # Extensions

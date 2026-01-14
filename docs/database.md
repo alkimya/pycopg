@@ -211,13 +211,18 @@ tables = db.list_tables("public")
 if db.table_exists("users"):
     print("Table exists")
 
-# Get column info
+# Get column info (detailed)
 columns = db.table_info("users")
 for col in columns:
     print(f"{col['column_name']}: {col['data_type']} (nullable: {col['is_nullable']})")
-# id: integer (nullable: NO)
-# name: character varying (nullable: NO)
-# email: character varying (nullable: YES)
+
+# Get updated column names (lightweight)
+names = db.list_columns("users")
+# ['id', 'name', 'email']
+
+# Get column names with types (lightweight)
+cols = db.columns_with_types("users")
+# [('id', 'integer'), ('name', 'text'), ('email', 'text')]
 
 # Returns: column_name, data_type, is_nullable, column_default,
 #          ordinal_position, character_maximum_length,

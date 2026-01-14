@@ -109,6 +109,8 @@ Database(config: Config)
 | `list_tables` | `schema="public"` | `list[str]` |
 | `table_exists` | `name, schema="public"` | `bool` |
 | `table_info` | `name, schema="public"` | `list[dict]` |
+| `list_columns` | `name, schema="public"` | `list[str]` |
+| `columns_with_types` | `name, schema="public"` | `list[tuple[str, str]]` |
 | `row_count` | `name, schema="public"` | `int` |
 | `drop_table` | `name, schema="public", if_exists=True, cascade=False` | - |
 | `truncate_table` | `name, schema="public", cascade=False` | - |
