@@ -53,6 +53,13 @@ TABLE_INFO = """
     ORDER BY ordinal_position
 """
 
+GET_COLUMNS = """
+    SELECT column_name, data_type
+    FROM information_schema.columns
+    WHERE table_schema = %s AND table_name = %s
+    ORDER BY ordinal_position
+"""
+
 # Simplified version for AsyncDatabase
 TABLE_INFO_SIMPLE = """
     SELECT

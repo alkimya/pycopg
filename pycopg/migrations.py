@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from pycopg.exceptions import MigrationError
+from pycopg.utils import validate_identifier
 
 if TYPE_CHECKING:
     from pycopg.database import Database
@@ -117,6 +118,9 @@ class Migrator:
         """
         self.db = db
         self.migrations_dir = Path(migrations_dir)
+        
+        # Validate table name to prevent SQL injection
+        validate_identifier(table)
         self.table = table
 
         if not self.migrations_dir.exists():

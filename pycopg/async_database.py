@@ -13,9 +13,11 @@ from typing import Any, AsyncIterator, Optional, Sequence
 import psycopg
 from psycopg.rows import dict_row
 from psycopg import AsyncConnection, AsyncCursor
+from psycopg.pq import TransactionStatus
 
 from pycopg.config import Config
 from pycopg.utils import validate_identifier, validate_identifiers
+from pycopg import queries
 
 
 class AsyncDatabase:
@@ -116,7 +118,7 @@ class AsyncDatabase:
         if self._session_conn is not None:
             async with self._session_conn.cursor(row_factory=dict_row) as cur:
                 yield cur
-                if not autocommit:
+                if not autocommit and self._session_conn.info.transaction_status == TransactionStatus.IDLE:
                     await self._session_conn.commit()
         else:
             async with self.connect(autocommit=autocommit) as conn:
@@ -185,6 +187,7 @@ class AsyncDatabase:
         """Async context manager for transactions.
 
         Automatically commits on success, rolls back on exception.
+        If a session is active, reuses the session connection.
 
         Yields:
             AsyncConnection in a transaction.
@@ -195,9 +198,15 @@ class AsyncDatabase:
                 await conn.execute("UPDATE stats SET count = count + 1")
                 # Commits automatically if no exception
         """
-        async with self.connect() as conn:
-            async with conn.transaction():
-                yield conn
+        if self._session_conn is not None:
+            # Reuse existing session connection
+            async with self._session_conn.transaction():
+                yield self._session_conn
+        else:
+            # Create new connection
+            async with self.connect() as conn:
+                async with conn.transaction():
+                    yield conn
 
     async def execute(
         self,
@@ -430,11 +439,34 @@ class AsyncDatabase:
 
     async def table_exists(self, name: str, schema: str = "public") -> bool:
         """Check if a table exists."""
-        result = await self.execute("""
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = %s AND table_name = %s
-        """, [schema, name])
+        result = await self.execute(queries.TABLE_EXISTS, [schema, name])
         return len(result) > 0
+
+    async def list_columns(self, table: str, schema: str = "public") -> list[str]:
+        """Get list of column names for a table.
+
+        Args:
+            table: Table name.
+            schema: Schema name (default: "public").
+
+        Returns:
+            List of column names in ordinal order.
+        """
+        result = await self.execute(queries.GET_COLUMNS, [schema, table])
+        return [row["column_name"] for row in result]
+
+    async def columns_with_types(self, table: str, schema: str = "public") -> list[tuple[str, str]]:
+        """Get list of (column_name, data_type) tuples for a table.
+
+        Args:
+            table: Table name.
+            schema: Schema name (default: "public").
+
+        Returns:
+            List of (name, type) tuples in ordinal order.
+        """
+        result = await self.execute(queries.GET_COLUMNS, [schema, table])
+        return [(row["column_name"], row["data_type"]) for row in result]
 
     async def table_info(self, name: str, schema: str = "public") -> list[dict]:
         """Get column information for a table.

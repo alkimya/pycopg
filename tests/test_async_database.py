@@ -415,3 +415,36 @@ class TestAsyncDatabaseContextManager:
         """Test close method does not raise."""
         db = AsyncDatabase(config)
         await db.close()  # Should not raise
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseInspection:
+    """Tests for table inspection methods."""
+
+    async def test_list_columns(self, config):
+        """Test list_columns method."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"column_name": "id", "data_type": "integer"},
+            {"column_name": "name", "data_type": "text"}
+        ])
+
+        cols = await db.list_columns("users")
+        
+        assert cols == ["id", "name"]
+        
+        # Verify call to execute
+        call_args = db.execute.call_args
+        assert "column_name" in call_args[0][0]
+        assert call_args[0][1] == ["public", "users"]
+
+    async def test_columns_with_types(self, config):
+        """Test columns_with_types method."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"column_name": "id", "data_type": "integer"},
+            {"column_name": "name", "data_type": "text"}
+        ])
+
+        cols = await db.columns_with_types("users")
+        
+        assert cols == [("id", "integer"), ("name", "text")]

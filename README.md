@@ -4,7 +4,7 @@ High-level Python API for PostgreSQL/PostGIS/TimescaleDB built on [psycopg 3](ht
 
 Simple, powerful, pythonic database operations with sync and async support.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Installation
@@ -58,6 +58,8 @@ db = Database.create_from_env("myapp")
 db.list_schemas()           # ['public', 'app', ...]
 db.list_tables("public")    # ['users', 'orders', ...]
 db.table_info("users")      # Column details
+db.list_columns("users")    # ['id', 'name', 'email']
+db.columns_with_types("users") # [('id', 'integer'), ('name', 'text')]
 db.size()                   # '256 MB'
 db.table_sizes("public")    # Size of each table
 ```

@@ -11,6 +11,24 @@ from pycopg import Config
 
 
 @pytest.fixture
+def db_config():
+    """Create a config for the real test database."""
+    # Use environment variables if set, otherwise defaults from setup_test_db.py
+    host = os.getenv("PGHOST", "localhost")
+    user = os.getenv("PGUSER", "postgres")
+    password = os.getenv("PGPASSWORD", "postgres") 
+    port = int(os.getenv("PGPORT", "5432"))
+    
+    return Config(
+        host=host,
+        port=port,
+        database="pycopg_test",
+        user=user,
+        password=password,
+    )
+
+
+@pytest.fixture
 def config():
     """Create a test config."""
     return Config(

@@ -989,3 +989,35 @@ class TestDatabaseCreateDropSchema:
         mock_cursor.execute.assert_called()
         call_args = mock_cursor.execute.call_args[0][0]
         assert "DROP SCHEMA" in call_args
+
+class TestDatabaseInspection:
+    """Tests for table inspection methods."""
+
+    def test_list_columns(self, config):
+        """Test list_columns method."""
+        db = Database(config)
+        db.execute = MagicMock(return_value=[
+            {"column_name": "id", "data_type": "integer"},
+            {"column_name": "name", "data_type": "text"}
+        ])
+
+        cols = db.list_columns("users")
+        
+        assert cols == ["id", "name"]
+        
+        # Verify call to execute
+        call_args = db.execute.call_args
+        assert "column_name" in call_args[0][0]
+        assert call_args[0][1] == ["public", "users"]
+
+    def test_columns_with_types(self, config):
+        """Test columns_with_types method."""
+        db = Database(config)
+        db.execute = MagicMock(return_value=[
+            {"column_name": "id", "data_type": "integer"},
+            {"column_name": "name", "data_type": "text"}
+        ])
+
+        cols = db.columns_with_types("users")
+        
+        assert cols == [("id", "integer"), ("name", "text")]

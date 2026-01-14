@@ -13,11 +13,13 @@ from typing import TYPE_CHECKING, Any, Iterator, Literal, Optional, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg.pq import TransactionStatus
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 from pycopg.config import Config
 from pycopg.utils import validate_identifier, validate_identifiers, validate_interval, validate_index_method
+from pycopg import queries
 
 if TYPE_CHECKING:
     import geopandas as gpd
@@ -276,7 +278,7 @@ class Database:
         if self._session_conn is not None:
             with self._session_conn.cursor(row_factory=dict_row) as cur:
                 yield cur
-                if not autocommit:
+                if not autocommit and self._session_conn.info.transaction_status == TransactionStatus.IDLE:
                     self._session_conn.commit()
         else:
             with self.connect(autocommit=autocommit) as conn:
@@ -284,6 +286,25 @@ class Database:
                     yield cur
                     if not autocommit:
                         conn.commit()
+
+    @contextmanager
+    def transaction(self) -> Iterator[psycopg.Connection]:
+        """Context manager for transactions.
+
+        Automatically commits on success, rolls back on exception.
+        If a session is active, reuses the session connection.
+
+        Yields:
+            psycopg Connection in a transaction.
+        """
+        if self._session_conn is not None:
+            # Reuse existing session connection
+            with self._session_conn.transaction():
+                yield self._session_conn
+        else:
+            with self.connect() as conn:
+                with conn.transaction():
+                    yield conn
 
     @contextmanager
     def session(self, autocommit: bool = False) -> Iterator["Database"]:
@@ -769,11 +790,34 @@ class Database:
         Returns:
             True if table exists.
         """
-        result = self.execute("""
-            SELECT 1 FROM information_schema.tables
-            WHERE table_schema = %s AND table_name = %s
-        """, [schema, name])
+        result = self.execute(queries.TABLE_EXISTS, [schema, name])
         return len(result) > 0
+
+    def list_columns(self, table: str, schema: str = "public") -> list[str]:
+        """Get list of column names for a table.
+
+        Args:
+            table: Table name.
+            schema: Schema name (default: "public").
+
+        Returns:
+            List of column names in ordinal order.
+        """
+        result = self.execute(queries.GET_COLUMNS, [schema, table])
+        return [row["column_name"] for row in result]
+
+    def columns_with_types(self, table: str, schema: str = "public") -> list[tuple[str, str]]:
+        """Get list of (column_name, data_type) tuples for a table.
+
+        Args:
+            table: Table name.
+            schema: Schema name (default: "public").
+
+        Returns:
+            List of (name, type) tuples in ordinal order.
+        """
+        result = self.execute(queries.GET_COLUMNS, [schema, table])
+        return [(row["column_name"], row["data_type"]) for row in result]
 
     def drop_table(self, name: str, schema: str = "public", if_exists: bool = True, cascade: bool = False) -> None:
         """Drop a table.
