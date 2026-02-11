@@ -1218,12 +1218,27 @@ class Database:
         if not self.has_extension("postgis"):
             raise RuntimeError("PostGIS extension not installed. Run db.create_extension('postgis')")
 
-        # Handle SRID
-        if srid is None and gdf.crs is not None:
+        # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
+        if srid is None:
+            if gdf.crs is None:
+                raise ValueError(
+                    "GeoDataFrame has no CRS defined. "
+                    "Set gdf.crs or provide explicit srid parameter."
+                )
             try:
                 srid = gdf.crs.to_epsg()
-            except Exception:
-                srid = 4326  # Default to WGS84
+                if srid is None:
+                    raise ValueError(
+                        f"Cannot determine EPSG code for CRS: {gdf.crs}. "
+                        f"Provide explicit srid parameter."
+                    )
+            except ValueError:
+                raise
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to infer SRID from CRS {gdf.crs}. "
+                    f"Provide explicit srid parameter. Error: {e}"
+                ) from e
 
         gdf.to_postgis(
             name=table,
@@ -1382,6 +1397,12 @@ class Database:
         Example:
             db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
         """
+        if not self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
         validate_identifiers(table, schema)
 
         settings = ["timescaledb.compress"]
@@ -1419,6 +1440,12 @@ class Database:
         Example:
             db.add_compression_policy("events", compress_after="30 days")
         """
+        if not self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
         self.execute(f"""
             SELECT add_compression_policy(
                 '{schema}.{table}',
@@ -1442,6 +1469,12 @@ class Database:
         Example:
             db.add_retention_policy("logs", drop_after="90 days")
         """
+        if not self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
         self.execute(f"""
             SELECT add_retention_policy(
                 '{schema}.{table}',
@@ -1455,6 +1488,12 @@ class Database:
         Returns:
             List of hypertable info dicts.
         """
+        if not self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
         return self.execute("""
             SELECT
                 hypertable_schema AS schema,
@@ -1476,6 +1515,12 @@ class Database:
         Returns:
             Dict with hypertable details including size info.
         """
+        if not self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
         result = self.execute("""
             SELECT
                 hypertable_size(format('%I.%I', %s, %s)) AS total_size,
