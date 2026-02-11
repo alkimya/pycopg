@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-11)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 5 - Resilience & Configuration
+**Current focus:** Phase 6 - Test Coverage
 
 ## Current Position
 

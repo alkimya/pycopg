@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: AsyncDatabase DataFrame Parity** - Complete DataFrame/GeoDataFrame async methods
 - [x] **Phase 3: AsyncDatabase Admin/Backup Parity** - Complete admin, DDL, backup/restore async methods
 - [x] **Phase 4: AsyncDatabase Extensions Parity** - Complete PostGIS, TimescaleDB, roles async methods
-- [ ] **Phase 5: Resilience & Configuration** - Add retry/backoff, timeouts, configurable batch sizes
+- [x] **Phase 5: Resilience & Configuration** - Add retry/backoff, timeouts, configurable batch sizes
 - [ ] **Phase 6: Test Coverage** - Comprehensive test infrastructure and edge case testing
 - [ ] **Phase 7: Documentation & Release** - Update docs, changelog, migration guide, publish v0.3.0
 
@@ -98,8 +98,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Add tenacity retry/backoff, statement_timeout, batch size config, pool reconnection params
-- [ ] 05-02-PLAN.md — Tests for retry behavior, statement_timeout, batch size defaults, pool reconnection params
+- [x] 05-01-PLAN.md — Add tenacity retry/backoff, statement_timeout, batch size config, pool reconnection params
+- [x] 05-02-PLAN.md — Tests for retry behavior, statement_timeout, batch size defaults, pool reconnection params
 
 ### Phase 6: Test Coverage
 **Goal**: Test coverage exceeds 70% with real PostgreSQL and all edge cases covered
@@ -143,6 +143,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. AsyncDatabase DataFrame Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 4. AsyncDatabase Extensions Parity | 2/2 | ✓ Complete | 2026-02-11 |
-| 5. Resilience & Configuration | 0/2 | Not started | - |
+| 5. Resilience & Configuration | 2/2 | ✓ Complete | 2026-02-11 |
 | 6. Test Coverage | 0/TBD | Not started | - |
 | 7. Documentation & Release | 0/TBD | Not started | - |
