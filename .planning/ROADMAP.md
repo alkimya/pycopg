@@ -128,10 +128,11 @@ Plans:
   3. CHANGELOG.md contains 0.3.0 entry with all breaking changes clearly listed
   4. Migration guide exists showing before/after examples for breaking changes from 0.2.0 to 0.3.0
   5. Version bumped to 0.3.0 in pyproject.toml and package published on PyPI via CI workflow
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be created during plan-phase)
+- [ ] 07-01-PLAN.md — Create CHANGELOG.md, MIGRATION.md, and update README.md with v0.3.0 features (DOC-01, DOC-03, DOC-04)
+- [ ] 07-02-PLAN.md — Update Sphinx docs, version bump to 0.3.0, rebuild HTML, verify release readiness (DOC-02, DOC-05)
 
 ## Progress
 
@@ -146,4 +147,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. AsyncDatabase Extensions Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 5. Resilience & Configuration | 2/2 | ✓ Complete | 2026-02-11 |
 | 6. Test Coverage | 2/2 | ✓ Complete | 2026-02-11 |
-| 7. Documentation & Release | 0/TBD | Not started | - |
+| 7. Documentation & Release | 0/2 | In progress | - |
