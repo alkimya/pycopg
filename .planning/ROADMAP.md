@@ -13,7 +13,7 @@ This roadmap delivers pycopg v0.3.0, a consolidation release that achieves full 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Bug Fixes & Foundation** - Fix critical bugs blocking async parity work
-- [ ] **Phase 2: AsyncDatabase DataFrame Parity** - Complete DataFrame/GeoDataFrame async methods
+- [x] **Phase 2: AsyncDatabase DataFrame Parity** - Complete DataFrame/GeoDataFrame async methods
 - [ ] **Phase 3: AsyncDatabase Admin/Backup Parity** - Complete admin, DDL, backup/restore async methods
 - [ ] **Phase 4: AsyncDatabase Extensions Parity** - Complete PostGIS, TimescaleDB, roles async methods
 - [ ] **Phase 5: Resilience & Configuration** - Add retry/backoff, timeouts, configurable batch sizes
@@ -50,8 +50,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Implement async_engine, to_dataframe, from_dataframe, to_geodataframe, from_geodataframe on AsyncDatabase
-- [ ] 02-02-PLAN.md — Unit tests for all async DataFrame/GeoDataFrame methods and SRID validation
+- [x] 02-01-PLAN.md — Implement async_engine, to_dataframe, from_dataframe, to_geodataframe, from_geodataframe on AsyncDatabase
+- [x] 02-02-PLAN.md — Unit tests for all async DataFrame/GeoDataFrame methods and SRID validation
 
 ### Phase 3: AsyncDatabase Admin/Backup Parity
 **Goal**: AsyncDatabase has full admin, DDL, backup/restore operations matching Database
@@ -137,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Bug Fixes & Foundation | 2/2 | ✓ Complete | 2026-02-11 |
-| 2. AsyncDatabase DataFrame Parity | 0/2 | Planned | - |
+| 2. AsyncDatabase DataFrame Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | 0/TBD | Not started | - |
 | 4. AsyncDatabase Extensions Parity | 0/TBD | Not started | - |
 | 5. Resilience & Configuration | 0/TBD | Not started | - |
