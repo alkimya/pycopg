@@ -121,56 +121,56 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | — | Pending |
-| BUG-02 | — | Pending |
-| BUG-03 | — | Pending |
-| BUG-04 | — | Pending |
-| BUG-05 | — | Pending |
-| ASYNC-01 | — | Pending |
-| ASYNC-02 | — | Pending |
-| ASYNC-03 | — | Pending |
-| ASYNC-04 | — | Pending |
-| ASYNC-05 | — | Pending |
-| ASYNC-06 | — | Pending |
-| ASYNC-07 | — | Pending |
-| ASYNC-08 | — | Pending |
-| ASYNC-09 | — | Pending |
-| ASYNC-10 | — | Pending |
-| ASYNC-11 | — | Pending |
-| ASYNC-12 | — | Pending |
-| ASYNC-13 | — | Pending |
-| ASYNC-14 | — | Pending |
-| ASYNC-15 | — | Pending |
-| ASYNC-16 | — | Pending |
-| ASYNC-17 | — | Pending |
-| ASYNC-18 | — | Pending |
-| ASYNC-19 | — | Pending |
-| ASYNC-20 | — | Pending |
-| ASYNC-21 | — | Pending |
-| ASYNC-22 | — | Pending |
-| ASYNC-23 | — | Pending |
-| ASYNC-24 | — | Pending |
-| ASYNC-25 | — | Pending |
-| RESL-01 | — | Pending |
-| RESL-02 | — | Pending |
-| RESL-03 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| TEST-04 | — | Pending |
-| TEST-05 | — | Pending |
-| TEST-06 | — | Pending |
-| DOC-01 | — | Pending |
-| DOC-02 | — | Pending |
-| DOC-03 | — | Pending |
-| DOC-04 | — | Pending |
-| DOC-05 | — | Pending |
+| BUG-01 | Phase 1 | Pending |
+| BUG-02 | Phase 1 | Pending |
+| BUG-03 | Phase 1 | Pending |
+| BUG-04 | Phase 1 | Pending |
+| BUG-05 | Phase 1 | Pending |
+| ASYNC-01 | Phase 2 | Pending |
+| ASYNC-02 | Phase 2 | Pending |
+| ASYNC-03 | Phase 2 | Pending |
+| ASYNC-04 | Phase 2 | Pending |
+| ASYNC-05 | Phase 3 | Pending |
+| ASYNC-06 | Phase 3 | Pending |
+| ASYNC-07 | Phase 3 | Pending |
+| ASYNC-08 | Phase 3 | Pending |
+| ASYNC-09 | Phase 3 | Pending |
+| ASYNC-10 | Phase 3 | Pending |
+| ASYNC-11 | Phase 3 | Pending |
+| ASYNC-12 | Phase 3 | Pending |
+| ASYNC-13 | Phase 3 | Pending |
+| ASYNC-14 | Phase 3 | Pending |
+| ASYNC-15 | Phase 4 | Pending |
+| ASYNC-16 | Phase 4 | Pending |
+| ASYNC-17 | Phase 4 | Pending |
+| ASYNC-18 | Phase 4 | Pending |
+| ASYNC-19 | Phase 4 | Pending |
+| ASYNC-20 | Phase 4 | Pending |
+| ASYNC-21 | Phase 4 | Pending |
+| ASYNC-22 | Phase 4 | Pending |
+| ASYNC-23 | Phase 4 | Pending |
+| ASYNC-24 | Phase 3 | Pending |
+| ASYNC-25 | Phase 3 | Pending |
+| RESL-01 | Phase 5 | Pending |
+| RESL-02 | Phase 5 | Pending |
+| RESL-03 | Phase 5 | Pending |
+| TEST-01 | Phase 6 | Pending |
+| TEST-02 | Phase 6 | Pending |
+| TEST-03 | Phase 6 | Pending |
+| TEST-04 | Phase 6 | Pending |
+| TEST-05 | Phase 6 | Pending |
+| TEST-06 | Phase 6 | Pending |
+| DOC-01 | Phase 7 | Pending |
+| DOC-02 | Phase 7 | Pending |
+| DOC-03 | Phase 7 | Pending |
+| DOC-04 | Phase 7 | Pending |
+| DOC-05 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 44 total
-- Mapped to phases: 0
-- Unmapped: 44
+- Mapped to phases: 44
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-11*
-*Last updated: 2026-02-11 after initial definition*
+*Last updated: 2026-02-11 after roadmap creation*
