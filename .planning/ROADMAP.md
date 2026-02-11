@@ -47,10 +47,11 @@ Plans:
   2. User can call async from_dataframe() on AsyncDatabase to insert DataFrame rows to table
   3. User can call async to_geodataframe() on AsyncDatabase to retrieve spatial data as GeoDataFrame
   4. User can call async from_geodataframe() on AsyncDatabase to insert GeoDataFrame with geometries
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be created during plan-phase)
+- [ ] 02-01-PLAN.md — Implement async_engine, to_dataframe, from_dataframe, to_geodataframe, from_geodataframe on AsyncDatabase
+- [ ] 02-02-PLAN.md — Unit tests for all async DataFrame/GeoDataFrame methods and SRID validation
 
 ### Phase 3: AsyncDatabase Admin/Backup Parity
 **Goal**: AsyncDatabase has full admin, DDL, backup/restore operations matching Database
@@ -136,7 +137,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Bug Fixes & Foundation | 2/2 | ✓ Complete | 2026-02-11 |
-| 2. AsyncDatabase DataFrame Parity | 0/TBD | Not started | - |
+| 2. AsyncDatabase DataFrame Parity | 0/2 | Planned | - |
 | 3. AsyncDatabase Admin/Backup Parity | 0/TBD | Not started | - |
 | 4. AsyncDatabase Extensions Parity | 0/TBD | Not started | - |
 | 5. Resilience & Configuration | 0/TBD | Not started | - |
