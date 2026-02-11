@@ -32,10 +32,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Migration file parser logs skipped files at WARNING level instead of silent continue
   4. All TimescaleDB methods validate extension exists before executing operations
   5. GeoDataFrame SRID inference raises clear error on unknown CRS instead of silently defaulting to 4326
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be created during plan-phase)
+- [ ] 01-01-PLAN.md — Fix session cleanup and transaction detection (BUG-01, BUG-02)
+- [ ] 01-02-PLAN.md — Fix migration logging, TimescaleDB validation, SRID inference (BUG-03, BUG-04, BUG-05)
 
 ### Phase 2: AsyncDatabase DataFrame Parity
 **Goal**: AsyncDatabase has full DataFrame and GeoDataFrame support matching Database
@@ -134,7 +135,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Bug Fixes & Foundation | 0/TBD | Not started | - |
+| 1. Bug Fixes & Foundation | 0/2 | Planning complete | - |
 | 2. AsyncDatabase DataFrame Parity | 0/TBD | Not started | - |
 | 3. AsyncDatabase Admin/Backup Parity | 0/TBD | Not started | - |
 | 4. AsyncDatabase Extensions Parity | 0/TBD | Not started | - |
