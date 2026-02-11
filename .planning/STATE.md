@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 
 ## Current Position
 
-Phase: 5 of 7 (Resilience & Configuration) — COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase complete - all resilience features tested
-Last activity: 2026-02-11 — Completed 05-02 resilience testing
+Phase: 6 of 7 (Test Coverage)
+Plan: 1 of 2 in current phase
+Status: Coverage infrastructure complete, 72% coverage achieved
+Last activity: 2026-02-11 — Completed 06-01 coverage infrastructure
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 2.7 minutes
-- Total execution time: 0.46 hours
+- Total plans completed: 11
+- Average duration: 3.0 minutes
+- Total execution time: 0.56 hours
 
 **By Phase:**
 
@@ -32,17 +32,18 @@ Progress: [█████████░] 91%
 | 03    | 2     | 7.2 min  | 3.6 min  |
 | 04    | 2     | 6.36 min | 3.2 min  |
 | 05    | 2     | 6.21 min | 3.1 min  |
+| 06    | 1     | 5.95 min | 5.95 min |
 
 **Recent Plans:**
 
 | Phase | Plan | Duration | Tasks | Files | Completed  |
 |-------|------|----------|-------|-------|------------|
-| 03    | 01   | 3.7 min  | 2     | 2     | 2026-02-11 |
 | 03    | 02   | 3.6 min  | 2     | 2     | 2026-02-11 |
 | 04    | 01   | 2.81 min | 2     | 2     | 2026-02-11 |
 | 04    | 02   | 3.55 min | 2     | 2     | 2026-02-11 |
 | 05    | 01   | 3.96 min | 2     | 5     | 2026-02-11 |
 | 05    | 02   | 2.25 min | 2     | 4     | 2026-02-11 |
+| 06    | 01   | 5.95 min | 2     | 4     | 2026-02-11 |
 
 ## Accumulated Context
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - Retry only on OperationalError (connection failures, not logic errors) - 05-01
 - 3 attempts with exponential backoff 1-10s (balance reliability vs latency) - 05-01
 - Retry on Database/AsyncDatabase.connect() only, not on pools (pools have built-in reconnect_timeout) - 05-01
+- Track known signature mismatches in parity test (create_schema/create_extension param differences) - 06-01
+- Document sync-only and async-only method exceptions (engine vs async_engine, create/create_from_env, etc.) - 06-01
+- Use real PostgreSQL for integration tests (mock-based tests don't catch real driver/DB interaction bugs) - 06-01
 
 ### Pending Todos
 
@@ -78,5 +82,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11 (phase execution)
-Stopped at: Completed 05-02-PLAN.md — resilience testing complete, Phase 5 done
+Stopped at: Completed 06-01-PLAN.md — coverage infrastructure complete, 72% coverage achieved
 Resume file: None
