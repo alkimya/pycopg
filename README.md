@@ -223,6 +223,92 @@ async for payload in db.listen("events"):
     handle_event(event)
 ```
 
+### Async DataFrame Operations (NEW in 0.3.0)
+
+```python
+import pandas as pd
+import geopandas as gpd
+
+# Read table to DataFrame
+df = await db.to_dataframe("users")
+df = await db.to_dataframe(sql="SELECT * FROM users WHERE age > :min", params={"min": 18})
+
+# Insert from DataFrame
+df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
+await db.from_dataframe(df, "users_backup", primary_key="id")
+
+# Spatial data
+gdf = await db.to_geodataframe("parcels")
+await db.from_geodataframe(gdf, "parcels_copy", spatial_index=True)
+```
+
+### Async Admin Operations (NEW in 0.3.0)
+
+```python
+# Maintenance
+await db.vacuum("users", analyze=True)
+await db.analyze("orders")
+
+# Query analysis
+plan = await db.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
+
+# Indexes
+await db.create_index("users", "email", unique=True)
+await db.drop_index("idx_users_email")
+
+# Tables
+await db.create_table("logs", {"id": "SERIAL PRIMARY KEY", "message": "TEXT"})
+await db.drop_table("temp_data")
+```
+
+### Async Backup Operations (NEW in 0.3.0)
+
+```python
+# Full backup
+await db.pg_dump("backup.dump")
+await db.pg_dump("backup.sql", format="plain")
+
+# Restore
+await db.pg_restore("backup.dump")
+
+# CSV export/import
+await db.copy_to_csv("users", "users.csv")
+await db.copy_from_csv("users", "users.csv")
+```
+
+### Async Role Management (NEW in 0.3.0)
+
+```python
+# Create roles
+await db.create_role("analyst", password="secret", login=True)
+await db.create_role("readonly", login=False)
+
+# Grant/revoke privileges
+await db.grant("SELECT", "users", "readonly")
+await db.grant("ALL", "orders", "analyst")
+await db.revoke("INSERT", "users", "readonly")
+
+# Role membership
+await db.grant_role("readonly", "analyst")
+```
+
+### Async PostGIS & TimescaleDB (NEW in 0.3.0)
+
+```python
+# PostGIS: Spatial indexes
+await db.create_spatial_index("parcels", "geometry")
+
+# TimescaleDB: Hypertables
+await db.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
+
+# TimescaleDB: Compression
+await db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
+await db.add_compression_policy("events", compress_after="30 days")
+
+# TimescaleDB: Retention
+await db.add_retention_policy("logs", drop_after="90 days")
+```
+
 ## Connection Pooling
 
 For high-performance applications with many concurrent requests:
@@ -262,6 +348,79 @@ async with AsyncPooledDatabase.from_env(min_size=5, max_size=20) as db:
     async with db.transaction() as conn:
         await conn.execute("INSERT INTO users (name) VALUES (%s)", ["Alice"])
 ```
+
+## Resilience
+
+pycopg includes automatic resilience features to handle transient failures and prevent runaway queries.
+
+### Automatic Retry with Backoff
+
+Connection failures are automatically retried with exponential backoff:
+
+```python
+from pycopg import Database, AsyncDatabase
+
+# Retry automatically enabled on connect()
+db = Database.from_env()
+# On connection failure: retries 3 times with exponential backoff (1-10s)
+
+# Same for async
+db = AsyncDatabase.from_env()
+# Automatically retries on OperationalError (connection failures only)
+```
+
+**Details:**
+- 3 retry attempts (initial + 2 retries)
+- Exponential backoff: 1s, 2.7s, 7.4s
+- Only retries `OperationalError` (connection failures, not SQL errors)
+- Applies to `connect()` method only (pools have built-in reconnection)
+
+### Statement Timeout
+
+Prevent runaway queries from consuming resources:
+
+```python
+from pycopg import Database, Config
+
+# Configure timeout for all queries
+config = Config.from_env()
+config.statement_timeout = 30000  # 30 seconds (milliseconds)
+db = Database(config)
+
+# Queries exceeding 30s will be cancelled automatically
+
+# Or with URL
+db = Database.from_url(
+    "postgresql://user:pass@localhost:5432/mydb",
+    statement_timeout=30000
+)
+```
+
+**Recommended values:**
+- Web API endpoints: 5000-10000ms (5-10s)
+- Background jobs: 60000-300000ms (1-5 minutes)
+- Data warehousing: 600000+ (10+ minutes)
+
+### Configurable Batch Size
+
+Optimize memory usage and performance for bulk inserts:
+
+```python
+# Default batch size is 1000
+db.insert_batch("users", large_dataset)
+
+# For memory-constrained environments or very large rows
+db.insert_batch("users", large_dataset, batch_size=500)
+
+# For small rows and high performance
+db.insert_batch("users", large_dataset, batch_size=5000)
+```
+
+**When to adjust:**
+- Large rows (many columns, JSONB, TEXT): decrease to 100-500
+- Small rows (few columns, simple types): increase to 2000-5000
+- Memory errors: decrease batch size
+- Performance tuning: benchmark different values
 
 ## Migrations
 
