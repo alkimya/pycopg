@@ -740,3 +740,268 @@ class TestAsyncDatabaseGeoDataFrame:
             call_kwargs = mock_to_postgis.call_args[1]
             assert call_kwargs["name"] == "parcels"
             assert call_kwargs["schema"] == "public"
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseDDL:
+    """Tests for DDL operations (drop_table, create_index, etc.)."""
+
+    async def test_drop_table_basic(self, config):
+        """Test drop_table with default parameters."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_table("users")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "DROP TABLE IF EXISTS public.users" in sql
+
+    async def test_drop_table_cascade(self, config):
+        """Test drop_table with cascade option."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_table("users", cascade=True)
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "DROP TABLE IF EXISTS public.users CASCADE" in sql
+
+    async def test_create_index_basic(self, config):
+        """Test create_index with single column."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.create_index("users", "email")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "CREATE INDEX IF NOT EXISTS" in sql
+        assert "ON public.users USING btree (email)" in sql
+
+    async def test_create_index_unique_multi_column(self, config):
+        """Test create_index with unique constraint and multiple columns."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.create_index("users", ["first_name", "last_name"], unique=True)
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "CREATE UNIQUE INDEX" in sql
+        assert "first_name, last_name" in sql
+
+    async def test_drop_index_basic(self, config):
+        """Test drop_index with default parameters."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_index("idx_users_email")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "DROP INDEX IF EXISTS public.idx_users_email" in sql
+
+    async def test_list_indexes(self, config):
+        """Test list_indexes returns index information."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"index_name": "idx_users_email", "index_type": "btree", "index_def": "CREATE INDEX..."},
+            {"index_name": "users_pkey", "index_type": "btree", "index_def": "CREATE UNIQUE INDEX..."}
+        ])
+
+        indexes = await db.list_indexes("users")
+
+        assert len(indexes) == 2
+        assert indexes[0]["index_name"] == "idx_users_email"
+        assert indexes[1]["index_name"] == "users_pkey"
+
+        # Verify SQL parameters
+        call_args = db.execute.call_args
+        assert call_args[0][1] == ["public", "users"]
+
+    async def test_list_constraints(self, config):
+        """Test list_constraints returns constraint information."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"constraint_name": "users_pkey", "constraint_type": "p", "constraint_def": "PRIMARY KEY (id)"},
+            {"constraint_name": "users_email_key", "constraint_type": "u", "constraint_def": "UNIQUE (email)"}
+        ])
+
+        constraints = await db.list_constraints("users")
+
+        assert len(constraints) == 2
+        assert constraints[0]["constraint_name"] == "users_pkey"
+        assert constraints[1]["constraint_name"] == "users_email_key"
+
+        # Verify SQL parameters
+        call_args = db.execute.call_args
+        assert call_args[0][1] == ["public", "users"]
+
+    async def test_drop_schema_basic(self, config):
+        """Test drop_schema with default parameters."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_schema("analytics")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "DROP SCHEMA IF EXISTS analytics" in sql
+
+    async def test_drop_schema_cascade(self, config):
+        """Test drop_schema with cascade option."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_schema("analytics", cascade=True)
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "DROP SCHEMA IF EXISTS analytics CASCADE" in sql
+
+    async def test_table_sizes(self, config):
+        """Test table_sizes returns size information."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {
+                "table_name": "users",
+                "total_size": "128 MB",
+                "data_size": "100 MB",
+                "index_size": "28 MB"
+            },
+            {
+                "table_name": "logs",
+                "total_size": "64 MB",
+                "data_size": "50 MB",
+                "index_size": "14 MB"
+            }
+        ])
+
+        sizes = await db.table_sizes("public", limit=10)
+
+        assert len(sizes) == 2
+        assert sizes[0]["table_name"] == "users"
+        assert sizes[0]["total_size"] == "128 MB"
+
+        # Verify SQL parameters
+        call_args = db.execute.call_args
+        assert call_args[0][1] == ["public", 10]
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseAdmin:
+    """Tests for database administration methods."""
+
+    async def test_create_database(self, config):
+        """Test create_database creates database with admin connection."""
+        # Create mock cursor and connection
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        mock_conn = MagicMock()
+        mock_conn.cursor = MagicMock(side_effect=cursor_cm)
+
+        @asynccontextmanager
+        async def connect_cm():
+            yield mock_conn
+
+        db = AsyncDatabase(config)
+
+        with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
+            await db.create_database("testdb")
+
+        # Verify CREATE DATABASE was called
+        mock_cursor.execute.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "CREATE DATABASE testdb" in sql
+        assert "TEMPLATE template1" in sql
+
+    async def test_create_database_with_owner(self, config):
+        """Test create_database with owner parameter."""
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        mock_conn = MagicMock()
+        mock_conn.cursor = MagicMock(side_effect=cursor_cm)
+
+        @asynccontextmanager
+        async def connect_cm():
+            yield mock_conn
+
+        db = AsyncDatabase(config)
+
+        with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
+            await db.create_database("testdb", owner="appuser")
+
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "OWNER appuser" in sql
+
+    async def test_drop_database(self, config):
+        """Test drop_database terminates connections and drops database."""
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        mock_conn = MagicMock()
+        mock_conn.cursor = MagicMock(side_effect=cursor_cm)
+
+        @asynccontextmanager
+        async def connect_cm():
+            yield mock_conn
+
+        db = AsyncDatabase(config)
+
+        with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
+            await db.drop_database("testdb")
+
+        # Verify pg_terminate_backend was called first, then DROP DATABASE
+        assert mock_cursor.execute.call_count == 2
+
+        # First call should be terminate connections
+        first_call = mock_cursor.execute.call_args_list[0]
+        assert "pg_terminate_backend" in first_call[0][0]
+        assert first_call[0][1] == ["testdb"]
+
+        # Second call should be DROP DATABASE
+        second_call = mock_cursor.execute.call_args_list[1]
+        assert "DROP DATABASE IF EXISTS testdb" in second_call[0][0]
+
+    async def test_drop_database_if_not_exists(self, config):
+        """Test drop_database with if_exists=False."""
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        mock_conn = MagicMock()
+        mock_conn.cursor = MagicMock(side_effect=cursor_cm)
+
+        @asynccontextmanager
+        async def connect_cm():
+            yield mock_conn
+
+        db = AsyncDatabase(config)
+
+        with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
+            await db.drop_database("testdb", if_exists=False)
+
+        # Check DROP DATABASE doesn't have IF EXISTS
+        second_call = mock_cursor.execute.call_args_list[1]
+        sql = second_call[0][0]
+        assert "DROP DATABASE testdb" in sql
+        assert "IF EXISTS" not in sql
