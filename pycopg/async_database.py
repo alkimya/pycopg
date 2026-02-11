@@ -7,19 +7,24 @@ Provides async/await interface for PostgreSQL operations using psycopg's async s
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Optional, Sequence
 
 import psycopg
+from psycopg import OperationalError
 from psycopg.rows import dict_row
 from psycopg import AsyncConnection, AsyncCursor
 from psycopg.pq import TransactionStatus
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 
 from pycopg.config import Config
 from pycopg.utils import validate_identifier, validate_identifiers, validate_index_method, validate_interval
 from pycopg import queries
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import geopandas as gpd
@@ -91,6 +96,19 @@ class AsyncDatabase:
         """
         return cls(Config.from_url(url))
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(OperationalError),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    async def _connect_with_retry(self, autocommit: bool = False) -> AsyncConnection:
+        """Establish async connection with retry for transient failures."""
+        return await psycopg.AsyncConnection.connect(
+            **self.config.connect_params(), autocommit=autocommit
+        )
+
     @asynccontextmanager
     async def connect(self, autocommit: bool = False) -> AsyncIterator[AsyncConnection]:
         """Async context manager for connection.
@@ -105,10 +123,7 @@ class AsyncDatabase:
             async with db.connect() as conn:
                 result = await conn.execute("SELECT 1")
         """
-        conn = await psycopg.AsyncConnection.connect(
-            **self.config.connect_params(),
-            autocommit=autocommit,
-        )
+        conn = await self._connect_with_retry(autocommit=autocommit)
         try:
             yield conn
         finally:
@@ -288,7 +303,7 @@ class AsyncDatabase:
         rows: list[dict],
         schema: str = "public",
         on_conflict: Optional[str] = None,
-        batch_size: int = 1000,
+        batch_size: Optional[int] = None,
     ) -> int:
         """Insert multiple rows efficiently using batch VALUES.
 
@@ -300,7 +315,7 @@ class AsyncDatabase:
             rows: List of row dicts (all must have same keys).
             schema: Schema name.
             on_conflict: Optional ON CONFLICT clause.
-            batch_size: Max rows per INSERT statement (default 1000).
+            batch_size: Max rows per INSERT statement (default from config).
 
         Returns:
             Total number of rows inserted.
@@ -313,6 +328,9 @@ class AsyncDatabase:
         """
         if not rows:
             return 0
+
+        if batch_size is None:
+            batch_size = self.config.default_batch_size
 
         validate_identifiers(table, schema)
 

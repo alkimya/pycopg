@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from contextlib import contextmanager, asynccontextmanager
-from typing import TYPE_CHECKING, Any, Iterator, AsyncIterator, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterator, AsyncIterator, Optional, Sequence
 
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, AsyncConnectionPool
@@ -49,6 +49,9 @@ class PooledDatabase:
         max_lifetime: float = 3600.0,
         timeout: float = 30.0,
         num_workers: int = 3,
+        reconnect_timeout: float = 300.0,
+        reconnect_failed: Optional[Callable] = None,
+        check: Optional[Callable] = None,
     ):
         """Initialize connection pool.
 
@@ -60,6 +63,9 @@ class PooledDatabase:
             max_lifetime: Close connections after this many seconds.
             timeout: Wait timeout for getting a connection.
             num_workers: Background workers for pool management.
+            reconnect_timeout: Time in seconds to keep retrying reconnection (default 300s).
+            reconnect_failed: Callback on prolonged reconnection failure.
+            check: Health check callback for connections.
         """
         self.config = config
         self._pool = ConnectionPool(
@@ -70,6 +76,9 @@ class PooledDatabase:
             max_lifetime=max_lifetime,
             timeout=timeout,
             num_workers=num_workers,
+            reconnect_timeout=reconnect_timeout,
+            reconnect_failed=reconnect_failed,
+            check=check or ConnectionPool.check_connection,
             kwargs={"row_factory": dict_row},
         )
 
@@ -254,6 +263,9 @@ class AsyncPooledDatabase:
         max_lifetime: float = 3600.0,
         timeout: float = 30.0,
         num_workers: int = 3,
+        reconnect_timeout: float = 300.0,
+        reconnect_failed: Optional[Callable] = None,
+        check: Optional[Callable] = None,
     ):
         """Initialize async connection pool.
 
@@ -265,6 +277,9 @@ class AsyncPooledDatabase:
             max_lifetime: Close connections after this many seconds.
             timeout: Wait timeout for getting a connection.
             num_workers: Background workers for pool management.
+            reconnect_timeout: Time in seconds to keep retrying reconnection (default 300s).
+            reconnect_failed: Callback on prolonged reconnection failure.
+            check: Health check callback for connections.
         """
         self.config = config
         self._pool = AsyncConnectionPool(
@@ -275,6 +290,9 @@ class AsyncPooledDatabase:
             max_lifetime=max_lifetime,
             timeout=timeout,
             num_workers=num_workers,
+            reconnect_timeout=reconnect_timeout,
+            reconnect_failed=reconnect_failed,
+            check=check or AsyncConnectionPool.check_connection,
             kwargs={"row_factory": dict_row},
             open=False,  # Don't open immediately, use open() method
         )

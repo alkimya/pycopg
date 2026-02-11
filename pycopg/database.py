@@ -6,20 +6,25 @@ Provides high-level operations for PostgreSQL/PostGIS/TimescaleDB.
 
 from __future__ import annotations
 
+import logging
 import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator, Literal, Optional, Sequence
 
 import psycopg
+from psycopg import OperationalError
 from psycopg.rows import dict_row
 from psycopg.pq import TransactionStatus
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 
 from pycopg.config import Config
 from pycopg.utils import validate_identifier, validate_identifiers, validate_interval, validate_index_method
 from pycopg import queries
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import geopandas as gpd
@@ -237,6 +242,17 @@ class Database:
             self._engine = create_engine(self.config.url)
         return self._engine
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type(OperationalError),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    def _connect_with_retry(self, autocommit: bool = False) -> psycopg.Connection:
+        """Establish connection with retry for transient failures."""
+        return psycopg.connect(**self.config.connect_params(), autocommit=autocommit)
+
     @contextmanager
     def connect(self, autocommit: bool = False) -> Iterator[psycopg.Connection]:
         """Context manager for psycopg connection.
@@ -253,7 +269,7 @@ class Database:
                     cur.execute("SELECT * FROM users")
                     rows = cur.fetchall()
         """
-        conn = psycopg.connect(**self.config.connect_params(), autocommit=autocommit)
+        conn = self._connect_with_retry(autocommit=autocommit)
         try:
             yield conn
         finally:
@@ -424,7 +440,7 @@ class Database:
         rows: list[dict],
         schema: str = "public",
         on_conflict: Optional[str] = None,
-        batch_size: int = 1000,
+        batch_size: Optional[int] = None,
     ) -> int:
         """Insert multiple rows efficiently using batch VALUES.
 
@@ -438,7 +454,7 @@ class Database:
             schema: Schema name.
             on_conflict: Optional ON CONFLICT clause (e.g., "DO NOTHING",
                         "(id) DO UPDATE SET name = EXCLUDED.name").
-            batch_size: Max rows per INSERT statement (default 1000).
+            batch_size: Max rows per INSERT statement (default from config).
 
         Returns:
             Total number of rows inserted.
@@ -454,6 +470,9 @@ class Database:
         """
         if not rows:
             return 0
+
+        if batch_size is None:
+            batch_size = self.config.default_batch_size
 
         validate_identifiers(table, schema)
 
