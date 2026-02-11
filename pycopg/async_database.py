@@ -118,8 +118,15 @@ class AsyncDatabase:
         if self._session_conn is not None:
             async with self._session_conn.cursor(row_factory=dict_row) as cur:
                 yield cur
-                if not autocommit and self._session_conn.info.transaction_status == TransactionStatus.IDLE:
-                    await self._session_conn.commit()
+                if not autocommit:
+                    status = self._session_conn.info.transaction_status
+                    if status == TransactionStatus.INTRANS:
+                        await self._session_conn.commit()
+                    elif status == TransactionStatus.INERROR:
+                        await self._session_conn.rollback()
+                    # IDLE: no open transaction, nothing to do
+                    # ACTIVE: should not occur at cursor exit
+                    # UNKNOWN: connection in bad state, skip
         else:
             async with self.connect(autocommit=autocommit) as conn:
                 async with conn.cursor(row_factory=dict_row) as cur:
@@ -168,10 +175,14 @@ class AsyncDatabase:
         try:
             yield self
         finally:
-            if not autocommit:
-                await self._session_conn.commit()
-            await self._session_conn.close()
-            self._session_conn = None
+            try:
+                if not autocommit:
+                    await self._session_conn.commit()
+                await self._session_conn.close()
+            except Exception:
+                raise
+            finally:
+                self._session_conn = None  # ALWAYS executes
 
     @property
     def in_session(self) -> bool:
