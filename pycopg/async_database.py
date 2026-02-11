@@ -18,7 +18,7 @@ from psycopg import AsyncConnection, AsyncCursor
 from psycopg.pq import TransactionStatus
 
 from pycopg.config import Config
-from pycopg.utils import validate_identifier, validate_identifiers, validate_index_method
+from pycopg.utils import validate_identifier, validate_identifiers, validate_index_method, validate_interval
 from pycopg import queries
 
 if TYPE_CHECKING:
@@ -702,6 +702,245 @@ class AsyncDatabase:
         """)
 
     # =========================================================================
+    # POSTGIS SPATIAL OPERATIONS
+    # =========================================================================
+
+    async def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: Optional[str] = None) -> None:
+        """Create a GIST spatial index on a geometry column.
+
+        Args:
+            table: Table name.
+            column: Geometry column name.
+            schema: Schema name.
+            name: Index name (auto-generated if not provided).
+
+        Example:
+            await db.create_spatial_index("parcels", "geom")
+        """
+        index_name = name or f"idx_{table}_{column}_gist"
+        await self.execute(f"""
+            CREATE INDEX IF NOT EXISTS {index_name}
+            ON {schema}.{table} USING GIST ({column})
+        """)
+
+    async def list_geometry_columns(self, schema: Optional[str] = None) -> list[dict]:
+        """List geometry columns in the database.
+
+        Args:
+            schema: Optional schema filter.
+
+        Returns:
+            List of geometry column info.
+        """
+        where_clause = "WHERE f_table_schema = %s" if schema else ""
+        params = [schema] if schema else None
+        return await self.execute(f"""
+            SELECT
+                f_table_schema AS schema,
+                f_table_name AS table_name,
+                f_geometry_column AS column_name,
+                coord_dimension AS dimensions,
+                srid,
+                type AS geometry_type
+            FROM geometry_columns
+            {where_clause}
+            ORDER BY f_table_schema, f_table_name
+        """, params)
+
+    # =========================================================================
+    # TIMESCALEDB OPERATIONS
+    # =========================================================================
+
+    async def create_hypertable(
+        self,
+        table: str,
+        time_column: str,
+        schema: str = "public",
+        chunk_time_interval: str = "1 day",
+        if_not_exists: bool = True,
+        migrate_data: bool = True,
+    ) -> None:
+        """Convert a table to a TimescaleDB hypertable.
+
+        Requires TimescaleDB extension.
+
+        Args:
+            table: Table name (must exist with time column).
+            time_column: Name of the timestamp column.
+            schema: Schema name.
+            chunk_time_interval: Chunk time interval (e.g., '1 day', '1 week').
+            if_not_exists: Don't error if already a hypertable.
+            migrate_data: Migrate existing data to chunks.
+
+        Example:
+            await db.create_hypertable("events", "created_at", chunk_time_interval="1 week")
+        """
+        if not await self.has_extension("timescaledb"):
+            raise RuntimeError("TimescaleDB extension not installed. Run db.create_extension('timescaledb')")
+
+        validate_identifiers(table, schema, time_column)
+        validate_interval(chunk_time_interval)
+
+        await self.execute(f"""
+            SELECT create_hypertable(
+                '{schema}.{table}',
+                '{time_column}',
+                chunk_time_interval => INTERVAL '{chunk_time_interval}',
+                if_not_exists => {str(if_not_exists).upper()},
+                migrate_data => {str(migrate_data).upper()}
+            )
+        """)
+
+    async def enable_compression(
+        self,
+        table: str,
+        segment_by: Optional[str | list[str]] = None,
+        order_by: Optional[str | list[str]] = None,
+        schema: str = "public",
+    ) -> None:
+        """Enable compression on a hypertable.
+
+        Args:
+            table: Hypertable name.
+            segment_by: Column(s) to segment compressed data by.
+            order_by: Column(s) to order compressed data by.
+            schema: Schema name.
+
+        Example:
+            await db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
+        """
+        if not await self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+
+        settings = ["timescaledb.compress"]
+        if segment_by:
+            if isinstance(segment_by, str):
+                segment_by = [segment_by]
+            for col in segment_by:
+                # Extract column name (may have DESC/ASC suffix)
+                col_name = col.split()[0]
+                validate_identifier(col_name)
+            settings.append(f"timescaledb.compress_segmentby = '{','.join(segment_by)}'")
+        if order_by:
+            if isinstance(order_by, str):
+                order_by = [order_by]
+            for col in order_by:
+                col_name = col.split()[0]
+                validate_identifier(col_name)
+            settings.append(f"timescaledb.compress_orderby = '{','.join(order_by)}'")
+
+        await self.execute(f"ALTER TABLE {schema}.{table} SET ({', '.join(settings)})")
+
+    async def add_compression_policy(
+        self,
+        table: str,
+        compress_after: str = "7 days",
+        schema: str = "public",
+    ) -> None:
+        """Add automatic compression policy to hypertable.
+
+        Args:
+            table: Hypertable name.
+            compress_after: Compress chunks older than this interval.
+            schema: Schema name.
+
+        Example:
+            await db.add_compression_policy("events", compress_after="30 days")
+        """
+        if not await self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
+        await self.execute(f"""
+            SELECT add_compression_policy(
+                '{schema}.{table}',
+                compress_after => INTERVAL '{compress_after}'
+            )
+        """)
+
+    async def add_retention_policy(
+        self,
+        table: str,
+        drop_after: str,
+        schema: str = "public",
+    ) -> None:
+        """Add automatic data retention policy to hypertable.
+
+        Args:
+            table: Hypertable name.
+            drop_after: Drop chunks older than this interval.
+            schema: Schema name.
+
+        Example:
+            await db.add_retention_policy("logs", drop_after="90 days")
+        """
+        if not await self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
+        await self.execute(f"""
+            SELECT add_retention_policy(
+                '{schema}.{table}',
+                drop_after => INTERVAL '{drop_after}'
+            )
+        """)
+
+    async def list_hypertables(self) -> list[dict]:
+        """List all hypertables.
+
+        Returns:
+            List of hypertable info dicts.
+        """
+        if not await self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
+        return await self.execute("""
+            SELECT
+                hypertable_schema AS schema,
+                hypertable_name AS table_name,
+                num_dimensions,
+                num_chunks,
+                compression_enabled
+            FROM timescaledb_information.hypertables
+            ORDER BY hypertable_schema, hypertable_name
+        """)
+
+    async def hypertable_info(self, table: str, schema: str = "public") -> dict:
+        """Get detailed info about a hypertable.
+
+        Args:
+            table: Hypertable name.
+            schema: Schema name.
+
+        Returns:
+            Dict with hypertable details including size info.
+        """
+        if not await self.has_extension("timescaledb"):
+            raise RuntimeError(
+                "TimescaleDB extension not installed. "
+                "Run db.create_extension('timescaledb')"
+            )
+
+        result = await self.execute("""
+            SELECT
+                hypertable_size(format('%I.%I', %s, %s)) AS total_size,
+                hypertable_detailed_size(format('%I.%I', %s, %s)) AS detailed_size
+        """, [schema, table, schema, table])
+        return result[0] if result else {}
+
+    # =========================================================================
     # ROLES
     # =========================================================================
 
@@ -1336,12 +1575,7 @@ class AsyncDatabase:
             )
 
         if spatial_index and if_exists != "append":
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "spatial_index parameter ignored — create_spatial_index not yet available in AsyncDatabase. "
-                "Use db.execute('CREATE INDEX ...') manually or wait for Phase 4."
-            )
+            await self.create_spatial_index(table, geometry_column, schema)
 
     # =========================================================================
     # BATCH OPERATIONS
