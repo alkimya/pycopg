@@ -112,10 +112,11 @@ Plans:
   4. Pool stress scenarios pass tests (exhaustion, cycling, timeout, broken connections)
   5. Spatial operations without PostGIS extension raise graceful errors with helpful messages
   6. Automated async parity test validates all Database public methods have AsyncDatabase equivalent
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be created during plan-phase)
+- [ ] 06-01-PLAN.md — Coverage infrastructure, Config/Base coverage, Database integration tests, async parity verification (TEST-01, TEST-06)
+- [ ] 06-02-PLAN.md — Migration rollback edge cases, session exceptions, pool stress, PostGIS error handling (TEST-02, TEST-03, TEST-04, TEST-05)
 
 ### Phase 7: Documentation & Release
 **Goal**: Documentation updated, migration guide published, v0.3.0 released on PyPI
@@ -144,5 +145,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. AsyncDatabase Admin/Backup Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 4. AsyncDatabase Extensions Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 5. Resilience & Configuration | 2/2 | ✓ Complete | 2026-02-11 |
-| 6. Test Coverage | 0/TBD | Not started | - |
+| 6. Test Coverage | 0/2 | In progress | - |
 | 7. Documentation & Release | 0/TBD | Not started | - |
