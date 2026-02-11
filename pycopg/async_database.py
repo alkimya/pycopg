@@ -719,11 +719,345 @@ class AsyncDatabase:
                 rolsuper AS superuser,
                 rolcreaterole AS createrole,
                 rolcreatedb AS createdb,
-                rolcanlogin AS login
+                rolcanlogin AS login,
+                rolreplication AS replication,
+                rolconnlimit AS connection_limit,
+                rolvaliduntil AS valid_until
             FROM pg_roles
             {where_clause}
             ORDER BY rolname
         """)
+
+    # =========================================================================
+    # ROLE MANAGEMENT
+    # =========================================================================
+
+    async def create_role(
+        self,
+        name: str,
+        password: Optional[str] = None,
+        login: bool = True,
+        superuser: bool = False,
+        createdb: bool = False,
+        createrole: bool = False,
+        inherit: bool = True,
+        replication: bool = False,
+        connection_limit: int = -1,
+        valid_until: Optional[str] = None,
+        in_roles: Optional[list[str]] = None,
+        if_not_exists: bool = True,
+    ) -> None:
+        """Create a database role/user.
+
+        Args:
+            name: Role name.
+            password: Role password (for login roles).
+            login: Can log in (True = user, False = group role).
+            superuser: Is superuser.
+            createdb: Can create databases.
+            createrole: Can create other roles.
+            inherit: Inherits privileges from member roles.
+            replication: Can initiate streaming replication.
+            connection_limit: Max concurrent connections (-1 = unlimited).
+            valid_until: Password expiration (e.g., '2025-12-31').
+            in_roles: List of roles to be a member of.
+            if_not_exists: Don't error if role exists.
+
+        Example:
+            # Create a regular user
+            await db.create_role("appuser", password="secret123", login=True)
+
+            # Create an admin user
+            await db.create_role("admin", password="secret", superuser=True)
+
+            # Create a read-only group role
+            await db.create_role("readonly", login=False)
+
+            # Create user in a group
+            await db.create_role("analyst", password="secret", in_roles=["readonly"])
+        """
+        validate_identifier(name)
+
+        # Check if exists
+        if if_not_exists and await self.role_exists(name):
+            return
+
+        options = []
+        if login:
+            options.append("LOGIN")
+        else:
+            options.append("NOLOGIN")
+
+        if superuser:
+            options.append("SUPERUSER")
+        if createdb:
+            options.append("CREATEDB")
+        if createrole:
+            options.append("CREATEROLE")
+        if not inherit:
+            options.append("NOINHERIT")
+        if replication:
+            options.append("REPLICATION")
+        if connection_limit != -1:
+            options.append(f"CONNECTION LIMIT {connection_limit}")
+        if password:
+            # Use parameterized query for password
+            options.append(f"PASSWORD %s")
+        if valid_until:
+            options.append(f"VALID UNTIL '{valid_until}'")
+
+        options_str = " ".join(options)
+
+        if password:
+            async with self.cursor(autocommit=True) as cur:
+                await cur.execute(f"CREATE ROLE {name} WITH {options_str}", [password])
+        else:
+            await self.execute(f"CREATE ROLE {name} WITH {options_str}", autocommit=True)
+
+        # Add to roles
+        if in_roles:
+            for role in in_roles:
+                await self.grant_role(role, name)
+
+    async def drop_role(self, name: str, if_exists: bool = True) -> None:
+        """Drop a role.
+
+        Args:
+            name: Role name.
+            if_exists: Don't error if role doesn't exist.
+
+        Example:
+            await db.drop_role("olduser")
+        """
+        validate_identifier(name)
+        if_clause = "IF EXISTS " if if_exists else ""
+        await self.execute(f"DROP ROLE {if_clause}{name}", autocommit=True)
+
+    async def alter_role(
+        self,
+        name: str,
+        password: Optional[str] = None,
+        login: Optional[bool] = None,
+        superuser: Optional[bool] = None,
+        createdb: Optional[bool] = None,
+        createrole: Optional[bool] = None,
+        connection_limit: Optional[int] = None,
+        valid_until: Optional[str] = None,
+        rename_to: Optional[str] = None,
+    ) -> None:
+        """Alter a role's attributes.
+
+        Args:
+            name: Role name.
+            password: New password.
+            login: Enable/disable login.
+            superuser: Enable/disable superuser.
+            createdb: Enable/disable createdb.
+            createrole: Enable/disable createrole.
+            connection_limit: New connection limit.
+            valid_until: New password expiration.
+            rename_to: Rename the role.
+
+        Example:
+            await db.alter_role("appuser", password="newpassword")
+            await db.alter_role("appuser", connection_limit=10)
+            await db.alter_role("oldname", rename_to="newname")
+        """
+        validate_identifier(name)
+
+        if rename_to:
+            validate_identifier(rename_to)
+            await self.execute(f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True)
+            return
+
+        options = []
+        params = []
+
+        if password is not None:
+            options.append("PASSWORD %s")
+            params.append(password)
+        if login is not None:
+            options.append("LOGIN" if login else "NOLOGIN")
+        if superuser is not None:
+            options.append("SUPERUSER" if superuser else "NOSUPERUSER")
+        if createdb is not None:
+            options.append("CREATEDB" if createdb else "NOCREATEDB")
+        if createrole is not None:
+            options.append("CREATEROLE" if createrole else "NOCREATEROLE")
+        if connection_limit is not None:
+            options.append(f"CONNECTION LIMIT {connection_limit}")
+        if valid_until is not None:
+            options.append(f"VALID UNTIL '{valid_until}'")
+
+        if options:
+            options_str = " ".join(options)
+            async with self.cursor(autocommit=True) as cur:
+                await cur.execute(f"ALTER ROLE {name} WITH {options_str}", params if params else None)
+
+    async def grant(
+        self,
+        privileges: str | list[str],
+        on: str,
+        to: str,
+        object_type: str = "TABLE",
+        schema: str = "public",
+        with_grant_option: bool = False,
+    ) -> None:
+        """Grant privileges on database objects.
+
+        Args:
+            privileges: Privilege(s) to grant (SELECT, INSERT, UPDATE, DELETE, ALL, etc.)
+            on: Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
+            to: Role receiving privileges.
+            object_type: Type of object (TABLE, SEQUENCE, FUNCTION, SCHEMA, DATABASE).
+            schema: Schema name (for tables/sequences).
+            with_grant_option: Allow grantee to grant to others.
+
+        Example:
+            # Grant SELECT on a table
+            await db.grant("SELECT", "users", "readonly")
+
+            # Grant all on a table
+            await db.grant("ALL", "orders", "appuser")
+
+            # Grant on all tables in schema
+            await db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
+
+            # Grant on schema
+            await db.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
+
+            # Grant on database
+            await db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
+        """
+        validate_identifier(to)
+
+        if isinstance(privileges, list):
+            privileges = ", ".join(privileges)
+
+        grant_clause = " WITH GRANT OPTION" if with_grant_option else ""
+
+        if object_type.upper() == "SCHEMA":
+            validate_identifier(on)
+            await self.execute(f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}", autocommit=True)
+        elif object_type.upper() == "DATABASE":
+            validate_identifier(on)
+            await self.execute(f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}", autocommit=True)
+        elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
+            validate_identifier(schema)
+            await self.execute(f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}", autocommit=True)
+        else:
+            validate_identifiers(on, schema)
+            await self.execute(f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}", autocommit=True)
+
+    async def revoke(
+        self,
+        privileges: str | list[str],
+        on: str,
+        from_role: str,
+        object_type: str = "TABLE",
+        schema: str = "public",
+        cascade: bool = False,
+    ) -> None:
+        """Revoke privileges on database objects.
+
+        Args:
+            privileges: Privilege(s) to revoke.
+            on: Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
+            from_role: Role losing privileges.
+            object_type: Type of object.
+            schema: Schema name.
+            cascade: Revoke from dependent privileges.
+
+        Example:
+            await db.revoke("INSERT", "users", "readonly")
+            await db.revoke("ALL", "orders", "former_user", cascade=True)
+        """
+        validate_identifier(from_role)
+
+        if isinstance(privileges, list):
+            privileges = ", ".join(privileges)
+
+        cascade_clause = " CASCADE" if cascade else ""
+
+        if object_type.upper() == "SCHEMA":
+            validate_identifier(on)
+            await self.execute(f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}", autocommit=True)
+        elif object_type.upper() == "DATABASE":
+            validate_identifier(on)
+            await self.execute(f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}", autocommit=True)
+        elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
+            validate_identifier(schema)
+            await self.execute(f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}", autocommit=True)
+        else:
+            validate_identifiers(on, schema)
+            await self.execute(f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}", autocommit=True)
+
+    async def grant_role(self, role: str, member: str, with_admin: bool = False) -> None:
+        """Grant role membership to another role.
+
+        Args:
+            role: Role to grant.
+            member: Role receiving membership.
+            with_admin: Allow member to grant role to others.
+
+        Example:
+            await db.grant_role("readonly", "analyst")
+            await db.grant_role("admin", "lead_dev", with_admin=True)
+        """
+        validate_identifiers(role, member)
+        admin_clause = " WITH ADMIN OPTION" if with_admin else ""
+        await self.execute(f"GRANT {role} TO {member}{admin_clause}", autocommit=True)
+
+    async def revoke_role(self, role: str, member: str) -> None:
+        """Revoke role membership from a role.
+
+        Args:
+            role: Role to revoke.
+            member: Role losing membership.
+
+        Example:
+            await db.revoke_role("admin", "former_admin")
+        """
+        validate_identifiers(role, member)
+        await self.execute(f"REVOKE {role} FROM {member}", autocommit=True)
+
+    async def list_role_members(self, role: str) -> list[str]:
+        """List members of a role.
+
+        Args:
+            role: Role name.
+
+        Returns:
+            List of member role names.
+        """
+        result = await self.execute("""
+            SELECT m.rolname AS member
+            FROM pg_auth_members am
+            JOIN pg_roles r ON r.oid = am.roleid
+            JOIN pg_roles m ON m.oid = am.member
+            WHERE r.rolname = %s
+            ORDER BY m.rolname
+        """, [role])
+        return [r["member"] for r in result]
+
+    async def list_role_grants(self, role: str) -> list[dict]:
+        """List privileges granted to a role.
+
+        Args:
+            role: Role name.
+
+        Returns:
+            List of privilege info dicts.
+        """
+        return await self.execute("""
+            SELECT
+                table_schema AS schema,
+                table_name AS object_name,
+                privilege_type AS privilege
+            FROM information_schema.role_table_grants
+            WHERE grantee = %s
+            ORDER BY table_schema, table_name, privilege_type
+        """, [role])
 
     # =========================================================================
     # SIZE & STATS
