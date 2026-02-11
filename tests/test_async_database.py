@@ -586,3 +586,157 @@ class TestAsyncDatabaseDataFrame:
 
             call_kwargs = mock_to_sql.call_args[1]
             assert call_kwargs["if_exists"] == "append"
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseGeoDataFrame:
+    """Tests for async GeoDataFrame methods."""
+
+    async def test_to_geodataframe_with_table(self, config):
+        """Test to_geodataframe with table name."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        expected_gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs="EPSG:4326"
+        )
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        with patch("geopandas.read_postgis", return_value=expected_gdf) as mock_read:
+            result = await db.to_geodataframe("parcels")
+
+            assert isinstance(result, gpd.GeoDataFrame)
+            mock_read.assert_called_once()
+
+    async def test_to_geodataframe_with_sql(self, config):
+        """Test to_geodataframe with custom SQL."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        expected_gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs="EPSG:4326"
+        )
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        with patch("geopandas.read_postgis", return_value=expected_gdf):
+            result = await db.to_geodataframe(sql="SELECT * FROM parcels WHERE area > 100")
+
+            assert isinstance(result, gpd.GeoDataFrame)
+
+    async def test_to_geodataframe_both_table_and_sql_raises(self, config):
+        """Test to_geodataframe raises ValueError with both table and sql."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="Specify either table or sql, not both"):
+            await db.to_geodataframe(table="parcels", sql="SELECT 1")
+
+    async def test_to_geodataframe_neither_raises(self, config):
+        """Test to_geodataframe raises ValueError with neither table nor sql."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="Specify either table or sql"):
+            await db.to_geodataframe()
+
+    async def test_from_geodataframe_no_postgis_raises(self, config):
+        """Test from_geodataframe raises RuntimeError without PostGIS."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs="EPSG:4326"
+        )
+
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="PostGIS extension not installed"):
+            await db.from_geodataframe(gdf, "parcels")
+
+        db.has_extension.assert_called_once_with("postgis")
+
+    async def test_from_geodataframe_no_crs_raises(self, config):
+        """Test from_geodataframe raises ValueError when GeoDataFrame has no CRS."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs=None  # No CRS
+        )
+
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+
+        with pytest.raises(ValueError, match="GeoDataFrame has no CRS defined"):
+            await db.from_geodataframe(gdf, "parcels")
+
+    async def test_from_geodataframe_unknown_crs_raises(self, config):
+        """Test from_geodataframe raises ValueError on CRS with no EPSG code."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs="EPSG:4326"
+        )
+        # Mock CRS.to_epsg() returning None (unknown EPSG)
+        with patch.object(type(gdf), 'crs', new_callable=PropertyMock) as mock_crs_prop:
+            mock_crs = MagicMock()
+            mock_crs.to_epsg.return_value = None
+            mock_crs_prop.return_value = mock_crs
+
+            db = AsyncDatabase(config)
+            db.has_extension = AsyncMock(return_value=True)
+
+            with pytest.raises(ValueError, match="Cannot determine EPSG code"):
+                await db.from_geodataframe(gdf, "parcels")
+
+    async def test_from_geodataframe_with_explicit_srid(self, config):
+        """Test from_geodataframe with explicit srid bypasses CRS check."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs=None  # No CRS, but explicit srid should be fine
+        )
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+        db.has_extension = AsyncMock(return_value=True)
+
+        with patch.object(gdf, "to_postgis") as mock_to_postgis:
+            await db.from_geodataframe(gdf, "parcels", srid=4326)
+
+            mock_to_postgis.assert_called_once()
+
+    async def test_from_geodataframe_basic(self, config):
+        """Test from_geodataframe writes GeoDataFrame to table."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs="EPSG:4326"
+        )
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+        db.has_extension = AsyncMock(return_value=True)
+
+        with patch.object(gdf, "to_postgis") as mock_to_postgis:
+            await db.from_geodataframe(gdf, "parcels")
+
+            mock_to_postgis.assert_called_once()
+            call_kwargs = mock_to_postgis.call_args[1]
+            assert call_kwargs["name"] == "parcels"
+            assert call_kwargs["schema"] == "public"
