@@ -18,6 +18,7 @@ Example:
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 from pycopg.exceptions import MigrationError
 from pycopg.utils import validate_identifier
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pycopg.database import Database
@@ -149,8 +152,9 @@ class Migrator:
         for f in files:
             try:
                 migrations.append(Migration(f))
-            except MigrationError:
-                continue  # Skip invalid files
+            except MigrationError as e:
+                logger.warning("Skipping invalid migration file '%s': %s", f.name, e)
+                continue
         return sorted(migrations, key=lambda m: m.version)
 
     def pending(self) -> list[Migration]:
