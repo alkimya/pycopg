@@ -16,7 +16,7 @@ from psycopg import AsyncConnection, AsyncCursor
 from psycopg.pq import TransactionStatus
 
 from pycopg.config import Config
-from pycopg.utils import validate_identifier, validate_identifiers
+from pycopg.utils import validate_identifier, validate_identifiers, validate_index_method
 from pycopg import queries
 
 if TYPE_CHECKING:
@@ -528,6 +528,154 @@ class AsyncDatabase:
         """, [schema, name])
         return result[0]["count"] if result else 0
 
+    async def drop_schema(self, name: str, if_exists: bool = True, cascade: bool = False) -> None:
+        """Drop a schema.
+
+        Args:
+            name: Schema name.
+            if_exists: Don't error if schema doesn't exist.
+            cascade: Drop all objects in schema.
+
+        Example:
+            await db.drop_schema("analytics")
+            await db.drop_schema("old_data", cascade=True)
+        """
+        validate_identifier(name)
+        if_clause = "IF EXISTS " if if_exists else ""
+        cascade_clause = " CASCADE" if cascade else ""
+        await self.execute(f"DROP SCHEMA {if_clause}{name}{cascade_clause}")
+
+    async def drop_table(self, name: str, schema: str = "public", if_exists: bool = True, cascade: bool = False) -> None:
+        """Drop a table.
+
+        Args:
+            name: Table name.
+            schema: Schema name.
+            if_exists: Don't error if table doesn't exist.
+            cascade: Drop dependent objects.
+
+        Example:
+            await db.drop_table("old_users")
+            await db.drop_table("logs", cascade=True)
+        """
+        validate_identifiers(name, schema)
+        if_clause = "IF EXISTS " if if_exists else ""
+        cascade_clause = " CASCADE" if cascade else ""
+        await self.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
+
+    async def create_index(
+        self,
+        table: str,
+        columns: str | list[str],
+        schema: str = "public",
+        name: Optional[str] = None,
+        unique: bool = False,
+        method: str = "btree",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Create an index.
+
+        Args:
+            table: Table name.
+            columns: Column(s) to index.
+            schema: Schema name.
+            name: Index name (auto-generated if not provided).
+            unique: Create unique index.
+            method: Index method (btree, hash, gist, gin, etc.)
+            if_not_exists: Don't error if index exists.
+
+        Example:
+            await db.create_index("users", "email", unique=True)
+            await db.create_index("products", ["category", "price"])
+            await db.create_index("documents", "content", method="gin")
+        """
+        if isinstance(columns, str):
+            columns = [columns]
+        validate_identifiers(table, schema, *columns)
+        if name:
+            validate_identifier(name)
+        validate_index_method(method)
+
+        cols_str = ", ".join(columns)
+        index_name = name or f"idx_{table}_{'_'.join(columns)}"
+        unique_clause = "UNIQUE " if unique else ""
+        if_clause = "IF NOT EXISTS " if if_not_exists else ""
+
+        await self.execute(f"""
+            CREATE {unique_clause}INDEX {if_clause}{index_name}
+            ON {schema}.{table} USING {method} ({cols_str})
+        """)
+
+    async def drop_index(self, name: str, schema: str = "public", if_exists: bool = True) -> None:
+        """Drop an index.
+
+        Args:
+            name: Index name.
+            schema: Schema name.
+            if_exists: Don't error if index doesn't exist.
+
+        Example:
+            await db.drop_index("idx_users_email")
+        """
+        if_clause = "IF EXISTS " if if_exists else ""
+        await self.execute(f"DROP INDEX {if_clause}{schema}.{name}")
+
+    async def list_indexes(self, table: str, schema: str = "public") -> list[dict]:
+        """List indexes on a table.
+
+        Args:
+            table: Table name.
+            schema: Schema name.
+
+        Returns:
+            List of index info dicts.
+
+        Example:
+            indexes = await db.list_indexes("users")
+            for idx in indexes:
+                print(f"{idx['index_name']}: {idx['index_type']}")
+        """
+        return await self.execute("""
+            SELECT
+                i.relname AS index_name,
+                am.amname AS index_type,
+                pg_get_indexdef(i.oid) AS index_def
+            FROM pg_index idx
+            JOIN pg_class t ON t.oid = idx.indrelid
+            JOIN pg_class i ON i.oid = idx.indexrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_am am ON am.oid = i.relam
+            WHERE n.nspname = %s AND t.relname = %s
+            ORDER BY i.relname
+        """, [schema, table])
+
+    async def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
+        """List constraints on a table.
+
+        Args:
+            table: Table name.
+            schema: Schema name.
+
+        Returns:
+            List of constraint info dicts.
+
+        Example:
+            constraints = await db.list_constraints("users")
+            for c in constraints:
+                print(f"{c['constraint_name']}: {c['constraint_type']}")
+        """
+        return await self.execute("""
+            SELECT
+                c.conname AS constraint_name,
+                c.contype AS constraint_type,
+                pg_get_constraintdef(c.oid) AS constraint_def
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE n.nspname = %s AND t.relname = %s
+            ORDER BY c.conname
+        """, [schema, table])
+
     # =========================================================================
     # EXTENSIONS
     # =========================================================================
@@ -609,6 +757,34 @@ class AsyncDatabase:
                 [full_name]
             )
             return result[0]["size"]
+
+    async def table_sizes(self, schema: str = "public", limit: int = 20) -> list[dict]:
+        """Get sizes of all tables in schema, sorted by size.
+
+        Args:
+            schema: Schema name.
+            limit: Max tables to return.
+
+        Returns:
+            List of table size info with total_size, data_size, index_size columns.
+
+        Example:
+            sizes = await db.table_sizes("public", limit=10)
+            for s in sizes:
+                print(f"{s['table_name']}: {s['total_size']}")
+        """
+        # Use %%I to escape the % for psycopg, format() will see %I
+        return await self.execute("""
+            SELECT
+                t.tablename AS table_name,
+                pg_size_pretty(pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS total_size,
+                pg_size_pretty(pg_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS data_size,
+                pg_size_pretty(pg_indexes_size(format('%%I.%%I', t.schemaname, t.tablename))) AS index_size
+            FROM pg_tables t
+            WHERE t.schemaname = %s
+            ORDER BY pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename)) DESC
+            LIMIT %s
+        """, [schema, limit])
 
     # =========================================================================
     # DATAFRAME OPERATIONS
@@ -955,6 +1131,57 @@ class AsyncDatabase:
                         break
                     for row in rows:
                         yield row
+
+    # =========================================================================
+    # DATABASE ADMINISTRATION
+    # =========================================================================
+
+    async def create_database(self, name: str, owner: Optional[str] = None, template: str = "template1") -> None:
+        """Create a new database.
+
+        Args:
+            name: Database name.
+            owner: Optional owner role.
+            template: Template database (default: template1).
+
+        Example:
+            await db.create_database("myapp")
+            await db.create_database("myapp", owner="appuser")
+        """
+        validate_identifier(name)
+        if owner:
+            validate_identifier(owner)
+        validate_identifier(template)
+        owner_clause = f" OWNER {owner}" if owner else ""
+        # Connect to postgres for database creation
+        admin_config = self.config.with_database("postgres")
+        async with await psycopg.AsyncConnection.connect(**admin_config.connect_params(), autocommit=True) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}")
+
+    async def drop_database(self, name: str, if_exists: bool = True) -> None:
+        """Drop a database.
+
+        Args:
+            name: Database name.
+            if_exists: Don't error if database doesn't exist.
+
+        Example:
+            await db.drop_database("myapp")
+        """
+        validate_identifier(name)
+        if_clause = "IF EXISTS " if if_exists else ""
+        admin_config = self.config.with_database("postgres")
+        async with await psycopg.AsyncConnection.connect(**admin_config.connect_params(), autocommit=True) as conn:
+            async with conn.cursor() as cur:
+                # Terminate existing connections
+                await cur.execute(f"""
+                    SELECT pg_terminate_backend(pg_stat_activity.pid)
+                    FROM pg_stat_activity
+                    WHERE pg_stat_activity.datname = %s
+                    AND pid <> pg_backend_pid()
+                """, [name])
+                await cur.execute(f"DROP DATABASE {if_clause}{name}")
 
     # =========================================================================
     # LISTEN/NOTIFY
