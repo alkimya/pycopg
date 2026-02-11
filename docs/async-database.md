@@ -291,6 +291,199 @@ size = await db.size()
 table_size = await db.table_size("users")
 ```
 
+## DataFrame Operations (NEW in 0.3.0)
+
+AsyncDatabase supports pandas and geopandas operations using `run_sync` internally, since pandas/geopandas are synchronous libraries.
+
+```python
+import pandas as pd
+import geopandas as gpd
+
+# Read table to DataFrame
+df = await db.to_dataframe("users")
+
+# Write DataFrame to table
+await db.from_dataframe(df, "users", if_exists="replace")
+
+# Read spatial table to GeoDataFrame
+gdf = await db.to_geodataframe("cities", geometry_column="location")
+
+# Write GeoDataFrame to spatial table
+await db.from_geodataframe(
+    gdf,
+    "cities",
+    if_exists="replace",
+    spatial_index=True  # Create spatial index automatically
+)
+```
+
+> **Note:** DataFrame operations use `run_sync` internally to execute synchronous pandas/geopandas code in an async context. This is necessary because pandas and geopandas are not async-aware libraries.
+
+## Admin Operations (NEW in 0.3.0)
+
+Full administrative capabilities are available asynchronously.
+
+```python
+# Create table with columns
+await db.create_table("products", {
+    "id": "SERIAL PRIMARY KEY",
+    "name": "TEXT NOT NULL",
+    "price": "DECIMAL(10,2)"
+})
+
+# Drop table
+await db.drop_table("old_table")
+
+# Create index
+await db.create_index("products", "name", unique=True)
+
+# Drop index
+await db.drop_index("products_name_idx")
+
+# List indexes
+indexes = await db.list_indexes("products")
+
+# List constraints
+constraints = await db.list_constraints("products")
+
+# Drop schema with cascade
+await db.drop_schema("old_schema", cascade=True)
+
+# Get table sizes
+sizes = await db.table_sizes("public")
+# Returns list of dicts with table names and sizes
+```
+
+## Maintenance Operations (NEW in 0.3.0)
+
+Database maintenance operations are fully async.
+
+```python
+# Vacuum table (with analyze)
+await db.vacuum("large_table", analyze=True)
+
+# Analyze table statistics
+await db.analyze("products")
+
+# Explain query plan
+plan = await db.explain(
+    "SELECT * FROM users WHERE created_at > %s",
+    params=["2024-01-01"],
+    analyze=True
+)
+for line in plan:
+    print(line)
+```
+
+## Backup & Restore Operations (NEW in 0.3.0)
+
+Backup operations use `asyncio.create_subprocess_exec` internally to run pg_dump/pg_restore asynchronously.
+
+```python
+# Dump database to file (custom format)
+await db.pg_dump("backup.dump")
+
+# Restore database from file
+await db.pg_restore("backup.dump", clean=True)
+
+# Export table to CSV
+rows_exported = await db.copy_to_csv("users", "users.csv")
+
+# Import table from CSV
+rows_imported = await db.copy_from_csv("users", "users.csv")
+```
+
+> **Note:** pg_dump and pg_restore require the PostgreSQL client tools to be installed on the system.
+
+## Database Lifecycle (NEW in 0.3.0)
+
+Create and drop databases asynchronously.
+
+```python
+# Create new database
+await db.create_database("analytics", owner="analyst")
+
+# Drop database
+await db.drop_database("old_db")
+```
+
+> **Note:** These operations require autocommit mode and appropriate privileges.
+
+## Role Management (NEW in 0.3.0)
+
+Full role and privilege management asynchronously.
+
+```python
+# Create role with password
+await db.create_role("appuser", password="secret123", login=True)
+
+# Drop role
+await db.drop_role("old_user")
+
+# Alter role password
+await db.alter_role("appuser", password="newsecret")
+
+# Grant table privileges
+await db.grant("SELECT", "users", "appuser")
+await db.grant("INSERT,UPDATE", "orders", "appuser")
+
+# Revoke privileges
+await db.revoke("DELETE", "users", "appuser")
+
+# Grant role membership
+await db.grant_role("admin", "appuser", with_admin=False)
+
+# Revoke role membership
+await db.revoke_role("admin", "appuser")
+
+# List role members
+members = await db.list_role_members("admin")
+
+# List role grants
+grants = await db.list_role_grants("appuser")
+```
+
+## PostGIS Operations (NEW in 0.3.0)
+
+PostGIS spatial operations are available asynchronously.
+
+```python
+# Create spatial index
+await db.create_spatial_index("cities", column="location")
+
+# List geometry columns
+geom_cols = await db.list_geometry_columns()
+# Returns: table_name, column_name, srid, type
+```
+
+## TimescaleDB Operations (NEW in 0.3.0)
+
+TimescaleDB hypertable and policy management asynchronously.
+
+```python
+# Create hypertable
+await db.create_hypertable("metrics", "timestamp", chunk_time_interval="1 day")
+
+# Enable compression
+await db.enable_compression(
+    "metrics",
+    segment_by="device_id",
+    order_by="timestamp DESC"
+)
+
+# Add compression policy
+await db.add_compression_policy("metrics", compress_after="7 days")
+
+# Add retention policy
+await db.add_retention_policy("metrics", drop_after="90 days")
+
+# List hypertables
+hypertables = await db.list_hypertables()
+
+# Get hypertable info
+info = await db.hypertable_info("metrics")
+```
+
 ## Complete Example
 
 ```python

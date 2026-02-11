@@ -23,6 +23,9 @@ api-reference
 
 - **Simple API**: Pythonic interface for common database operations
 - **Sync & Async**: Full async/await support with `AsyncDatabase`
+- **Full Async Parity**: Every Database method available in AsyncDatabase (NEW in 0.3.0)
+- **Resilience**: Automatic retry with exponential backoff for transient connection errors (NEW in 0.3.0)
+- **Statement Timeout**: Configurable query timeout protection (NEW in 0.3.0)
 - **Session Mode**: Connection reuse for batch operations with `db.session()`
 - **High-Performance Inserts**: `insert_batch()` and `copy_insert()` for bulk operations
 - **Connection Pooling**: Built-in pooling with `PooledDatabase` and `AsyncPooledDatabase`

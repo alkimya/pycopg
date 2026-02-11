@@ -44,6 +44,7 @@ Config(
 |----------|------|-------------|
 | `dsn` | `str` | psycopg-compatible DSN string |
 | `url` | `str` | SQLAlchemy-compatible URL |
+| `statement_timeout` | `Optional[int]` | Statement timeout in milliseconds (None = no limit) |
 
 ### Methods
 
@@ -222,13 +223,17 @@ Database(config: Config)
 
 ## AsyncDatabase
 
-Asynchronous database interface. Same methods as Database with async/await.
+Asynchronous database interface with full parity to Database.
 
 ```python
 from pycopg import AsyncDatabase
 ```
 
-### Additional Async Methods
+> **Full Async Parity (v0.3.0):** AsyncDatabase provides all the same methods as Database with async/await. All methods listed in the Database section above (query, schema, table, DataFrame, PostGIS, TimescaleDB, role, backup, admin, maintenance, and size methods) are available asynchronously.
+
+### Async-Only Methods
+
+These methods are only available on AsyncDatabase and have no sync equivalent:
 
 | Method | Parameters | Returns |
 |--------|------------|---------|
