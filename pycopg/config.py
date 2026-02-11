@@ -52,6 +52,8 @@ class Config:
     password: str = ""
     sslmode: Optional[str] = None
     options: dict = field(default_factory=dict)
+    statement_timeout: Optional[int] = None
+    default_batch_size: int = 1000
 
     @classmethod
     def from_url(cls, url: str) -> "Config":
@@ -84,6 +86,10 @@ class Config:
                     key, value = param.split("=", 1)
                     options[key] = value
 
+        # Extract statement_timeout from query params
+        statement_timeout_str = options.pop("statement_timeout", None)
+        statement_timeout = int(statement_timeout_str) if statement_timeout_str else None
+
         return cls(
             host=parsed.hostname or "localhost",
             port=parsed.port or 5432,
@@ -92,6 +98,7 @@ class Config:
             password=parsed.password or "",
             sslmode=options.pop("sslmode", None),
             options=options,
+            statement_timeout=statement_timeout,
         )
 
     @classmethod
@@ -174,6 +181,16 @@ class Config:
             parts.append(f"password={self.password}")
         if self.sslmode:
             parts.append(f"sslmode={self.sslmode}")
+
+        # Add options string if statement_timeout or options are set
+        options_parts = []
+        if self.statement_timeout is not None:
+            options_parts.append(f"-c statement_timeout={self.statement_timeout}")
+        for key, value in self.options.items():
+            options_parts.append(f"-c {key}={value}")
+        if options_parts:
+            parts.append(f"options={' '.join(options_parts)}")
+
         return " ".join(parts)
 
     @property
@@ -215,6 +232,16 @@ class Config:
             params["password"] = self.password
         if self.sslmode:
             params["sslmode"] = self.sslmode
+
+        # Add PostgreSQL options string if needed
+        options_parts = []
+        if self.statement_timeout is not None:
+            options_parts.append(f"-c statement_timeout={self.statement_timeout}")
+        for key, value in self.options.items():
+            options_parts.append(f"-c {key}={value}")
+        if options_parts:
+            params["options"] = " ".join(options_parts)
+
         return params
 
     def with_database(self, database: str) -> "Config":
@@ -238,6 +265,8 @@ class Config:
             password=self.password,
             sslmode=self.sslmode,
             options=self.options.copy(),
+            statement_timeout=self.statement_timeout,
+            default_batch_size=self.default_batch_size,
         )
 
     def __repr__(self) -> str:
