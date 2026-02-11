@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional, Sequence
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Optional, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
@@ -18,6 +18,10 @@ from psycopg.pq import TransactionStatus
 from pycopg.config import Config
 from pycopg.utils import validate_identifier, validate_identifiers
 from pycopg import queries
+
+if TYPE_CHECKING:
+    import geopandas as gpd
+    import pandas as pd
 
 
 class AsyncDatabase:
@@ -51,6 +55,15 @@ class AsyncDatabase:
         """
         self.config = config
         self._session_conn: Optional[AsyncConnection] = None
+        self._async_engine = None
+
+    @property
+    def async_engine(self):
+        """Get or create async SQLAlchemy engine (lazy initialization)."""
+        if self._async_engine is None:
+            from sqlalchemy.ext.asyncio import create_async_engine
+            self._async_engine = create_async_engine(self.config.url)
+        return self._async_engine
 
     @classmethod
     def from_env(cls, dotenv_path: Optional[str | Path] = None) -> "AsyncDatabase":
@@ -596,6 +609,97 @@ class AsyncDatabase:
                 [full_name]
             )
             return result[0]["size"]
+
+    # =========================================================================
+    # DATAFRAME OPERATIONS
+    # =========================================================================
+
+    async def to_dataframe(
+        self,
+        table: Optional[str] = None,
+        schema: str = "public",
+        sql: Optional[str] = None,
+        params: Optional[dict] = None,
+    ) -> "pd.DataFrame":
+        """Read table or query into pandas DataFrame.
+
+        Args:
+            table: Table name (mutually exclusive with sql).
+            schema: Schema name.
+            sql: SQL query (mutually exclusive with table).
+            params: Query parameters for sql.
+
+        Returns:
+            pandas DataFrame.
+
+        Example:
+            users = await db.to_dataframe("users")
+            active = await db.to_dataframe(
+                sql="SELECT * FROM users WHERE active = :active",
+                params={"active": True}
+            )
+        """
+        import pandas as pd
+        from sqlalchemy import text
+
+        if table and sql:
+            raise ValueError("Specify either table or sql, not both")
+        if not table and not sql:
+            raise ValueError("Specify either table or sql")
+
+        if table:
+            sql = f"SELECT * FROM {schema}.{table}"
+
+        async with self.async_engine.connect() as conn:
+            return await conn.run_sync(
+                lambda sync_conn: pd.read_sql(text(sql), sync_conn, params=params)
+            )
+
+    async def from_dataframe(
+        self,
+        df: "pd.DataFrame",
+        table: str,
+        schema: str = "public",
+        if_exists: Literal["fail", "replace", "append"] = "fail",
+        primary_key: Optional[str | list[str]] = None,
+        index: bool = False,
+        dtype: Optional[dict] = None,
+    ) -> None:
+        """Create or append to table from pandas DataFrame.
+
+        Args:
+            df: pandas DataFrame.
+            table: Table name.
+            schema: Schema name.
+            if_exists: What to do if table exists ('fail', 'replace', 'append').
+            primary_key: Column(s) to set as primary key after creation.
+                Note: Requires add_primary_key (available in Phase 3).
+            index: Write DataFrame index as column.
+            dtype: Optional dict of column name to SQLAlchemy types.
+
+        Example:
+            await db.from_dataframe(users_df, "users")
+            await db.from_dataframe(orders_df, "orders", if_exists="append")
+        """
+        async with self.async_engine.connect() as conn:
+            await conn.run_sync(
+                lambda sync_conn: df.to_sql(
+                    name=table,
+                    con=sync_conn,
+                    schema=schema,
+                    if_exists=if_exists,
+                    index=index,
+                    dtype=dtype,
+                )
+            )
+
+        if primary_key and if_exists != "append":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "primary_key parameter ignored — add_primary_key not yet available in AsyncDatabase. "
+                "Use db.execute('ALTER TABLE ...') manually or wait for Phase 3."
+            )
 
     # =========================================================================
     # BATCH OPERATIONS
