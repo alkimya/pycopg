@@ -411,3 +411,41 @@ class TestAsyncPooledDatabaseAsync:
 
         mock_pool.open.assert_called_once()
         mock_pool.close.assert_called_once()
+
+
+class TestPoolReconnectParams:
+    """Tests for pool reconnection parameters."""
+
+    def test_pooled_database_accepts_reconnect_params(self):
+        """Test PooledDatabase.__init__ accepts reconnect_timeout, reconnect_failed, check."""
+        import inspect
+        sig = inspect.signature(PooledDatabase.__init__)
+        params = sig.parameters
+
+        assert "reconnect_timeout" in params
+        assert "reconnect_failed" in params
+        assert "check" in params
+
+    def test_async_pooled_database_accepts_reconnect_params(self):
+        """Test AsyncPooledDatabase.__init__ accepts reconnect_timeout, reconnect_failed, check."""
+        import inspect
+        sig = inspect.signature(AsyncPooledDatabase.__init__)
+        params = sig.parameters
+
+        assert "reconnect_timeout" in params
+        assert "reconnect_failed" in params
+        assert "check" in params
+
+    def test_pooled_database_reconnect_timeout_default(self):
+        """Test PooledDatabase reconnect_timeout default is 300.0."""
+        import inspect
+        sig = inspect.signature(PooledDatabase.__init__)
+        param = sig.parameters["reconnect_timeout"]
+        assert param.default == 300.0
+
+    def test_async_pooled_database_reconnect_timeout_default(self):
+        """Test AsyncPooledDatabase reconnect_timeout default is 300.0."""
+        import inspect
+        sig = inspect.signature(AsyncPooledDatabase.__init__)
+        param = sig.parameters["reconnect_timeout"]
+        assert param.default == 300.0

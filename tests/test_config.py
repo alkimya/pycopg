@@ -249,3 +249,67 @@ DB_PASSWORD=dotenvpass
         assert "myuser" in repr_str
         # Password should not be in repr
         assert "password" not in repr_str.lower() or "mypass" not in repr_str
+
+
+class TestConfigResilience:
+    """Tests for Config resilience features (statement_timeout, default_batch_size)."""
+
+    def test_config_statement_timeout_default(self):
+        """Test statement_timeout defaults to None."""
+        config = Config()
+        assert config.statement_timeout is None
+
+    def test_config_statement_timeout_in_connect_params(self):
+        """Test statement_timeout appears in connect_params as options string."""
+        config = Config(statement_timeout=30000)
+        params = config.connect_params()
+        assert "options" in params
+        assert "-c statement_timeout=30000" in params["options"]
+
+    def test_config_no_options_when_no_timeout(self):
+        """Test connect_params has no options when statement_timeout is None."""
+        config = Config()
+        params = config.connect_params()
+        assert "options" not in params
+
+    def test_config_statement_timeout_with_existing_options(self):
+        """Test statement_timeout combines with existing options."""
+        config = Config(statement_timeout=5000, options={"work_mem": "256MB"})
+        params = config.connect_params()
+        assert "options" in params
+        assert "-c statement_timeout=5000" in params["options"]
+        assert "-c work_mem=256MB" in params["options"]
+
+    def test_config_default_batch_size(self):
+        """Test default_batch_size defaults to 1000."""
+        config = Config()
+        assert config.default_batch_size == 1000
+
+    def test_config_custom_batch_size(self):
+        """Test custom default_batch_size."""
+        config = Config(default_batch_size=500)
+        assert config.default_batch_size == 500
+
+    def test_config_from_url_with_statement_timeout(self):
+        """Test from_url parses statement_timeout from query parameters."""
+        config = Config.from_url("postgresql://user:pass@localhost/db?statement_timeout=10000")
+        assert config.statement_timeout == 10000
+
+    def test_config_from_url_without_statement_timeout(self):
+        """Test from_url without statement_timeout."""
+        config = Config.from_url("postgresql://user:pass@localhost/db")
+        assert config.statement_timeout is None
+
+    def test_config_with_database_preserves_timeout(self):
+        """Test with_database preserves statement_timeout and default_batch_size."""
+        config = Config(statement_timeout=5000, default_batch_size=2000)
+        new_config = config.with_database("other")
+        assert new_config.statement_timeout == 5000
+        assert new_config.default_batch_size == 2000
+
+    def test_config_dsn_includes_options(self):
+        """Test DSN includes options string when statement_timeout is set."""
+        config = Config(statement_timeout=30000)
+        dsn = config.dsn
+        assert "options=" in dsn
+        assert "-c statement_timeout=30000" in dsn
