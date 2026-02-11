@@ -313,3 +313,110 @@ class TestConfigResilience:
         dsn = config.dsn
         assert "options=" in dsn
         assert "-c statement_timeout=30000" in dsn
+
+    def test_dsn_with_password(self):
+        """Test DSN includes password field."""
+        config = Config(host="localhost", database="db", user="user", password="secret123")
+        dsn = config.dsn
+        assert "password=secret123" in dsn
+
+    def test_dsn_with_statement_timeout(self):
+        """Test DSN includes options string with statement_timeout."""
+        config = Config(host="localhost", database="db", user="user", statement_timeout=15000)
+        dsn = config.dsn
+        assert "options=" in dsn
+        assert "-c statement_timeout=15000" in dsn
+
+    def test_dsn_with_custom_options(self):
+        """Test DSN includes custom options."""
+        config = Config(options={"work_mem": "256MB", "shared_buffers": "512MB"})
+        dsn = config.dsn
+        assert "options=" in dsn
+        assert "-c work_mem=256MB" in dsn
+        assert "-c shared_buffers=512MB" in dsn
+
+    def test_url_property_basic(self):
+        """Test URL generation for SQLAlchemy."""
+        config = Config(
+            host="testhost",
+            port=5433,
+            database="testdb",
+            user="testuser",
+            password="testpass",
+        )
+        url = config.url
+        assert url == "postgresql+psycopg://testuser:testpass@testhost:5433/testdb"
+
+    def test_url_with_sslmode_query_param(self):
+        """Test URL includes sslmode query param."""
+        config = Config(
+            host="localhost",
+            database="db",
+            user="user",
+            password="pass",
+            sslmode="verify-full",
+        )
+        url = config.url
+        assert "?sslmode=verify-full" in url
+
+    def test_connect_params_basic(self):
+        """Test connect_params() returns correct dict."""
+        config = Config(
+            host="testhost",
+            port=5433,
+            database="testdb",
+            user="testuser",
+            password="testpass",
+        )
+        params = config.connect_params()
+        assert params["host"] == "testhost"
+        assert params["port"] == 5433
+        assert params["dbname"] == "testdb"
+        assert params["user"] == "testuser"
+        assert params["password"] == "testpass"
+
+    def test_connect_params_with_statement_timeout_options(self):
+        """Test connect_params includes options string with statement_timeout."""
+        config = Config(statement_timeout=20000)
+        params = config.connect_params()
+        assert "options" in params
+        assert "-c statement_timeout=20000" in params["options"]
+
+    def test_with_database_basic(self):
+        """Test with_database() creates new Config with different database."""
+        config = Config(
+            host="myhost",
+            port=5432,
+            database="original",
+            user="admin",
+            password="secret",
+            sslmode="require",
+        )
+        new_config = config.with_database("target")
+        assert new_config.database == "target"
+        assert new_config.host == "myhost"
+        assert new_config.port == 5432
+        assert new_config.user == "admin"
+        assert new_config.password == "secret"
+        assert new_config.sslmode == "require"
+        # Original unchanged
+        assert config.database == "original"
+
+    def test_with_database_preserves_statement_timeout_and_batch_size(self):
+        """Test with_database preserves statement_timeout and default_batch_size."""
+        config = Config(statement_timeout=10000, default_batch_size=500)
+        new_config = config.with_database("other")
+        assert new_config.statement_timeout == 10000
+        assert new_config.default_batch_size == 500
+
+    def test_default_batch_size_default_value(self):
+        """Test default_batch_size defaults to 1000."""
+        config = Config()
+        assert config.default_batch_size == 1000
+
+    def test_from_url_with_statement_timeout_query_param(self):
+        """Test from_url parses statement_timeout from URL query params."""
+        config = Config.from_url(
+            "postgresql://user:pass@localhost/db?statement_timeout=25000"
+        )
+        assert config.statement_timeout == 25000
