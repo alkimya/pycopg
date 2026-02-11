@@ -83,8 +83,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Add async role management, privilege, and inspection methods + tests
-- [ ] 04-02-PLAN.md — Add async PostGIS and TimescaleDB methods + update from_geodataframe spatial index + tests
+- [x] 04-01-PLAN.md — Add async role management, privilege, and inspection methods + tests
+- [x] 04-02-PLAN.md — Add async PostGIS and TimescaleDB methods + update from_geodataframe spatial index + tests
 
 ### Phase 5: Resilience & Configuration
 **Goal**: Production-grade error handling with retry/backoff and configurable operation parameters
@@ -141,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Bug Fixes & Foundation | 2/2 | ✓ Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | 2/2 | ✓ Complete | 2026-02-11 |
-| 4. AsyncDatabase Extensions Parity | 0/2 | In progress | - |
+| 4. AsyncDatabase Extensions Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 5. Resilience & Configuration | 0/TBD | Not started | - |
 | 6. Test Coverage | 0/TBD | Not started | - |
 | 7. Documentation & Release | 0/TBD | Not started | - |
