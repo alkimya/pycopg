@@ -712,6 +712,7 @@ class TestAsyncDatabaseGeoDataFrame:
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
         db.has_extension = AsyncMock(return_value=True)
+        db.create_spatial_index = AsyncMock()
 
         with patch.object(gdf, "to_postgis") as mock_to_postgis:
             await db.from_geodataframe(gdf, "parcels", srid=4326)
@@ -732,6 +733,7 @@ class TestAsyncDatabaseGeoDataFrame:
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
         db.has_extension = AsyncMock(return_value=True)
+        db.create_spatial_index = AsyncMock()
 
         with patch.object(gdf, "to_postgis") as mock_to_postgis:
             await db.from_geodataframe(gdf, "parcels")
@@ -740,6 +742,29 @@ class TestAsyncDatabaseGeoDataFrame:
             call_kwargs = mock_to_postgis.call_args[1]
             assert call_kwargs["name"] == "parcels"
             assert call_kwargs["schema"] == "public"
+
+    async def test_from_geodataframe_with_spatial_index(self, config):
+        """Test from_geodataframe creates spatial index when spatial_index=True."""
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        gdf = gpd.GeoDataFrame(
+            {"id": [1], "geometry": [Point(0, 0)]},
+            crs="EPSG:4326"
+        )
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+        db.has_extension = AsyncMock(return_value=True)
+        db.create_spatial_index = AsyncMock()
+
+        with patch.object(gdf, "to_postgis") as mock_to_postgis:
+            await db.from_geodataframe(gdf, "parcels", spatial_index=True)
+
+            mock_to_postgis.assert_called_once()
+            # Verify create_spatial_index was called
+            db.create_spatial_index.assert_called_once_with("parcels", "geometry", "public")
 
 
 @pytest.mark.asyncio
@@ -1989,3 +2014,259 @@ class TestAsyncDatabaseRoleInspection:
         result = await db.list_role_grants("nogrants")
 
         assert result == []
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabasePostGIS:
+    """Tests for async PostGIS spatial operations."""
+
+    async def test_create_spatial_index_basic(self, config):
+        """Test create_spatial_index with default parameters."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.create_spatial_index("parcels", "geom")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "CREATE INDEX IF NOT EXISTS idx_parcels_geom_gist" in sql
+        assert "ON public.parcels USING GIST (geom)" in sql
+
+    async def test_create_spatial_index_custom_name(self, config):
+        """Test create_spatial_index with custom index name."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.create_spatial_index("parcels", "geom", name="custom_idx")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "CREATE INDEX IF NOT EXISTS custom_idx" in sql
+
+    async def test_create_spatial_index_custom_schema(self, config):
+        """Test create_spatial_index with custom schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.create_spatial_index("parcels", "geom", schema="geo")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "ON geo.parcels" in sql
+
+    async def test_list_geometry_columns_all(self, config):
+        """Test list_geometry_columns without schema filter."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {
+                "schema": "public",
+                "table_name": "parcels",
+                "column_name": "geom",
+                "dimensions": 2,
+                "srid": 4326,
+                "geometry_type": "POLYGON"
+            }
+        ])
+
+        result = await db.list_geometry_columns()
+
+        assert len(result) == 1
+        assert result[0]["table_name"] == "parcels"
+        assert result[0]["srid"] == 4326
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "geometry_columns" in sql
+        # No WHERE clause when no schema filter
+        params = db.execute.call_args[0][1]
+        assert params is None
+
+    async def test_list_geometry_columns_with_schema(self, config):
+        """Test list_geometry_columns with schema filter."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[])
+
+        await db.list_geometry_columns(schema="geo")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "WHERE f_table_schema = %s" in sql
+        params = db.execute.call_args[0][1]
+        assert params == ["geo"]
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseTimescaleDB:
+    """Tests for async TimescaleDB operations."""
+
+    async def test_create_hypertable_basic(self, config):
+        """Test create_hypertable with extension check."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.create_hypertable("events", "timestamp")
+
+        db.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "create_hypertable" in sql
+        assert "'public.events'" in sql
+        assert "'timestamp'" in sql
+
+    async def test_create_hypertable_no_extension_raises(self, config):
+        """Test create_hypertable raises RuntimeError when extension missing."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            await db.create_hypertable("events", "timestamp")
+
+        db.has_extension.assert_called_once_with("timescaledb")
+
+    async def test_create_hypertable_custom_interval(self, config):
+        """Test create_hypertable with custom chunk interval."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
+
+        sql = db.execute.call_args[0][0]
+        assert "INTERVAL '1 week'" in sql
+
+    async def test_enable_compression_basic(self, config):
+        """Test enable_compression with segment_by."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.enable_compression("events", segment_by="device_id")
+
+        db.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "ALTER TABLE" in sql
+        assert "timescaledb.compress" in sql
+        assert "timescaledb.compress_segmentby" in sql
+
+    async def test_enable_compression_with_order_by(self, config):
+        """Test enable_compression with order_by."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.enable_compression("events", order_by=["timestamp DESC"])
+
+        sql = db.execute.call_args[0][0]
+        assert "timescaledb.compress_orderby" in sql
+
+    async def test_enable_compression_no_extension_raises(self, config):
+        """Test enable_compression raises RuntimeError when extension missing."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            await db.enable_compression("events")
+
+    async def test_add_compression_policy_basic(self, config):
+        """Test add_compression_policy with default interval."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.add_compression_policy("events", compress_after="7 days")
+
+        db.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "add_compression_policy" in sql
+        assert "compress_after => INTERVAL '7 days'" in sql
+
+    async def test_add_compression_policy_no_extension_raises(self, config):
+        """Test add_compression_policy raises RuntimeError when extension missing."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            await db.add_compression_policy("events")
+
+    async def test_add_retention_policy_basic(self, config):
+        """Test add_retention_policy."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.add_retention_policy("events", drop_after="90 days")
+
+        db.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "add_retention_policy" in sql
+        assert "drop_after => INTERVAL '90 days'" in sql
+
+    async def test_add_retention_policy_no_extension_raises(self, config):
+        """Test add_retention_policy raises RuntimeError when extension missing."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            await db.add_retention_policy("events", drop_after="90 days")
+
+    async def test_list_hypertables_basic(self, config):
+        """Test list_hypertables returns hypertable info."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock(return_value=[
+            {
+                "schema": "public",
+                "table_name": "events",
+                "num_dimensions": 1,
+                "num_chunks": 10,
+                "compression_enabled": True
+            }
+        ])
+
+        result = await db.list_hypertables()
+
+        assert len(result) == 1
+        assert result[0]["table_name"] == "events"
+        db.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "timescaledb_information.hypertables" in sql
+
+    async def test_list_hypertables_no_extension_raises(self, config):
+        """Test list_hypertables raises RuntimeError when extension missing."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            await db.list_hypertables()
+
+    async def test_hypertable_info_basic(self, config):
+        """Test hypertable_info returns size info."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=True)
+        db.execute = AsyncMock(return_value=[
+            {
+                "total_size": "100 MB",
+                "detailed_size": "detailed info"
+            }
+        ])
+
+        result = await db.hypertable_info("events")
+
+        assert result["total_size"] == "100 MB"
+        db.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "hypertable_size" in sql
+
+    async def test_hypertable_info_no_extension_raises(self, config):
+        """Test hypertable_info raises RuntimeError when extension missing."""
+        db = AsyncDatabase(config)
+        db.has_extension = AsyncMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            await db.hypertable_info("events")
