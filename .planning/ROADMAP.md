@@ -64,10 +64,11 @@ Plans:
   4. User can call async create_table(), drop_table(), create_index(), drop_index() for DDL operations
   5. User can call async vacuum(), analyze(), explain() for maintenance and query analysis
   6. User can call async table_sizes(), index_sizes(), drop_schema(), schema_exists() for stats and schema operations
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be created during plan-phase)
+- [ ] 03-01-PLAN.md — Add DDL/admin/stats async methods (drop_table, create_index, drop_index, list_indexes, list_constraints, drop_schema, table_sizes, create_database, drop_database) + tests
+- [ ] 03-02-PLAN.md — Add maintenance/backup/CSV async methods (vacuum, analyze, explain, pg_dump, pg_restore, copy_to_csv, copy_from_csv) + tests
 
 ### Phase 4: AsyncDatabase Extensions Parity
 **Goal**: AsyncDatabase has full PostGIS, TimescaleDB, and role management support matching Database
@@ -138,7 +139,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Bug Fixes & Foundation | 2/2 | ✓ Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | 2/2 | ✓ Complete | 2026-02-11 |
-| 3. AsyncDatabase Admin/Backup Parity | 0/TBD | Not started | - |
+| 3. AsyncDatabase Admin/Backup Parity | 0/2 | Not started | - |
 | 4. AsyncDatabase Extensions Parity | 0/TBD | Not started | - |
 | 5. Resilience & Configuration | 0/TBD | Not started | - |
 | 6. Test Coverage | 0/TBD | Not started | - |
