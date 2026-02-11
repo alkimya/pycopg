@@ -1005,3 +1005,466 @@ class TestAsyncDatabaseAdmin:
         sql = second_call[0][0]
         assert "DROP DATABASE testdb" in sql
         assert "IF EXISTS" not in sql
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseMaintenance:
+    """Tests for AsyncDatabase maintenance methods."""
+
+    async def test_vacuum_basic(self, config):
+        """Test basic vacuum with analyze."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.vacuum()
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "VACUUM(ANALYZE)" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_vacuum_full_table(self, config):
+        """Test vacuum with full and specific table."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.vacuum("users", full=True)
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "VACUUM(FULL, ANALYZE)" in sql
+        assert "public.users" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_vacuum_no_analyze(self, config):
+        """Test vacuum without analyze."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.vacuum(analyze=False)
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "VACUUM" in sql
+        assert "ANALYZE" not in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_analyze_basic(self, config):
+        """Test basic analyze."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.analyze()
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "ANALYZE" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_analyze_table(self, config):
+        """Test analyze on specific table."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.analyze("users", schema="public")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "ANALYZE public.users" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_explain_basic(self, config):
+        """Test basic explain."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[{"QUERY PLAN": "Seq Scan on users"}])
+
+        result = await db.explain("SELECT * FROM users")
+
+        assert result == ["Seq Scan on users"]
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "EXPLAIN" in sql
+        assert "FORMAT TEXT" in sql
+        assert "SELECT * FROM users" in sql
+
+    async def test_explain_analyze(self, config):
+        """Test explain with analyze."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"QUERY PLAN": "Seq Scan on users (cost=0.00..10.00 rows=100 width=32)"},
+            {"QUERY PLAN": "Planning Time: 0.1ms"},
+            {"QUERY PLAN": "Execution Time: 1.2ms"}
+        ])
+
+        result = await db.explain("SELECT * FROM users", analyze=True)
+
+        assert len(result) == 3
+        assert "Seq Scan on users" in result[0]
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "ANALYZE" in sql
+
+    async def test_explain_json_format(self, config):
+        """Test explain with JSON format."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[{"QUERY PLAN": '{"Plan": {...}}'}])
+
+        result = await db.explain("SELECT * FROM users", format="json")
+
+        assert len(result) == 1
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "FORMAT JSON" in sql
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseBackup:
+    """Tests for AsyncDatabase backup/restore methods."""
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_dump_basic(self, mock_subprocess, config):
+        """Test basic pg_dump."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        await db.pg_dump("/tmp/backup.dump")
+
+        # Verify command
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0]
+        assert cmd[0] == "pg_dump"
+        assert "-h" in cmd
+        assert "localhost" in cmd
+        assert "-d" in cmd
+        assert "testdb" in cmd
+        assert "-F" in cmd
+        assert "c" in cmd  # custom format
+        assert "-f" in cmd
+        assert "/tmp/backup.dump" in cmd
+
+        # Verify PGPASSWORD in env
+        env = call_args[1]["env"]
+        assert "PGPASSWORD" in env
+        assert env["PGPASSWORD"] == "testpass"
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_dump_plain_format(self, mock_subprocess, config):
+        """Test pg_dump with plain SQL format."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        await db.pg_dump("/tmp/backup.sql", format="plain", schema_only=True)
+
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0]
+        assert "-F" in cmd
+        idx = cmd.index("-F")
+        assert cmd[idx + 1] == "p"  # plain format
+        assert "--schema-only" in cmd
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_dump_failure(self, mock_subprocess, config):
+        """Test pg_dump failure."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 1
+        mock_proc.communicate = AsyncMock(return_value=(b"", b"pg_dump: error: database connection failed"))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+
+        with pytest.raises(RuntimeError, match="pg_dump failed"):
+            await db.pg_dump("/tmp/backup.dump")
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_dump_with_tables(self, mock_subprocess, config):
+        """Test pg_dump with specific tables."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        await db.pg_dump("/tmp/backup.dump", tables=["users", "orders"])
+
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0]
+        assert "-t" in cmd
+        assert "users" in cmd
+        assert "orders" in cmd
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_restore_basic(self, mock_subprocess, config):
+        """Test basic pg_restore."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        # Create a Path object that appears to exist and is not .sql
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"):
+                await db.pg_restore("/tmp/backup.dump")
+
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0]
+        assert cmd[0] == "pg_restore"
+        assert "-d" in cmd
+        assert "testdb" in cmd
+        assert "/tmp/backup.dump" in cmd
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_restore_clean(self, mock_subprocess, config):
+        """Test pg_restore with clean option."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"):
+                await db.pg_restore("/tmp/backup.dump", clean=True, if_exists=True)
+
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0]
+        assert "--clean" in cmd
+        assert "--if-exists" in cmd
+
+    async def test_pg_restore_sql_file(self, config):
+        """Test pg_restore delegates to _psql_restore for .sql files."""
+        db = AsyncDatabase(config)
+        db._psql_restore = AsyncMock()
+
+        # File with .sql suffix
+        await db.pg_restore("/tmp/backup.sql")
+
+        db._psql_restore.assert_called_once()
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_pg_restore_failure(self, mock_subprocess, config):
+        """Test pg_restore failure."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 1
+        mock_proc.communicate = AsyncMock(return_value=(b"", b"pg_restore: error: invalid format"))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        with patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"):
+                with pytest.raises(RuntimeError, match="pg_restore failed"):
+                    await db.pg_restore("/tmp/backup.dump")
+
+    @patch("asyncio.create_subprocess_exec")
+    async def test_psql_restore(self, mock_subprocess, config):
+        """Test _psql_restore."""
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+        mock_subprocess.return_value = mock_proc
+
+        db = AsyncDatabase(config)
+        from pathlib import Path
+        await db._psql_restore(Path("/tmp/backup.sql"))
+
+        call_args = mock_subprocess.call_args
+        cmd = call_args[0]
+        assert cmd[0] == "psql"
+        assert "-f" in cmd
+        assert "/tmp/backup.sql" in cmd
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseCSV:
+    """Tests for AsyncDatabase CSV methods."""
+
+    async def test_copy_to_csv_basic(self, config):
+        """Test basic copy_to_csv."""
+        # Create mock cursor with copy protocol
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def copy_cm(*args):
+            # Simulate yielding data chunks
+            class CopyIter:
+                async def __aiter__(self):
+                    yield b"id,name,email\n"
+                    yield b"1,Alice,alice@example.com\n"
+                    yield b"2,Bob,bob@example.com\n"
+            yield CopyIter()
+
+        mock_cursor.copy = MagicMock(side_effect=copy_cm)
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        db = AsyncDatabase(config)
+        db.cursor = MagicMock(side_effect=cursor_cm)
+        db.execute = AsyncMock(return_value=[{"count": 2}])
+
+        # Mock file operations
+        with patch("asyncio.to_thread") as mock_to_thread:
+            mock_to_thread.side_effect = lambda f, *args, **kwargs: f(*args, **kwargs)
+
+            with patch("pathlib.Path.mkdir"):
+                with patch("builtins.open", MagicMock()):
+                    count = await db.copy_to_csv("users", "/tmp/users.csv")
+
+        assert count == 2
+        # Verify COPY TO STDOUT SQL
+        copy_call = mock_cursor.copy.call_args
+        sql = copy_call[0][0]
+        assert "COPY public.users TO STDOUT" in sql
+        assert "FORMAT CSV" in sql
+
+    async def test_copy_to_csv_with_columns(self, config):
+        """Test copy_to_csv with specific columns."""
+        mock_cursor = MagicMock()
+
+        @asynccontextmanager
+        async def copy_cm(*args):
+            class CopyIter:
+                async def __aiter__(self):
+                    yield b"id,name\n1,Alice\n"
+            yield CopyIter()
+
+        mock_cursor.copy = MagicMock(side_effect=copy_cm)
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        db = AsyncDatabase(config)
+        db.cursor = MagicMock(side_effect=cursor_cm)
+        db.execute = AsyncMock(return_value=[{"count": 1}])
+
+        with patch("asyncio.to_thread") as mock_to_thread:
+            mock_to_thread.side_effect = lambda f, *args, **kwargs: f(*args, **kwargs)
+            with patch("pathlib.Path.mkdir"):
+                with patch("builtins.open", MagicMock()):
+                    await db.copy_to_csv("users", "/tmp/users.csv", columns=["id", "name"])
+
+        copy_call = mock_cursor.copy.call_args
+        sql = copy_call[0][0]
+        assert "(id, name)" in sql
+
+    async def test_copy_to_csv_validates_identifiers(self, config):
+        """Test copy_to_csv validates identifiers."""
+        db = AsyncDatabase(config)
+
+        with pytest.raises(InvalidIdentifier):
+            await db.copy_to_csv("DROP TABLE", "/tmp/out.csv")
+
+    async def test_copy_from_csv_basic(self, config):
+        """Test basic copy_from_csv."""
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 2
+
+        @asynccontextmanager
+        async def copy_cm(*args):
+            class CopyWriter:
+                async def write(self, data):
+                    pass
+            yield CopyWriter()
+
+        mock_cursor.copy = MagicMock(side_effect=copy_cm)
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        db = AsyncDatabase(config)
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        # Mock file operations
+        csv_data = "id,name,email\n1,Alice,alice@example.com\n2,Bob,bob@example.com\n"
+        mock_file = MagicMock()
+        mock_file.read.side_effect = [csv_data, ""]  # Return data then empty to signal EOF
+
+        with patch("asyncio.to_thread") as mock_to_thread:
+            # First call opens file, second+ calls read data
+            call_count = 0
+            def to_thread_side_effect(f, *args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:  # open
+                    return mock_file
+                elif f == mock_file.read:  # read
+                    return mock_file.read(*args, **kwargs)
+                else:  # close
+                    return None
+            mock_to_thread.side_effect = to_thread_side_effect
+
+            count = await db.copy_from_csv("users", "/tmp/users.csv")
+
+        assert count == 2
+        copy_call = mock_cursor.copy.call_args
+        sql = copy_call[0][0]
+        assert "COPY public.users FROM STDIN" in sql
+        assert "FORMAT CSV" in sql
+
+    async def test_copy_from_csv_with_columns(self, config):
+        """Test copy_from_csv with specific columns."""
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+
+        @asynccontextmanager
+        async def copy_cm(*args):
+            class CopyWriter:
+                async def write(self, data):
+                    pass
+            yield CopyWriter()
+
+        mock_cursor.copy = MagicMock(side_effect=copy_cm)
+
+        @asynccontextmanager
+        async def cursor_cm():
+            yield mock_cursor
+
+        db = AsyncDatabase(config)
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        mock_file = MagicMock()
+        mock_file.read.side_effect = ["id,name\n1,Alice\n", ""]
+
+        with patch("asyncio.to_thread") as mock_to_thread:
+            call_count = 0
+            def to_thread_side_effect(f, *args, **kwargs):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    return mock_file
+                elif f == mock_file.read:
+                    return mock_file.read(*args, **kwargs)
+                else:
+                    return None
+            mock_to_thread.side_effect = to_thread_side_effect
+
+            await db.copy_from_csv("users", "/tmp/users.csv", columns=["id", "name"])
+
+        copy_call = mock_cursor.copy.call_args
+        sql = copy_call[0][0]
+        assert "(id, name)" in sql
+
+    async def test_copy_from_csv_validates_identifiers(self, config):
+        """Test copy_from_csv validates identifiers."""
+        db = AsyncDatabase(config)
+
+        with pytest.raises(InvalidIdentifier):
+            await db.copy_from_csv("DROP TABLE", "/tmp/in.csv")
