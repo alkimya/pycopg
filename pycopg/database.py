@@ -278,8 +278,15 @@ class Database:
         if self._session_conn is not None:
             with self._session_conn.cursor(row_factory=dict_row) as cur:
                 yield cur
-                if not autocommit and self._session_conn.info.transaction_status == TransactionStatus.IDLE:
-                    self._session_conn.commit()
+                if not autocommit:
+                    status = self._session_conn.info.transaction_status
+                    if status == TransactionStatus.INTRANS:
+                        self._session_conn.commit()
+                    elif status == TransactionStatus.INERROR:
+                        self._session_conn.rollback()
+                    # IDLE: no open transaction, nothing to do
+                    # ACTIVE: should not occur at cursor exit (mid-query)
+                    # UNKNOWN: connection in bad state, skip
         else:
             with self.connect(autocommit=autocommit) as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
@@ -347,10 +354,16 @@ class Database:
         try:
             yield self
         finally:
-            if not autocommit:
-                self._session_conn.commit()
-            self._session_conn.close()
-            self._session_conn = None
+            try:
+                if not autocommit:
+                    self._session_conn.commit()
+                self._session_conn.close()
+            except Exception:
+                # Cleanup failure - connection may already be closed or broken.
+                # Don't suppress: let the exception propagate after state reset.
+                raise
+            finally:
+                self._session_conn = None  # ALWAYS executes
 
     @property
     def in_session(self) -> bool:
