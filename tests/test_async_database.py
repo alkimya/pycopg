@@ -446,5 +446,143 @@ class TestAsyncDatabaseInspection:
         ])
 
         cols = await db.columns_with_types("users")
-        
+
         assert cols == [("id", "integer"), ("name", "text")]
+
+
+def create_async_engine_mock():
+    """Helper to create a mocked AsyncEngine with run_sync support."""
+    mock_engine = MagicMock()
+    mock_sync_conn = MagicMock()
+
+    @asynccontextmanager
+    async def connect_cm():
+        mock_conn = MagicMock()
+
+        async def run_sync(fn):
+            return fn(mock_sync_conn)
+
+        mock_conn.run_sync = AsyncMock(side_effect=run_sync)
+        yield mock_conn
+
+    mock_engine.connect = connect_cm
+    return mock_engine, mock_sync_conn
+
+
+class TestAsyncDatabaseEngine:
+    """Tests for async_engine lazy initialization."""
+
+    def test_async_engine_not_created_on_init(self, config):
+        """Test that async_engine is not created on initialization."""
+        db = AsyncDatabase(config)
+        assert db._async_engine is None
+
+    def test_async_engine_created_on_access(self, config):
+        """Test that async_engine is created on first access."""
+        db = AsyncDatabase(config)
+        with patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_create:
+            mock_engine = MagicMock()
+            mock_create.return_value = mock_engine
+
+            engine = db.async_engine
+
+            mock_create.assert_called_once_with(config.url)
+            assert engine == mock_engine
+
+    def test_async_engine_cached(self, config):
+        """Test that async_engine is reused on subsequent accesses."""
+        db = AsyncDatabase(config)
+        with patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_create:
+            mock_engine = MagicMock()
+            mock_create.return_value = mock_engine
+
+            engine1 = db.async_engine
+            engine2 = db.async_engine
+
+            mock_create.assert_called_once()  # Only created once
+            assert engine1 is engine2
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseDataFrame:
+    """Tests for async DataFrame methods."""
+
+    async def test_to_dataframe_with_table(self, config):
+        """Test to_dataframe with table name."""
+        import pandas as pd
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        expected_df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        with patch("pandas.read_sql", return_value=expected_df) as mock_read:
+            result = await db.to_dataframe("users")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 2
+            mock_read.assert_called_once()
+
+    async def test_to_dataframe_with_sql(self, config):
+        """Test to_dataframe with custom SQL."""
+        import pandas as pd
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        expected_df = pd.DataFrame({"id": [1]})
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        with patch("pandas.read_sql", return_value=expected_df):
+            result = await db.to_dataframe(sql="SELECT * FROM users WHERE id = :id", params={"id": 1})
+
+            assert isinstance(result, pd.DataFrame)
+
+    async def test_to_dataframe_both_table_and_sql_raises(self, config):
+        """Test to_dataframe raises ValueError with both table and sql."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="Specify either table or sql, not both"):
+            await db.to_dataframe(table="users", sql="SELECT 1")
+
+    async def test_to_dataframe_neither_table_nor_sql_raises(self, config):
+        """Test to_dataframe raises ValueError with neither table nor sql."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="Specify either table or sql"):
+            await db.to_dataframe()
+
+    async def test_from_dataframe_basic(self, config):
+        """Test from_dataframe writes DataFrame to table."""
+        import pandas as pd
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        # We mock df.to_sql to verify it's called correctly
+        with patch.object(df, "to_sql") as mock_to_sql:
+            await db.from_dataframe(df, "users")
+
+            mock_to_sql.assert_called_once()
+            call_kwargs = mock_to_sql.call_args[1]
+            assert call_kwargs["name"] == "users"
+            assert call_kwargs["schema"] == "public"
+            assert call_kwargs["if_exists"] == "fail"
+
+    async def test_from_dataframe_if_exists_append(self, config):
+        """Test from_dataframe with if_exists='append'."""
+        import pandas as pd
+
+        mock_engine, mock_sync_conn = create_async_engine_mock()
+        df = pd.DataFrame({"id": [3]})
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        with patch.object(df, "to_sql") as mock_to_sql:
+            await db.from_dataframe(df, "users", if_exists="append")
+
+            call_kwargs = mock_to_sql.call_args[1]
+            assert call_kwargs["if_exists"] == "append"
