@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Bug Fixes & Foundation** - Fix critical bugs blocking async parity work
 - [x] **Phase 2: AsyncDatabase DataFrame Parity** - Complete DataFrame/GeoDataFrame async methods
-- [ ] **Phase 3: AsyncDatabase Admin/Backup Parity** - Complete admin, DDL, backup/restore async methods
+- [x] **Phase 3: AsyncDatabase Admin/Backup Parity** - Complete admin, DDL, backup/restore async methods
 - [ ] **Phase 4: AsyncDatabase Extensions Parity** - Complete PostGIS, TimescaleDB, roles async methods
 - [ ] **Phase 5: Resilience & Configuration** - Add retry/backoff, timeouts, configurable batch sizes
 - [ ] **Phase 6: Test Coverage** - Comprehensive test infrastructure and edge case testing
@@ -67,8 +67,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Add DDL/admin/stats async methods (drop_table, create_index, drop_index, list_indexes, list_constraints, drop_schema, table_sizes, create_database, drop_database) + tests
-- [ ] 03-02-PLAN.md — Add maintenance/backup/CSV async methods (vacuum, analyze, explain, pg_dump, pg_restore, copy_to_csv, copy_from_csv) + tests
+- [x] 03-01-PLAN.md — Add DDL/admin/stats async methods (drop_table, create_index, drop_index, list_indexes, list_constraints, drop_schema, table_sizes, create_database, drop_database) + tests
+- [x] 03-02-PLAN.md — Add maintenance/backup/CSV async methods (vacuum, analyze, explain, pg_dump, pg_restore, copy_to_csv, copy_from_csv) + tests
 
 ### Phase 4: AsyncDatabase Extensions Parity
 **Goal**: AsyncDatabase has full PostGIS, TimescaleDB, and role management support matching Database
@@ -139,7 +139,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 |-------|----------------|--------|-----------|
 | 1. Bug Fixes & Foundation | 2/2 | ✓ Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | 2/2 | ✓ Complete | 2026-02-11 |
-| 3. AsyncDatabase Admin/Backup Parity | 0/2 | Not started | - |
+| 3. AsyncDatabase Admin/Backup Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 4. AsyncDatabase Extensions Parity | 0/TBD | Not started | - |
 | 5. Resilience & Configuration | 0/TBD | Not started | - |
 | 6. Test Coverage | 0/TBD | Not started | - |
