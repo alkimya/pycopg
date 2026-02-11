@@ -80,10 +80,11 @@ Plans:
   3. User can call async list_role_members(), list_role_grants() for role inspection
   4. User can call async create_spatial_index(), list_geometry_columns() for PostGIS operations
   5. User can call async create_hypertable(), enable_compression(), add_retention_policy(), list_hypertables() for TimescaleDB operations
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (to be created during plan-phase)
+- [ ] 04-01-PLAN.md — Add async role management, privilege, and inspection methods + tests
+- [ ] 04-02-PLAN.md — Add async PostGIS and TimescaleDB methods + update from_geodataframe spatial index + tests
 
 ### Phase 5: Resilience & Configuration
 **Goal**: Production-grade error handling with retry/backoff and configurable operation parameters
@@ -140,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 1. Bug Fixes & Foundation | 2/2 | ✓ Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | 2/2 | ✓ Complete | 2026-02-11 |
-| 4. AsyncDatabase Extensions Parity | 0/TBD | Not started | - |
+| 4. AsyncDatabase Extensions Parity | 0/2 | In progress | - |
 | 5. Resilience & Configuration | 0/TBD | Not started | - |
 | 6. Test Coverage | 0/TBD | Not started | - |
 | 7. Documentation & Release | 0/TBD | Not started | - |
