@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: AsyncDatabase Admin/Backup Parity** - Complete admin, DDL, backup/restore async methods
 - [x] **Phase 4: AsyncDatabase Extensions Parity** - Complete PostGIS, TimescaleDB, roles async methods
 - [x] **Phase 5: Resilience & Configuration** - Add retry/backoff, timeouts, configurable batch sizes
-- [ ] **Phase 6: Test Coverage** - Comprehensive test infrastructure and edge case testing
+- [x] **Phase 6: Test Coverage** - Comprehensive test infrastructure and edge case testing
 - [ ] **Phase 7: Documentation & Release** - Update docs, changelog, migration guide, publish v0.3.0
 
 ## Phase Details
@@ -115,8 +115,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Coverage infrastructure, Config/Base coverage, Database integration tests, async parity verification (TEST-01, TEST-06)
-- [ ] 06-02-PLAN.md — Migration rollback edge cases, session exceptions, pool stress, PostGIS error handling (TEST-02, TEST-03, TEST-04, TEST-05)
+- [x] 06-01-PLAN.md — Coverage infrastructure, Config/Base coverage, Database integration tests, async parity verification (TEST-01, TEST-06)
+- [x] 06-02-PLAN.md — Migration rollback edge cases, session exceptions, pool stress, PostGIS error handling (TEST-02, TEST-03, TEST-04, TEST-05)
 
 ### Phase 7: Documentation & Release
 **Goal**: Documentation updated, migration guide published, v0.3.0 released on PyPI
@@ -145,5 +145,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. AsyncDatabase Admin/Backup Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 4. AsyncDatabase Extensions Parity | 2/2 | ✓ Complete | 2026-02-11 |
 | 5. Resilience & Configuration | 2/2 | ✓ Complete | 2026-02-11 |
-| 6. Test Coverage | 0/2 | In progress | - |
+| 6. Test Coverage | 2/2 | ✓ Complete | 2026-02-11 |
 | 7. Documentation & Release | 0/TBD | Not started | - |
