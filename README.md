@@ -223,7 +223,7 @@ async for payload in db.listen("events"):
     handle_event(event)
 ```
 
-### Async DataFrame Operations (NEW in 0.3.0)
+### Async DataFrame Operations
 
 ```python
 import pandas as pd
@@ -242,7 +242,7 @@ gdf = await db.to_geodataframe("parcels")
 await db.from_geodataframe(gdf, "parcels_copy", spatial_index=True)
 ```
 
-### Async Admin Operations (NEW in 0.3.0)
+### Async Admin Operations
 
 ```python
 # Maintenance
@@ -261,7 +261,7 @@ await db.create_table("logs", {"id": "SERIAL PRIMARY KEY", "message": "TEXT"})
 await db.drop_table("temp_data")
 ```
 
-### Async Backup Operations (NEW in 0.3.0)
+### Async Backup Operations
 
 ```python
 # Full backup
@@ -276,7 +276,7 @@ await db.copy_to_csv("users", "users.csv")
 await db.copy_from_csv("users", "users.csv")
 ```
 
-### Async Role Management (NEW in 0.3.0)
+### Async Role Management
 
 ```python
 # Create roles
@@ -292,7 +292,7 @@ await db.revoke("INSERT", "users", "readonly")
 await db.grant_role("readonly", "analyst")
 ```
 
-### Async PostGIS & TimescaleDB (NEW in 0.3.0)
+### Async PostGIS & TimescaleDB
 
 ```python
 # PostGIS: Spatial indexes
@@ -370,6 +370,7 @@ db = AsyncDatabase.from_env()
 ```
 
 **Details:**
+
 - 3 retry attempts (initial + 2 retries)
 - Exponential backoff: 1s, 2.7s, 7.4s
 - Only retries `OperationalError` (connection failures, not SQL errors)
@@ -397,6 +398,7 @@ db = Database.from_url(
 ```
 
 **Recommended values:**
+
 - Web API endpoints: 5000-10000ms (5-10s)
 - Background jobs: 60000-300000ms (1-5 minutes)
 - Data warehousing: 600000+ (10+ minutes)
@@ -417,6 +419,7 @@ db.insert_batch("users", large_dataset, batch_size=5000)
 ```
 
 **When to adjust:**
+
 - Large rows (many columns, JSONB, TEXT): decrease to 100-500
 - Small rows (few columns, simple types): increase to 2000-5000
 - Memory errors: decrease batch size

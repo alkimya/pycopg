@@ -291,7 +291,7 @@ size = await db.size()
 table_size = await db.table_size("users")
 ```
 
-## DataFrame Operations (NEW in 0.3.0)
+## DataFrame Operations
 
 AsyncDatabase supports pandas and geopandas operations using `run_sync` internally, since pandas/geopandas are synchronous libraries.
 
@@ -319,7 +319,7 @@ await db.from_geodataframe(
 
 > **Note:** DataFrame operations use `run_sync` internally to execute synchronous pandas/geopandas code in an async context. This is necessary because pandas and geopandas are not async-aware libraries.
 
-## Admin Operations (NEW in 0.3.0)
+## Admin Operations
 
 Full administrative capabilities are available asynchronously.
 
@@ -354,7 +354,7 @@ sizes = await db.table_sizes("public")
 # Returns list of dicts with table names and sizes
 ```
 
-## Maintenance Operations (NEW in 0.3.0)
+## Maintenance Operations
 
 Database maintenance operations are fully async.
 
@@ -375,7 +375,7 @@ for line in plan:
     print(line)
 ```
 
-## Backup & Restore Operations (NEW in 0.3.0)
+## Backup & Restore Operations
 
 Backup operations use `asyncio.create_subprocess_exec` internally to run pg_dump/pg_restore asynchronously.
 
@@ -395,7 +395,7 @@ rows_imported = await db.copy_from_csv("users", "users.csv")
 
 > **Note:** pg_dump and pg_restore require the PostgreSQL client tools to be installed on the system.
 
-## Database Lifecycle (NEW in 0.3.0)
+## Database Lifecycle
 
 Create and drop databases asynchronously.
 
@@ -409,7 +409,7 @@ await db.drop_database("old_db")
 
 > **Note:** These operations require autocommit mode and appropriate privileges.
 
-## Role Management (NEW in 0.3.0)
+## Role Management
 
 Full role and privilege management asynchronously.
 
@@ -443,7 +443,7 @@ members = await db.list_role_members("admin")
 grants = await db.list_role_grants("appuser")
 ```
 
-## PostGIS Operations (NEW in 0.3.0)
+## PostGIS Operations
 
 PostGIS spatial operations are available asynchronously.
 
@@ -456,7 +456,7 @@ geom_cols = await db.list_geometry_columns()
 # Returns: table_name, column_name, srid, type
 ```
 
-## TimescaleDB Operations (NEW in 0.3.0)
+## TimescaleDB Operations
 
 TimescaleDB hypertable and policy management asynchronously.
 
