@@ -6,6 +6,8 @@ Provides async/await interface for PostgreSQL operations using psycopg's async s
 
 from __future__ import annotations
 
+import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Optional, Sequence
@@ -1182,6 +1184,427 @@ class AsyncDatabase:
                     AND pid <> pg_backend_pid()
                 """, [name])
                 await cur.execute(f"DROP DATABASE {if_clause}{name}")
+
+    # =========================================================================
+    # UTILITY
+    # =========================================================================
+
+    async def vacuum(self, table: Optional[str] = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
+        """Vacuum database or table.
+
+        Args:
+            table: Table name (None for whole database).
+            schema: Schema name.
+            analyze: Update statistics.
+            full: Full vacuum (reclaims more space but locks table).
+
+        Example:
+            await db.vacuum()
+            await db.vacuum("users", full=True)
+        """
+        options = []
+        if full:
+            options.append("FULL")
+        if analyze:
+            options.append("ANALYZE")
+
+        options_str = f"({', '.join(options)})" if options else ""
+        table_str = f" {schema}.{table}" if table else ""
+
+        await self.execute(f"VACUUM{options_str}{table_str}", autocommit=True)
+
+    async def analyze(self, table: Optional[str] = None, schema: str = "public") -> None:
+        """Update table statistics for query planner.
+
+        Args:
+            table: Table name (None for whole database).
+            schema: Schema name.
+
+        Example:
+            await db.analyze()
+            await db.analyze("users")
+        """
+        table_str = f" {schema}.{table}" if table else ""
+        await self.execute(f"ANALYZE{table_str}", autocommit=True)
+
+    async def explain(self, sql: str, params: Optional[Sequence] = None, analyze: bool = False, format: str = "text") -> list[str]:
+        """Get query execution plan.
+
+        Args:
+            sql: SQL query.
+            params: Query parameters.
+            analyze: Actually run the query for real stats.
+            format: Output format (text, json, xml, yaml).
+
+        Returns:
+            Query plan lines.
+
+        Example:
+            plan = await db.explain("SELECT * FROM users WHERE id = 1")
+            print("\\n".join(plan))
+        """
+        options = [f"FORMAT {format.upper()}"]
+        if analyze:
+            options.append("ANALYZE")
+
+        result = await self.execute(f"EXPLAIN ({', '.join(options)}) {sql}", params)
+        return [r["QUERY PLAN"] for r in result]
+
+    # =========================================================================
+    # BACKUP & RESTORE
+    # =========================================================================
+
+    async def pg_dump(
+        self,
+        output_file: str | Path,
+        format: Literal["plain", "custom", "directory", "tar"] = "custom",
+        schema_only: bool = False,
+        data_only: bool = False,
+        tables: Optional[list[str]] = None,
+        exclude_tables: Optional[list[str]] = None,
+        schemas: Optional[list[str]] = None,
+        compress: int = 6,
+        jobs: int = 1,
+    ) -> None:
+        """Backup database using pg_dump.
+
+        Args:
+            output_file: Output file path.
+            format: Dump format (plain=SQL, custom=compressed, directory=parallel, tar).
+            schema_only: Dump only schema, no data.
+            data_only: Dump only data, no schema.
+            tables: Only dump these tables.
+            exclude_tables: Exclude these tables.
+            schemas: Only dump these schemas.
+            compress: Compression level (0-9, for custom format).
+            jobs: Parallel jobs (for directory format).
+
+        Example:
+            # Full backup in custom format
+            await db.pg_dump("backup.dump")
+
+            # SQL backup
+            await db.pg_dump("backup.sql", format="plain")
+
+            # Schema only
+            await db.pg_dump("schema.sql", format="plain", schema_only=True)
+
+            # Specific tables
+            await db.pg_dump("users.dump", tables=["users", "profiles"])
+
+            # Parallel backup
+            await db.pg_dump("backup_dir", format="directory", jobs=4)
+        """
+        output_file = Path(output_file)
+        cmd = ["pg_dump"]
+
+        # Connection params
+        cmd.extend(["-h", self.config.host])
+        cmd.extend(["-p", str(self.config.port)])
+        cmd.extend(["-U", self.config.user])
+        cmd.extend(["-d", self.config.database])
+
+        # Format
+        format_map = {"plain": "p", "custom": "c", "directory": "d", "tar": "t"}
+        cmd.extend(["-F", format_map[format]])
+
+        # Options
+        if schema_only:
+            cmd.append("--schema-only")
+        if data_only:
+            cmd.append("--data-only")
+        if compress and format == "custom":
+            cmd.extend(["-Z", str(compress)])
+        if jobs > 1 and format == "directory":
+            cmd.extend(["-j", str(jobs)])
+
+        # Tables
+        if tables:
+            for table in tables:
+                cmd.extend(["-t", table])
+        if exclude_tables:
+            for table in exclude_tables:
+                cmd.extend(["-T", table])
+        if schemas:
+            for schema in schemas:
+                cmd.extend(["-n", schema])
+
+        # Output
+        cmd.extend(["-f", str(output_file)])
+
+        # Run with password in environment
+        env = {**os.environ}
+        if self.config.password:
+            env["PGPASSWORD"] = self.config.password
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
+
+    async def pg_restore(
+        self,
+        input_file: str | Path,
+        clean: bool = False,
+        if_exists: bool = True,
+        create: bool = False,
+        data_only: bool = False,
+        schema_only: bool = False,
+        tables: Optional[list[str]] = None,
+        schemas: Optional[list[str]] = None,
+        jobs: int = 1,
+        no_owner: bool = False,
+        no_privileges: bool = False,
+    ) -> None:
+        """Restore database from pg_dump backup.
+
+        Args:
+            input_file: Backup file path.
+            clean: Drop objects before recreating.
+            if_exists: Use IF EXISTS with clean (prevents errors).
+            create: Create database before restoring.
+            data_only: Restore only data.
+            schema_only: Restore only schema.
+            tables: Only restore these tables.
+            schemas: Only restore these schemas.
+            jobs: Parallel jobs.
+            no_owner: Don't restore ownership.
+            no_privileges: Don't restore privileges.
+
+        Example:
+            # Full restore
+            await db.pg_restore("backup.dump")
+
+            # Clean restore (drop and recreate)
+            await db.pg_restore("backup.dump", clean=True)
+
+            # Restore specific tables
+            await db.pg_restore("backup.dump", tables=["users"])
+
+            # Parallel restore
+            await db.pg_restore("backup_dir", jobs=4)
+        """
+        input_file = Path(input_file)
+
+        # Check if it's a plain SQL file
+        if input_file.suffix == ".sql" or not input_file.exists():
+            # Use psql for plain format
+            await self._psql_restore(input_file)
+            return
+
+        cmd = ["pg_restore"]
+
+        # Connection params
+        cmd.extend(["-h", self.config.host])
+        cmd.extend(["-p", str(self.config.port)])
+        cmd.extend(["-U", self.config.user])
+        cmd.extend(["-d", self.config.database])
+
+        # Options
+        if clean:
+            cmd.append("--clean")
+        if if_exists:
+            cmd.append("--if-exists")
+        if create:
+            cmd.append("--create")
+        if data_only:
+            cmd.append("--data-only")
+        if schema_only:
+            cmd.append("--schema-only")
+        if jobs > 1:
+            cmd.extend(["-j", str(jobs)])
+        if no_owner:
+            cmd.append("--no-owner")
+        if no_privileges:
+            cmd.append("--no-privileges")
+
+        # Tables/Schemas
+        if tables:
+            for table in tables:
+                cmd.extend(["-t", table])
+        if schemas:
+            for schema in schemas:
+                cmd.extend(["-n", schema])
+
+        cmd.append(str(input_file))
+
+        # Run with password in environment
+        env = {**os.environ}
+        if self.config.password:
+            env["PGPASSWORD"] = self.config.password
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"pg_restore failed: {stderr.decode()}")
+
+    async def _psql_restore(self, sql_file: Path) -> None:
+        """Restore from plain SQL file using psql."""
+        cmd = [
+            "psql",
+            "-h", self.config.host,
+            "-p", str(self.config.port),
+            "-U", self.config.user,
+            "-d", self.config.database,
+            "-f", str(sql_file),
+        ]
+
+        env = {**os.environ}
+        if self.config.password:
+            env["PGPASSWORD"] = self.config.password
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"psql restore failed: {stderr.decode()}")
+
+    async def copy_to_csv(
+        self,
+        table: str,
+        output_file: str | Path,
+        schema: str = "public",
+        columns: Optional[list[str]] = None,
+        delimiter: str = ",",
+        header: bool = True,
+        null_string: str = "",
+        encoding: str = "UTF8",
+    ) -> int:
+        """Export table to CSV file.
+
+        Args:
+            table: Table name.
+            output_file: Output CSV file path.
+            schema: Schema name.
+            columns: Specific columns to export.
+            delimiter: Field delimiter.
+            header: Include header row.
+            null_string: String for NULL values.
+            encoding: File encoding.
+
+        Returns:
+            Number of rows exported.
+
+        Example:
+            count = await db.copy_to_csv("users", "users.csv")
+            await db.copy_to_csv("orders", "orders.csv", columns=["id", "total", "created_at"])
+        """
+        output_file = Path(output_file)
+        validate_identifiers(table, schema)
+        if columns:
+            validate_identifiers(*columns)
+
+        cols = f"({', '.join(columns)})" if columns else ""
+
+        options = [
+            f"FORMAT CSV",
+            f"DELIMITER '{delimiter}'",
+            f"NULL '{null_string}'",
+            f"ENCODING '{encoding}'",
+        ]
+        if header:
+            options.append("HEADER")
+
+        # Create parent directory if needed
+        await asyncio.to_thread(output_file.parent.mkdir, parents=True, exist_ok=True)
+
+        try:
+            async with self.cursor() as cur:
+                # Open file and write data
+                file_handle = await asyncio.to_thread(open, output_file, "w", encoding=encoding)
+                try:
+                    async with cur.copy(f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})") as copy:
+                        async for data in copy:
+                            decoded = data.decode(encoding) if isinstance(data, bytes) else data
+                            await asyncio.to_thread(file_handle.write, decoded)
+                finally:
+                    await asyncio.to_thread(file_handle.close)
+
+                # Get row count
+                result = await self.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
+                return result[0]["count"]
+        except Exception:
+            raise
+
+    async def copy_from_csv(
+        self,
+        table: str,
+        input_file: str | Path,
+        schema: str = "public",
+        columns: Optional[list[str]] = None,
+        delimiter: str = ",",
+        header: bool = True,
+        null_string: str = "",
+        encoding: str = "UTF8",
+    ) -> int:
+        """Import CSV file into table.
+
+        Args:
+            table: Table name.
+            input_file: Input CSV file path.
+            schema: Schema name.
+            columns: Specific columns to import.
+            delimiter: Field delimiter.
+            header: First row is header.
+            null_string: String representing NULL.
+            encoding: File encoding.
+
+        Returns:
+            Number of rows imported.
+
+        Example:
+            count = await db.copy_from_csv("users", "users.csv")
+        """
+        input_file = Path(input_file)
+        validate_identifiers(table, schema)
+        if columns:
+            validate_identifiers(*columns)
+
+        cols = f"({', '.join(columns)})" if columns else ""
+
+        options = [
+            f"FORMAT CSV",
+            f"DELIMITER '{delimiter}'",
+            f"NULL '{null_string}'",
+            f"ENCODING '{encoding}'",
+        ]
+        if header:
+            options.append("HEADER")
+
+        async with self.cursor() as cur:
+            # Open file and read data
+            file_handle = await asyncio.to_thread(open, input_file, "r", encoding=encoding)
+            try:
+                async with cur.copy(f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})") as copy:
+                    while True:
+                        data = await asyncio.to_thread(file_handle.read, 8192)
+                        if not data:
+                            break
+                        await copy.write(data.encode(encoding))
+            finally:
+                await asyncio.to_thread(file_handle.close)
+
+            return cur.rowcount
 
     # =========================================================================
     # LISTEN/NOTIFY
