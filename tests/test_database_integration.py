@@ -1,0 +1,536 @@
+"""Integration tests for Database core methods against real PostgreSQL.
+
+These tests use the real pycopg_test database to verify Database methods work correctly.
+They cover the core operations that make up the bulk of uncovered lines.
+"""
+
+import uuid
+
+import pytest
+
+from pycopg import Config, Database
+
+
+@pytest.fixture
+def db(db_config):
+    """Create a Database instance connected to pycopg_test."""
+    database = Database(db_config)
+    database.connect()
+    yield database
+    # Cleanup: disconnect
+    if hasattr(database, "_conn") and database._conn:
+        database._conn.close()
+
+
+@pytest.fixture
+def temp_table_name():
+    """Generate a unique table name for tests."""
+    return f"test_{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture
+def cleanup_table(db):
+    """Fixture that cleans up tables after test."""
+    tables_to_cleanup = []
+
+    def register_table(table_name):
+        tables_to_cleanup.append(table_name)
+
+    yield register_table
+
+    # Cleanup registered tables
+    for table_name in tables_to_cleanup:
+        try:
+            db.execute(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
+        except Exception:
+            pass
+
+
+class TestDatabaseCoreOperations:
+    """Test core Database operations (execute, insert_batch, select, cursor)."""
+
+    def test_connect_and_execute(self, db):
+        """Test basic connection and query execution."""
+        result = db.execute("SELECT 1 AS num")
+        assert len(result) == 1
+        assert result[0]["num"] == 1
+
+    def test_execute_with_params(self, db):
+        """Test parameterized query execution."""
+        result = db.execute("SELECT %s::text AS value", ("test_value",))
+        assert len(result) == 1
+        assert result[0]["value"] == "test_value"
+
+    def test_execute_autocommit(self, db, temp_table_name, cleanup_table):
+        """Test execute with autocommit=True."""
+        cleanup_table(temp_table_name)
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, name TEXT)',
+            autocommit=True,
+        )
+        # Verify table exists
+        assert db.table_exists(temp_table_name)
+
+    def test_cursor_context(self, db):
+        """Test using cursor() context manager."""
+        with db.cursor() as cur:
+            cur.execute("SELECT 42 AS answer")
+            result = cur.fetchone()
+            assert result["answer"] == 42
+
+    def test_insert_batch_and_select(self, db, temp_table_name, cleanup_table):
+        """Test creating table, inserting rows with insert_batch, and selecting them back."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, name TEXT, value INTEGER)',
+            autocommit=True,
+        )
+
+        # Insert batch
+        rows = [{"name": f"test{i}", "value": i * 10} for i in range(5)]
+        db.insert_batch(temp_table_name, rows)
+
+        # Select them back
+        results = db.execute(f'SELECT * FROM "{temp_table_name}" ORDER BY value')
+        assert len(results) == 5
+        assert results[0]["name"] == "test0"
+        assert results[0]["value"] == 0
+        assert results[4]["name"] == "test4"
+        assert results[4]["value"] == 40
+
+    def test_select_where(self, db, temp_table_name, cleanup_table):
+        """Test select with WHERE clause."""
+        cleanup_table(temp_table_name)
+
+        # Create and populate table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, status TEXT)',
+            autocommit=True,
+        )
+        db.insert_batch(
+            temp_table_name,
+            [{"status": "active"}, {"status": "inactive"}, {"status": "active"}],
+        )
+
+        # Select with WHERE
+        results = db.execute(
+            f'SELECT * FROM "{temp_table_name}" WHERE status = %s', ("active",)
+        )
+        assert len(results) == 2
+        assert all(r["status"] == "active" for r in results)
+
+    def test_execute_returning_no_rows(self, db, temp_table_name, cleanup_table):
+        """Test execute INSERT without RETURNING clause returns empty list."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+
+        # Insert without RETURNING
+        result = db.execute(f'INSERT INTO "{temp_table_name}" DEFAULT VALUES')
+        assert result == []
+
+    def test_execute_with_returning(self, db, temp_table_name, cleanup_table):
+        """Test execute INSERT with RETURNING clause."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, name TEXT)',
+            autocommit=True,
+        )
+
+        # Insert with RETURNING
+        result = db.execute(
+            f'INSERT INTO "{temp_table_name}" (name) VALUES (%s) RETURNING id, name',
+            ("testname",),
+        )
+        assert len(result) == 1
+        assert "id" in result[0]
+        assert result[0]["name"] == "testname"
+
+
+class TestDatabaseSchema:
+    """Test schema introspection methods."""
+
+    def test_list_schemas(self, db):
+        """Test listing database schemas."""
+        schemas = db.list_schemas()
+        assert "public" in schemas
+
+    def test_list_tables(self, db, temp_table_name, cleanup_table):
+        """Test listing tables in a schema."""
+        cleanup_table(temp_table_name)
+
+        # Create temp table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+
+        # List tables
+        tables = db.list_tables("public")
+        assert temp_table_name in tables
+
+    def test_table_exists(self, db, temp_table_name, cleanup_table):
+        """Test table_exists returns correct boolean."""
+        cleanup_table(temp_table_name)
+
+        # Should not exist initially
+        assert not db.table_exists(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+
+        # Should exist now
+        assert db.table_exists(temp_table_name)
+
+    def test_table_info(self, db, temp_table_name, cleanup_table):
+        """Test getting table information."""
+        cleanup_table(temp_table_name)
+
+        # Create table with columns
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, name TEXT, created_at TIMESTAMP)',
+            autocommit=True,
+        )
+
+        # Get table info
+        info = db.table_info(temp_table_name)
+
+        # Verify columns are present
+        column_names = [col["column_name"] for col in info]
+        assert "id" in column_names
+        assert "name" in column_names
+        assert "created_at" in column_names
+
+    def test_schema_exists(self, db):
+        """Test schema_exists for known and unknown schemas."""
+        assert db.schema_exists("public")
+        assert not db.schema_exists("nonexistent_schema_xyz")
+
+
+class TestDatabaseSession:
+    """Test session management."""
+
+    def test_session_basic(self, db, temp_table_name, cleanup_table):
+        """Test basic session usage."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, value INTEGER)',
+            autocommit=True,
+        )
+
+        # Use session
+        with db.session() as session:
+            session.execute(f'INSERT INTO "{temp_table_name}" (value) VALUES (%s)', (42,))
+            # Query within session
+            result = session.execute(f'SELECT value FROM "{temp_table_name}"')
+            assert len(result) == 1
+            assert result[0]["value"] == 42
+
+    def test_session_in_session_property(self, db):
+        """Test in_session property is True inside session, False outside."""
+        assert not db.in_session
+
+        with db.session():
+            assert db.in_session
+
+        assert not db.in_session
+
+    def test_session_connection_reuse(self, db):
+        """Test queries in session use same connection."""
+        with db.session() as session:
+            # Get backend PID
+            result1 = session.execute("SELECT pg_backend_pid()")
+            pid1 = result1[0]["pg_backend_pid"]
+
+            result2 = session.execute("SELECT pg_backend_pid()")
+            pid2 = result2[0]["pg_backend_pid"]
+
+            # Should be same connection (same PID)
+            assert pid1 == pid2
+
+    def test_session_autocommit(self, db, temp_table_name, cleanup_table):
+        """Test session with autocommit=True."""
+        cleanup_table(temp_table_name)
+
+        # Create table in autocommit session
+        with db.session(autocommit=True) as session:
+            session.execute(
+                f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)'
+            )
+
+        # Verify table exists outside session
+        assert db.table_exists(temp_table_name)
+
+
+class TestDatabaseEngine:
+    """Test SQLAlchemy engine integration."""
+
+    def test_engine_returns_sqlalchemy_engine(self, db):
+        """Test engine() returns SQLAlchemy Engine instance."""
+        engine = db.engine
+        # Check it's an Engine (has basic engine attributes)
+        assert hasattr(engine, "connect")
+        assert hasattr(engine, "dispose")
+
+    def test_to_dataframe(self, db, temp_table_name, cleanup_table):
+        """Test converting table to DataFrame."""
+        pd = pytest.importorskip("pandas")
+        cleanup_table(temp_table_name)
+
+        # Create and populate table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, name TEXT, value INTEGER)',
+            autocommit=True,
+        )
+        db.insert_batch(
+            temp_table_name,
+            [
+                {"name": "a", "value": 1},
+                {"name": "b", "value": 2},
+                {"name": "c", "value": 3},
+            ],
+        )
+
+        # Convert to DataFrame
+        df = db.to_dataframe(temp_table_name)
+
+        # Verify shape and content
+        assert df.shape[0] == 3
+        assert "name" in df.columns
+        assert "value" in df.columns
+        assert sorted(df["value"].tolist()) == [1, 2, 3]
+
+    def test_from_dataframe(self, db, temp_table_name, cleanup_table):
+        """Test creating table from DataFrame."""
+        pd = pytest.importorskip("pandas")
+        cleanup_table(temp_table_name)
+
+        # Create DataFrame
+        df = pd.DataFrame({"name": ["x", "y", "z"], "value": [10, 20, 30]})
+
+        # Write to database
+        db.from_dataframe(df, temp_table_name)
+
+        # Verify data in DB
+        results = db.execute(f'SELECT * FROM "{temp_table_name}" ORDER BY name')
+        assert len(results) == 3
+        assert results[0]["name"] == "x"
+        assert results[0]["value"] == 10
+        assert results[2]["name"] == "z"
+        assert results[2]["value"] == 30
+
+
+class TestDatabaseDDL:
+    """Test DDL operations (DROP TABLE, CREATE/DROP INDEX, CREATE/DROP SCHEMA)."""
+
+    def test_drop_table(self, db, temp_table_name, cleanup_table):
+        """Test dropping a table."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+        assert db.table_exists(temp_table_name)
+
+        # Drop table
+        db.drop_table(temp_table_name)
+
+        # Verify gone
+        assert not db.table_exists(temp_table_name)
+
+    def test_create_index(self, db, temp_table_name, cleanup_table):
+        """Test creating an index."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, email TEXT)',
+            autocommit=True,
+        )
+
+        # Create index (signature: table, columns, schema, name...)
+        index_name = f"{temp_table_name}_email_idx"
+        db.create_index(temp_table_name, "email", name=index_name)
+
+        # Verify index exists
+        indexes = db.list_indexes(temp_table_name)
+        index_names = [idx["index_name"] for idx in indexes]
+        assert index_name in index_names
+
+    def test_drop_index(self, db, temp_table_name, cleanup_table):
+        """Test dropping an index."""
+        cleanup_table(temp_table_name)
+
+        # Create table and index
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, value INTEGER)',
+            autocommit=True,
+        )
+        index_name = f"{temp_table_name}_idx"
+        db.create_index(temp_table_name, "value", name=index_name)
+
+        indexes = db.list_indexes(temp_table_name)
+        index_names = [idx["index_name"] for idx in indexes]
+        assert index_name in index_names
+
+        # Drop index
+        db.drop_index(index_name)
+
+        # Verify gone
+        indexes_after = db.list_indexes(temp_table_name)
+        index_names_after = [idx["index_name"] for idx in indexes_after]
+        assert index_name not in index_names_after
+
+    def test_create_schema(self, db):
+        """Test creating a schema."""
+        schema_name = f"test_schema_{uuid.uuid4().hex[:8]}"
+
+        try:
+            # Create schema
+            db.create_schema(schema_name, if_not_exists=True)
+
+            # Verify exists
+            assert db.schema_exists(schema_name)
+
+        finally:
+            # Cleanup
+            try:
+                db.execute(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE')
+            except Exception:
+                pass
+
+    def test_drop_schema(self, db):
+        """Test dropping a schema."""
+        schema_name = f"test_schema_{uuid.uuid4().hex[:8]}"
+
+        try:
+            # Create schema
+            db.execute(f'CREATE SCHEMA "{schema_name}"')
+            assert db.schema_exists(schema_name)
+
+            # Drop schema
+            db.drop_schema(schema_name)
+
+            # Verify gone
+            assert not db.schema_exists(schema_name)
+
+        finally:
+            # Cleanup (in case drop failed)
+            try:
+                db.execute(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE')
+            except Exception:
+                pass
+
+
+class TestDatabaseAdmin:
+    """Test database administration methods."""
+
+    def test_size(self, db):
+        """Test getting database size."""
+        size = db.size()
+        # Should return a string like "8 MB" or "123 kB"
+        assert isinstance(size, str)
+        assert any(unit in size for unit in ["bytes", "kB", "MB", "GB"])
+
+    def test_table_sizes(self, db, temp_table_name, cleanup_table):
+        """Test getting table sizes."""
+        cleanup_table(temp_table_name)
+
+        # Create table with some data
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, data TEXT)',
+            autocommit=True,
+        )
+        db.insert_batch(temp_table_name, [{"data": "x" * 1000} for _ in range(10)])
+
+        # Get table sizes
+        sizes = db.table_sizes()
+
+        # Should return a list of dicts
+        assert isinstance(sizes, list)
+        assert len(sizes) > 0
+        # Check structure of first result
+        if sizes:
+            assert "table_name" in sizes[0]
+            assert "total_size" in sizes[0] or "size" in sizes[0]
+
+    def test_vacuum(self, db, temp_table_name, cleanup_table):
+        """Test running VACUUM on a table."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+
+        # Run vacuum (just verify no error)
+        db.vacuum(temp_table_name)
+
+    def test_analyze(self, db, temp_table_name, cleanup_table):
+        """Test running ANALYZE on a table."""
+        cleanup_table(temp_table_name)
+
+        # Create table
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+
+        # Run analyze (just verify no error)
+        db.analyze(temp_table_name)
+
+
+class TestDatabaseConnection:
+    """Test connection management methods."""
+
+    def test_connect_establishes_connection(self, db_config):
+        """Test that connect() establishes a connection."""
+        db = Database(db_config)
+
+        # Connect
+        db.connect()
+
+        # Verify connection works
+        result = db.execute("SELECT 1")
+        assert len(result) == 1
+
+        # Cleanup
+        if hasattr(db, "_conn") and db._conn:
+            db._conn.close()
+
+    def test_list_extensions(self, db):
+        """Test listing installed extensions."""
+        extensions = db.list_extensions()
+
+        # Should return a list
+        assert isinstance(extensions, list)
+        # plpgsql is typically installed by default
+        # Just verify the structure
+        if extensions:
+            assert isinstance(extensions[0], (str, dict))
+
+    def test_create_extension(self, db):
+        """Test creating an extension (if not exists)."""
+        # Try to create a commonly available extension
+        # Use if_not_exists to avoid errors if already installed
+        db.create_extension("pg_trgm", if_not_exists=True)
+
+        # Verify it's listed (should not error)
+        extensions = db.list_extensions()
+        assert isinstance(extensions, list)
