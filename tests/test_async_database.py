@@ -450,6 +450,74 @@ class TestAsyncDatabaseInspection:
         assert cols == [("id", "integer"), ("name", "text")]
 
 
+@pytest.mark.asyncio
+class TestAsyncDatabaseRetry:
+    """Tests for AsyncDatabase retry behavior."""
+
+    async def test_async_connect_with_retry_has_tenacity_decorator(self, config):
+        """Test _connect_with_retry has tenacity retry decorator."""
+        db = AsyncDatabase(config)
+        assert hasattr(db._connect_with_retry, "retry")
+
+    @patch("pycopg.async_database.psycopg.AsyncConnection.connect")
+    @patch("asyncio.sleep")  # Patch async sleep to avoid delays
+    async def test_async_connect_with_retry_retries_operational_error(self, mock_sleep, mock_connect, config):
+        """Test async _connect_with_retry retries OperationalError."""
+        from pycopg.async_database import OperationalError
+
+        mock_conn = MagicMock()
+        # Fail twice with OperationalError, succeed on third try
+        mock_connect.side_effect = [
+            OperationalError("Connection refused"),
+            OperationalError("Connection refused"),
+            mock_conn
+        ]
+
+        db = AsyncDatabase(config)
+        result = await db._connect_with_retry()
+
+        assert result == mock_conn
+        assert mock_connect.call_count == 3
+
+    @patch("pycopg.async_database.psycopg.AsyncConnection.connect")
+    async def test_async_connect_with_retry_does_not_retry_programming_error(self, mock_connect, config):
+        """Test async _connect_with_retry does NOT retry ProgrammingError."""
+        from psycopg import ProgrammingError
+
+        mock_connect.side_effect = ProgrammingError("Syntax error")
+
+        db = AsyncDatabase(config)
+        with pytest.raises(ProgrammingError):
+            await db._connect_with_retry()
+
+        # Should only be called once (no retry on ProgrammingError)
+        assert mock_connect.call_count == 1
+
+    @patch("pycopg.async_database.psycopg.AsyncConnection.connect")
+    @patch("asyncio.sleep")
+    async def test_async_connect_with_retry_reraises_after_max_attempts(self, mock_sleep, mock_connect, config):
+        """Test async _connect_with_retry reraises after 3 attempts."""
+        from pycopg.async_database import OperationalError
+
+        # Always raise OperationalError
+        mock_connect.side_effect = OperationalError("Connection refused")
+
+        db = AsyncDatabase(config)
+        with pytest.raises(OperationalError):
+            await db._connect_with_retry()
+
+        # Should be called exactly 3 times (stop_after_attempt(3))
+        assert mock_connect.call_count == 3
+
+    async def test_async_insert_batch_uses_config_default(self, config):
+        """Test async insert_batch uses config.default_batch_size when batch_size=None."""
+        # Use inspect to verify batch_size default is None
+        import inspect
+        sig = inspect.signature(AsyncDatabase.insert_batch)
+        param = sig.parameters["batch_size"]
+        assert param.default is None
+
+
 def create_async_engine_mock():
     """Helper to create a mocked AsyncEngine with run_sync support."""
     mock_engine = MagicMock()

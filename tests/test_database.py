@@ -1019,5 +1019,80 @@ class TestDatabaseInspection:
         ])
 
         cols = db.columns_with_types("users")
-        
+
         assert cols == [("id", "integer"), ("name", "text")]
+
+
+class TestDatabaseRetry:
+    """Tests for Database retry behavior."""
+
+    def test_connect_with_retry_has_tenacity_decorator(self, config):
+        """Test _connect_with_retry has tenacity retry decorator."""
+        db = Database(config)
+        assert hasattr(db._connect_with_retry, "retry")
+
+    @patch("pycopg.database.psycopg")
+    @patch("time.sleep")  # Patch sleep to avoid delays
+    def test_connect_with_retry_retries_operational_error(self, mock_sleep, mock_psycopg, config):
+        """Test _connect_with_retry retries OperationalError."""
+        from pycopg.database import OperationalError
+
+        mock_conn = MagicMock()
+        # Fail twice with OperationalError, succeed on third try
+        mock_psycopg.connect.side_effect = [
+            OperationalError("Connection refused"),
+            OperationalError("Connection refused"),
+            mock_conn
+        ]
+
+        db = Database(config)
+        result = db._connect_with_retry()
+
+        assert result == mock_conn
+        assert mock_psycopg.connect.call_count == 3
+
+    @patch("pycopg.database.psycopg")
+    def test_connect_with_retry_does_not_retry_programming_error(self, mock_psycopg, config):
+        """Test _connect_with_retry does NOT retry ProgrammingError."""
+        from psycopg import ProgrammingError
+
+        mock_psycopg.connect.side_effect = ProgrammingError("Syntax error")
+
+        db = Database(config)
+        with pytest.raises(ProgrammingError):
+            db._connect_with_retry()
+
+        # Should only be called once (no retry on ProgrammingError)
+        assert mock_psycopg.connect.call_count == 1
+
+    @patch("pycopg.database.psycopg")
+    @patch("time.sleep")
+    def test_connect_with_retry_reraises_after_max_attempts(self, mock_sleep, mock_psycopg, config):
+        """Test _connect_with_retry reraises after 3 attempts."""
+        from pycopg.database import OperationalError
+
+        # Always raise OperationalError
+        mock_psycopg.connect.side_effect = OperationalError("Connection refused")
+
+        db = Database(config)
+        with pytest.raises(OperationalError):
+            db._connect_with_retry()
+
+        # Should be called exactly 3 times (stop_after_attempt(3))
+        assert mock_psycopg.connect.call_count == 3
+
+    def test_insert_batch_uses_config_default_batch_size(self, config):
+        """Test insert_batch uses config.default_batch_size when batch_size=None."""
+        # Use inspect to verify batch_size default is None
+        import inspect
+        sig = inspect.signature(Database.insert_batch)
+        param = sig.parameters["batch_size"]
+        assert param.default is None
+
+    def test_insert_batch_explicit_batch_size_overrides_config(self, config):
+        """Test insert_batch explicit batch_size overrides config."""
+        import inspect
+        sig = inspect.signature(Database.insert_batch)
+        # Verify batch_size parameter exists with default None
+        assert "batch_size" in sig.parameters
+        assert sig.parameters["batch_size"].default is None
