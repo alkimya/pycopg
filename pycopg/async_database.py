@@ -701,6 +701,136 @@ class AsyncDatabase:
                 "Use db.execute('ALTER TABLE ...') manually or wait for Phase 3."
             )
 
+    async def to_geodataframe(
+        self,
+        table: Optional[str] = None,
+        schema: str = "public",
+        sql: Optional[str] = None,
+        geometry_column: str = "geometry",
+        params: Optional[dict] = None,
+    ) -> "gpd.GeoDataFrame":
+        """Read table or query into GeoDataFrame.
+
+        Args:
+            table: Table name (mutually exclusive with sql).
+            schema: Schema name.
+            sql: SQL query (mutually exclusive with table).
+            geometry_column: Name of geometry column.
+            params: Query parameters.
+
+        Returns:
+            geopandas GeoDataFrame.
+
+        Example:
+            parcels = await db.to_geodataframe("parcels", schema="geo")
+            custom = await db.to_geodataframe(
+                sql="SELECT * FROM parcels WHERE area > :min_area",
+                params={"min_area": 1000}
+            )
+        """
+        import geopandas as gpd
+        from sqlalchemy import text
+
+        if table and sql:
+            raise ValueError("Specify either table or sql, not both")
+        if not table and not sql:
+            raise ValueError("Specify either table or sql")
+
+        if table:
+            sql = f"SELECT * FROM {schema}.{table}"
+
+        async with self.async_engine.connect() as conn:
+            return await conn.run_sync(
+                lambda sync_conn: gpd.read_postgis(
+                    text(sql), sync_conn, geom_col=geometry_column, params=params
+                )
+            )
+
+    async def from_geodataframe(
+        self,
+        gdf: "gpd.GeoDataFrame",
+        table: str,
+        schema: str = "public",
+        if_exists: Literal["fail", "replace", "append"] = "fail",
+        primary_key: Optional[str | list[str]] = None,
+        spatial_index: bool = True,
+        geometry_column: str = "geometry",
+        srid: Optional[int] = None,
+    ) -> None:
+        """Create or append to table from GeoDataFrame.
+
+        Requires PostGIS extension.
+
+        Args:
+            gdf: geopandas GeoDataFrame.
+            table: Table name.
+            schema: Schema name.
+            if_exists: What to do if table exists.
+            primary_key: Column(s) for primary key.
+                Note: Requires add_primary_key (available in Phase 3).
+            spatial_index: Create GIST spatial index on geometry.
+                Note: Requires create_spatial_index (available in Phase 4).
+            geometry_column: Name of geometry column.
+            srid: Override SRID (extracted from CRS if not specified).
+
+        Example:
+            await db.from_geodataframe(parcels, "parcels")
+        """
+        # Ensure PostGIS is available
+        if not await self.has_extension("postgis"):
+            raise RuntimeError(
+                "PostGIS extension not installed. Run db.create_extension('postgis')"
+            )
+
+        # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
+        if srid is None:
+            if gdf.crs is None:
+                raise ValueError(
+                    "GeoDataFrame has no CRS defined. "
+                    "Set gdf.crs or provide explicit srid parameter."
+                )
+            try:
+                srid = gdf.crs.to_epsg()
+                if srid is None:
+                    raise ValueError(
+                        f"Cannot determine EPSG code for CRS: {gdf.crs}. "
+                        f"Provide explicit srid parameter."
+                    )
+            except ValueError:
+                raise
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to infer SRID from CRS {gdf.crs}. "
+                    f"Provide explicit srid parameter. Error: {e}"
+                ) from e
+
+        async with self.async_engine.connect() as conn:
+            await conn.run_sync(
+                lambda sync_conn: gdf.to_postgis(
+                    name=table,
+                    con=sync_conn,
+                    schema=schema,
+                    if_exists=if_exists,
+                    index=False,
+                )
+            )
+
+        if primary_key and if_exists != "append":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "primary_key parameter ignored — add_primary_key not yet available in AsyncDatabase. "
+                "Use db.execute('ALTER TABLE ...') manually or wait for Phase 3."
+            )
+
+        if spatial_index and if_exists != "append":
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "spatial_index parameter ignored — create_spatial_index not yet available in AsyncDatabase. "
+                "Use db.execute('CREATE INDEX ...') manually or wait for Phase 4."
+            )
+
     # =========================================================================
     # BATCH OPERATIONS
     # =========================================================================
