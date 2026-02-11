@@ -10,30 +10,31 @@ See: .planning/PROJECT.md (updated 2026-02-11)
 ## Current Position
 
 Phase: 1 of 7 (Bug Fixes & Foundation)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-02-11 — Completed 01-01-PLAN.md (session mode bug fixes)
+Plan: 2 of 2 in current phase
+Status: Complete
+Last activity: 2026-02-11 — Completed 01-02-PLAN.md (silent failures fixed)
 
-Progress: [██░░░░░░░░] 14%
+Progress: [████░░░░░░] 29%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 1.4 minutes
-- Total execution time: 0.02 hours
+- Total plans completed: 2
+- Average duration: 2.0 minutes
+- Total execution time: 0.07 hours
 
 **By Phase:**
 
 | Phase | Plans | Total   | Avg/Plan |
 |-------|-------|---------|----------|
-| 01    | 1     | 1.4 min | 1.4 min  |
+| 01    | 2     | 3.9 min | 2.0 min  |
 
 **Recent Plans:**
 
 | Phase | Plan | Duration | Tasks | Files | Completed  |
 |-------|------|----------|-------|-------|------------|
 | 01    | 01   | 1.4 min  | 2     | 2     | 2026-02-11 |
+| 01    | 02   | 2.5 min  | 2     | 2     | 2026-02-11 |
 
 ## Accumulated Context
 
@@ -47,6 +48,9 @@ Recent decisions affecting current work:
 - Keep monolithic Database class: Restructuring is high risk/effort, not needed for consolidation (pending)
 - Real PostgreSQL for tests: Mock-based tests don't catch real driver/DB interaction bugs (pending)
 - Retry/backoff as only new feature: Scope control — consolidation release, not feature release (pending)
+- Use Python logging module with WARNING level for skipped migrations (library-safe pattern) - 01-02
+- Keep RuntimeError for TimescaleDB extension validation (consistency with create_hypertable) - 01-02
+- BREAKING CHANGE: from_geodataframe raises ValueError on unknown CRS instead of silently defaulting to SRID 4326 - 01-02
 
 ### Pending Todos
 
@@ -59,5 +63,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-11 (plan execution)
-Stopped at: Completed 01-01-PLAN.md
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
