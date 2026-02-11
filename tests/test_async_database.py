@@ -1468,3 +1468,524 @@ class TestAsyncDatabaseCSV:
 
         with pytest.raises(InvalidIdentifier):
             await db.copy_from_csv("DROP TABLE", "/tmp/in.csv")
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseRoles:
+    """Tests for AsyncDatabase role lifecycle methods."""
+
+    async def test_create_role_basic(self, config):
+        """Test create_role with basic login user."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+        db.execute = AsyncMock()
+
+        await db.create_role("appuser")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "CREATE ROLE appuser WITH" in sql
+        assert "LOGIN" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_create_role_with_password(self, config):
+        """Test create_role with password uses parameterized query."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+
+        # Mock cursor context manager
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        await db.create_role("appuser", password="secret123")
+
+        # Verify cursor was called with autocommit=True
+        db.cursor.assert_called_once_with(autocommit=True)
+
+        # Verify execute was called with parameterized query
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        sql = call_args[0][0]
+        params = call_args[0][1]
+        assert "CREATE ROLE appuser WITH" in sql
+        assert "PASSWORD %s" in sql
+        assert params == ["secret123"]
+
+    async def test_create_role_if_not_exists_returns_early(self, config):
+        """Test create_role returns early if role exists and if_not_exists=True."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=True)
+        db.execute = AsyncMock()
+
+        await db.create_role("appuser")
+
+        # execute should NOT be called
+        db.execute.assert_not_called()
+
+    async def test_create_role_with_options(self, config):
+        """Test create_role with various role options."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+        db.execute = AsyncMock()
+
+        await db.create_role(
+            "admin",
+            superuser=True,
+            createdb=True,
+            createrole=True,
+            connection_limit=10,
+            replication=True
+        )
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "SUPERUSER" in sql
+        assert "CREATEDB" in sql
+        assert "CREATEROLE" in sql
+        assert "CONNECTION LIMIT 10" in sql
+        assert "REPLICATION" in sql
+
+    async def test_create_role_with_in_roles(self, config):
+        """Test create_role grants membership to specified roles."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+        db.execute = AsyncMock()
+        db.grant_role = AsyncMock()
+
+        await db.create_role("analyst", in_roles=["readonly", "reporting"])
+
+        # Verify grant_role was called for each role
+        assert db.grant_role.call_count == 2
+        db.grant_role.assert_any_call("readonly", "analyst")
+        db.grant_role.assert_any_call("reporting", "analyst")
+
+    async def test_create_role_nologin(self, config):
+        """Test create_role with login=False creates group role."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+        db.execute = AsyncMock()
+
+        await db.create_role("readonly", login=False)
+
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "NOLOGIN" in sql
+
+    async def test_create_role_noinherit(self, config):
+        """Test create_role with inherit=False."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+        db.execute = AsyncMock()
+
+        await db.create_role("noinherit_role", inherit=False)
+
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "NOINHERIT" in sql
+
+    async def test_create_role_with_valid_until(self, config):
+        """Test create_role with password expiration."""
+        db = AsyncDatabase(config)
+        db.role_exists = AsyncMock(return_value=False)
+        db.execute = AsyncMock()
+
+        await db.create_role("tempuser", valid_until="2025-12-31")
+
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "VALID UNTIL '2025-12-31'" in sql
+
+    async def test_drop_role_basic(self, config):
+        """Test drop_role with default IF EXISTS."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_role("olduser")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "DROP ROLE IF EXISTS olduser" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_drop_role_no_if_exists(self, config):
+        """Test drop_role without IF EXISTS clause."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.drop_role("olduser", if_exists=False)
+
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "DROP ROLE olduser" in sql
+        assert "IF EXISTS" not in sql
+
+    async def test_alter_role_rename(self, config):
+        """Test alter_role rename."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.alter_role("oldname", rename_to="newname")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "ALTER ROLE oldname RENAME TO newname" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_alter_role_with_password(self, config):
+        """Test alter_role with password change uses parameterized query."""
+        db = AsyncDatabase(config)
+
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        await db.alter_role("appuser", password="newpassword")
+
+        db.cursor.assert_called_once_with(autocommit=True)
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        sql = call_args[0][0]
+        params = call_args[0][1]
+        assert "ALTER ROLE appuser WITH" in sql
+        assert "PASSWORD %s" in sql
+        assert params == ["newpassword"]
+
+    async def test_alter_role_attributes(self, config):
+        """Test alter_role changing boolean attributes."""
+        db = AsyncDatabase(config)
+
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        await db.alter_role("appuser", login=False, createdb=True, superuser=False)
+
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        sql = call_args[0][0]
+        assert "NOLOGIN" in sql
+        assert "CREATEDB" in sql
+        assert "NOSUPERUSER" in sql
+
+    async def test_alter_role_connection_limit(self, config):
+        """Test alter_role changing connection limit."""
+        db = AsyncDatabase(config)
+
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        await db.alter_role("appuser", connection_limit=5)
+
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        sql = call_args[0][0]
+        assert "CONNECTION LIMIT 5" in sql
+
+    async def test_alter_role_valid_until(self, config):
+        """Test alter_role changing password expiration."""
+        db = AsyncDatabase(config)
+
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        await db.alter_role("appuser", valid_until="2026-12-31")
+
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        sql = call_args[0][0]
+        assert "VALID UNTIL '2026-12-31'" in sql
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabasePrivileges:
+    """Tests for AsyncDatabase privilege management methods."""
+
+    async def test_grant_table(self, config):
+        """Test grant on a specific table."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("SELECT", "users", "readonly")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT SELECT ON TABLE public.users TO readonly" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_grant_schema(self, config):
+        """Test grant on schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT USAGE ON SCHEMA myschema TO appuser" in sql
+
+    async def test_grant_database(self, config):
+        """Test grant on database."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT CONNECT ON DATABASE mydb TO appuser" in sql
+
+    async def test_grant_all_tables(self, config):
+        """Test grant on all tables in schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT SELECT ON ALL TABLES IN SCHEMA public TO readonly" in sql
+
+    async def test_grant_all_sequences(self, config):
+        """Test grant on all sequences in schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("USAGE", "ALL SEQUENCES", "appuser", schema="myschema")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT USAGE ON ALL SEQUENCES IN SCHEMA myschema TO appuser" in sql
+
+    async def test_grant_all_functions(self, config):
+        """Test grant on all functions in schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("EXECUTE", "ALL FUNCTIONS", "appuser", schema="public")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO appuser" in sql
+
+    async def test_grant_with_grant_option(self, config):
+        """Test grant with WITH GRANT OPTION."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant("SELECT", "users", "admin", with_grant_option=True)
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "WITH GRANT OPTION" in sql
+
+    async def test_grant_list_privileges(self, config):
+        """Test grant with list of privileges."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant(["SELECT", "INSERT", "UPDATE"], "users", "appuser")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "SELECT, INSERT, UPDATE" in sql
+
+    async def test_revoke_table(self, config):
+        """Test revoke on a specific table."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.revoke("INSERT", "users", "readonly")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "REVOKE INSERT ON TABLE public.users FROM readonly" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_revoke_schema(self, config):
+        """Test revoke on schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.revoke("USAGE", "myschema", "olduser", object_type="SCHEMA")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "REVOKE USAGE ON SCHEMA myschema FROM olduser" in sql
+
+    async def test_revoke_cascade(self, config):
+        """Test revoke with CASCADE option."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.revoke("ALL", "orders", "former_user", cascade=True)
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "REVOKE ALL ON TABLE public.orders FROM former_user CASCADE" in sql
+
+    async def test_revoke_all_tables(self, config):
+        """Test revoke on all tables in schema."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.revoke("DELETE", "ALL TABLES", "readonly", schema="public")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "REVOKE DELETE ON ALL TABLES IN SCHEMA public FROM readonly" in sql
+
+    async def test_revoke_list_privileges(self, config):
+        """Test revoke with list of privileges."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.revoke(["INSERT", "UPDATE", "DELETE"], "users", "readonly")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "INSERT, UPDATE, DELETE" in sql
+
+    async def test_grant_role_basic(self, config):
+        """Test grant_role basic membership."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant_role("readonly", "analyst")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT readonly TO analyst" in sql
+        assert call_args[1]["autocommit"] is True
+
+    async def test_grant_role_with_admin(self, config):
+        """Test grant_role with admin option."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.grant_role("admin", "lead_dev", with_admin=True)
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "GRANT admin TO lead_dev WITH ADMIN OPTION" in sql
+
+    async def test_revoke_role_basic(self, config):
+        """Test revoke_role basic membership."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.revoke_role("admin", "former_admin")
+
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        assert "REVOKE admin FROM former_admin" in sql
+        assert call_args[1]["autocommit"] is True
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseRoleInspection:
+    """Tests for AsyncDatabase role inspection methods."""
+
+    async def test_list_role_members(self, config):
+        """Test list_role_members returns member names."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"member": "analyst"},
+            {"member": "viewer"}
+        ])
+
+        result = await db.list_role_members("readonly")
+
+        assert result == ["analyst", "viewer"]
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        params = call_args[0][1]
+        assert "pg_auth_members" in sql
+        assert params == ["readonly"]
+
+    async def test_list_role_members_empty(self, config):
+        """Test list_role_members with no members."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[])
+
+        result = await db.list_role_members("emptyrole")
+
+        assert result == []
+
+    async def test_list_role_grants(self, config):
+        """Test list_role_grants returns grant info."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[
+            {"schema": "public", "object_name": "users", "privilege": "SELECT"},
+            {"schema": "public", "object_name": "orders", "privilege": "INSERT"}
+        ])
+
+        result = await db.list_role_grants("appuser")
+
+        assert len(result) == 2
+        assert result[0]["schema"] == "public"
+        assert result[0]["object_name"] == "users"
+        assert result[0]["privilege"] == "SELECT"
+        db.execute.assert_called_once()
+        call_args = db.execute.call_args
+        sql = call_args[0][0]
+        params = call_args[0][1]
+        assert "role_table_grants" in sql
+        assert params == ["appuser"]
+
+    async def test_list_role_grants_empty(self, config):
+        """Test list_role_grants with no grants."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[])
+
+        result = await db.list_role_grants("nogrants")
+
+        assert result == []
