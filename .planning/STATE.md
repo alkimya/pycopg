@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-02-11)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Planning next milestone
+**Current focus:** Phase 8 — Spatial helpers (SQL abstraction, PostGIS first) — design validated, ready to implement
 
 ## Current Position
 
@@ -52,6 +52,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-11 (milestone completion)
-Stopped at: Milestone v0.3.0 archived, ready for next milestone
-Resume file: None
+Last session: 2026-05-29 (audit "haut niveau / ETL" — abstraction du SQL)
+Stopped at: Design des spatial helpers validé (forme = helpers nommés `db.spatial.*`,
+  périmètre = PostGIS d'abord). 4 points de détail restent à trancher avant de coder.
+  Reprise prévue dans VS Code pour l'implémentation.
+Resume file: .planning/phases/08-spatial-helpers/08-DESIGN.md
