@@ -23,6 +23,29 @@ pip install pycopg[geo]
 pip install pycopg[all]
 ```
 
+## Development
+
+Contributors use [uv](https://docs.astral.sh/uv/) for project management.
+
+```bash
+# Clone and set up dev environment
+git clone https://github.com/alkimya/pycopg.git
+cd pycopg
+uv sync --all-extras --dev
+
+# Run tests
+uv run pytest
+
+# Lint
+uv run ruff check pycopg tests
+
+# Format
+uv run black pycopg tests
+
+# Build wheel + sdist
+uv build
+```
+
 ## Quick Start
 
 ```python
