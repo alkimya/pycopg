@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-06
+
+### Security
+
+- Fix SQL injection in methods that interpolated identifiers without validation:
+  `drop_index()`, `create_spatial_index()`, `vacuum()`, `analyze()`,
+  `create_extension()` (name and schema), `to_dataframe()`/`to_geodataframe()`
+  (table form), and async `insert_many()`/`upsert_many()` (column names). All now
+  validate identifiers via `validate_identifier(s)` before building SQL.
+- Fix SQL injection via unvalidated interval arguments in `add_compression_policy()`
+  and `add_retention_policy()` — both now call `validate_interval()`.
+- Fix SQL injection via `valid_until` in `create_role()`/`alter_role()` — now
+  validated with the new `validate_timestamp()`.
+- Restrict `grant()`/`revoke()` `privileges` and `object_type` to a whitelist via
+  the new `validate_privileges()` and `validate_object_type()`.
+- Validate CSV `delimiter`/`null_string`/`encoding` options in `copy_to_csv()`/
+  `copy_from_csv()` via the new `validate_csv_option()`.
+- All fixes applied identically to sync `Database` and async `AsyncDatabase` (parity).
+
+### Added
+
+- New validation helpers in `pycopg.utils`: `validate_timestamp()`,
+  `validate_privileges()`, `validate_object_type()`, `validate_csv_option()`,
+  `validate_extension_name()` (allows hyphenated names such as `uuid-ossp`).
+- `tests/test_sql_injection.py`: regression tests asserting malicious input is
+  rejected before reaching the database (sync and async).
+
+### Fixed
+
+- `__version__` was stuck at `0.1.0`; now reflects the package version (`0.3.1`).
+
 ## [0.3.0] - 2026-02-11
 
 ### Added
