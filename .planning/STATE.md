@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
-last_updated: "2026-06-06T18:22:52.587Z"
-last_activity: 2026-06-06 — Milestone v0.4.0 started
+last_updated: "2026-06-06T18:35:15.879Z"
+last_activity: 2026-06-06 -- Phase 09 execution started
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
+  total_plans: 4
   completed_plans: 0
   percent: 0
 ---
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Milestone v0.4.0 defined — Phase 9 (Migration uv / tooling) is next
+**Current focus:** Phase 09 — migration-uv-outillage-projet
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-06-06 — Milestone v0.4.0 started
+Phase: 09 (migration-uv-outillage-projet) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 09
+Last activity: 2026-06-06 -- Phase 09 execution started
 
 ## Performance Metrics
 
