@@ -8,6 +8,21 @@ A production-ready Python library providing high-level sync and async APIs for P
 
 Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
+## Current Milestone: v0.4.0 Quality & Spatial Helpers
+
+**Goal:** Make pycopg cleanly publishable — first sanitize (security, parity, debt, tests, docs), then add spatial helpers on healthy foundations, and ship (PyPI + ReadTheDocs).
+
+**Target features:**
+- uv as the project-management tool (dev + CI + build + lockfile), keeping `pip install pycopg` for end users
+- Close residual SQL-injection / robustness bugs left after the v0.3.1 hotfix (B1/B2/B3/B5)
+- Restore full sync/async parity (10+ divergent methods) with an extended `test_parity`
+- Wire up the already-existing abstractions (`base.py`, `queries.py`) to kill ~48% duplication
+- numpydoc docstrings (shallow, no Examples) measured by `interrogate ≥ 95%`
+- `db.spatial.*` / `async_db.spatial.*` helpers in parity (the realized Phase 8 design)
+- Release v0.4.0 on PyPI with up-to-date Sphinx docs and a green RTD build
+
+**Key context:** Scoped from the 2026-06-06 out-of-GSD audit (`.planning/AUDIT-2026-06-06.md`) + Phase 8 spatial design. Locked conventions: uv tooling, numpydoc docstrings, coverage ratchet 70→80→90→95 (never decreasing, capped at 95). The refactor previously deferred to a "future version" is now in scope. Full plan: `.planning/milestones/v0.4.0-MILESTONE.md`.
+
 ## Requirements
 
 ### Validated
@@ -42,15 +57,20 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
+<!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-(No active requirements — next milestone not yet defined)
+- [ ] uv project tooling: dev + CI + build + `uv.lock` + `.python-version` (hatchling backend kept) — v0.4.0 (TOOL-*)
+- [ ] Close residual SQL-injection / robustness bugs B1/B2/B3/B5 + residual async validation — v0.4.0 (SEC-*)
+- [ ] Full sync/async parity: 10+ missing methods, C1/C2/C3 fixes, extended `test_parity` — v0.4.0 (PAR-*)
+- [ ] Refactor: wire up `queries.py` + `base.py`, extract pure stateless builders, dead-code cleanup — v0.4.0 (REF-*)
+- [ ] numpydoc docstrings + `interrogate ≥ 95`, real exceptions (V2), `__version__` via importlib, mypy — v0.4.0 (DOC-*)
+- [ ] `db.spatial.*` / `async_db.spatial.*` helpers (resolve 4 open design points at phase start) — v0.4.0 (SPAT-*)
+- [ ] Release v0.4.0: Sphinx docs, CHANGELOG, `uv build`, PyPI publish, RTD live — v0.4.0 (REL-*)
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
-- Refactor Database into smaller classes/mixins — keep monolith for now, restructure in future version
 - Query result caching — premature optimization, defer to post-ETL
 - Named parameters (:name syntax) — nice-to-have, not blocking ETL
 - Computed/virtual column support — advanced schema feature, defer
@@ -73,22 +93,27 @@ Breaking change: `from_geodataframe` raises ValueError on unknown CRS instead of
 - PyPI publication not completed (requires tag push to trigger CI)
 - Database class remains monolithic (~2300 lines) — acceptable for now
 
-**Deferred to future milestone (v2 requirements from REQUIREMENTS.md):**
+**Now in scope for v0.4.0 (was deferred):**
+- ARCH-01: Refactor Database into shared base/mixins — done by wiring up existing `base.py`/`queries.py` (REF-*)
+
+**Still deferred to a future milestone (v2 requirements):**
 - API-01: Named parameter support (:name syntax)
 - API-02: Connection health checks
 - API-03: Structured logging
 - API-04: Transaction isolation level control
 - API-05: Savepoint support (nested transactions)
 - API-06: Sync result streaming
-- ARCH-01: Refactor Database into mixins
 - ARCH-02: Dynamic connection pool sizing
-- ETL features (explicitly next milestone)
+- ETL features (the spatial helpers are its building blocks, but the ETL layer itself is a later milestone)
 
 ## Constraints
 
 - **Tech stack**: Python 3.11+, psycopg 3, tenacity added in v0.3.0
+- **Project tooling (v0.4.0+)**: uv manages venv/deps/lockfile/build for contributors + CI; build backend stays hatchling. End-user docs keep `pip install pycopg`.
 - **Independence**: pycopg is a standalone PyPI library — no Solaris/MarketStream dependencies
 - **Test infra**: Real PostgreSQL required for tests (Docker or local)
+- **Coverage ratchet (v0.4.0)**: `--cov-fail-under` only goes up per phase (70→80→90→95), never down; 100% is a per-method goal, not a hard gate
+- **Docstrings (v0.4.0)**: numpydoc format, shallow (Summary/Parameters/Returns/Raises), no Examples; `interrogate ≥ 95` enforced in CI
 - **Breaking changes**: Must be documented in CHANGELOG and migration guide
 
 ## Key Decisions
@@ -107,6 +132,30 @@ Breaking change: `from_geodataframe` raises ValueError on unknown CRS instead of
 | 3 attempts with 1-10s exponential backoff | Balance reliability vs latency | ✓ Good — configurable defaults |
 | Track known parity exceptions | Some methods intentionally sync-only or async-only | ✓ Good — documented in parity test |
 | Keep a Changelog 1.1.0 format | Industry standard, structured, parseable | ✓ Good — clean CHANGELOG.md |
+| v0.4.0: security hotfix as isolated v0.3.1 release first | Low-risk mechanical fix, ship before the larger milestone | ✓ Good — shipped to PyPI 2026-06-06 |
+| v0.4.0: uv as project manager, migrated in Phase 9 first | Every later phase runs under the new tooling; lockfile + reproducible CI | — Pending |
+| v0.4.0: keep hatchling build backend (not uv_build) | uv_build too intrusive; hatchling is uv-compatible and already wired to trusted publishing | — Pending |
+| v0.4.0: refactor by wiring existing base.py/queries.py | Abstractions already written but unbranched (~48% dup); wire, don't rewrite | — Pending |
+| v0.4.0: coverage ratchet 70→80→90→95, capped at 95 | Forces steady test growth without blocking on hard-to-mock I/O | — Pending |
+| v0.4.0: numpydoc docstrings, no Examples, interrogate ≥ 95 | Homogeneous measurable API docs; napoleon already active | — Pending |
+| v0.4.0: refactor lifted from Out of Scope | PROJECT.md deferred it to a "future version" — this is that version | — Pending |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-02-11 after v0.3.0 milestone*
+*Last updated: 2026-06-06 after starting milestone v0.4.0 Quality & Spatial Helpers*

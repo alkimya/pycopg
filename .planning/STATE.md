@@ -1,24 +1,38 @@
+---
+gsd_state_version: 1.0
+milestone: v0.4.0
+milestone_name: Quality & Spatial Helpers
+status: planning
+last_updated: "2026-06-06T12:33:39.538Z"
+last_activity: 2026-06-06
+progress:
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+---
+
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-11)
+See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 8 — Spatial helpers (SQL abstraction, PostGIS first) — design validated, ready to implement
+**Current focus:** Milestone v0.4.0 defined — Phase 9 (Migration uv / tooling) is next
 
 ## Current Position
 
-Phase: — (between milestones)
+Phase: Not started (defining requirements)
 Plan: —
-Status: v0.3.0 milestone complete, archived to .planning/milestones/
-Last activity: 2026-02-11 — Milestone v0.3.0 archived
-
-Progress: [███████████████] 100% (v0.3.0)
+Status: Defining requirements
+Last activity: 2026-06-06 — Milestone v0.4.0 started
 
 ## Performance Metrics
 
 **Velocity (v0.3.0):**
+
 - Total plans completed: 14
 - Average duration: 2.9 minutes
 - Total execution time: 0.70 hours
@@ -47,13 +61,14 @@ None.
 
 ### Blockers/Concerns
 
-- Git tag v0.3.0 not yet created (user action required)
-- PyPI publication pending (requires tag push to trigger CI)
+- None blocking v0.4.0. (v0.3.0 and v0.3.1 hotfix both shipped to PyPI; old tag/publish concerns resolved.)
+- Phase 14 carries 4 open spatial design points to resolve at phase start (see Session Continuity).
 
 ## Session Continuity
 
-Last session: 2026-05-29 (audit "haut niveau / ETL" — abstraction du SQL)
-Stopped at: Design des spatial helpers validé (forme = helpers nommés `db.spatial.*`,
-  périmètre = PostGIS d'abord). 4 points de détail restent à trancher avant de coder.
-  Reprise prévue dans VS Code pour l'implémentation.
-Resume file: .planning/phases/08-spatial-helpers/08-DESIGN.md
+Last session: 2026-06-06 — Milestone v0.4.0 "Quality & Spatial Helpers" defined and validated.
+Scope locked from audit (`.planning/AUDIT-2026-06-06.md`) + Phase 8 spatial design. Phases 9–15,
+46 requirements mapped. Conventions: uv tooling, numpydoc docstrings, coverage ratchet 70→80→90→95.
+Next: `/gsd-discuss-phase 9` (Migration uv / project tooling).
+Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
+  as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
