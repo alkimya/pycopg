@@ -531,9 +531,9 @@ The `publish` job below it stays completely unchanged.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED — recommendations adopted and implemented in plans 09-01/09-02)
 
-1. **timescaledb-ha pg17 startup reliability in GitHub-hosted runners**
+1. **timescaledb-ha pg17 startup reliability in GitHub-hosted runners** [RESOLVED — mitigated via workflow_dispatch validation task in 09-02]
    - What we know: The pg15/pg16 versions had a documented `timescaledb-tune` panic. pg17 has not been flagged.
    - What's unclear: Whether pg17 is definitively clean on ubuntu-latest runners.
    - Recommendation: The planner should add a validation task that runs the workflow via `workflow_dispatch` before relying on a tag push (mirrors D-14 risk mitigation). If pg17 fails, fallback tag: a pinned version like `pg17-ts2.19.0-oss` or switch to `timescale/timescaledb:latest-pg17`.
