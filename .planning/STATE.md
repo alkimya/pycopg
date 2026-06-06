@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
-last_updated: "2026-06-06T18:54:12Z"
-last_activity: 2026-06-06 -- 09-03 complete (publish.yml build job migrated to uv build)
+last_updated: "2026-06-06T18:58:36Z"
+last_activity: 2026-06-06 -- 09-04 complete (contributor docs migrated to uv; Makefile created)
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 14
 ---
 
 # Project State
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 
 ## Current Position
 
-Phase: 09 (migration-uv-outillage-projet) — EXECUTING
-Plan: 3 of 4 (09-03 complete)
-Status: Ready to execute
-Last activity: 2026-06-06 -- 09-03 complete (publish.yml build job migrated to uv build)
+Phase: 09 (migration-uv-outillage-projet) — COMPLETE
+Plan: 4 of 4 (09-04 complete)
+Status: Phase complete — ready for next phase
+Last activity: 2026-06-06 -- 09-04 complete (contributor docs migrated to uv; Makefile created)
 
 ## Performance Metrics
 
@@ -39,17 +39,18 @@ Last activity: 2026-06-06 -- 09-03 complete (publish.yml build job migrated to u
 
 **By Phase:**
 
-| Phase | Plans | Total     | Avg/Plan |
-|-------|-------|-----------|----------|
-| 01    | 2     | 3.9 min   | 2.0 min  |
-| 02    | 2     | 4.0 min   | 2.0 min  |
-| 03    | 2     | 7.2 min   | 3.6 min  |
-| 04    | 2     | 6.36 min  | 3.2 min  |
-| 05    | 2     | 6.21 min  | 3.1 min  |
-| 06    | 2     | 10.06 min | 5.03 min |
-| 07    | 2     | 4.80 min  | 2.40 min |
-| Phase 09 P02 | 448 | 2 tasks | 2 files |
-| Phase 09 P03 | 48s | 2 tasks | 1 file  |
+| Phase        | Plans | Total     | Avg/Plan |
+|--------------|-------|-----------|----------|
+| 01           | 2     | 3.9 min   | 2.0 min  |
+| 02           | 2     | 4.0 min   | 2.0 min  |
+| 03           | 2     | 7.2 min   | 3.6 min  |
+| 04           | 2     | 6.36 min  | 3.2 min  |
+| 05           | 2     | 6.21 min  | 3.1 min  |
+| 06           | 2     | 10.06 min | 5.03 min |
+| 07           | 2     | 4.80 min  | 2.40 min |
+| Phase 09 P02 | 1     | 448s      | 448s     |
+| Phase 09 P03 | 1     | 48s       | 48s      |
+| Phase 09 P04 | 1     | 103s      | 103s     |
 
 ## Accumulated Context
 
@@ -62,6 +63,7 @@ All v0.3.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
 - [Phase ?]: Pre-existing integration test failures (test_schema.authors) deferred — 7 tests, out of scope for 09-02
 - [Phase 09 P03]: D-13: publish.yml build job uses astral-sh/setup-uv@v8.2.0 + uv build (hatchling backend unchanged)
 - [Phase 09 P03]: D-14: publish job OIDC trusted publishing (id-token: write + pypa/gh-action-pypi-publish@release/v1) preserved byte-for-byte
+- [Phase 09 P04]: D-08/D-09/D-10/D-11: Makefile (thin uv wrappers) + CLAUDE.md (path/version/commands fixed) + README Development section (uv); Installation section (pip) preserved; no [dev] extra in any contributor doc
 
 ### Pending Todos
 
@@ -74,9 +76,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-06T18:51:46.664Z
-Scope locked from audit (`.planning/AUDIT-2026-06-06.md`) + Phase 8 spatial design. Phases 9–15,
-46 requirements mapped. Conventions: uv tooling, numpydoc docstrings, coverage ratchet 70→80→90→95.
-Next: `/gsd-discuss-phase 9` (Migration uv / project tooling).
+Last session: 2026-06-06T18:58:36Z
+Phase 09 complete. All 4 plans executed: pyproject.toml + uv.lock + .python-version (P01),
+tests.yml CI workflow (P02), publish.yml uv build migration (P03), contributor docs + Makefile (P04).
+TOOL-01 through TOOL-05 satisfied. Next phase TBD.
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.

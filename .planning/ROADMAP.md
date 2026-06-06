@@ -12,7 +12,7 @@
 
 Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · Exigences : [REQUIREMENTS.md](REQUIREMENTS.md) (46 mappées, 0 non couverte) · Audit source : [AUDIT-2026-06-06.md](AUDIT-2026-06-06.md)
 
-- [ ] Phase 9: Migration uv (outillage : dev + CI + build + lockfile)
+- [x] Phase 9: Migration uv (outillage : dev + CI + build + lockfile) — COMPLETE 2026-06-06
 - [ ] Phase 10: Sécurité résiduelle & robustesse (bugs B1/B2/B3/B5) — coverage cliquet → 80
 - [ ] Phase 11: Parité sync/async complète — coverage cliquet → 90
 - [ ] Phase 12: Refactoring (brancher base.py + queries.py) — coverage cliquet → 95
