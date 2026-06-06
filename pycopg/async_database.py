@@ -21,7 +21,17 @@ from psycopg.pq import TransactionStatus
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 
 from pycopg.config import Config
-from pycopg.utils import validate_identifier, validate_identifiers, validate_index_method, validate_interval
+from pycopg.utils import (
+    validate_csv_option,
+    validate_extension_name,
+    validate_identifier,
+    validate_identifiers,
+    validate_index_method,
+    validate_interval,
+    validate_object_type,
+    validate_privileges,
+    validate_timestamp,
+)
 from pycopg import queries
 
 logger = logging.getLogger(__name__)
@@ -637,6 +647,7 @@ class AsyncDatabase:
         Example:
             await db.drop_index("idx_users_email")
         """
+        validate_identifiers(schema, name)
         if_clause = "IF EXISTS " if if_exists else ""
         await self.execute(f"DROP INDEX {if_clause}{schema}.{name}")
 
@@ -707,6 +718,7 @@ class AsyncDatabase:
 
     async def create_extension(self, name: str, if_not_exists: bool = True) -> None:
         """Create a PostgreSQL extension."""
+        validate_extension_name(name)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
         await self.execute(f'CREATE EXTENSION {if_clause}"{name}"', autocommit=True)
 
@@ -735,6 +747,9 @@ class AsyncDatabase:
         Example:
             await db.create_spatial_index("parcels", "geom")
         """
+        validate_identifiers(table, column, schema)
+        if name:
+            validate_identifier(name)
         index_name = name or f"idx_{table}_{column}_gist"
         await self.execute(f"""
             CREATE INDEX IF NOT EXISTS {index_name}
@@ -870,6 +885,8 @@ class AsyncDatabase:
         Example:
             await db.add_compression_policy("events", compress_after="30 days")
         """
+        validate_identifiers(table, schema)
+        validate_interval(compress_after)
         if not await self.has_extension("timescaledb"):
             raise RuntimeError(
                 "TimescaleDB extension not installed. "
@@ -899,6 +916,8 @@ class AsyncDatabase:
         Example:
             await db.add_retention_policy("logs", drop_after="90 days")
         """
+        validate_identifiers(table, schema)
+        validate_interval(drop_after)
         if not await self.has_extension("timescaledb"):
             raise RuntimeError(
                 "TimescaleDB extension not installed. "
@@ -1061,6 +1080,7 @@ class AsyncDatabase:
             # Use parameterized query for password
             options.append(f"PASSWORD %s")
         if valid_until:
+            validate_timestamp(valid_until)
             options.append(f"VALID UNTIL '{valid_until}'")
 
         options_str = " ".join(options)
@@ -1144,6 +1164,7 @@ class AsyncDatabase:
         if connection_limit is not None:
             options.append(f"CONNECTION LIMIT {connection_limit}")
         if valid_until is not None:
+            validate_timestamp(valid_until)
             options.append(f"VALID UNTIL '{valid_until}'")
 
         if options:
@@ -1187,9 +1208,11 @@ class AsyncDatabase:
             await db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
         """
         validate_identifier(to)
+        validate_object_type(object_type)
 
         if isinstance(privileges, list):
             privileges = ", ".join(privileges)
+        validate_privileges(privileges)
 
         grant_clause = " WITH GRANT OPTION" if with_grant_option else ""
 
@@ -1230,9 +1253,11 @@ class AsyncDatabase:
             await db.revoke("ALL", "orders", "former_user", cascade=True)
         """
         validate_identifier(from_role)
+        validate_object_type(object_type)
 
         if isinstance(privileges, list):
             privileges = ", ".join(privileges)
+        validate_privileges(privileges)
 
         cascade_clause = " CASCADE" if cascade else ""
 
@@ -1417,6 +1442,7 @@ class AsyncDatabase:
             raise ValueError("Specify either table or sql")
 
         if table:
+            validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
         async with self.async_engine.connect() as conn:
@@ -1506,6 +1532,7 @@ class AsyncDatabase:
             raise ValueError("Specify either table or sql")
 
         if table:
+            validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
         async with self.async_engine.connect() as conn:
@@ -1631,6 +1658,7 @@ class AsyncDatabase:
         validate_identifiers(table, schema)
 
         columns = list(rows[0].keys())
+        validate_identifiers(*columns)
         placeholders = ", ".join(["%s"] * len(columns))
         cols_str = ", ".join(columns)
 
@@ -1676,6 +1704,9 @@ class AsyncDatabase:
         columns = list(rows[0].keys())
         if update_columns is None:
             update_columns = [c for c in columns if c not in conflict_columns]
+
+        validate_identifiers(*conflict_columns)
+        validate_identifiers(*update_columns)
 
         conflict_str = ", ".join(conflict_columns)
         update_str = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_columns])
@@ -1794,6 +1825,9 @@ class AsyncDatabase:
         if analyze:
             options.append("ANALYZE")
 
+        if table:
+            validate_identifiers(table, schema)
+
         options_str = f"({', '.join(options)})" if options else ""
         table_str = f" {schema}.{table}" if table else ""
 
@@ -1810,6 +1844,8 @@ class AsyncDatabase:
             await db.analyze()
             await db.analyze("users")
         """
+        if table:
+            validate_identifiers(table, schema)
         table_str = f" {schema}.{table}" if table else ""
         await self.execute(f"ANALYZE{table_str}", autocommit=True)
 
@@ -2099,6 +2135,9 @@ class AsyncDatabase:
         validate_identifiers(table, schema)
         if columns:
             validate_identifiers(*columns)
+        validate_csv_option(delimiter, "delimiter")
+        validate_csv_option(null_string, "null_string")
+        validate_csv_option(encoding, "encoding")
 
         cols = f"({', '.join(columns)})" if columns else ""
 
@@ -2165,6 +2204,9 @@ class AsyncDatabase:
         validate_identifiers(table, schema)
         if columns:
             validate_identifiers(*columns)
+        validate_csv_option(delimiter, "delimiter")
+        validate_csv_option(null_string, "null_string")
+        validate_csv_option(encoding, "encoding")
 
         cols = f"({', '.join(columns)})" if columns else ""
 

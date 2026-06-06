@@ -21,7 +21,17 @@ from sqlalchemy.engine import Engine
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 
 from pycopg.config import Config
-from pycopg.utils import validate_identifier, validate_identifiers, validate_interval, validate_index_method
+from pycopg.utils import (
+    validate_csv_option,
+    validate_extension_name,
+    validate_identifier,
+    validate_identifiers,
+    validate_index_method,
+    validate_interval,
+    validate_object_type,
+    validate_privileges,
+    validate_timestamp,
+)
 from pycopg import queries
 
 logger = logging.getLogger(__name__)
@@ -684,6 +694,9 @@ class Database:
             db.create_extension("uuid-ossp", schema="extensions")
             db.create_extension("timescaledb")
         """
+        validate_extension_name(name)
+        if schema:
+            validate_identifier(schema)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
         schema_clause = f" SCHEMA {schema}" if schema else ""
         self.execute(f'CREATE EXTENSION {if_clause}"{name}"{schema_clause}', autocommit=True)
@@ -1081,6 +1094,7 @@ class Database:
             schema: Schema name.
             if_exists: Don't error if index doesn't exist.
         """
+        validate_identifiers(schema, name)
         if_clause = "IF EXISTS " if if_exists else ""
         self.execute(f"DROP INDEX {if_clause}{schema}.{name}")
 
@@ -1201,6 +1215,7 @@ class Database:
             raise ValueError("Specify either table or sql")
 
         if table:
+            validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
         return pd.read_sql(text(sql), self.engine, params=params)
@@ -1304,6 +1319,7 @@ class Database:
             raise ValueError("Specify either table or sql")
 
         if table:
+            validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
         return gpd.read_postgis(text(sql), self.engine, geom_col=geometry_column, params=params)
@@ -1324,6 +1340,9 @@ class Database:
         Example:
             db.create_spatial_index("parcels", "geom")
         """
+        validate_identifiers(table, column, schema)
+        if name:
+            validate_identifier(name)
         index_name = name or f"idx_{table}_{column}_gist"
         self.execute(f"""
             CREATE INDEX IF NOT EXISTS {index_name}
@@ -1459,6 +1478,8 @@ class Database:
         Example:
             db.add_compression_policy("events", compress_after="30 days")
         """
+        validate_identifiers(table, schema)
+        validate_interval(compress_after)
         if not self.has_extension("timescaledb"):
             raise RuntimeError(
                 "TimescaleDB extension not installed. "
@@ -1488,6 +1509,8 @@ class Database:
         Example:
             db.add_retention_policy("logs", drop_after="90 days")
         """
+        validate_identifiers(table, schema)
+        validate_interval(drop_after)
         if not self.has_extension("timescaledb"):
             raise RuntimeError(
                 "TimescaleDB extension not installed. "
@@ -1644,6 +1667,9 @@ class Database:
         if analyze:
             options.append("ANALYZE")
 
+        if table:
+            validate_identifiers(table, schema)
+
         options_str = f"({', '.join(options)})" if options else ""
         table_str = f" {schema}.{table}" if table else ""
 
@@ -1656,6 +1682,8 @@ class Database:
             table: Table name (None for whole database).
             schema: Schema name.
         """
+        if table:
+            validate_identifiers(table, schema)
         table_str = f" {schema}.{table}" if table else ""
         self.execute(f"ANALYZE{table_str}", autocommit=True)
 
@@ -1754,6 +1782,7 @@ class Database:
             # Use parameterized query for password
             options.append(f"PASSWORD %s")
         if valid_until:
+            validate_timestamp(valid_until)
             options.append(f"VALID UNTIL '{valid_until}'")
 
         options_str = " ".join(options)
@@ -1874,6 +1903,7 @@ class Database:
         if connection_limit is not None:
             options.append(f"CONNECTION LIMIT {connection_limit}")
         if valid_until is not None:
+            validate_timestamp(valid_until)
             options.append(f"VALID UNTIL '{valid_until}'")
 
         if options:
@@ -1946,9 +1976,11 @@ class Database:
             db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
         """
         validate_identifier(to)
+        validate_object_type(object_type)
 
         if isinstance(privileges, list):
             privileges = ", ".join(privileges)
+        validate_privileges(privileges)
 
         grant_clause = " WITH GRANT OPTION" if with_grant_option else ""
 
@@ -1989,9 +2021,11 @@ class Database:
             db.revoke("ALL", "orders", "former_user", cascade=True)
         """
         validate_identifier(from_role)
+        validate_object_type(object_type)
 
         if isinstance(privileges, list):
             privileges = ", ".join(privileges)
+        validate_privileges(privileges)
 
         cascade_clause = " CASCADE" if cascade else ""
 
@@ -2286,6 +2320,10 @@ class Database:
         if columns:
             validate_identifiers(*columns)
 
+        validate_csv_option(delimiter, "delimiter")
+        validate_csv_option(null_string, "null_string")
+        validate_csv_option(encoding, "encoding")
+
         cols = f"({', '.join(columns)})" if columns else ""
 
         options = [
@@ -2340,6 +2378,10 @@ class Database:
         validate_identifiers(table, schema)
         if columns:
             validate_identifiers(*columns)
+
+        validate_csv_option(delimiter, "delimiter")
+        validate_csv_option(null_string, "null_string")
+        validate_csv_option(encoding, "encoding")
 
         cols = f"({', '.join(columns)})" if columns else ""
 
