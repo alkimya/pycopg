@@ -13,7 +13,7 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9â€
 
 - [ ] **TOOL-01**: Contributor can set up the dev environment with `uv sync --all-extras --dev` (pyproject configured for uv)
 - [ ] **TOOL-02**: Repository ships a committed `uv.lock` and a `.python-version` for reproducible environments
-- [ ] **TOOL-03**: CI test workflow runs under uv and passes (replaces the classic `venv`/`pip` flow)
+- [x] **TOOL-03**: CI test workflow runs under uv and passes (replaces the classic `venv`/`pip` flow)
 - [ ] **TOOL-04**: CI publish workflow builds via `uv build` (wheel + sdist) while keeping hatchling backend and PyPI trusted publishing
 - [ ] **TOOL-05**: Contributor docs (CLAUDE.md, Makefile, Development/CONTRIBUTING) use uv commands; end-user docs keep `pip install pycopg`
 
@@ -118,7 +118,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | TOOL-01 | Phase 9 | Pending |
 | TOOL-02 | Phase 9 | Pending |
-| TOOL-03 | Phase 9 | Pending |
+| TOOL-03 | Phase 9 | Complete |
 | TOOL-04 | Phase 9 | Pending |
 | TOOL-05 | Phase 9 | Pending |
 | SEC-01 | Phase 10 | Pending |
@@ -162,6 +162,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-06 | Phase 15 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 46 total
 - Mapped to phases: 46
 - Unmapped: 0 âœ“

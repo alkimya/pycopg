@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
-last_updated: "2026-06-06T18:35:15.879Z"
+last_updated: "2026-06-06T18:51:46.672Z"
 last_activity: 2026-06-06 -- Phase 09 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 2
   percent: 0
 ---
 
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 ## Current Position
 
 Phase: 09 (migration-uv-outillage-projet) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 09
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-06-06 -- Phase 09 execution started
 
 ## Performance Metrics
@@ -48,12 +48,17 @@ Last activity: 2026-06-06 -- Phase 09 execution started
 | 05    | 2     | 6.21 min  | 3.1 min  |
 | 06    | 2     | 10.06 min | 5.03 min |
 | 07    | 2     | 4.80 min  | 2.40 min |
+| Phase 09 P02 | 448 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
 ### Decisions
 
 All v0.3.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
+
+- [Phase ?]: timescale/timescaledb-ha:pg17 confirmed working in GitHub-hosted runners — no timescaledb-tune panic (Assumption A3 verified)
+- [Phase ?]: fail-fast: false added to matrix strategy — required for independent per-Python-version CI results
+- [Phase ?]: Pre-existing integration test failures (test_schema.authors) deferred — 7 tests, out of scope for 09-02
 
 ### Pending Todos
 
@@ -66,7 +71,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-06T13:44:29.262Z
+Last session: 2026-06-06T18:51:46.664Z
 Scope locked from audit (`.planning/AUDIT-2026-06-06.md`) + Phase 8 spatial design. Phases 9–15,
 46 requirements mapped. Conventions: uv tooling, numpydoc docstrings, coverage ratchet 70→80→90→95.
 Next: `/gsd-discuss-phase 9` (Migration uv / project tooling).
