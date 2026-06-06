@@ -3,11 +3,16 @@
 import pytest
 
 from pycopg.utils import (
+    quote_literal,
+    validate_csv_option,
+    validate_extension_name,
     validate_identifier,
     validate_identifiers,
-    validate_interval,
     validate_index_method,
-    quote_literal,
+    validate_interval,
+    validate_object_type,
+    validate_privileges,
+    validate_timestamp,
 )
 from pycopg.exceptions import InvalidIdentifier
 
@@ -158,6 +163,124 @@ class TestValidateIndexMethod:
 
         with pytest.raises(InvalidIdentifier):
             validate_index_method("fulltext")
+
+
+class TestValidateExtensionName:
+    """Tests for validate_extension_name function."""
+
+    def test_valid_extension_names(self):
+        """Test common extension names pass, including hyphenated ones."""
+        validate_extension_name("postgis")
+        validate_extension_name("timescaledb")
+        validate_extension_name("uuid-ossp")
+        validate_extension_name("pgcrypto")
+        validate_extension_name("_custom")
+
+    def test_invalid_extension_empty(self):
+        """Test empty extension name raises error."""
+        with pytest.raises(InvalidIdentifier) as exc:
+            validate_extension_name("")
+        assert "cannot be empty" in str(exc.value)
+
+    def test_invalid_extension_injection(self):
+        """Test injection attempts via extension name are rejected."""
+        with pytest.raises(InvalidIdentifier):
+            validate_extension_name('postgis"; DROP DATABASE x; --')
+        with pytest.raises(InvalidIdentifier):
+            validate_extension_name("ext name with space")
+
+
+class TestValidateTimestamp:
+    """Tests for validate_timestamp function."""
+
+    def test_valid_dates(self):
+        """Test valid date and timestamp forms pass."""
+        validate_timestamp("2025-12-31")
+        validate_timestamp("2025-12-31 23:59:59")
+        validate_timestamp("2025-12-31T23:59:59")
+        validate_timestamp("2025-12-31 23:59:59+02:00")
+        validate_timestamp("2025-12-31 23:59:59.123")
+        validate_timestamp("infinity")
+
+    def test_invalid_timestamp_empty(self):
+        """Test empty timestamp raises error."""
+        with pytest.raises(InvalidIdentifier) as exc:
+            validate_timestamp("")
+        assert "cannot be empty" in str(exc.value)
+
+    def test_invalid_timestamp_injection(self):
+        """Test injection attempts via VALID UNTIL value are rejected."""
+        with pytest.raises(InvalidIdentifier):
+            validate_timestamp("2025-01-01'; DROP TABLE users; --")
+        with pytest.raises(InvalidIdentifier):
+            validate_timestamp("not a date")
+
+
+class TestValidatePrivileges:
+    """Tests for validate_privileges function."""
+
+    def test_valid_single_and_multiple(self):
+        """Test single and comma-joined privileges pass."""
+        validate_privileges("SELECT")
+        validate_privileges("ALL")
+        validate_privileges("SELECT, INSERT, UPDATE")
+        validate_privileges("select, delete")  # case-insensitive
+
+    def test_invalid_privileges_empty(self):
+        """Test empty privileges raises error."""
+        with pytest.raises(InvalidIdentifier):
+            validate_privileges("")
+
+    def test_invalid_privileges_injection(self):
+        """Test injection attempts via privileges are rejected."""
+        with pytest.raises(InvalidIdentifier):
+            validate_privileges("SELECT; DROP TABLE users; --")
+        with pytest.raises(InvalidIdentifier):
+            validate_privileges("ALL; GRANT SUPERUSER")
+
+
+class TestValidateObjectType:
+    """Tests for validate_object_type function."""
+
+    def test_valid_object_types(self):
+        """Test recognized object types pass."""
+        validate_object_type("TABLE")
+        validate_object_type("schema")  # case-insensitive
+        validate_object_type("DATABASE")
+        validate_object_type("SEQUENCE")
+
+    def test_invalid_object_type_injection(self):
+        """Test injection attempts via object_type are rejected."""
+        with pytest.raises(InvalidIdentifier):
+            validate_object_type("TABLE; DROP TABLE x; --")
+        with pytest.raises(InvalidIdentifier):
+            validate_object_type("")
+
+
+class TestValidateCsvOption:
+    """Tests for validate_csv_option function."""
+
+    def test_valid_csv_options(self):
+        """Test typical CSV option values pass."""
+        validate_csv_option(",", "delimiter")
+        validate_csv_option(";", "delimiter")
+        validate_csv_option("", "null_string")
+        validate_csv_option("UTF8", "encoding")
+
+    def test_invalid_csv_option_quote(self):
+        """Test values with quotes are rejected (would break the literal)."""
+        with pytest.raises(InvalidIdentifier):
+            validate_csv_option("','; DROP TABLE x; --", "delimiter")
+
+    def test_invalid_csv_option_backslash(self):
+        """Test values with backslash are rejected."""
+        with pytest.raises(InvalidIdentifier):
+            validate_csv_option("\\", "delimiter")
+
+    def test_invalid_csv_option_too_long(self):
+        """Test over-long values are rejected."""
+        with pytest.raises(InvalidIdentifier):
+            validate_csv_option("x" * 100, "encoding")
 
 
 class TestQuoteLiteral:
