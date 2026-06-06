@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: planning
-last_updated: "2026-06-06T12:33:39.538Z"
-last_activity: 2026-06-06
+status: Defining requirements
+last_updated: "2026-06-06T13:44:29.273Z"
+last_activity: 2026-06-06 — Milestone v0.4.0 started
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -66,7 +66,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-06 — Milestone v0.4.0 "Quality & Spatial Helpers" defined and validated.
+Last session: 2026-06-06T13:44:29.262Z
 Scope locked from audit (`.planning/AUDIT-2026-06-06.md`) + Phase 8 spatial design. Phases 9–15,
 46 requirements mapped. Conventions: uv tooling, numpydoc docstrings, coverage ratchet 70→80→90→95.
 Next: `/gsd-discuss-phase 9` (Migration uv / project tooling).
