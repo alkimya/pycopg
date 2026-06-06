@@ -144,7 +144,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 6. Test Coverage | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 7. Documentation & Release | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | — Security Hotfix v0.3.1 | v0.3.1 | — | Shipped | 2026-06-06 |
-| 9. Migration uv (outillage) | v0.4.0 | 2/4 | In Progress|  |
+| 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 0/? | Pending (6 req) | — |
 | 11. Parité sync/async complète | v0.4.0 | 0/? | Pending (9 req) | — |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/? | Pending (5 req) | — |

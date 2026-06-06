@@ -11,10 +11,10 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9�
 
 ### Tooling — uv (Phase 9)
 
-- [ ] **TOOL-01**: Contributor can set up the dev environment with `uv sync --all-extras --dev` (pyproject configured for uv)
-- [ ] **TOOL-02**: Repository ships a committed `uv.lock` and a `.python-version` for reproducible environments
+- [x] **TOOL-01**: Contributor can set up the dev environment with `uv sync --all-extras --dev` (pyproject configured for uv)
+- [x] **TOOL-02**: Repository ships a committed `uv.lock` and a `.python-version` for reproducible environments
 - [x] **TOOL-03**: CI test workflow runs under uv and passes (replaces the classic `venv`/`pip` flow)
-- [ ] **TOOL-04**: CI publish workflow builds via `uv build` (wheel + sdist) while keeping hatchling backend and PyPI trusted publishing
+- [x] **TOOL-04**: CI publish workflow builds via `uv build` (wheel + sdist) while keeping hatchling backend and PyPI trusted publishing
 - [x] **TOOL-05**: Contributor docs (CLAUDE.md, Makefile, Development/CONTRIBUTING) use uv commands; end-user docs keep `pip install pycopg`
 
 ### Security — Residual & Robustness (Phase 10)
@@ -116,10 +116,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 9 | Pending |
-| TOOL-02 | Phase 9 | Pending |
+| TOOL-01 | Phase 9 | Complete |
+| TOOL-02 | Phase 9 | Complete |
 | TOOL-03 | Phase 9 | Complete |
-| TOOL-04 | Phase 9 | Pending |
+| TOOL-04 | Phase 9 | Complete |
 | TOOL-05 | Phase 9 | Complete |
 | SEC-01 | Phase 10 | Pending |
 | SEC-02 | Phase 10 | Pending |
