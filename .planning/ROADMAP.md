@@ -50,12 +50,19 @@ Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · E
   4. Gate coverage globale montée à 80 (cliquet, jamais redescendante)
 
 **Plans:** 5 plans (waves 1-3)
-
 Plans:
+**Wave 1**
+
 - [ ] 10-01-PLAN.md — B1 fix (PooledDatabase.execute commit, sync+async) + D-01 audit (SEC-05/validations acquired)
 - [ ] 10-02-PLAN.md — B3 fix (atomic _apply + rollback) + red→green migration-atomicity test
 - [ ] 10-03-PLAN.md — B5 fix (subprocess.os.environ → os.environ, 3 sites) + red→green env test
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 10-04-PLAN.md — B2 residual fix (session() close-on-commit-failure, sync+async) + red→green leak test
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 10-05-PLAN.md — [BLOCKING] coverage ratchet 70→80 (targeted fill, then gate flip)
 
 ### Phase 11: Parité sync/async complète
