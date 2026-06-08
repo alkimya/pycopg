@@ -9,17 +9,24 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Literal, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Literal
 
 import psycopg
-from psycopg import OperationalError
-from psycopg.rows import dict_row
-from psycopg import AsyncConnection, AsyncCursor
+from psycopg import AsyncConnection, AsyncCursor, OperationalError
 from psycopg.pq import TransactionStatus
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
+from psycopg.rows import dict_row
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
+from pycopg import queries
 from pycopg.config import Config
 from pycopg.utils import (
     validate_csv_option,
@@ -32,7 +39,6 @@ from pycopg.utils import (
     validate_privileges,
     validate_timestamp,
 )
-from pycopg import queries
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +77,7 @@ class AsyncDatabase:
             config: Database configuration.
         """
         self.config = config
-        self._session_conn: Optional[AsyncConnection] = None
+        self._session_conn: AsyncConnection | None = None
         self._async_engine = None
 
     @property
@@ -83,7 +89,7 @@ class AsyncDatabase:
         return self._async_engine
 
     @classmethod
-    def from_env(cls, dotenv_path: Optional[str | Path] = None) -> "AsyncDatabase":
+    def from_env(cls, dotenv_path: str | Path | None = None) -> AsyncDatabase:
         """Create AsyncDatabase from environment variables.
 
         Args:
@@ -95,7 +101,7 @@ class AsyncDatabase:
         return cls(Config.from_env(dotenv_path))
 
     @classmethod
-    def from_url(cls, url: str) -> "AsyncDatabase":
+    def from_url(cls, url: str) -> AsyncDatabase:
         """Create AsyncDatabase from connection URL.
 
         Args:
@@ -175,7 +181,7 @@ class AsyncDatabase:
                         await conn.commit()
 
     @asynccontextmanager
-    async def session(self, autocommit: bool = False) -> AsyncIterator["AsyncDatabase"]:
+    async def session(self, autocommit: bool = False) -> AsyncIterator[AsyncDatabase]:
         """Async context manager for session mode with connection reuse.
 
         In session mode, all operations reuse the same connection,
@@ -217,10 +223,14 @@ class AsyncDatabase:
         finally:
             try:
                 if not autocommit:
-                    await self._session_conn.commit()
-                await self._session_conn.close()
-            except Exception:
-                raise
+                    try:
+                        await self._session_conn.commit()
+                    finally:
+                        # close() ALWAYS runs, even when commit() raises (B2 residual fix).
+                        # If commit raised, its exception propagates; close() does not mask it.
+                        await self._session_conn.close()
+                else:
+                    await self._session_conn.close()
             finally:
                 self._session_conn = None  # ALWAYS executes
 
@@ -262,7 +272,7 @@ class AsyncDatabase:
     async def execute(
         self,
         sql: str,
-        params: Optional[Sequence] = None,
+        params: Sequence | None = None,
         autocommit: bool = False,
     ) -> list[dict]:
         """Execute SQL and return results as list of dicts.
@@ -312,8 +322,8 @@ class AsyncDatabase:
         table: str,
         rows: list[dict],
         schema: str = "public",
-        on_conflict: Optional[str] = None,
-        batch_size: Optional[int] = None,
+        on_conflict: str | None = None,
+        batch_size: int | None = None,
     ) -> int:
         """Insert multiple rows efficiently using batch VALUES.
 
@@ -376,7 +386,7 @@ class AsyncDatabase:
         table: str,
         rows: list[dict],
         schema: str = "public",
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
     ) -> int:
         """Insert rows using PostgreSQL COPY protocol.
 
@@ -417,7 +427,7 @@ class AsyncDatabase:
             await conn.commit()
             return len(rows)
 
-    async def fetch_one(self, sql: str, params: Optional[Sequence] = None) -> Optional[dict]:
+    async def fetch_one(self, sql: str, params: Sequence | None = None) -> dict | None:
         """Execute SQL and return single row.
 
         Args:
@@ -434,7 +444,7 @@ class AsyncDatabase:
             await cur.execute(sql, params)
             return await cur.fetchone()
 
-    async def fetch_val(self, sql: str, params: Optional[Sequence] = None) -> Any:
+    async def fetch_val(self, sql: str, params: Sequence | None = None) -> Any:
         """Execute SQL and return single value.
 
         Args:
@@ -598,7 +608,7 @@ class AsyncDatabase:
         table: str,
         columns: str | list[str],
         schema: str = "public",
-        name: Optional[str] = None,
+        name: str | None = None,
         unique: bool = False,
         method: str = "btree",
         if_not_exists: bool = True,
@@ -735,7 +745,7 @@ class AsyncDatabase:
     # POSTGIS SPATIAL OPERATIONS
     # =========================================================================
 
-    async def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: Optional[str] = None) -> None:
+    async def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: str | None = None) -> None:
         """Create a GIST spatial index on a geometry column.
 
         Args:
@@ -756,7 +766,7 @@ class AsyncDatabase:
             ON {schema}.{table} USING GIST ({column})
         """)
 
-    async def list_geometry_columns(self, schema: Optional[str] = None) -> list[dict]:
+    async def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
         """List geometry columns in the database.
 
         Args:
@@ -827,8 +837,8 @@ class AsyncDatabase:
     async def enable_compression(
         self,
         table: str,
-        segment_by: Optional[str | list[str]] = None,
-        order_by: Optional[str | list[str]] = None,
+        segment_by: str | list[str] | None = None,
+        order_by: str | list[str] | None = None,
         schema: str = "public",
     ) -> None:
         """Enable compression on a hypertable.
@@ -1011,7 +1021,7 @@ class AsyncDatabase:
     async def create_role(
         self,
         name: str,
-        password: Optional[str] = None,
+        password: str | None = None,
         login: bool = True,
         superuser: bool = False,
         createdb: bool = False,
@@ -1019,8 +1029,8 @@ class AsyncDatabase:
         inherit: bool = True,
         replication: bool = False,
         connection_limit: int = -1,
-        valid_until: Optional[str] = None,
-        in_roles: Optional[list[str]] = None,
+        valid_until: str | None = None,
+        in_roles: list[str] | None = None,
         if_not_exists: bool = True,
     ) -> None:
         """Create a database role/user.
@@ -1078,7 +1088,7 @@ class AsyncDatabase:
             options.append(f"CONNECTION LIMIT {connection_limit}")
         if password:
             # Use parameterized query for password
-            options.append(f"PASSWORD %s")
+            options.append("PASSWORD %s")
         if valid_until:
             validate_timestamp(valid_until)
             options.append(f"VALID UNTIL '{valid_until}'")
@@ -1113,14 +1123,14 @@ class AsyncDatabase:
     async def alter_role(
         self,
         name: str,
-        password: Optional[str] = None,
-        login: Optional[bool] = None,
-        superuser: Optional[bool] = None,
-        createdb: Optional[bool] = None,
-        createrole: Optional[bool] = None,
-        connection_limit: Optional[int] = None,
-        valid_until: Optional[str] = None,
-        rename_to: Optional[str] = None,
+        password: str | None = None,
+        login: bool | None = None,
+        superuser: bool | None = None,
+        createdb: bool | None = None,
+        createrole: bool | None = None,
+        connection_limit: int | None = None,
+        valid_until: str | None = None,
+        rename_to: str | None = None,
     ) -> None:
         """Alter a role's attributes.
 
@@ -1410,11 +1420,11 @@ class AsyncDatabase:
 
     async def to_dataframe(
         self,
-        table: Optional[str] = None,
+        table: str | None = None,
         schema: str = "public",
-        sql: Optional[str] = None,
-        params: Optional[dict] = None,
-    ) -> "pd.DataFrame":
+        sql: str | None = None,
+        params: dict | None = None,
+    ) -> pd.DataFrame:
         """Read table or query into pandas DataFrame.
 
         Args:
@@ -1452,13 +1462,13 @@ class AsyncDatabase:
 
     async def from_dataframe(
         self,
-        df: "pd.DataFrame",
+        df: pd.DataFrame,
         table: str,
         schema: str = "public",
         if_exists: Literal["fail", "replace", "append"] = "fail",
-        primary_key: Optional[str | list[str]] = None,
+        primary_key: str | list[str] | None = None,
         index: bool = False,
-        dtype: Optional[dict] = None,
+        dtype: dict | None = None,
     ) -> None:
         """Create or append to table from pandas DataFrame.
 
@@ -1498,12 +1508,12 @@ class AsyncDatabase:
 
     async def to_geodataframe(
         self,
-        table: Optional[str] = None,
+        table: str | None = None,
         schema: str = "public",
-        sql: Optional[str] = None,
+        sql: str | None = None,
         geometry_column: str = "geometry",
-        params: Optional[dict] = None,
-    ) -> "gpd.GeoDataFrame":
+        params: dict | None = None,
+    ) -> gpd.GeoDataFrame:
         """Read table or query into GeoDataFrame.
 
         Args:
@@ -1544,14 +1554,14 @@ class AsyncDatabase:
 
     async def from_geodataframe(
         self,
-        gdf: "gpd.GeoDataFrame",
+        gdf: gpd.GeoDataFrame,
         table: str,
         schema: str = "public",
         if_exists: Literal["fail", "replace", "append"] = "fail",
-        primary_key: Optional[str | list[str]] = None,
+        primary_key: str | list[str] | None = None,
         spatial_index: bool = True,
         geometry_column: str = "geometry",
-        srid: Optional[int] = None,
+        srid: int | None = None,
     ) -> None:
         """Create or append to table from GeoDataFrame.
 
@@ -1631,7 +1641,7 @@ class AsyncDatabase:
         table: str,
         rows: list[dict],
         schema: str = "public",
-        on_conflict: Optional[str] = None,
+        on_conflict: str | None = None,
     ) -> int:
         """Insert multiple rows efficiently.
 
@@ -1675,7 +1685,7 @@ class AsyncDatabase:
         table: str,
         rows: list[dict],
         conflict_columns: list[str],
-        update_columns: Optional[list[str]] = None,
+        update_columns: list[str] | None = None,
         schema: str = "public",
     ) -> int:
         """Upsert (insert or update) multiple rows.
@@ -1722,7 +1732,7 @@ class AsyncDatabase:
     async def stream(
         self,
         sql: str,
-        params: Optional[Sequence] = None,
+        params: Sequence | None = None,
         batch_size: int = 1000,
     ) -> AsyncIterator[dict]:
         """Stream query results in batches.
@@ -1755,7 +1765,7 @@ class AsyncDatabase:
     # DATABASE ADMINISTRATION
     # =========================================================================
 
-    async def create_database(self, name: str, owner: Optional[str] = None, template: str = "template1") -> None:
+    async def create_database(self, name: str, owner: str | None = None, template: str = "template1") -> None:
         """Create a new database.
 
         Args:
@@ -1794,7 +1804,7 @@ class AsyncDatabase:
         async with await psycopg.AsyncConnection.connect(**admin_config.connect_params(), autocommit=True) as conn:
             async with conn.cursor() as cur:
                 # Terminate existing connections
-                await cur.execute(f"""
+                await cur.execute("""
                     SELECT pg_terminate_backend(pg_stat_activity.pid)
                     FROM pg_stat_activity
                     WHERE pg_stat_activity.datname = %s
@@ -1806,7 +1816,7 @@ class AsyncDatabase:
     # UTILITY
     # =========================================================================
 
-    async def vacuum(self, table: Optional[str] = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
+    async def vacuum(self, table: str | None = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
         """Vacuum database or table.
 
         Args:
@@ -1833,7 +1843,7 @@ class AsyncDatabase:
 
         await self.execute(f"VACUUM{options_str}{table_str}", autocommit=True)
 
-    async def analyze(self, table: Optional[str] = None, schema: str = "public") -> None:
+    async def analyze(self, table: str | None = None, schema: str = "public") -> None:
         """Update table statistics for query planner.
 
         Args:
@@ -1849,7 +1859,7 @@ class AsyncDatabase:
         table_str = f" {schema}.{table}" if table else ""
         await self.execute(f"ANALYZE{table_str}", autocommit=True)
 
-    async def explain(self, sql: str, params: Optional[Sequence] = None, analyze: bool = False, format: str = "text") -> list[str]:
+    async def explain(self, sql: str, params: Sequence | None = None, analyze: bool = False, format: str = "text") -> list[str]:
         """Get query execution plan.
 
         Args:
@@ -1882,9 +1892,9 @@ class AsyncDatabase:
         format: Literal["plain", "custom", "directory", "tar"] = "custom",
         schema_only: bool = False,
         data_only: bool = False,
-        tables: Optional[list[str]] = None,
-        exclude_tables: Optional[list[str]] = None,
-        schemas: Optional[list[str]] = None,
+        tables: list[str] | None = None,
+        exclude_tables: list[str] | None = None,
+        schemas: list[str] | None = None,
         compress: int = 6,
         jobs: int = 1,
     ) -> None:
@@ -1979,8 +1989,8 @@ class AsyncDatabase:
         create: bool = False,
         data_only: bool = False,
         schema_only: bool = False,
-        tables: Optional[list[str]] = None,
-        schemas: Optional[list[str]] = None,
+        tables: list[str] | None = None,
+        schemas: list[str] | None = None,
         jobs: int = 1,
         no_owner: bool = False,
         no_privileges: bool = False,
@@ -2106,7 +2116,7 @@ class AsyncDatabase:
         table: str,
         output_file: str | Path,
         schema: str = "public",
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
         delimiter: str = ",",
         header: bool = True,
         null_string: str = "",
@@ -2142,7 +2152,7 @@ class AsyncDatabase:
         cols = f"({', '.join(columns)})" if columns else ""
 
         options = [
-            f"FORMAT CSV",
+            "FORMAT CSV",
             f"DELIMITER '{delimiter}'",
             f"NULL '{null_string}'",
             f"ENCODING '{encoding}'",
@@ -2176,7 +2186,7 @@ class AsyncDatabase:
         table: str,
         input_file: str | Path,
         schema: str = "public",
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
         delimiter: str = ",",
         header: bool = True,
         null_string: str = "",
@@ -2211,7 +2221,7 @@ class AsyncDatabase:
         cols = f"({', '.join(columns)})" if columns else ""
 
         options = [
-            f"FORMAT CSV",
+            "FORMAT CSV",
             f"DELIMITER '{delimiter}'",
             f"NULL '{null_string}'",
             f"ENCODING '{encoding}'",
@@ -2281,7 +2291,7 @@ class AsyncDatabase:
         """
         pass
 
-    async def __aenter__(self) -> "AsyncDatabase":
+    async def __aenter__(self) -> AsyncDatabase:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:

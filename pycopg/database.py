@@ -389,12 +389,14 @@ class Database:
         finally:
             try:
                 if not autocommit:
-                    self._session_conn.commit()
-                self._session_conn.close()
-            except Exception:
-                # Cleanup failure - connection may already be closed or broken.
-                # Don't suppress: let the exception propagate after state reset.
-                raise
+                    try:
+                        self._session_conn.commit()
+                    finally:
+                        # close() ALWAYS runs, even when commit() raises (B2 residual fix).
+                        # If commit raised, its exception propagates; close() does not mask it.
+                        self._session_conn.close()
+                else:
+                    self._session_conn.close()
             finally:
                 self._session_conn = None  # ALWAYS executes
 
