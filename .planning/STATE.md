@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
-last_updated: "2026-06-08T21:36:20.830Z"
+last_updated: "2026-06-08T21:48:43.437Z"
 last_activity: 2026-06-08 -- Phase 10 execution started
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 8
-  percent: 14
+  completed_plans: 9
+  percent: 29
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 ## Current Position
 
 Phase: 10 (s-curit-r-siduelle-robustesse) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-06-08 -- Phase 10 execution started
 
@@ -53,6 +53,7 @@ Last activity: 2026-06-08 -- Phase 10 execution started
 | Phase 09 P04 | 1     | 103s      | 103s     |
 | 09 | 4 | - | - |
 | Phase 10-s-curit-r-siduelle-robustesse P04 | 10 minutes | 2 tasks | 3 files |
+| Phase 10-s-curit-r-siduelle-robustesse P05 | 15 minutes | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,7 @@ All v0.3.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
 - [Phase 09 P03]: D-14: publish job OIDC trusted publishing (id-token: write + pypa/gh-action-pypi-publish@release/v1) preserved byte-for-byte
 - [Phase 09 P04]: D-08/D-09/D-10/D-11: Makefile (thin uv wrappers) + CLAUDE.md (path/version/commands fixed) + README Development section (uv); Installation section (pip) preserved; no [dev] extra in any contributor doc
 - [Phase ?]: D-06 (B2 form): targeted mock — defect is exit-path control flow, not real DB behaviour
+- [Phase ?]: D-07 gate flip: --cov-fail-under raised 70->80 after local suite measured 80.71%
 
 ### Pending Todos
 
@@ -79,7 +81,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-08T21:36:20.823Z
+Last session: 2026-06-08T21:48:43.430Z
 Phase 09 complete. All 4 plans executed: pyproject.toml + uv.lock + .python-version (P01),
 tests.yml CI workflow (P02), publish.yml uv build migration (P03), contributor docs + Makefile (P04).
 TOOL-01 through TOOL-05 satisfied. Next phase TBD.
