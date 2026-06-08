@@ -49,6 +49,15 @@ Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · E
   3. Chaque correctif a son test d'injection dédié (rouge → vert)
   4. Gate coverage globale montée à 80 (cliquet, jamais redescendante)
 
+**Plans:** 5 plans (waves 1-3)
+
+Plans:
+- [ ] 10-01-PLAN.md — B1 fix (PooledDatabase.execute commit, sync+async) + D-01 audit (SEC-05/validations acquired)
+- [ ] 10-02-PLAN.md — B3 fix (atomic _apply + rollback) + red→green migration-atomicity test
+- [ ] 10-03-PLAN.md — B5 fix (subprocess.os.environ → os.environ, 3 sites) + red→green env test
+- [ ] 10-04-PLAN.md — B2 residual fix (session() close-on-commit-failure, sync+async) + red→green leak test
+- [ ] 10-05-PLAN.md — [BLOCKING] coverage ratchet 70→80 (targeted fill, then gate flip)
+
 ### Phase 11: Parité sync/async complète
 
 **Goal**: Restaurer la valeur cœur du projet — 0 méthode divergente non documentée ; cliquet coverage → 90.
