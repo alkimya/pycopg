@@ -152,10 +152,9 @@ class PooledDatabase:
         with self.connection() as conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql, params)
-                if cur.description:
-                    return cur.fetchall()
+                rows = cur.fetchall() if cur.description else []
                 conn.commit()
-                return []
+                return rows
 
     def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
         """Execute SQL for multiple parameter sets.
@@ -351,10 +350,9 @@ class AsyncPooledDatabase:
         async with self.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(sql, params)
-                if cur.description:
-                    return await cur.fetchall()
+                rows = await cur.fetchall() if cur.description else []
                 await conn.commit()
-                return []
+                return rows
 
     async def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
         """Execute SQL for multiple parameter sets."""
