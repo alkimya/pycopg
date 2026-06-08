@@ -19,11 +19,11 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9�
 
 ### Security — Residual & Robustness (Phase 10)
 
-- [ ] **SEC-01**: `PooledDatabase.execute` commits before returning so `INSERT ... RETURNING` results are not rolled back on pool return (B1)
+- [x] **SEC-01**: `PooledDatabase.execute` commits before returning so `INSERT ... RETURNING` results are not rolled back on pool return (B1)
 - [x] **SEC-02**: Sync `session()` no longer masks the original exception when commit/close fails in `finally` (B2)
-- [ ] **SEC-03**: Migration `_apply`/`rollback` run inside an explicit atomic transaction (B3)
-- [ ] **SEC-04**: Subprocess helpers use `os.environ` correctly instead of `subprocess.os.environ` (B5)
-- [ ] **SEC-05**: Async `create_role` validates identifiers up-front (residual gap noted during the v0.3.1 hotfix)
+- [x] **SEC-03**: Migration `_apply`/`rollback` run inside an explicit atomic transaction (B3)
+- [x] **SEC-04**: Subprocess helpers use `os.environ` correctly instead of `subprocess.os.environ` (B5)
+- [x] **SEC-05**: Async `create_role` validates identifiers up-front (residual gap noted during the v0.3.1 hotfix)
 - [x] **SEC-06**: Each residual fix has a dedicated red→green regression test
 
 ### Parity — Sync/Async (Phase 11)
@@ -121,11 +121,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TOOL-03 | Phase 9 | Complete |
 | TOOL-04 | Phase 9 | Complete |
 | TOOL-05 | Phase 9 | Complete |
-| SEC-01 | Phase 10 | Pending |
+| SEC-01 | Phase 10 | Complete |
 | SEC-02 | Phase 10 | Complete |
-| SEC-03 | Phase 10 | Pending |
-| SEC-04 | Phase 10 | Pending |
-| SEC-05 | Phase 10 | Pending |
+| SEC-03 | Phase 10 | Complete |
+| SEC-04 | Phase 10 | Complete |
+| SEC-05 | Phase 10 | Complete |
 | SEC-06 | Phase 10 | Complete |
 | PAR-01 | Phase 11 | Pending |
 | PAR-02 | Phase 11 | Pending |

@@ -13,7 +13,7 @@
 Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · Exigences : [REQUIREMENTS.md](REQUIREMENTS.md) (46 mappées, 0 non couverte) · Audit source : [AUDIT-2026-06-06.md](AUDIT-2026-06-06.md)
 
 - [x] Phase 9: Migration uv (outillage : dev + CI + build + lockfile) — COMPLETE 2026-06-06
-- [ ] Phase 10: Sécurité résiduelle & robustesse (bugs B1/B2/B3/B5) — coverage cliquet → 80
+- [x] Phase 10: Sécurité résiduelle & robustesse (bugs B1/B2/B3/B5) — coverage cliquet → 80 (completed 2026-06-08)
 - [ ] Phase 11: Parité sync/async complète — coverage cliquet → 90
 - [ ] Phase 12: Refactoring (brancher base.py + queries.py) — coverage cliquet → 95
 - [ ] Phase 13: Qualité documentaire (docstrings numpydoc + interrogate ≥ 95)
@@ -49,7 +49,7 @@ Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · E
   3. Chaque correctif a son test d'injection dédié (rouge → vert)
   4. Gate coverage globale montée à 80 (cliquet, jamais redescendante)
 
-**Plans:** 5 plans (waves 1-3)
+**Plans:** 5/5 plans complete
 Plans:
 **Wave 1**
 
@@ -161,7 +161,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 7. Documentation & Release | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | — Security Hotfix v0.3.1 | v0.3.1 | — | Shipped | 2026-06-06 |
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
-| 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete   | 2026-06-08 |
+| 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 0/? | Pending (9 req) | — |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/? | Pending (5 req) | — |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
