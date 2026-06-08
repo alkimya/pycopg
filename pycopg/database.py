@@ -7,19 +7,27 @@ Provides high-level operations for PostgreSQL/PostGIS/TimescaleDB.
 from __future__ import annotations
 
 import logging
-import re
+import os
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator, Literal, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Literal
 
 import psycopg
 from psycopg import OperationalError
-from psycopg.rows import dict_row
 from psycopg.pq import TransactionStatus
+from psycopg.rows import dict_row
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
+from pycopg import queries
 from pycopg.config import Config
 from pycopg.utils import (
     validate_csv_option,
@@ -32,7 +40,6 @@ from pycopg.utils import (
     validate_privileges,
     validate_timestamp,
 )
-from pycopg import queries
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +89,11 @@ class Database:
             config: Database configuration.
         """
         self.config = config
-        self._engine: Optional[Engine] = None
-        self._session_conn: Optional[psycopg.Connection] = None
+        self._engine: Engine | None = None
+        self._session_conn: psycopg.Connection | None = None
 
     @classmethod
-    def from_env(cls, dotenv_path: Optional[str | Path] = None) -> "Database":
+    def from_env(cls, dotenv_path: str | Path | None = None) -> Database:
         """Create Database from environment variables.
 
         Args:
@@ -102,7 +109,7 @@ class Database:
         return cls(Config.from_env(dotenv_path))
 
     @classmethod
-    def from_url(cls, url: str) -> "Database":
+    def from_url(cls, url: str) -> Database:
         """Create Database from connection URL.
 
         Args:
@@ -124,10 +131,10 @@ class Database:
         port: int = 5432,
         user: str = "postgres",
         password: str = "",
-        owner: Optional[str] = None,
+        owner: str | None = None,
         template: str = "template1",
         if_not_exists: bool = True,
-    ) -> "Database":
+    ) -> Database:
         """Create a new database and return a connection to it.
 
         This is a convenience method that:
@@ -204,11 +211,11 @@ class Database:
     def create_from_env(
         cls,
         name: str,
-        owner: Optional[str] = None,
+        owner: str | None = None,
         template: str = "template1",
         if_not_exists: bool = True,
-        dotenv_path: Optional[str | Path] = None,
-    ) -> "Database":
+        dotenv_path: str | Path | None = None,
+    ) -> Database:
         """Create a new database using connection params from environment.
 
         Uses PGHOST, PGPORT, PGUSER, PGPASSWORD from environment or .env file,
@@ -340,7 +347,7 @@ class Database:
                     yield conn
 
     @contextmanager
-    def session(self, autocommit: bool = False) -> Iterator["Database"]:
+    def session(self, autocommit: bool = False) -> Iterator[Database]:
         """Context manager for session mode with connection reuse.
 
         In session mode, all operations reuse the same connection,
@@ -400,7 +407,7 @@ class Database:
         """
         return self._session_conn is not None
 
-    def execute(self, sql: str, params: Optional[Sequence] = None, autocommit: bool = False) -> list[dict]:
+    def execute(self, sql: str, params: Sequence | None = None, autocommit: bool = False) -> list[dict]:
         """Execute SQL and return results as list of dicts.
 
         Args:
@@ -449,8 +456,8 @@ class Database:
         table: str,
         rows: list[dict],
         schema: str = "public",
-        on_conflict: Optional[str] = None,
-        batch_size: Optional[int] = None,
+        on_conflict: str | None = None,
+        batch_size: int | None = None,
     ) -> int:
         """Insert multiple rows efficiently using batch VALUES.
 
@@ -520,7 +527,7 @@ class Database:
         table: str,
         rows: list[dict],
         schema: str = "public",
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
     ) -> int:
         """Insert rows using PostgreSQL COPY protocol.
 
@@ -563,7 +570,7 @@ class Database:
             conn.commit()
             return len(rows)
 
-    def fetch_one(self, sql: str, params: Optional[Sequence] = None) -> Optional[dict]:
+    def fetch_one(self, sql: str, params: Sequence | None = None) -> dict | None:
         """Execute SQL and return single row.
 
         Args:
@@ -580,7 +587,7 @@ class Database:
             cur.execute(sql, params)
             return cur.fetchone()
 
-    def fetch_val(self, sql: str, params: Optional[Sequence] = None) -> Any:
+    def fetch_val(self, sql: str, params: Sequence | None = None) -> Any:
         """Execute SQL and return single value.
 
         Args:
@@ -602,7 +609,7 @@ class Database:
     # DATABASE ADMINISTRATION
     # =========================================================================
 
-    def create_database(self, name: str, owner: Optional[str] = None, template: str = "template1") -> None:
+    def create_database(self, name: str, owner: str | None = None, template: str = "template1") -> None:
         """Create a new database.
 
         Args:
@@ -641,7 +648,7 @@ class Database:
         with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
             with conn.cursor() as cur:
                 # Terminate existing connections
-                cur.execute(f"""
+                cur.execute("""
                     SELECT pg_terminate_backend(pg_stat_activity.pid)
                     FROM pg_stat_activity
                     WHERE pg_stat_activity.datname = %s
@@ -681,7 +688,7 @@ class Database:
     # EXTENSIONS
     # =========================================================================
 
-    def create_extension(self, name: str, schema: Optional[str] = None, if_not_exists: bool = True) -> None:
+    def create_extension(self, name: str, schema: str | None = None, if_not_exists: bool = True) -> None:
         """Create a PostgreSQL extension.
 
         Args:
@@ -742,7 +749,7 @@ class Database:
     # SCHEMAS
     # =========================================================================
 
-    def create_schema(self, name: str, if_not_exists: bool = True, owner: Optional[str] = None) -> None:
+    def create_schema(self, name: str, if_not_exists: bool = True, owner: str | None = None) -> None:
         """Create a schema.
 
         Args:
@@ -940,7 +947,7 @@ class Database:
     # CONSTRAINTS & INDEXES
     # =========================================================================
 
-    def add_primary_key(self, table: str, columns: str | list[str], schema: str = "public", name: Optional[str] = None) -> None:
+    def add_primary_key(self, table: str, columns: str | list[str], schema: str = "public", name: str | None = None) -> None:
         """Add primary key constraint to a table.
 
         Args:
@@ -971,7 +978,7 @@ class Database:
         ref_columns: str | list[str],
         schema: str = "public",
         ref_schema: str = "public",
-        name: Optional[str] = None,
+        name: str | None = None,
         on_delete: str = "NO ACTION",
         on_update: str = "NO ACTION",
     ) -> None:
@@ -1021,7 +1028,7 @@ class Database:
             ON UPDATE {on_update}
         """)
 
-    def add_unique_constraint(self, table: str, columns: str | list[str], schema: str = "public", name: Optional[str] = None) -> None:
+    def add_unique_constraint(self, table: str, columns: str | list[str], schema: str = "public", name: str | None = None) -> None:
         """Add unique constraint.
 
         Args:
@@ -1048,7 +1055,7 @@ class Database:
         table: str,
         columns: str | list[str],
         schema: str = "public",
-        name: Optional[str] = None,
+        name: str | None = None,
         unique: bool = False,
         method: str = "btree",
         if_not_exists: bool = True,
@@ -1150,13 +1157,13 @@ class Database:
 
     def from_dataframe(
         self,
-        df: "pd.DataFrame",
+        df: pd.DataFrame,
         table: str,
         schema: str = "public",
         if_exists: Literal["fail", "replace", "append"] = "fail",
-        primary_key: Optional[str | list[str]] = None,
+        primary_key: str | list[str] | None = None,
         index: bool = False,
-        dtype: Optional[dict] = None,
+        dtype: dict | None = None,
     ) -> None:
         """Create or append to table from pandas DataFrame.
 
@@ -1187,11 +1194,11 @@ class Database:
 
     def to_dataframe(
         self,
-        table: Optional[str] = None,
+        table: str | None = None,
         schema: str = "public",
-        sql: Optional[str] = None,
-        params: Optional[dict] = None,
-    ) -> "pd.DataFrame":
+        sql: str | None = None,
+        params: dict | None = None,
+    ) -> pd.DataFrame:
         """Read table or query into pandas DataFrame.
 
         Args:
@@ -1222,14 +1229,14 @@ class Database:
 
     def from_geodataframe(
         self,
-        gdf: "gpd.GeoDataFrame",
+        gdf: gpd.GeoDataFrame,
         table: str,
         schema: str = "public",
         if_exists: Literal["fail", "replace", "append"] = "fail",
-        primary_key: Optional[str | list[str]] = None,
+        primary_key: str | list[str] | None = None,
         spatial_index: bool = True,
         geometry_column: str = "geometry",
-        srid: Optional[int] = None,
+        srid: int | None = None,
     ) -> None:
         """Create or append to table from GeoDataFrame.
 
@@ -1290,12 +1297,12 @@ class Database:
 
     def to_geodataframe(
         self,
-        table: Optional[str] = None,
+        table: str | None = None,
         schema: str = "public",
-        sql: Optional[str] = None,
+        sql: str | None = None,
         geometry_column: str = "geometry",
-        params: Optional[dict] = None,
-    ) -> "gpd.GeoDataFrame":
+        params: dict | None = None,
+    ) -> gpd.GeoDataFrame:
         """Read table or query into GeoDataFrame.
 
         Args:
@@ -1328,7 +1335,7 @@ class Database:
     # POSTGIS SPATIAL OPERATIONS
     # =========================================================================
 
-    def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: Optional[str] = None) -> None:
+    def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: str | None = None) -> None:
         """Create a GIST spatial index on a geometry column.
 
         Args:
@@ -1349,7 +1356,7 @@ class Database:
             ON {schema}.{table} USING GIST ({column})
         """)
 
-    def list_geometry_columns(self, schema: Optional[str] = None) -> list[dict]:
+    def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
         """List geometry columns in the database.
 
         Args:
@@ -1420,8 +1427,8 @@ class Database:
     def enable_compression(
         self,
         table: str,
-        segment_by: Optional[str | list[str]] = None,
-        order_by: Optional[str | list[str]] = None,
+        segment_by: str | list[str] | None = None,
+        order_by: str | list[str] | None = None,
         schema: str = "public",
     ) -> None:
         """Enable compression on a hypertable.
@@ -1652,7 +1659,7 @@ class Database:
     # UTILITY
     # =========================================================================
 
-    def vacuum(self, table: Optional[str] = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
+    def vacuum(self, table: str | None = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
         """Vacuum database or table.
 
         Args:
@@ -1675,7 +1682,7 @@ class Database:
 
         self.execute(f"VACUUM{options_str}{table_str}", autocommit=True)
 
-    def analyze(self, table: Optional[str] = None, schema: str = "public") -> None:
+    def analyze(self, table: str | None = None, schema: str = "public") -> None:
         """Update table statistics for query planner.
 
         Args:
@@ -1687,7 +1694,7 @@ class Database:
         table_str = f" {schema}.{table}" if table else ""
         self.execute(f"ANALYZE{table_str}", autocommit=True)
 
-    def explain(self, sql: str, params: Optional[Sequence] = None, analyze: bool = False, format: str = "text") -> list[str]:
+    def explain(self, sql: str, params: Sequence | None = None, analyze: bool = False, format: str = "text") -> list[str]:
         """Get query execution plan.
 
         Args:
@@ -1713,7 +1720,7 @@ class Database:
     def create_role(
         self,
         name: str,
-        password: Optional[str] = None,
+        password: str | None = None,
         login: bool = True,
         superuser: bool = False,
         createdb: bool = False,
@@ -1721,8 +1728,8 @@ class Database:
         inherit: bool = True,
         replication: bool = False,
         connection_limit: int = -1,
-        valid_until: Optional[str] = None,
-        in_roles: Optional[list[str]] = None,
+        valid_until: str | None = None,
+        in_roles: list[str] | None = None,
         if_not_exists: bool = True,
     ) -> None:
         """Create a database role/user.
@@ -1780,7 +1787,7 @@ class Database:
             options.append(f"CONNECTION LIMIT {connection_limit}")
         if password:
             # Use parameterized query for password
-            options.append(f"PASSWORD %s")
+            options.append("PASSWORD %s")
         if valid_until:
             validate_timestamp(valid_until)
             options.append(f"VALID UNTIL '{valid_until}'")
@@ -1852,14 +1859,14 @@ class Database:
     def alter_role(
         self,
         name: str,
-        password: Optional[str] = None,
-        login: Optional[bool] = None,
-        superuser: Optional[bool] = None,
-        createdb: Optional[bool] = None,
-        createrole: Optional[bool] = None,
-        connection_limit: Optional[int] = None,
-        valid_until: Optional[str] = None,
-        rename_to: Optional[str] = None,
+        password: str | None = None,
+        login: bool | None = None,
+        superuser: bool | None = None,
+        createdb: bool | None = None,
+        createrole: bool | None = None,
+        connection_limit: int | None = None,
+        valid_until: str | None = None,
+        rename_to: str | None = None,
     ) -> None:
         """Alter a role's attributes.
 
@@ -2090,9 +2097,9 @@ class Database:
         format: Literal["plain", "custom", "directory", "tar"] = "custom",
         schema_only: bool = False,
         data_only: bool = False,
-        tables: Optional[list[str]] = None,
-        exclude_tables: Optional[list[str]] = None,
-        schemas: Optional[list[str]] = None,
+        tables: list[str] | None = None,
+        exclude_tables: list[str] | None = None,
+        schemas: list[str] | None = None,
         compress: int = 6,
         jobs: int = 1,
     ) -> None:
@@ -2166,7 +2173,7 @@ class Database:
 
         # Run with password in environment
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(cmd, env={**subprocess.os.environ, **env}, capture_output=True, text=True)
+        result = subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, text=True)
 
         if result.returncode != 0:
             raise RuntimeError(f"pg_dump failed: {result.stderr}")
@@ -2179,8 +2186,8 @@ class Database:
         create: bool = False,
         data_only: bool = False,
         schema_only: bool = False,
-        tables: Optional[list[str]] = None,
-        schemas: Optional[list[str]] = None,
+        tables: list[str] | None = None,
+        schemas: list[str] | None = None,
         jobs: int = 1,
         no_owner: bool = False,
         no_privileges: bool = False,
@@ -2261,7 +2268,7 @@ class Database:
 
         # Run with password in environment
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(cmd, env={**subprocess.os.environ, **env}, capture_output=True, text=True)
+        result = subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, text=True)
 
         if result.returncode != 0:
             raise RuntimeError(f"pg_restore failed: {result.stderr}")
@@ -2280,7 +2287,7 @@ class Database:
         ]
 
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(cmd, env={**subprocess.os.environ, **env}, capture_output=True, text=True)
+        result = subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, text=True)
 
         if result.returncode != 0:
             raise RuntimeError(f"psql restore failed: {result.stderr}")
@@ -2290,7 +2297,7 @@ class Database:
         table: str,
         output_file: str | Path,
         schema: str = "public",
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
         delimiter: str = ",",
         header: bool = True,
         null_string: str = "",
@@ -2327,7 +2334,7 @@ class Database:
         cols = f"({', '.join(columns)})" if columns else ""
 
         options = [
-            f"FORMAT CSV",
+            "FORMAT CSV",
             f"DELIMITER '{delimiter}'",
             f"NULL '{null_string}'",
             f"ENCODING '{encoding}'",
@@ -2350,7 +2357,7 @@ class Database:
         table: str,
         input_file: str | Path,
         schema: str = "public",
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
         delimiter: str = ",",
         header: bool = True,
         null_string: str = "",
@@ -2386,7 +2393,7 @@ class Database:
         cols = f"({', '.join(columns)})" if columns else ""
 
         options = [
-            f"FORMAT CSV",
+            "FORMAT CSV",
             f"DELIMITER '{delimiter}'",
             f"NULL '{null_string}'",
             f"ENCODING '{encoding}'",
@@ -2395,7 +2402,7 @@ class Database:
             options.append("HEADER")
 
         with self.cursor() as cur:
-            with open(input_file, "r", encoding=encoding) as f:
+            with open(input_file, encoding=encoding) as f:
                 with cur.copy(f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})") as copy:
                     while data := f.read(8192):
                         copy.write(data.encode(encoding))
@@ -2408,7 +2415,7 @@ class Database:
             self._engine.dispose()
             self._engine = None
 
-    def __enter__(self) -> "Database":
+    def __enter__(self) -> Database:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
