@@ -1096,3 +1096,314 @@ class TestDatabaseRetry:
         # Verify batch_size parameter exists with default None
         assert "batch_size" in sig.parameters
         assert sig.parameters["batch_size"].default is None
+
+
+class TestDatabaseGrantRevoke:
+    """Tests for grant() and revoke() method branches (coverage-fill, D-07)."""
+
+    def _make_db_with_execute_mock(self, config):
+        """Return a Database whose execute() is mocked to do nothing."""
+        with patch("pycopg.database.psycopg"):
+            db = Database(config)
+        db.execute = MagicMock(return_value=[])
+        return db
+
+    def test_grant_list_privileges_joined(self, config):
+        """Test grant() joins a list of privileges into a comma-separated string."""
+        db = self._make_db_with_execute_mock(config)
+        db.grant(["SELECT", "INSERT"], "users", "appuser", object_type="TABLE")
+        call_sql = db.execute.call_args[0][0]
+        assert "SELECT, INSERT" in call_sql
+
+    def test_grant_schema_branch(self, config):
+        """Test grant() emits GRANT ... ON SCHEMA for object_type=SCHEMA."""
+        db = self._make_db_with_execute_mock(config)
+        db.grant("USAGE", "public", "appuser", object_type="SCHEMA")
+        call_sql = db.execute.call_args[0][0]
+        assert "ON SCHEMA public" in call_sql
+
+    def test_grant_database_branch(self, config):
+        """Test grant() emits GRANT ... ON DATABASE for object_type=DATABASE."""
+        db = self._make_db_with_execute_mock(config)
+        db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
+        call_sql = db.execute.call_args[0][0]
+        assert "ON DATABASE mydb" in call_sql
+
+    def test_grant_all_tables_branch(self, config):
+        """Test grant() emits IN SCHEMA ... for on='ALL TABLES'."""
+        db = self._make_db_with_execute_mock(config)
+        db.grant("SELECT", "ALL TABLES", "appuser", schema="public")
+        call_sql = db.execute.call_args[0][0]
+        assert "ALL TABLES IN SCHEMA public" in call_sql
+
+    def test_grant_default_table_branch(self, config):
+        """Test grant() emits ON TABLE schema.table for default object_type."""
+        db = self._make_db_with_execute_mock(config)
+        db.grant("SELECT", "users", "appuser")
+        call_sql = db.execute.call_args[0][0]
+        assert "ON TABLE public.users" in call_sql
+
+    def test_grant_with_grant_option(self, config):
+        """Test grant() appends WITH GRANT OPTION when requested."""
+        db = self._make_db_with_execute_mock(config)
+        db.grant("SELECT", "users", "appuser", with_grant_option=True)
+        call_sql = db.execute.call_args[0][0]
+        assert "WITH GRANT OPTION" in call_sql
+
+    def test_revoke_list_privileges_joined(self, config):
+        """Test revoke() joins a list of privileges into a comma-separated string."""
+        db = self._make_db_with_execute_mock(config)
+        db.revoke(["SELECT", "INSERT"], "users", "appuser", object_type="TABLE")
+        call_sql = db.execute.call_args[0][0]
+        assert "SELECT, INSERT" in call_sql
+
+    def test_revoke_schema_branch(self, config):
+        """Test revoke() emits REVOKE ... ON SCHEMA for object_type=SCHEMA."""
+        db = self._make_db_with_execute_mock(config)
+        db.revoke("USAGE", "public", "appuser", object_type="SCHEMA")
+        call_sql = db.execute.call_args[0][0]
+        assert "ON SCHEMA public" in call_sql
+
+    def test_revoke_database_branch(self, config):
+        """Test revoke() emits REVOKE ... ON DATABASE for object_type=DATABASE."""
+        db = self._make_db_with_execute_mock(config)
+        db.revoke("CONNECT", "mydb", "appuser", object_type="DATABASE")
+        call_sql = db.execute.call_args[0][0]
+        assert "ON DATABASE mydb" in call_sql
+
+    def test_revoke_all_tables_branch(self, config):
+        """Test revoke() emits IN SCHEMA for on='ALL TABLES'."""
+        db = self._make_db_with_execute_mock(config)
+        db.revoke("SELECT", "ALL TABLES", "appuser", schema="public")
+        call_sql = db.execute.call_args[0][0]
+        assert "ALL TABLES IN SCHEMA public" in call_sql
+
+    def test_revoke_cascade_flag(self, config):
+        """Test revoke() appends CASCADE when cascade=True."""
+        db = self._make_db_with_execute_mock(config)
+        db.revoke("SELECT", "users", "appuser", cascade=True)
+        call_sql = db.execute.call_args[0][0]
+        assert "CASCADE" in call_sql
+
+    def test_list_role_members_returns_names(self, config):
+        """Test list_role_members() returns list of member role name strings."""
+        db = self._make_db_with_execute_mock(config)
+        db.execute = MagicMock(return_value=[{"member": "alice"}, {"member": "bob"}])
+        members = db.list_role_members("admin")
+        assert members == ["alice", "bob"]
+
+    def test_list_databases_returns_names(self, config):
+        """Test list_databases() returns list of database name strings."""
+        db = self._make_db_with_execute_mock(config)
+        db.execute = MagicMock(
+            return_value=[{"datname": "mydb"}, {"datname": "testdb"}]
+        )
+        dbs = db.list_databases()
+        assert dbs == ["mydb", "testdb"]
+
+
+class TestDatabaseRoleAdminBranches:
+    """Tests for create_role / alter_role / grant_role / revoke_role option branches (D-07)."""
+
+    def _make_db_with_execute_mock(self, config):
+        with patch("pycopg.database.psycopg"):
+            db = Database(config)
+        db.execute = MagicMock(return_value=[])
+        return db
+
+    def _make_db_with_cursor_mock(self, config):
+        """Return a Database whose cursor() yields a MagicMock cursor."""
+        from contextlib import contextmanager
+
+        with patch("pycopg.database.psycopg"):
+            db = Database(config)
+        mock_cursor = MagicMock()
+
+        @contextmanager
+        def fake_cursor(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = fake_cursor
+        db.execute = MagicMock(return_value=[])
+        return db, mock_cursor
+
+    def test_create_role_if_not_exists_returns_early_when_exists(self, config):
+        """Test create_role() returns early without executing when role exists and if_not_exists=True."""
+        db = self._make_db_with_execute_mock(config)
+        # role_exists() calls self.execute; make it return a truthy result
+        db.role_exists = MagicMock(return_value=True)
+
+        db.create_role("existing_user", if_not_exists=True)
+
+        # execute should not have been called (early return)
+        db.execute.assert_not_called()
+
+    def test_create_role_nologin_branch(self, config):
+        """Test create_role() appends NOLOGIN when login=False."""
+        db, mock_cursor = self._make_db_with_cursor_mock(config)
+        db.role_exists = MagicMock(return_value=False)
+
+        db.create_role("appuser", login=False)
+
+        # execute should have been called with NOLOGIN in the SQL
+        call_sql = db.execute.call_args[0][0]
+        assert "NOLOGIN" in call_sql
+
+    def test_create_role_superuser_createdb_createrole_flags(self, config):
+        """Test create_role() appends SUPERUSER/CREATEDB/CREATEROLE when flags True."""
+        db = self._make_db_with_execute_mock(config)
+        db.role_exists = MagicMock(return_value=False)
+
+        db.create_role("superrole", login=True, superuser=True, createdb=True, createrole=True)
+
+        call_sql = db.execute.call_args[0][0]
+        assert "SUPERUSER" in call_sql
+        assert "CREATEDB" in call_sql
+        assert "CREATEROLE" in call_sql
+
+    def test_create_role_noinherit_replication_connection_limit(self, config):
+        """Test create_role() appends NOINHERIT/REPLICATION/CONNECTION LIMIT options."""
+        db = self._make_db_with_execute_mock(config)
+        db.role_exists = MagicMock(return_value=False)
+
+        db.create_role(
+            "limitedrole", login=True, inherit=False, replication=True, connection_limit=5
+        )
+
+        call_sql = db.execute.call_args[0][0]
+        assert "NOINHERIT" in call_sql
+        assert "REPLICATION" in call_sql
+        assert "CONNECTION LIMIT 5" in call_sql
+
+    def test_create_role_with_password_uses_cursor(self, config):
+        """Test create_role() with a password uses cursor() for parameterized query."""
+        db, mock_cursor = self._make_db_with_cursor_mock(config)
+        db.role_exists = MagicMock(return_value=False)
+
+        db.create_role("secureuser", login=True, password="secret123")
+
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        assert "PASSWORD %s" in call_args[0][0]
+        assert "secret123" in call_args[0][1]
+
+    def test_drop_role_without_if_exists(self, config):
+        """Test drop_role() with if_exists=False emits DROP ROLE without IF EXISTS."""
+        db = self._make_db_with_execute_mock(config)
+
+        db.drop_role("oldrole", if_exists=False)
+
+        call_sql = db.execute.call_args[0][0]
+        assert "DROP ROLE oldrole" in call_sql
+        assert "IF EXISTS" not in call_sql
+
+    def test_alter_role_rename_returns_after_rename(self, config):
+        """Test alter_role() with rename_to executes RENAME and returns immediately."""
+        db = self._make_db_with_execute_mock(config)
+
+        db.alter_role("oldname", rename_to="newname")
+
+        call_sql = db.execute.call_args[0][0]
+        assert "RENAME TO newname" in call_sql
+
+    def test_alter_role_options_with_password(self, config):
+        """Test alter_role() with password uses cursor() for parameterized ALTER ROLE."""
+        db, mock_cursor = self._make_db_with_cursor_mock(config)
+
+        db.alter_role("appuser", password="newpass")
+
+        mock_cursor.execute.assert_called_once()
+        call_args = mock_cursor.execute.call_args
+        assert "PASSWORD %s" in call_args[0][0]
+        assert "newpass" in call_args[0][1]
+
+    def test_alter_role_login_superuser_createdb_createrole_options(self, config):
+        """Test alter_role() with login/superuser/createdb/createrole options uses cursor."""
+        db, mock_cursor = self._make_db_with_cursor_mock(config)
+
+        db.alter_role("appuser", login=True, superuser=False, createdb=True, createrole=False)
+
+        mock_cursor.execute.assert_called_once()
+        call_sql = mock_cursor.execute.call_args[0][0]
+        assert "LOGIN" in call_sql
+        assert "NOSUPERUSER" in call_sql
+        assert "CREATEDB" in call_sql
+        assert "NOCREATEROLE" in call_sql
+
+    def test_alter_role_connection_limit_option(self, config):
+        """Test alter_role() with connection_limit option uses cursor."""
+        db, mock_cursor = self._make_db_with_cursor_mock(config)
+
+        db.alter_role("appuser", connection_limit=10)
+
+        mock_cursor.execute.assert_called_once()
+        assert "CONNECTION LIMIT 10" in mock_cursor.execute.call_args[0][0]
+
+    def test_grant_role_with_admin_option(self, config):
+        """Test grant_role() appends WITH ADMIN OPTION when with_admin=True."""
+        db = self._make_db_with_execute_mock(config)
+
+        db.grant_role("readonly", "analyst", with_admin=True)
+
+        call_sql = db.execute.call_args[0][0]
+        assert "WITH ADMIN OPTION" in call_sql
+
+    def test_revoke_role_calls_execute(self, config):
+        """Test revoke_role() calls execute with correct REVOKE SQL."""
+        db = self._make_db_with_execute_mock(config)
+
+        db.revoke_role("readonly", "analyst")
+
+        call_sql = db.execute.call_args[0][0]
+        assert "REVOKE readonly FROM analyst" in call_sql
+
+
+class TestDatabaseCursorTransactionSessionPaths:
+    """Tests for cursor() INERROR rollback branch and transaction() session path (D-07)."""
+
+    @patch("pycopg.database.psycopg")
+    def test_cursor_session_inerror_triggers_rollback(self, mock_psycopg, config):
+        """Test that cursor() in a session rolls back when transaction status is INERROR."""
+        from pycopg.database import TransactionStatus
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.info.transaction_status = TransactionStatus.INERROR
+
+        db = Database(config)
+        # Manually set a session connection (as session() context manager would do)
+        db._session_conn = mock_conn
+
+        with db.cursor() as cur:
+            assert cur is mock_cursor
+
+        # INERROR path must call rollback(), never commit()
+        mock_conn.rollback.assert_called_once()
+        mock_conn.commit.assert_not_called()
+
+        # Cleanup so teardown doesn't break other tests
+        db._session_conn = None
+
+    @patch("pycopg.database.psycopg")
+    def test_transaction_reuses_session_connection(self, mock_psycopg, config):
+        """Test transaction() reuses _session_conn when a session is active."""
+        mock_conn = MagicMock()
+        mock_tx_ctx = MagicMock()
+        mock_tx_ctx.__enter__ = MagicMock(return_value=None)
+        mock_tx_ctx.__exit__ = MagicMock(return_value=False)
+        mock_conn.transaction.return_value = mock_tx_ctx
+
+        db = Database(config)
+        db._session_conn = mock_conn
+
+        with db.transaction() as conn:
+            assert conn is mock_conn
+
+        mock_conn.transaction.assert_called_once()
+        # psycopg.connect should NOT have been called (reused session conn)
+        mock_psycopg.connect.assert_not_called()
+
+        db._session_conn = None

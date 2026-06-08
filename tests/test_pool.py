@@ -413,6 +413,187 @@ class TestAsyncPooledDatabaseAsync:
         mock_pool.close.assert_called_once()
 
 
+@pytest.mark.asyncio
+class TestAsyncPooledDatabaseMethods:
+    """Tests for AsyncPooledDatabase async methods via mocks (pool.py lines 337-395)."""
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_connection_context_manager(self, mock_pool_class, config):
+        """Test async connection context manager yields connection."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        async with db.connection() as conn:
+            assert conn is mock_conn
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_execute_returns_rows_when_description(self, mock_pool_class, config):
+        """Test execute returns fetched rows when cursor has description (SELECT)."""
+        from psycopg.rows import dict_row
+
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("id",), ("name",)]
+        mock_cursor.fetchall = AsyncMock(return_value=[{"id": 1, "name": "Alice"}])
+        mock_conn.commit = AsyncMock()
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=False)
+        mock_cursor.execute = AsyncMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        result = await db.execute("SELECT id, name FROM users")
+
+        assert result == [{"id": 1, "name": "Alice"}]
+        mock_cursor.execute.assert_awaited_once_with("SELECT id, name FROM users", None)
+        mock_conn.commit.assert_awaited_once()
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_execute_returns_empty_when_no_description(self, mock_pool_class, config):
+        """Test execute returns empty list when cursor has no description (INSERT/UPDATE)."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = None
+        mock_conn.commit = AsyncMock()
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=False)
+        mock_cursor.execute = AsyncMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        result = await db.execute("INSERT INTO users (name) VALUES (%s)", ["Bob"])
+
+        assert result == []
+        mock_conn.commit.assert_awaited_once()
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_execute_many_returns_total_rows(self, mock_pool_class, config):
+        """Test execute_many iterates params and returns total rowcount."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+        mock_conn.commit = AsyncMock()
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=False)
+        mock_cursor.execute = AsyncMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        total = await db.execute_many(
+            "INSERT INTO users (name) VALUES (%s)",
+            [("Alice",), ("Bob",), ("Charlie",)],
+        )
+
+        assert total == 3
+        assert mock_cursor.execute.await_count == 3
+        mock_conn.commit.assert_awaited_once()
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_fetch_one_returns_single_row(self, mock_pool_class, config):
+        """Test fetch_one returns the first row from cursor.fetchone()."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone = AsyncMock(return_value={"id": 42, "name": "Alice"})
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=False)
+        mock_cursor.execute = AsyncMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        row = await db.fetch_one("SELECT id, name FROM users WHERE id = %s", [42])
+
+        assert row == {"id": 42, "name": "Alice"}
+        mock_cursor.execute.assert_awaited_once_with(
+            "SELECT id, name FROM users WHERE id = %s", [42]
+        )
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_fetch_val_returns_first_column_value(self, mock_pool_class, config):
+        """Test fetch_val extracts first column value from fetch_one result."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone = AsyncMock(return_value={"count": 99})
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=False)
+        mock_cursor.execute = AsyncMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        val = await db.fetch_val("SELECT COUNT(*) AS count FROM users")
+
+        assert val == 99
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_fetch_val_returns_none_when_no_row(self, mock_pool_class, config):
+        """Test fetch_val returns None when fetch_one returns None."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone = AsyncMock(return_value=None)
+        mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+        mock_cursor.__aexit__ = AsyncMock(return_value=False)
+        mock_cursor.execute = AsyncMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        val = await db.fetch_val("SELECT id FROM users WHERE id = %s", [9999])
+
+        assert val is None
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_transaction_context_manager_yields_conn(self, mock_pool_class, config):
+        """Test transaction() context manager yields connection for use inside transaction."""
+        mock_pool = MagicMock()
+        mock_conn = MagicMock()
+        mock_transaction_ctx = MagicMock()
+        mock_transaction_ctx.__aenter__ = AsyncMock(return_value=None)
+        mock_transaction_ctx.__aexit__ = AsyncMock(return_value=False)
+        mock_conn.transaction.return_value = mock_transaction_ctx
+
+        mock_pool.connection.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_pool.connection.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        async with db.transaction() as conn:
+            assert conn is mock_conn
+
+        mock_conn.transaction.assert_called_once()
+
+
 class TestPoolReconnectParams:
     """Tests for pool reconnection parameters."""
 
