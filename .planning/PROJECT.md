@@ -158,4 +158,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-06 after starting milestone v0.4.0 Quality & Spatial Helpers*
+*Last updated: 2026-06-09 — Phase 10 complete (residual security fixes B1/B2/B3/B5 closed; SEC-01..06 validated; coverage ratchet → 80).*
