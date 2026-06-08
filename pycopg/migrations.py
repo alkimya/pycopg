@@ -228,13 +228,15 @@ class Migrator:
         # Extract UP section if migration has UP/DOWN sections
         up_sql = self._extract_section(sql, "UP") or sql
 
-        # Execute migration
-        with self.db.cursor() as cur:
-            cur.execute(up_sql)
-            cur.execute(
-                f"INSERT INTO {self.table} (version, name) VALUES (%s, %s)",
-                [migration.version, migration.name]
-            )
+        # Execute migration atomically: UP SQL + INSERT version in one transaction
+        # so a mid-course failure leaves neither a partial schema nor a version row.
+        with self.db.transaction() as conn:
+            with conn.cursor() as cur:
+                cur.execute(up_sql)
+                cur.execute(
+                    f"INSERT INTO {self.table} (version, name) VALUES (%s, %s)",
+                    [migration.version, migration.name]
+                )
 
     def rollback(self, steps: int = 1) -> list[dict]:
         """Rollback the last N migrations.
@@ -284,12 +286,16 @@ class Migrator:
                 )
 
             try:
-                with self.db.cursor() as cur:
-                    cur.execute(down_sql)
-                    cur.execute(
-                        f"DELETE FROM {self.table} WHERE version = %s",
-                        [version]
-                    )
+                # Execute rollback atomically: DOWN SQL + DELETE version in one
+                # transaction so a mid-course failure leaves the version row intact
+                # and the schema unchanged.
+                with self.db.transaction() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(down_sql)
+                        cur.execute(
+                            f"DELETE FROM {self.table} WHERE version = %s",
+                            [version]
+                        )
                 rolled_back.append(info)
             except Exception as e:
                 raise MigrationError(
