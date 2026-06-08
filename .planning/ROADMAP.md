@@ -53,9 +53,9 @@ Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · E
 Plans:
 **Wave 1**
 
-- [ ] 10-01-PLAN.md — B1 fix (PooledDatabase.execute commit, sync+async) + D-01 audit (SEC-05/validations acquired)
-- [ ] 10-02-PLAN.md — B3 fix (atomic _apply + rollback) + red→green migration-atomicity test
-- [ ] 10-03-PLAN.md — B5 fix (subprocess.os.environ → os.environ, 3 sites) + red→green env test
+- [x] 10-01-PLAN.md — B1 fix (PooledDatabase.execute commit, sync+async) + D-01 audit (SEC-05/validations acquired)
+- [x] 10-02-PLAN.md — B3 fix (atomic _apply + rollback) + red→green migration-atomicity test
+- [x] 10-03-PLAN.md — B5 fix (subprocess.os.environ → os.environ, 3 sites) + red→green env test
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -161,7 +161,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 7. Documentation & Release | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | — Security Hotfix v0.3.1 | v0.3.1 | — | Shipped | 2026-06-06 |
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
-| 10. Sécurité résiduelle & robustesse | v0.4.0 | 0/? | Pending (6 req) | — |
+| 10. Sécurité résiduelle & robustesse | v0.4.0 | 3/5 | In Progress|  |
 | 11. Parité sync/async complète | v0.4.0 | 0/? | Pending (9 req) | — |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/? | Pending (5 req) | — |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
