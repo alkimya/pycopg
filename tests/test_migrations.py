@@ -220,19 +220,29 @@ class TestMigrator:
 
     def test_migrate_all(self, sample_migrations):
         """Test migrating all pending."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
         db = MagicMock()
         cursor_mock = MagicMock()
         cursor_mock.__enter__ = MagicMock(return_value=cursor_mock)
         cursor_mock.__exit__ = MagicMock(return_value=False)
 
+        conn_mock = MagicMock()
+        conn_mock.cursor.return_value = cursor_mock
+
+        @contextmanager
+        def fake_transaction():
+            yield conn_mock
+
         db.execute = MagicMock(return_value=[])
-        db.cursor = MagicMock(return_value=cursor_mock)
+        db.transaction = fake_transaction
 
         migrator = Migrator(db, sample_migrations)
         applied = migrator.migrate()
 
         assert len(applied) == 3
-        assert cursor_mock.execute.call_count == 6  # 3 migrations + 3 inserts
+        assert cursor_mock.execute.call_count == 6  # 3 migrations × (1 UP + 1 INSERT)
 
     def test_migrate_to_target(self, sample_migrations):
         """Test migrating to specific version."""
@@ -267,14 +277,24 @@ class TestMigrator:
 
     def test_migrate_failure(self, sample_migrations):
         """Test migration failure raises MigrationError."""
+        from contextlib import contextmanager
+        from unittest.mock import MagicMock
+
         db = MagicMock()
         cursor_mock = MagicMock()
         cursor_mock.__enter__ = MagicMock(return_value=cursor_mock)
         cursor_mock.__exit__ = MagicMock(return_value=False)
         cursor_mock.execute = MagicMock(side_effect=Exception("SQL error"))
 
+        conn_mock = MagicMock()
+        conn_mock.cursor.return_value = cursor_mock
+
+        @contextmanager
+        def fake_transaction():
+            yield conn_mock
+
         db.execute = MagicMock(return_value=[])
-        db.cursor = MagicMock(return_value=cursor_mock)
+        db.transaction = fake_transaction
 
         migrator = Migrator(db, sample_migrations)
 
