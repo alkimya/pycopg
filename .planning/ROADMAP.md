@@ -79,14 +79,30 @@ Plans:
   5. `test_parity.py` étendu aux champs de retour + comportement réel (intégration vraie DB, D-03)
   6. Gate coverage montée à 90 (cliquet)
 
-**Plans:** 7 plans
-Plans:
+**Plans:** 7 plansPlans:
+**Wave 1**
+
 - [ ] 11-01-PLAN.md — Config.async_url + async_engine rewire (C3/PAR-06)
 - [ ] 11-02-PLAN.md — sync insert_many/upsert_many/stream/notify (PAR-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 11-03-PLAN.md — async add_primary_key/add_foreign_key/add_unique_constraint/truncate_table (PAR-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 11-04-PLAN.md — async drop_extension/database_exists/list_databases/create/create_from_env (PAR-02)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 11-05-PLAN.md — C1 primary_key applied + C2 close() dispose + signature alignment (PAR-04/05/07)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 11-06-PLAN.md — test_parity integration assertions + allow-lists + per-method tests (PAR-08)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 11-07-PLAN.md — coverage gap-fill + ratchet flip 80→90 (PAR-09)
 
 ### Phase 12: Refactoring — brancher les abstractions
