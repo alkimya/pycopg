@@ -95,7 +95,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 11-05-PLAN.md — C1 primary_key applied + C2 close() dispose + signature alignment (PAR-04/05/07)
+- [x] 11-05-PLAN.md — C1 primary_key applied + C2 close() dispose + signature alignment (PAR-04/05/07)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -188,7 +188,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | — Security Hotfix v0.3.1 | v0.3.1 | — | Shipped | 2026-06-06 |
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
-| 11. Parité sync/async complète | v0.4.0 | 4/7 | In Progress|  |
+| 11. Parité sync/async complète | v0.4.0 | 5/7 | In Progress|  |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/? | Pending (5 req) | — |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
