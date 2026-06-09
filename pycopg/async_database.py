@@ -223,12 +223,25 @@ class AsyncDatabase:
         finally:
             try:
                 if not autocommit:
+                    commit_exc = None
                     try:
                         await self._session_conn.commit()
+                    except Exception as e:
+                        commit_exc = e
+                        raise
                     finally:
                         # close() ALWAYS runs, even when commit() raises (B2 residual fix).
-                        # If commit raised, its exception propagates; close() does not mask it.
-                        await self._session_conn.close()
+                        try:
+                            await self._session_conn.close()
+                        except Exception as close_exc:
+                            if commit_exc is not None:
+                                # close failure is secondary; don't mask commit failure
+                                logger.warning(
+                                    "session close() failed after commit() failure: %s",
+                                    close_exc,
+                                )
+                            else:
+                                raise
                 else:
                     await self._session_conn.close()
             finally:
