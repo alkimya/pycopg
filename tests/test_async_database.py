@@ -10,7 +10,9 @@ from pycopg.utils import validate_identifier
 from pycopg.exceptions import InvalidIdentifier
 
 
-def create_async_cursor_mock(description=None, fetchall_result=None, fetchone_result=None, rowcount=1):
+def create_async_cursor_mock(
+    description=None, fetchall_result=None, fetchone_result=None, rowcount=1
+):
     """Helper to create a properly mocked async cursor."""
     mock_cursor = MagicMock()
     mock_cursor.description = description
@@ -140,7 +142,7 @@ class TestAsyncDatabaseExecute:
         """Test execute returns results for SELECT."""
         cursor_mock = create_async_cursor_mock(
             description=[("id",), ("name",)],
-            fetchall_result=[{"id": 1, "name": "Alice"}]
+            fetchall_result=[{"id": 1, "name": "Alice"}],
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -155,8 +157,7 @@ class TestAsyncDatabaseExecute:
     async def test_execute_with_params(self, config):
         """Test execute with parameters."""
         cursor_mock = create_async_cursor_mock(
-            description=[("id",)],
-            fetchall_result=[{"id": 1}]
+            description=[("id",)], fetchall_result=[{"id": 1}]
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -231,9 +232,7 @@ class TestAsyncDatabaseExecute:
 
     async def test_fetch_val(self, config):
         """Test fetch_val method."""
-        cursor_mock = create_async_cursor_mock(
-            fetchone_result={"count": 42}
-        )
+        cursor_mock = create_async_cursor_mock(fetchone_result={"count": 42})
         conn_mock = create_async_conn_mock(cursor_mock)
 
         with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
@@ -269,7 +268,7 @@ class TestAsyncDatabaseSchemas:
             fetchall_result=[
                 {"schema_name": "public"},
                 {"schema_name": "app"},
-            ]
+            ],
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -284,8 +283,7 @@ class TestAsyncDatabaseSchemas:
     async def test_schema_exists_true(self, config):
         """Test schema_exists returns True."""
         cursor_mock = create_async_cursor_mock(
-            description=[("exists",)],
-            fetchall_result=[{"exists": 1}]
+            description=[("exists",)], fetchall_result=[{"exists": 1}]
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -300,8 +298,7 @@ class TestAsyncDatabaseSchemas:
     async def test_schema_exists_false(self, config):
         """Test schema_exists returns False."""
         cursor_mock = create_async_cursor_mock(
-            description=[("exists",)],
-            fetchall_result=[]
+            description=[("exists",)], fetchall_result=[]
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -325,7 +322,7 @@ class TestAsyncDatabaseTables:
             fetchall_result=[
                 {"table_name": "users"},
                 {"table_name": "orders"},
-            ]
+            ],
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -340,8 +337,7 @@ class TestAsyncDatabaseTables:
     async def test_table_exists_true(self, config):
         """Test table_exists returns True."""
         cursor_mock = create_async_cursor_mock(
-            description=[("exists",)],
-            fetchall_result=[{"exists": 1}]
+            description=[("exists",)], fetchall_result=[{"exists": 1}]
         )
         conn_mock = create_async_conn_mock(cursor_mock)
 
@@ -367,10 +363,13 @@ class TestAsyncDatabaseBatch:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            result = await db.insert_many("users", [
-                {"name": "Alice", "email": "alice@example.com"},
-                {"name": "Bob", "email": "bob@example.com"},
-            ])
+            result = await db.insert_many(
+                "users",
+                [
+                    {"name": "Alice", "email": "alice@example.com"},
+                    {"name": "Bob", "email": "bob@example.com"},
+                ],
+            )
 
             assert result == 2
             cursor_mock.executemany.assert_called_once()
@@ -416,6 +415,7 @@ class TestAsyncDatabaseContextManager:
         db = AsyncDatabase(config)
         await db.close()  # Should not raise
 
+
 @pytest.mark.asyncio
 class TestAsyncDatabaseInspection:
     """Tests for table inspection methods."""
@@ -423,15 +423,17 @@ class TestAsyncDatabaseInspection:
     async def test_list_columns(self, config):
         """Test list_columns method."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"column_name": "id", "data_type": "integer"},
-            {"column_name": "name", "data_type": "text"}
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {"column_name": "id", "data_type": "integer"},
+                {"column_name": "name", "data_type": "text"},
+            ]
+        )
 
         cols = await db.list_columns("users")
-        
+
         assert cols == ["id", "name"]
-        
+
         # Verify call to execute
         call_args = db.execute.call_args
         assert "column_name" in call_args[0][0]
@@ -440,10 +442,12 @@ class TestAsyncDatabaseInspection:
     async def test_columns_with_types(self, config):
         """Test columns_with_types method."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"column_name": "id", "data_type": "integer"},
-            {"column_name": "name", "data_type": "text"}
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {"column_name": "id", "data_type": "integer"},
+                {"column_name": "name", "data_type": "text"},
+            ]
+        )
 
         cols = await db.columns_with_types("users")
 
@@ -461,7 +465,9 @@ class TestAsyncDatabaseRetry:
 
     @patch("pycopg.async_database.psycopg.AsyncConnection.connect")
     @patch("asyncio.sleep")  # Patch async sleep to avoid delays
-    async def test_async_connect_with_retry_retries_operational_error(self, mock_sleep, mock_connect, config):
+    async def test_async_connect_with_retry_retries_operational_error(
+        self, mock_sleep, mock_connect, config
+    ):
         """Test async _connect_with_retry retries OperationalError."""
         from pycopg.async_database import OperationalError
 
@@ -470,7 +476,7 @@ class TestAsyncDatabaseRetry:
         mock_connect.side_effect = [
             OperationalError("Connection refused"),
             OperationalError("Connection refused"),
-            mock_conn
+            mock_conn,
         ]
 
         db = AsyncDatabase(config)
@@ -480,7 +486,9 @@ class TestAsyncDatabaseRetry:
         assert mock_connect.call_count == 3
 
     @patch("pycopg.async_database.psycopg.AsyncConnection.connect")
-    async def test_async_connect_with_retry_does_not_retry_programming_error(self, mock_connect, config):
+    async def test_async_connect_with_retry_does_not_retry_programming_error(
+        self, mock_connect, config
+    ):
         """Test async _connect_with_retry does NOT retry ProgrammingError."""
         from psycopg import ProgrammingError
 
@@ -495,7 +503,9 @@ class TestAsyncDatabaseRetry:
 
     @patch("pycopg.async_database.psycopg.AsyncConnection.connect")
     @patch("asyncio.sleep")
-    async def test_async_connect_with_retry_reraises_after_max_attempts(self, mock_sleep, mock_connect, config):
+    async def test_async_connect_with_retry_reraises_after_max_attempts(
+        self, mock_sleep, mock_connect, config
+    ):
         """Test async _connect_with_retry reraises after 3 attempts."""
         from pycopg.async_database import OperationalError
 
@@ -513,6 +523,7 @@ class TestAsyncDatabaseRetry:
         """Test async insert_batch uses config.default_batch_size when batch_size=None."""
         # Use inspect to verify batch_size default is None
         import inspect
+
         sig = inspect.signature(AsyncDatabase.insert_batch)
         param = sig.parameters["batch_size"]
         assert param.default is None
@@ -554,7 +565,9 @@ class TestAsyncDatabaseEngine:
 
             engine = db.async_engine
 
-            mock_create.assert_called_once_with(config.url)
+            # PAR-06 / C3: async engine must use the async driver URL, not the
+            # sync config.url (which uses +psycopg, the sync driver).
+            mock_create.assert_called_once_with(config.async_url)
             assert engine == mock_engine
 
     def test_async_engine_cached(self, config):
@@ -603,7 +616,9 @@ class TestAsyncDatabaseDataFrame:
         db._async_engine = mock_engine
 
         with patch("pandas.read_sql", return_value=expected_df):
-            result = await db.to_dataframe(sql="SELECT * FROM users WHERE id = :id", params={"id": 1})
+            result = await db.to_dataframe(
+                sql="SELECT * FROM users WHERE id = :id", params={"id": 1}
+            )
 
             assert isinstance(result, pd.DataFrame)
 
@@ -667,8 +682,7 @@ class TestAsyncDatabaseGeoDataFrame:
 
         mock_engine, mock_sync_conn = create_async_engine_mock()
         expected_gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs="EPSG:4326"
+            {"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326"
         )
 
         db = AsyncDatabase(config)
@@ -687,15 +701,16 @@ class TestAsyncDatabaseGeoDataFrame:
 
         mock_engine, mock_sync_conn = create_async_engine_mock()
         expected_gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs="EPSG:4326"
+            {"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326"
         )
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
 
         with patch("geopandas.read_postgis", return_value=expected_gdf):
-            result = await db.to_geodataframe(sql="SELECT * FROM parcels WHERE area > 100")
+            result = await db.to_geodataframe(
+                sql="SELECT * FROM parcels WHERE area > 100"
+            )
 
             assert isinstance(result, gpd.GeoDataFrame)
 
@@ -716,10 +731,7 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
-        gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs="EPSG:4326"
-        )
+        gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
@@ -735,8 +747,7 @@ class TestAsyncDatabaseGeoDataFrame:
         from shapely.geometry import Point
 
         gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs=None  # No CRS
+            {"id": [1], "geometry": [Point(0, 0)]}, crs=None  # No CRS
         )
 
         db = AsyncDatabase(config)
@@ -750,12 +761,9 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
-        gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs="EPSG:4326"
-        )
+        gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
         # Mock CRS.to_epsg() returning None (unknown EPSG)
-        with patch.object(type(gdf), 'crs', new_callable=PropertyMock) as mock_crs_prop:
+        with patch.object(type(gdf), "crs", new_callable=PropertyMock) as mock_crs_prop:
             mock_crs = MagicMock()
             mock_crs.to_epsg.return_value = None
             mock_crs_prop.return_value = mock_crs
@@ -774,7 +782,7 @@ class TestAsyncDatabaseGeoDataFrame:
         mock_engine, mock_sync_conn = create_async_engine_mock()
         gdf = gpd.GeoDataFrame(
             {"id": [1], "geometry": [Point(0, 0)]},
-            crs=None  # No CRS, but explicit srid should be fine
+            crs=None,  # No CRS, but explicit srid should be fine
         )
 
         db = AsyncDatabase(config)
@@ -793,10 +801,7 @@ class TestAsyncDatabaseGeoDataFrame:
         from shapely.geometry import Point
 
         mock_engine, mock_sync_conn = create_async_engine_mock()
-        gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs="EPSG:4326"
-        )
+        gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
@@ -817,10 +822,7 @@ class TestAsyncDatabaseGeoDataFrame:
         from shapely.geometry import Point
 
         mock_engine, mock_sync_conn = create_async_engine_mock()
-        gdf = gpd.GeoDataFrame(
-            {"id": [1], "geometry": [Point(0, 0)]},
-            crs="EPSG:4326"
-        )
+        gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
@@ -832,7 +834,9 @@ class TestAsyncDatabaseGeoDataFrame:
 
             mock_to_postgis.assert_called_once()
             # Verify create_spatial_index was called
-            db.create_spatial_index.assert_called_once_with("parcels", "geometry", "public")
+            db.create_spatial_index.assert_called_once_with(
+                "parcels", "geometry", "public"
+            )
 
 
 @pytest.mark.asyncio
@@ -899,10 +903,20 @@ class TestAsyncDatabaseDDL:
     async def test_list_indexes(self, config):
         """Test list_indexes returns index information."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"index_name": "idx_users_email", "index_type": "btree", "index_def": "CREATE INDEX..."},
-            {"index_name": "users_pkey", "index_type": "btree", "index_def": "CREATE UNIQUE INDEX..."}
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {
+                    "index_name": "idx_users_email",
+                    "index_type": "btree",
+                    "index_def": "CREATE INDEX...",
+                },
+                {
+                    "index_name": "users_pkey",
+                    "index_type": "btree",
+                    "index_def": "CREATE UNIQUE INDEX...",
+                },
+            ]
+        )
 
         indexes = await db.list_indexes("users")
 
@@ -917,10 +931,20 @@ class TestAsyncDatabaseDDL:
     async def test_list_constraints(self, config):
         """Test list_constraints returns constraint information."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"constraint_name": "users_pkey", "constraint_type": "p", "constraint_def": "PRIMARY KEY (id)"},
-            {"constraint_name": "users_email_key", "constraint_type": "u", "constraint_def": "UNIQUE (email)"}
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {
+                    "constraint_name": "users_pkey",
+                    "constraint_type": "p",
+                    "constraint_def": "PRIMARY KEY (id)",
+                },
+                {
+                    "constraint_name": "users_email_key",
+                    "constraint_type": "u",
+                    "constraint_def": "UNIQUE (email)",
+                },
+            ]
+        )
 
         constraints = await db.list_constraints("users")
 
@@ -957,20 +981,22 @@ class TestAsyncDatabaseDDL:
     async def test_table_sizes(self, config):
         """Test table_sizes returns size information."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {
-                "table_name": "users",
-                "total_size": "128 MB",
-                "data_size": "100 MB",
-                "index_size": "28 MB"
-            },
-            {
-                "table_name": "logs",
-                "total_size": "64 MB",
-                "data_size": "50 MB",
-                "index_size": "14 MB"
-            }
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {
+                    "table_name": "users",
+                    "total_size": "128 MB",
+                    "data_size": "100 MB",
+                    "index_size": "28 MB",
+                },
+                {
+                    "table_name": "logs",
+                    "total_size": "64 MB",
+                    "data_size": "50 MB",
+                    "index_size": "14 MB",
+                },
+            ]
+        )
 
         sizes = await db.table_sizes("public", limit=10)
 
@@ -1189,11 +1215,15 @@ class TestAsyncDatabaseMaintenance:
     async def test_explain_analyze(self, config):
         """Test explain with analyze."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"QUERY PLAN": "Seq Scan on users (cost=0.00..10.00 rows=100 width=32)"},
-            {"QUERY PLAN": "Planning Time: 0.1ms"},
-            {"QUERY PLAN": "Execution Time: 1.2ms"}
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {
+                    "QUERY PLAN": "Seq Scan on users (cost=0.00..10.00 rows=100 width=32)"
+                },
+                {"QUERY PLAN": "Planning Time: 0.1ms"},
+                {"QUERY PLAN": "Execution Time: 1.2ms"},
+            ]
+        )
 
         result = await db.explain("SELECT * FROM users", analyze=True)
 
@@ -1274,7 +1304,9 @@ class TestAsyncDatabaseBackup:
         """Test pg_dump failure."""
         mock_proc = MagicMock()
         mock_proc.returncode = 1
-        mock_proc.communicate = AsyncMock(return_value=(b"", b"pg_dump: error: database connection failed"))
+        mock_proc.communicate = AsyncMock(
+            return_value=(b"", b"pg_dump: error: database connection failed")
+        )
         mock_subprocess.return_value = mock_proc
 
         db = AsyncDatabase(config)
@@ -1310,7 +1342,9 @@ class TestAsyncDatabaseBackup:
         db = AsyncDatabase(config)
         # Create a Path object that appears to exist and is not .sql
         with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"):
+            with patch(
+                "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
+            ):
                 await db.pg_restore("/tmp/backup.dump")
 
         call_args = mock_subprocess.call_args
@@ -1330,7 +1364,9 @@ class TestAsyncDatabaseBackup:
 
         db = AsyncDatabase(config)
         with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"):
+            with patch(
+                "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
+            ):
                 await db.pg_restore("/tmp/backup.dump", clean=True, if_exists=True)
 
         call_args = mock_subprocess.call_args
@@ -1353,12 +1389,16 @@ class TestAsyncDatabaseBackup:
         """Test pg_restore failure."""
         mock_proc = MagicMock()
         mock_proc.returncode = 1
-        mock_proc.communicate = AsyncMock(return_value=(b"", b"pg_restore: error: invalid format"))
+        mock_proc.communicate = AsyncMock(
+            return_value=(b"", b"pg_restore: error: invalid format")
+        )
         mock_subprocess.return_value = mock_proc
 
         db = AsyncDatabase(config)
         with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"):
+            with patch(
+                "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
+            ):
                 with pytest.raises(RuntimeError, match="pg_restore failed"):
                     await db.pg_restore("/tmp/backup.dump")
 
@@ -1372,6 +1412,7 @@ class TestAsyncDatabaseBackup:
 
         db = AsyncDatabase(config)
         from pathlib import Path
+
         await db._psql_restore(Path("/tmp/backup.sql"))
 
         call_args = mock_subprocess.call_args
@@ -1399,6 +1440,7 @@ class TestAsyncDatabaseCSV:
                     yield b"id,name,email\n"
                     yield b"1,Alice,alice@example.com\n"
                     yield b"2,Bob,bob@example.com\n"
+
             yield CopyIter()
 
         mock_cursor.copy = MagicMock(side_effect=copy_cm)
@@ -1435,6 +1477,7 @@ class TestAsyncDatabaseCSV:
             class CopyIter:
                 async def __aiter__(self):
                     yield b"id,name\n1,Alice\n"
+
             yield CopyIter()
 
         mock_cursor.copy = MagicMock(side_effect=copy_cm)
@@ -1451,7 +1494,9 @@ class TestAsyncDatabaseCSV:
             mock_to_thread.side_effect = lambda f, *args, **kwargs: f(*args, **kwargs)
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.open", MagicMock()):
-                    await db.copy_to_csv("users", "/tmp/users.csv", columns=["id", "name"])
+                    await db.copy_to_csv(
+                        "users", "/tmp/users.csv", columns=["id", "name"]
+                    )
 
         copy_call = mock_cursor.copy.call_args
         sql = copy_call[0][0]
@@ -1474,6 +1519,7 @@ class TestAsyncDatabaseCSV:
             class CopyWriter:
                 async def write(self, data):
                     pass
+
             yield CopyWriter()
 
         mock_cursor.copy = MagicMock(side_effect=copy_cm)
@@ -1488,11 +1534,15 @@ class TestAsyncDatabaseCSV:
         # Mock file operations
         csv_data = "id,name,email\n1,Alice,alice@example.com\n2,Bob,bob@example.com\n"
         mock_file = MagicMock()
-        mock_file.read.side_effect = [csv_data, ""]  # Return data then empty to signal EOF
+        mock_file.read.side_effect = [
+            csv_data,
+            "",
+        ]  # Return data then empty to signal EOF
 
         with patch("asyncio.to_thread") as mock_to_thread:
             # First call opens file, second+ calls read data
             call_count = 0
+
             def to_thread_side_effect(f, *args, **kwargs):
                 nonlocal call_count
                 call_count += 1
@@ -1502,6 +1552,7 @@ class TestAsyncDatabaseCSV:
                     return mock_file.read(*args, **kwargs)
                 else:  # close
                     return None
+
             mock_to_thread.side_effect = to_thread_side_effect
 
             count = await db.copy_from_csv("users", "/tmp/users.csv")
@@ -1522,6 +1573,7 @@ class TestAsyncDatabaseCSV:
             class CopyWriter:
                 async def write(self, data):
                     pass
+
             yield CopyWriter()
 
         mock_cursor.copy = MagicMock(side_effect=copy_cm)
@@ -1538,6 +1590,7 @@ class TestAsyncDatabaseCSV:
 
         with patch("asyncio.to_thread") as mock_to_thread:
             call_count = 0
+
             def to_thread_side_effect(f, *args, **kwargs):
                 nonlocal call_count
                 call_count += 1
@@ -1547,6 +1600,7 @@ class TestAsyncDatabaseCSV:
                     return mock_file.read(*args, **kwargs)
                 else:
                     return None
+
             mock_to_thread.side_effect = to_thread_side_effect
 
             await db.copy_from_csv("users", "/tmp/users.csv", columns=["id", "name"])
@@ -1634,7 +1688,7 @@ class TestAsyncDatabaseRoles:
             createdb=True,
             createrole=True,
             connection_limit=10,
-            replication=True
+            replication=True,
         )
 
         db.execute.assert_called_once()
@@ -2029,10 +2083,9 @@ class TestAsyncDatabaseRoleInspection:
     async def test_list_role_members(self, config):
         """Test list_role_members returns member names."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"member": "analyst"},
-            {"member": "viewer"}
-        ])
+        db.execute = AsyncMock(
+            return_value=[{"member": "analyst"}, {"member": "viewer"}]
+        )
 
         result = await db.list_role_members("readonly")
 
@@ -2056,10 +2109,12 @@ class TestAsyncDatabaseRoleInspection:
     async def test_list_role_grants(self, config):
         """Test list_role_grants returns grant info."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {"schema": "public", "object_name": "users", "privilege": "SELECT"},
-            {"schema": "public", "object_name": "orders", "privilege": "INSERT"}
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {"schema": "public", "object_name": "users", "privilege": "SELECT"},
+                {"schema": "public", "object_name": "orders", "privilege": "INSERT"},
+            ]
+        )
 
         result = await db.list_role_grants("appuser")
 
@@ -2125,16 +2180,18 @@ class TestAsyncDatabasePostGIS:
     async def test_list_geometry_columns_all(self, config):
         """Test list_geometry_columns without schema filter."""
         db = AsyncDatabase(config)
-        db.execute = AsyncMock(return_value=[
-            {
-                "schema": "public",
-                "table_name": "parcels",
-                "column_name": "geom",
-                "dimensions": 2,
-                "srid": 4326,
-                "geometry_type": "POLYGON"
-            }
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {
+                    "schema": "public",
+                    "table_name": "parcels",
+                    "column_name": "geom",
+                    "dimensions": 2,
+                    "srid": 4326,
+                    "geometry_type": "POLYGON",
+                }
+            ]
+        )
 
         result = await db.list_geometry_columns()
 
@@ -2285,15 +2342,17 @@ class TestAsyncDatabaseTimescaleDB:
         """Test list_hypertables returns hypertable info."""
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=True)
-        db.execute = AsyncMock(return_value=[
-            {
-                "schema": "public",
-                "table_name": "events",
-                "num_dimensions": 1,
-                "num_chunks": 10,
-                "compression_enabled": True
-            }
-        ])
+        db.execute = AsyncMock(
+            return_value=[
+                {
+                    "schema": "public",
+                    "table_name": "events",
+                    "num_dimensions": 1,
+                    "num_chunks": 10,
+                    "compression_enabled": True,
+                }
+            ]
+        )
 
         result = await db.list_hypertables()
 
@@ -2316,12 +2375,9 @@ class TestAsyncDatabaseTimescaleDB:
         """Test hypertable_info returns size info."""
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=True)
-        db.execute = AsyncMock(return_value=[
-            {
-                "total_size": "100 MB",
-                "detailed_size": "detailed info"
-            }
-        ])
+        db.execute = AsyncMock(
+            return_value=[{"total_size": "100 MB", "detailed_size": "detailed info"}]
+        )
 
         result = await db.hypertable_info("events")
 
@@ -2338,3 +2394,112 @@ class TestAsyncDatabaseTimescaleDB:
 
         with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
             await db.hypertable_info("events")
+
+
+class TestAsyncDatabaseConstraintsIntegration:
+    """PAR-01: async mirrors of sync constraint/admin DDL, against the real DB."""
+
+    @staticmethod
+    def _tname():
+        import uuid
+
+        return f"test_async_{uuid.uuid4().hex[:8]}"
+
+    async def test_add_primary_key_applies_constraint(self, db_config):
+        """add_primary_key adds a real PK visible in the constraint catalog."""
+        db = AsyncDatabase(db_config)
+        t = self._tname()
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER, name TEXT)', autocommit=True
+            )
+            await db.add_primary_key(t, "id")
+            rows = await db.execute(
+                "SELECT 1 FROM information_schema.table_constraints "
+                "WHERE table_name = %s AND constraint_type = 'PRIMARY KEY'",
+                [t],
+            )
+            assert len(rows) == 1
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_add_primary_key_signature_matches_sync(self, db_config):
+        """add_primary_key signature params match the sync twin."""
+        import inspect
+
+        from pycopg import Database
+
+        async_params = list(inspect.signature(AsyncDatabase.add_primary_key).parameters)
+        sync_params = list(inspect.signature(Database.add_primary_key).parameters)
+        assert (
+            async_params
+            == sync_params
+            == ["self", "table", "columns", "schema", "name"]
+        )
+
+    async def test_add_unique_constraint_rejects_duplicate(self, db_config):
+        """add_unique_constraint enforces uniqueness (duplicate insert raises)."""
+        db = AsyncDatabase(db_config)
+        t = self._tname()
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER, email TEXT)', autocommit=True
+            )
+            await db.add_unique_constraint(t, "email")
+            await db.execute(
+                f'INSERT INTO "{t}" VALUES (1, %s)', ["a@x.com"], autocommit=True
+            )
+            with pytest.raises(Exception):
+                await db.execute(
+                    f'INSERT INTO "{t}" VALUES (2, %s)', ["a@x.com"], autocommit=True
+                )
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_add_foreign_key_cascades_on_delete(self, db_config):
+        """add_foreign_key creates an FK that cascades deletes."""
+        db = AsyncDatabase(db_config)
+        parent = self._tname()
+        child = self._tname()
+        try:
+            await db.execute(
+                f'CREATE TABLE "{parent}" (id INTEGER PRIMARY KEY)', autocommit=True
+            )
+            await db.execute(
+                f'CREATE TABLE "{child}" (id INTEGER PRIMARY KEY, parent_id INTEGER)',
+                autocommit=True,
+            )
+            await db.add_foreign_key(
+                child, "parent_id", parent, "id", on_delete="CASCADE"
+            )
+            await db.execute(f'INSERT INTO "{parent}" VALUES (1)', autocommit=True)
+            await db.execute(f'INSERT INTO "{child}" VALUES (10, 1)', autocommit=True)
+            await db.execute(f'DELETE FROM "{parent}" WHERE id = 1', autocommit=True)
+            rows = await db.execute(f'SELECT * FROM "{child}"')
+            assert rows == []
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{child}" CASCADE', autocommit=True)
+            await db.execute(
+                f'DROP TABLE IF EXISTS "{parent}" CASCADE', autocommit=True
+            )
+
+    async def test_add_foreign_key_invalid_action_raises_before_sql(self, db_config):
+        """add_foreign_key with a bad on_delete raises ValueError and runs no SQL."""
+        db = AsyncDatabase(db_config)
+        with pytest.raises(ValueError, match="Invalid ON DELETE"):
+            await db.add_foreign_key(
+                "orders", "user_id", "users", "id", on_delete="BOGUS"
+            )
+
+    async def test_truncate_table_removes_all_rows(self, db_config):
+        """truncate_table leaves 0 rows on a populated table."""
+        db = AsyncDatabase(db_config)
+        t = self._tname()
+        try:
+            await db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
+            await db.execute(f'INSERT INTO "{t}" VALUES (1), (2), (3)', autocommit=True)
+            await db.truncate_table(t)
+            rows = await db.execute(f'SELECT COUNT(*) AS n FROM "{t}"')
+            assert rows[0]["n"] == 0
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)

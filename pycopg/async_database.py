@@ -85,6 +85,7 @@ class AsyncDatabase:
         """Get or create async SQLAlchemy engine (lazy initialization)."""
         if self._async_engine is None:
             from sqlalchemy.ext.asyncio import create_async_engine
+
             self._async_engine = create_async_engine(self.config.async_url)
         return self._async_engine
 
@@ -212,11 +213,12 @@ class AsyncDatabase:
                     await session.insert_batch(table, data[table])
         """
         if self._session_conn is not None:
-            raise RuntimeError("Already in session mode. Nested sessions are not supported.")
+            raise RuntimeError(
+                "Already in session mode. Nested sessions are not supported."
+            )
 
         self._session_conn = await psycopg.AsyncConnection.connect(
-            **self.config.connect_params(),
-            autocommit=autocommit
+            **self.config.connect_params(), autocommit=autocommit
         )
         try:
             yield self
@@ -377,7 +379,7 @@ class AsyncDatabase:
         total = 0
         async with self.cursor() as cur:
             for i in range(0, len(rows), batch_size):
-                batch = rows[i:i + batch_size]
+                batch = rows[i : i + batch_size]
 
                 placeholders = []
                 params = []
@@ -434,7 +436,9 @@ class AsyncDatabase:
 
         async with self.connect() as conn:
             async with conn.cursor() as cur:
-                async with cur.copy(f"COPY {schema}.{table} ({cols_str}) FROM STDIN") as copy:
+                async with cur.copy(
+                    f"COPY {schema}.{table} ({cols_str}) FROM STDIN"
+                ) as copy:
                     for row in rows:
                         await copy.write_row([row.get(col) for col in columns])
             await conn.commit()
@@ -505,13 +509,16 @@ class AsyncDatabase:
 
     async def list_tables(self, schema: str = "public") -> list[str]:
         """List tables in a schema."""
-        result = await self.execute("""
+        result = await self.execute(
+            """
             SELECT table_name
             FROM information_schema.tables
             WHERE table_schema = %s
             AND table_type = 'BASE TABLE'
             ORDER BY table_name
-        """, [schema])
+        """,
+            [schema],
+        )
         return [r["table_name"] for r in result]
 
     async def table_exists(self, name: str, schema: str = "public") -> bool:
@@ -532,7 +539,9 @@ class AsyncDatabase:
         result = await self.execute(queries.GET_COLUMNS, [schema, table])
         return [row["column_name"] for row in result]
 
-    async def columns_with_types(self, table: str, schema: str = "public") -> list[tuple[str, str]]:
+    async def columns_with_types(
+        self, table: str, schema: str = "public"
+    ) -> list[tuple[str, str]]:
         """Get list of (column_name, data_type) tuples for a table.
 
         Args:
@@ -556,7 +565,8 @@ class AsyncDatabase:
             List of column info dicts with:
             - column_name, data_type, is_nullable, column_default, ordinal_position
         """
-        return await self.execute("""
+        return await self.execute(
+            """
             SELECT
                 column_name,
                 data_type,
@@ -569,19 +579,26 @@ class AsyncDatabase:
             FROM information_schema.columns
             WHERE table_schema = %s AND table_name = %s
             ORDER BY ordinal_position
-        """, [schema, name])
+        """,
+            [schema, name],
+        )
 
     async def row_count(self, name: str, schema: str = "public") -> int:
         """Get approximate row count for a table."""
-        result = await self.execute("""
+        result = await self.execute(
+            """
             SELECT reltuples::bigint AS count
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = %s AND c.relname = %s
-        """, [schema, name])
+        """,
+            [schema, name],
+        )
         return result[0]["count"] if result else 0
 
-    async def drop_schema(self, name: str, if_exists: bool = True, cascade: bool = False) -> None:
+    async def drop_schema(
+        self, name: str, if_exists: bool = True, cascade: bool = False
+    ) -> None:
         """Drop a schema.
 
         Args:
@@ -598,7 +615,13 @@ class AsyncDatabase:
         cascade_clause = " CASCADE" if cascade else ""
         await self.execute(f"DROP SCHEMA {if_clause}{name}{cascade_clause}")
 
-    async def drop_table(self, name: str, schema: str = "public", if_exists: bool = True, cascade: bool = False) -> None:
+    async def drop_table(
+        self,
+        name: str,
+        schema: str = "public",
+        if_exists: bool = True,
+        cascade: bool = False,
+    ) -> None:
         """Drop a table.
 
         Args:
@@ -615,6 +638,149 @@ class AsyncDatabase:
         if_clause = "IF EXISTS " if if_exists else ""
         cascade_clause = " CASCADE" if cascade else ""
         await self.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
+
+    async def truncate_table(
+        self, name: str, schema: str = "public", cascade: bool = False
+    ) -> None:
+        """Truncate a table (delete all rows).
+
+        Args:
+            name: Table name.
+            schema: Schema name.
+            cascade: Truncate dependent tables.
+        """
+        validate_identifiers(name, schema)
+        cascade_clause = " CASCADE" if cascade else ""
+        await self.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
+
+    # =========================================================================
+    # CONSTRAINTS & INDEXES
+    # =========================================================================
+
+    async def add_primary_key(
+        self,
+        table: str,
+        columns: str | list[str],
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
+        """Add primary key constraint to a table.
+
+        Args:
+            table: Table name.
+            columns: Column name or list of column names.
+            schema: Schema name.
+            name: Optional constraint name.
+
+        Example:
+            await db.add_primary_key("users", "id")
+            await db.add_primary_key("order_items", ["order_id", "product_id"])
+        """
+        if isinstance(columns, str):
+            columns = [columns]
+        validate_identifiers(table, schema, *columns)
+        if name:
+            validate_identifier(name)
+
+        cols_str = ", ".join(columns)
+        constraint_name = name or f"{table}_pkey"
+        await self.execute(
+            f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({cols_str})"
+        )
+
+    async def add_foreign_key(
+        self,
+        table: str,
+        columns: str | list[str],
+        ref_table: str,
+        ref_columns: str | list[str],
+        schema: str = "public",
+        ref_schema: str = "public",
+        name: str | None = None,
+        on_delete: str = "NO ACTION",
+        on_update: str = "NO ACTION",
+    ) -> None:
+        """Add foreign key constraint.
+
+        Args:
+            table: Source table name.
+            columns: Source column(s).
+            ref_table: Referenced table name.
+            ref_columns: Referenced column(s).
+            schema: Source table schema.
+            ref_schema: Referenced table schema.
+            name: Optional constraint name.
+            on_delete: ON DELETE action (CASCADE, SET NULL, NO ACTION, etc.)
+            on_update: ON UPDATE action.
+
+        Example:
+            await db.add_foreign_key("orders", "user_id", "users", "id", on_delete="CASCADE")
+        """
+        if isinstance(columns, str):
+            columns = [columns]
+        if isinstance(ref_columns, str):
+            ref_columns = [ref_columns]
+
+        # Validate all identifiers
+        validate_identifiers(
+            table, schema, ref_table, ref_schema, *columns, *ref_columns
+        )
+        if name:
+            validate_identifier(name)
+
+        # Validate ON DELETE/UPDATE actions
+        valid_actions = {"NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"}
+        if on_delete.upper() not in valid_actions:
+            raise ValueError(
+                f"Invalid ON DELETE action: {on_delete}. Must be one of: {valid_actions}"
+            )
+        if on_update.upper() not in valid_actions:
+            raise ValueError(
+                f"Invalid ON UPDATE action: {on_update}. Must be one of: {valid_actions}"
+            )
+
+        cols_str = ", ".join(columns)
+        ref_cols_str = ", ".join(ref_columns)
+        constraint_name = name or f"{table}_{columns[0]}_fkey"
+
+        await self.execute(f"""
+            ALTER TABLE {schema}.{table}
+            ADD CONSTRAINT {constraint_name}
+            FOREIGN KEY ({cols_str})
+            REFERENCES {ref_schema}.{ref_table} ({ref_cols_str})
+            ON DELETE {on_delete}
+            ON UPDATE {on_update}
+        """)
+
+    async def add_unique_constraint(
+        self,
+        table: str,
+        columns: str | list[str],
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
+        """Add unique constraint.
+
+        Args:
+            table: Table name.
+            columns: Column(s) to make unique.
+            schema: Schema name.
+            name: Optional constraint name.
+
+        Example:
+            await db.add_unique_constraint("users", "email")
+            await db.add_unique_constraint("products", ["category", "sku"])
+        """
+        if isinstance(columns, str):
+            columns = [columns]
+        validate_identifiers(table, schema, *columns)
+        if name:
+            validate_identifier(name)
+        cols_str = ", ".join(columns)
+        constraint_name = name or f"{table}_{'_'.join(columns)}_key"
+        await self.execute(
+            f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} UNIQUE ({cols_str})"
+        )
 
     async def create_index(
         self,
@@ -659,7 +825,9 @@ class AsyncDatabase:
             ON {schema}.{table} USING {method} ({cols_str})
         """)
 
-    async def drop_index(self, name: str, schema: str = "public", if_exists: bool = True) -> None:
+    async def drop_index(
+        self, name: str, schema: str = "public", if_exists: bool = True
+    ) -> None:
         """Drop an index.
 
         Args:
@@ -689,7 +857,8 @@ class AsyncDatabase:
             for idx in indexes:
                 print(f"{idx['index_name']}: {idx['index_type']}")
         """
-        return await self.execute("""
+        return await self.execute(
+            """
             SELECT
                 i.relname AS index_name,
                 am.amname AS index_type,
@@ -701,7 +870,9 @@ class AsyncDatabase:
             JOIN pg_am am ON am.oid = i.relam
             WHERE n.nspname = %s AND t.relname = %s
             ORDER BY i.relname
-        """, [schema, table])
+        """,
+            [schema, table],
+        )
 
     async def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
         """List constraints on a table.
@@ -718,7 +889,8 @@ class AsyncDatabase:
             for c in constraints:
                 print(f"{c['constraint_name']}: {c['constraint_type']}")
         """
-        return await self.execute("""
+        return await self.execute(
+            """
             SELECT
                 c.conname AS constraint_name,
                 c.contype AS constraint_type,
@@ -728,7 +900,9 @@ class AsyncDatabase:
             JOIN pg_namespace n ON n.oid = t.relnamespace
             WHERE n.nspname = %s AND t.relname = %s
             ORDER BY c.conname
-        """, [schema, table])
+        """,
+            [schema, table],
+        )
 
     # =========================================================================
     # EXTENSIONS
@@ -736,7 +910,9 @@ class AsyncDatabase:
 
     async def has_extension(self, name: str) -> bool:
         """Check if an extension is installed."""
-        result = await self.execute("SELECT 1 FROM pg_extension WHERE extname = %s", [name])
+        result = await self.execute(
+            "SELECT 1 FROM pg_extension WHERE extname = %s", [name]
+        )
         return len(result) > 0
 
     async def create_extension(self, name: str, if_not_exists: bool = True) -> None:
@@ -758,7 +934,13 @@ class AsyncDatabase:
     # POSTGIS SPATIAL OPERATIONS
     # =========================================================================
 
-    async def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: str | None = None) -> None:
+    async def create_spatial_index(
+        self,
+        table: str,
+        column: str = "geometry",
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
         """Create a GIST spatial index on a geometry column.
 
         Args:
@@ -790,7 +972,8 @@ class AsyncDatabase:
         """
         where_clause = "WHERE f_table_schema = %s" if schema else ""
         params = [schema] if schema else None
-        return await self.execute(f"""
+        return await self.execute(
+            f"""
             SELECT
                 f_table_schema AS schema,
                 f_table_name AS table_name,
@@ -801,7 +984,9 @@ class AsyncDatabase:
             FROM geometry_columns
             {where_clause}
             ORDER BY f_table_schema, f_table_name
-        """, params)
+        """,
+            params,
+        )
 
     # =========================================================================
     # TIMESCALEDB OPERATIONS
@@ -832,7 +1017,9 @@ class AsyncDatabase:
             await db.create_hypertable("events", "created_at", chunk_time_interval="1 week")
         """
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError("TimescaleDB extension not installed. Run db.create_extension('timescaledb')")
+            raise RuntimeError(
+                "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
+            )
 
         validate_identifiers(table, schema, time_column)
         validate_interval(chunk_time_interval)
@@ -881,7 +1068,9 @@ class AsyncDatabase:
                 # Extract column name (may have DESC/ASC suffix)
                 col_name = col.split()[0]
                 validate_identifier(col_name)
-            settings.append(f"timescaledb.compress_segmentby = '{','.join(segment_by)}'")
+            settings.append(
+                f"timescaledb.compress_segmentby = '{','.join(segment_by)}'"
+            )
         if order_by:
             if isinstance(order_by, str):
                 order_by = [order_by]
@@ -993,11 +1182,14 @@ class AsyncDatabase:
                 "Run db.create_extension('timescaledb')"
             )
 
-        result = await self.execute("""
+        result = await self.execute(
+            """
             SELECT
                 hypertable_size(format('%I.%I', %s, %s)) AS total_size,
                 hypertable_detailed_size(format('%I.%I', %s, %s)) AS detailed_size
-        """, [schema, table, schema, table])
+        """,
+            [schema, table, schema, table],
+        )
         return result[0] if result else {}
 
     # =========================================================================
@@ -1112,7 +1304,9 @@ class AsyncDatabase:
             async with self.cursor(autocommit=True) as cur:
                 await cur.execute(f"CREATE ROLE {name} WITH {options_str}", [password])
         else:
-            await self.execute(f"CREATE ROLE {name} WITH {options_str}", autocommit=True)
+            await self.execute(
+                f"CREATE ROLE {name} WITH {options_str}", autocommit=True
+            )
 
         # Add to roles
         if in_roles:
@@ -1167,7 +1361,9 @@ class AsyncDatabase:
 
         if rename_to:
             validate_identifier(rename_to)
-            await self.execute(f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True)
+            await self.execute(
+                f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True
+            )
             return
 
         options = []
@@ -1193,7 +1389,9 @@ class AsyncDatabase:
         if options:
             options_str = " ".join(options)
             async with self.cursor(autocommit=True) as cur:
-                await cur.execute(f"ALTER ROLE {name} WITH {options_str}", params if params else None)
+                await cur.execute(
+                    f"ALTER ROLE {name} WITH {options_str}", params if params else None
+                )
 
     async def grant(
         self,
@@ -1241,16 +1439,28 @@ class AsyncDatabase:
 
         if object_type.upper() == "SCHEMA":
             validate_identifier(on)
-            await self.execute(f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}", autocommit=True)
+            await self.execute(
+                f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}",
+                autocommit=True,
+            )
         elif object_type.upper() == "DATABASE":
             validate_identifier(on)
-            await self.execute(f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}", autocommit=True)
+            await self.execute(
+                f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}",
+                autocommit=True,
+            )
         elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
             validate_identifier(schema)
-            await self.execute(f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}", autocommit=True)
+            await self.execute(
+                f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}",
+                autocommit=True,
+            )
         else:
             validate_identifiers(on, schema)
-            await self.execute(f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}", autocommit=True)
+            await self.execute(
+                f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}",
+                autocommit=True,
+            )
 
     async def revoke(
         self,
@@ -1286,18 +1496,32 @@ class AsyncDatabase:
 
         if object_type.upper() == "SCHEMA":
             validate_identifier(on)
-            await self.execute(f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}", autocommit=True)
+            await self.execute(
+                f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
         elif object_type.upper() == "DATABASE":
             validate_identifier(on)
-            await self.execute(f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}", autocommit=True)
+            await self.execute(
+                f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
         elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
             validate_identifier(schema)
-            await self.execute(f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}", autocommit=True)
+            await self.execute(
+                f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
         else:
             validate_identifiers(on, schema)
-            await self.execute(f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}", autocommit=True)
+            await self.execute(
+                f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
 
-    async def grant_role(self, role: str, member: str, with_admin: bool = False) -> None:
+    async def grant_role(
+        self, role: str, member: str, with_admin: bool = False
+    ) -> None:
         """Grant role membership to another role.
 
         Args:
@@ -1335,14 +1559,17 @@ class AsyncDatabase:
         Returns:
             List of member role names.
         """
-        result = await self.execute("""
+        result = await self.execute(
+            """
             SELECT m.rolname AS member
             FROM pg_auth_members am
             JOIN pg_roles r ON r.oid = am.roleid
             JOIN pg_roles m ON m.oid = am.member
             WHERE r.rolname = %s
             ORDER BY m.rolname
-        """, [role])
+        """,
+            [role],
+        )
         return [r["member"] for r in result]
 
     async def list_role_grants(self, role: str) -> list[dict]:
@@ -1354,7 +1581,8 @@ class AsyncDatabase:
         Returns:
             List of privilege info dicts.
         """
-        return await self.execute("""
+        return await self.execute(
+            """
             SELECT
                 table_schema AS schema,
                 table_name AS object_name,
@@ -1362,7 +1590,9 @@ class AsyncDatabase:
             FROM information_schema.role_table_grants
             WHERE grantee = %s
             ORDER BY table_schema, table_name, privilege_type
-        """, [role])
+        """,
+            [role],
+        )
 
     # =========================================================================
     # SIZE & STATS
@@ -1373,29 +1603,28 @@ class AsyncDatabase:
         if pretty:
             result = await self.execute(
                 "SELECT pg_size_pretty(pg_database_size(%s)) AS size",
-                [self.config.database]
+                [self.config.database],
             )
             return result[0]["size"]
         else:
             result = await self.execute(
-                "SELECT pg_database_size(%s) AS size",
-                [self.config.database]
+                "SELECT pg_database_size(%s) AS size", [self.config.database]
             )
             return result[0]["size"]
 
-    async def table_size(self, table: str, schema: str = "public", pretty: bool = True) -> str | int:
+    async def table_size(
+        self, table: str, schema: str = "public", pretty: bool = True
+    ) -> str | int:
         """Get table size including indexes."""
         full_name = f"{schema}.{table}"
         if pretty:
             result = await self.execute(
-                "SELECT pg_size_pretty(pg_total_relation_size(%s)) AS size",
-                [full_name]
+                "SELECT pg_size_pretty(pg_total_relation_size(%s)) AS size", [full_name]
             )
             return result[0]["size"]
         else:
             result = await self.execute(
-                "SELECT pg_total_relation_size(%s) AS size",
-                [full_name]
+                "SELECT pg_total_relation_size(%s) AS size", [full_name]
             )
             return result[0]["size"]
 
@@ -1415,7 +1644,8 @@ class AsyncDatabase:
                 print(f"{s['table_name']}: {s['total_size']}")
         """
         # Use %%I to escape the % for psycopg, format() will see %I
-        return await self.execute("""
+        return await self.execute(
+            """
             SELECT
                 t.tablename AS table_name,
                 pg_size_pretty(pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS total_size,
@@ -1425,7 +1655,9 @@ class AsyncDatabase:
             WHERE t.schemaname = %s
             ORDER BY pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename)) DESC
             LIMIT %s
-        """, [schema, limit])
+        """,
+            [schema, limit],
+        )
 
     # =========================================================================
     # DATAFRAME OPERATIONS
@@ -1513,6 +1745,7 @@ class AsyncDatabase:
 
         if primary_key and if_exists != "append":
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(
                 "primary_key parameter ignored — add_primary_key not yet available in AsyncDatabase. "
@@ -1636,6 +1869,7 @@ class AsyncDatabase:
 
         if primary_key and if_exists != "append":
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(
                 "primary_key parameter ignored — add_primary_key not yet available in AsyncDatabase. "
@@ -1778,7 +2012,9 @@ class AsyncDatabase:
     # DATABASE ADMINISTRATION
     # =========================================================================
 
-    async def create_database(self, name: str, owner: str | None = None, template: str = "template1") -> None:
+    async def create_database(
+        self, name: str, owner: str | None = None, template: str = "template1"
+    ) -> None:
         """Create a new database.
 
         Args:
@@ -1797,9 +2033,13 @@ class AsyncDatabase:
         owner_clause = f" OWNER {owner}" if owner else ""
         # Connect to postgres for database creation
         admin_config = self.config.with_database("postgres")
-        async with await psycopg.AsyncConnection.connect(**admin_config.connect_params(), autocommit=True) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            **admin_config.connect_params(), autocommit=True
+        ) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}")
+                await cur.execute(
+                    f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}"
+                )
 
     async def drop_database(self, name: str, if_exists: bool = True) -> None:
         """Drop a database.
@@ -1814,22 +2054,33 @@ class AsyncDatabase:
         validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
         admin_config = self.config.with_database("postgres")
-        async with await psycopg.AsyncConnection.connect(**admin_config.connect_params(), autocommit=True) as conn:
+        async with await psycopg.AsyncConnection.connect(
+            **admin_config.connect_params(), autocommit=True
+        ) as conn:
             async with conn.cursor() as cur:
                 # Terminate existing connections
-                await cur.execute("""
+                await cur.execute(
+                    """
                     SELECT pg_terminate_backend(pg_stat_activity.pid)
                     FROM pg_stat_activity
                     WHERE pg_stat_activity.datname = %s
                     AND pid <> pg_backend_pid()
-                """, [name])
+                """,
+                    [name],
+                )
                 await cur.execute(f"DROP DATABASE {if_clause}{name}")
 
     # =========================================================================
     # UTILITY
     # =========================================================================
 
-    async def vacuum(self, table: str | None = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
+    async def vacuum(
+        self,
+        table: str | None = None,
+        schema: str = "public",
+        analyze: bool = True,
+        full: bool = False,
+    ) -> None:
         """Vacuum database or table.
 
         Args:
@@ -1872,7 +2123,13 @@ class AsyncDatabase:
         table_str = f" {schema}.{table}" if table else ""
         await self.execute(f"ANALYZE{table_str}", autocommit=True)
 
-    async def explain(self, sql: str, params: Sequence | None = None, analyze: bool = False, format: str = "text") -> list[str]:
+    async def explain(
+        self,
+        sql: str,
+        params: Sequence | None = None,
+        analyze: bool = False,
+        format: str = "text",
+    ) -> list[str]:
         """Get query execution plan.
 
         Args:
@@ -1986,7 +2243,7 @@ class AsyncDatabase:
             *cmd,
             env=env,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
 
         stdout, stderr = await proc.communicate()
@@ -2089,7 +2346,7 @@ class AsyncDatabase:
             *cmd,
             env=env,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
 
         stdout, stderr = await proc.communicate()
@@ -2101,11 +2358,16 @@ class AsyncDatabase:
         """Restore from plain SQL file using psql."""
         cmd = [
             "psql",
-            "-h", self.config.host,
-            "-p", str(self.config.port),
-            "-U", self.config.user,
-            "-d", self.config.database,
-            "-f", str(sql_file),
+            "-h",
+            self.config.host,
+            "-p",
+            str(self.config.port),
+            "-U",
+            self.config.user,
+            "-d",
+            self.config.database,
+            "-f",
+            str(sql_file),
         ]
 
         env = {**os.environ}
@@ -2116,7 +2378,7 @@ class AsyncDatabase:
             *cmd,
             env=env,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
 
         stdout, stderr = await proc.communicate()
@@ -2179,17 +2441,27 @@ class AsyncDatabase:
         try:
             async with self.cursor() as cur:
                 # Open file and write data
-                file_handle = await asyncio.to_thread(open, output_file, "w", encoding=encoding)
+                file_handle = await asyncio.to_thread(
+                    open, output_file, "w", encoding=encoding
+                )
                 try:
-                    async with cur.copy(f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})") as copy:
+                    async with cur.copy(
+                        f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
+                    ) as copy:
                         async for data in copy:
-                            decoded = data.decode(encoding) if isinstance(data, bytes) else data
+                            decoded = (
+                                data.decode(encoding)
+                                if isinstance(data, bytes)
+                                else data
+                            )
                             await asyncio.to_thread(file_handle.write, decoded)
                 finally:
                     await asyncio.to_thread(file_handle.close)
 
                 # Get row count
-                result = await self.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
+                result = await self.execute(
+                    f"SELECT COUNT(*) AS count FROM {schema}.{table}"
+                )
                 return result[0]["count"]
         except Exception:
             raise
@@ -2244,9 +2516,13 @@ class AsyncDatabase:
 
         async with self.cursor() as cur:
             # Open file and read data
-            file_handle = await asyncio.to_thread(open, input_file, "r", encoding=encoding)
+            file_handle = await asyncio.to_thread(
+                open, input_file, "r", encoding=encoding
+            )
             try:
-                async with cur.copy(f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})") as copy:
+                async with cur.copy(
+                    f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})"
+                ) as copy:
                     while True:
                         data = await asyncio.to_thread(file_handle.read, 8192)
                         if not data:
@@ -2296,7 +2572,9 @@ class AsyncDatabase:
         # NOTIFY is a utility statement and cannot bind the payload as a
         # parameter; use the pg_notify() function so the payload is safely
         # parameterized. The channel is validated above before interpolation.
-        await self.execute("SELECT pg_notify(%s, %s)", [channel, payload], autocommit=True)
+        await self.execute(
+            "SELECT pg_notify(%s, %s)", [channel, payload], autocommit=True
+        )
 
     async def close(self) -> None:
         """Close database connections.
