@@ -623,11 +623,22 @@ class AsyncDatabase:
         )
         return len(result) > 0
 
-    async def create_schema(self, name: str, if_not_exists: bool = True) -> None:
-        """Create a schema."""
+    async def create_schema(
+        self, name: str, if_not_exists: bool = True, owner: str | None = None
+    ) -> None:
+        """Create a schema.
+
+        Args:
+            name: Schema name.
+            if_not_exists: Don't error if schema exists.
+            owner: Optional owner role.
+        """
         validate_identifier(name)
+        if owner:
+            validate_identifier(owner)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
-        await self.execute(f"CREATE SCHEMA {if_clause}{name}")
+        owner_clause = f" AUTHORIZATION {owner}" if owner else ""
+        await self.execute(f"CREATE SCHEMA {if_clause}{name}{owner_clause}")
 
     async def list_tables(self, schema: str = "public") -> list[str]:
         """List tables in a schema."""
@@ -1037,11 +1048,24 @@ class AsyncDatabase:
         )
         return len(result) > 0
 
-    async def create_extension(self, name: str, if_not_exists: bool = True) -> None:
-        """Create a PostgreSQL extension."""
+    async def create_extension(
+        self, name: str, schema: str | None = None, if_not_exists: bool = True
+    ) -> None:
+        """Create a PostgreSQL extension.
+
+        Args:
+            name: Extension name (e.g., 'postgis', 'timescaledb', 'uuid-ossp').
+            schema: Optional schema to install extension in.
+            if_not_exists: Don't error if extension exists.
+        """
         validate_extension_name(name)
+        if schema:
+            validate_identifier(schema)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
-        await self.execute(f'CREATE EXTENSION {if_clause}"{name}"', autocommit=True)
+        schema_clause = f" SCHEMA {schema}" if schema else ""
+        await self.execute(
+            f'CREATE EXTENSION {if_clause}"{name}"{schema_clause}', autocommit=True
+        )
 
     async def list_extensions(self) -> list[dict]:
         """List installed extensions."""
@@ -1882,13 +1906,7 @@ class AsyncDatabase:
             )
 
         if primary_key and if_exists != "append":
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "primary_key parameter ignored — add_primary_key not yet available in AsyncDatabase. "
-                "Use db.execute('ALTER TABLE ...') manually or wait for Phase 3."
-            )
+            await self.add_primary_key(table, primary_key, schema)
 
     async def to_geodataframe(
         self,
@@ -2006,13 +2024,7 @@ class AsyncDatabase:
             )
 
         if primary_key and if_exists != "append":
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "primary_key parameter ignored — add_primary_key not yet available in AsyncDatabase. "
-                "Use db.execute('ALTER TABLE ...') manually or wait for Phase 3."
-            )
+            await self.add_primary_key(table, primary_key, schema)
 
         if spatial_index and if_exists != "append":
             await self.create_spatial_index(table, geometry_column, schema)
@@ -2749,11 +2761,14 @@ class AsyncDatabase:
     async def close(self) -> None:
         """Close database connections.
 
-        Note: AsyncDatabase creates connections on-demand and closes them
-        after each operation. This method exists for API consistency with
-        the context manager protocol.
+        Disposes the async SQLAlchemy engine (releasing pooled connections)
+        if one was created. Per-operation connections are opened and closed
+        on demand, so only the lazily-created engine needs disposal here.
+        Idempotent: safe to call when no engine exists or repeatedly.
         """
-        pass
+        if self._async_engine is not None:
+            await self._async_engine.dispose()
+            self._async_engine = None
 
     async def __aenter__(self) -> AsyncDatabase:
         return self

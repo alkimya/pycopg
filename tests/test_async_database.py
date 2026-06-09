@@ -2590,3 +2590,142 @@ class TestAsyncDatabaseAdminIntegration:
                 password=db_config.password,
                 if_not_exists=False,
             )
+
+
+class TestAsyncDatabaseCorrectnessFixes:
+    """Plan 05: C1 (primary_key applied), C2 (close disposes engine), PAR-07 signatures."""
+
+    async def test_from_dataframe_applies_primary_key(self, config):
+        """C1: from_dataframe with primary_key calls add_primary_key (not a warning)."""
+        import pandas as pd
+
+        mock_engine, _ = create_async_engine_mock()
+        df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+        db.add_primary_key = AsyncMock()
+
+        with patch.object(df, "to_sql"):
+            await db.from_dataframe(df, "users", primary_key="id")
+
+        db.add_primary_key.assert_awaited_once_with("users", "id", "public")
+
+    async def test_from_dataframe_append_skips_primary_key(self, config):
+        """C1: with if_exists='append', primary_key is NOT applied (matches sync guard)."""
+        import pandas as pd
+
+        mock_engine, _ = create_async_engine_mock()
+        df = pd.DataFrame({"id": [3]})
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+        db.add_primary_key = AsyncMock()
+
+        with patch.object(df, "to_sql"):
+            await db.from_dataframe(df, "users", primary_key="id", if_exists="append")
+
+        db.add_primary_key.assert_not_called()
+
+    async def test_from_dataframe_real_db_applies_pk(self, db_config):
+        """C1 integration: real from_dataframe with primary_key produces a PK constraint."""
+        import pandas as pd
+
+        db = AsyncDatabase(db_config)
+        import uuid
+
+        t = f"test_c1_{uuid.uuid4().hex[:8]}"
+        df = pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+        try:
+            await db.from_dataframe(df, t, primary_key="id")
+            rows = await db.execute(
+                "SELECT 1 FROM information_schema.table_constraints "
+                "WHERE table_name = %s AND constraint_type = 'PRIMARY KEY'",
+                [t],
+            )
+            assert len(rows) == 1
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_close_disposes_engine(self, config):
+        """C2: close() disposes the async engine and resets the reference."""
+        mock_engine = MagicMock()
+        mock_engine.dispose = AsyncMock()
+
+        db = AsyncDatabase(config)
+        db._async_engine = mock_engine
+
+        await db.close()
+
+        mock_engine.dispose.assert_awaited_once()
+        assert db._async_engine is None
+
+    async def test_close_no_engine_is_noop(self, config):
+        """C2: close() with no engine created does not raise and is idempotent."""
+        db = AsyncDatabase(config)
+        assert db._async_engine is None
+        await db.close()
+        await db.close()
+        assert db._async_engine is None
+
+    async def test_create_extension_schema_clause(self, config):
+        """PAR-07: create_extension(schema=...) emits a SCHEMA clause."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+        await db.create_extension("pg_trgm", schema="public")
+        sql = db.execute.call_args[0][0]
+        assert "SCHEMA public" in sql
+
+    async def test_create_schema_owner_clause(self, config):
+        """PAR-07: create_schema(owner=...) emits an AUTHORIZATION clause."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+        await db.create_schema("app", owner="appuser")
+        sql = db.execute.call_args[0][0]
+        assert "AUTHORIZATION appuser" in sql
+
+    def test_create_extension_signature_matches_sync(self):
+        """PAR-07/D-07: async create_extension signature matches the richer sync one."""
+        from pycopg import Database
+
+        a = list(inspect.signature(AsyncDatabase.create_extension).parameters)
+        s = list(inspect.signature(Database.create_extension).parameters)
+        assert a == s == ["self", "name", "schema", "if_not_exists"]
+
+    def test_create_schema_signature_matches_sync(self):
+        """PAR-07/D-07: async create_schema signature matches the richer sync one."""
+        from pycopg import Database
+
+        a = list(inspect.signature(AsyncDatabase.create_schema).parameters)
+        s = list(inspect.signature(Database.create_schema).parameters)
+        assert a == s == ["self", "name", "if_not_exists", "owner"]
+
+    async def test_table_info_fields_match_sync(self, db_config):
+        """PAR-07: async/sync table_info return the same dict keys."""
+        from pycopg import Database
+
+        import uuid
+
+        t = f"test_ti_{uuid.uuid4().hex[:8]}"
+        adb = AsyncDatabase(db_config)
+        sdb = Database(db_config)
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER, name TEXT)', autocommit=True
+            )
+            a_info = await adb.table_info(t)
+            s_info = sdb.table_info(t)
+            assert {*a_info[0].keys()} == {*s_info[0].keys()}
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_list_roles_fields_match_sync(self, db_config):
+        """PAR-07: async/sync list_roles return the same dict keys."""
+        from pycopg import Database
+
+        adb = AsyncDatabase(db_config)
+        sdb = Database(db_config)
+        a_roles = await adb.list_roles()
+        s_roles = sdb.list_roles()
+        if a_roles and s_roles:
+            assert {*a_roles[0].keys()} == {*s_roles[0].keys()}
