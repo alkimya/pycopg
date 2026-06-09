@@ -14,7 +14,7 @@ Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · E
 
 - [x] Phase 9: Migration uv (outillage : dev + CI + build + lockfile) — COMPLETE 2026-06-06
 - [x] Phase 10: Sécurité résiduelle & robustesse (bugs B1/B2/B3/B5) — coverage cliquet → 80 (completed 2026-06-08)
-- [ ] Phase 11: Parité sync/async complète — coverage cliquet → 90
+- [x] Phase 11: Parité sync/async complète — coverage cliquet → 90 (completed 2026-06-09)
 - [ ] Phase 12: Refactoring (brancher base.py + queries.py) — coverage cliquet → 95
 - [ ] Phase 13: Qualité documentaire (docstrings numpydoc + interrogate ≥ 95)
 - [ ] Phase 14: Spatial helpers (`db.spatial.*`, ex-Phase 8) — trancher 4 points ouverts en début de phase
