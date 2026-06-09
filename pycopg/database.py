@@ -879,6 +879,7 @@ class Database:
             if_exists: Don't error if extension doesn't exist.
             cascade: Drop dependent objects.
         """
+        validate_extension_name(name)
         if_clause = "IF EXISTS " if if_exists else ""
         cascade_clause = " CASCADE" if cascade else ""
         self.execute(
