@@ -1,5 +1,6 @@
 """Tests for pycopg.async_database module."""
 
+import inspect
 from contextlib import asynccontextmanager
 from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 
@@ -2503,3 +2504,89 @@ class TestAsyncDatabaseConstraintsIntegration:
             assert rows[0]["n"] == 0
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+
+class TestAsyncDatabaseAdminIntegration:
+    """PAR-02: async drop_extension/database_exists/list_databases + create constructors."""
+
+    async def test_database_exists_true_and_false(self, db_config):
+        """database_exists returns True for an existing DB and False otherwise."""
+        db = AsyncDatabase(db_config)
+        assert await db.database_exists("pycopg_test") is True
+        assert await db.database_exists("definitely_absent_xyz") is False
+
+    async def test_list_databases_includes_test_db(self, db_config):
+        """list_databases returns non-template database names including pycopg_test."""
+        db = AsyncDatabase(db_config)
+        names = await db.list_databases()
+        assert isinstance(names, list)
+        assert "pycopg_test" in names
+
+    async def test_drop_extension_if_exists_is_safe(self, db_config):
+        """drop_extension with if_exists=True does not raise when absent."""
+        db = AsyncDatabase(db_config)
+        # pg_trgm is a commonly available, droppable extension; ensure idempotent path
+        await db.create_extension("pg_trgm", if_not_exists=True)
+        await db.drop_extension("pg_trgm", if_exists=True)
+        # Dropping again with if_exists=True must not raise
+        await db.drop_extension("pg_trgm", if_exists=True)
+        # Restore for other tests that may assume it
+        await db.create_extension("pg_trgm", if_not_exists=True)
+
+    def test_create_is_classmethod(self):
+        """create / create_from_env are classmethods (D-02)."""
+        assert isinstance(inspect.getattr_static(AsyncDatabase, "create"), classmethod)
+        assert isinstance(
+            inspect.getattr_static(AsyncDatabase, "create_from_env"), classmethod
+        )
+
+    def test_create_signature_matches_sync(self):
+        """AsyncDatabase.create accepts the same params as Database.create."""
+        from pycopg import Database
+
+        async_params = list(inspect.signature(AsyncDatabase.create).parameters)
+        sync_params = list(inspect.signature(Database.create).parameters)
+        assert async_params == sync_params
+
+    async def test_create_returns_connected_database(self, db_config):
+        """create makes a new DB and returns an AsyncDatabase connected to it."""
+        target = "pycopg_tmp_create_xyz"
+        admin = AsyncDatabase(db_config)
+        # Ensure clean slate
+        await admin.drop_database(target, if_exists=True)
+        try:
+            new_db = await AsyncDatabase.create(
+                target,
+                host=db_config.host,
+                port=db_config.port,
+                user=db_config.user,
+                password=db_config.password,
+                if_not_exists=True,
+            )
+            assert isinstance(new_db, AsyncDatabase)
+            assert new_db.config.database == target
+            result = await new_db.execute("SELECT current_database() AS db")
+            assert result[0]["db"] == target
+            # if_not_exists=True on an existing DB must not raise
+            await AsyncDatabase.create(
+                target,
+                host=db_config.host,
+                port=db_config.port,
+                user=db_config.user,
+                password=db_config.password,
+                if_not_exists=True,
+            )
+        finally:
+            await admin.drop_database(target, if_exists=True)
+
+    async def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
+        """create(if_not_exists=False) on an existing DB raises ValueError."""
+        with pytest.raises(ValueError, match="already exists"):
+            await AsyncDatabase.create(
+                "pycopg_test",
+                host=db_config.host,
+                port=db_config.port,
+                user=db_config.user,
+                password=db_config.password,
+                if_not_exists=False,
+            )

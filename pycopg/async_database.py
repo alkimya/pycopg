@@ -113,6 +113,128 @@ class AsyncDatabase:
         """
         return cls(Config.from_url(url))
 
+    @classmethod
+    async def create(
+        cls,
+        name: str,
+        host: str = "localhost",
+        port: int = 5432,
+        user: str = "postgres",
+        password: str = "",
+        owner: str | None = None,
+        template: str = "template1",
+        if_not_exists: bool = True,
+    ) -> AsyncDatabase:
+        """Create a new database and return a connection to it.
+
+        This is a convenience method that:
+        1. Connects to the 'postgres' database
+        2. Creates the new database
+        3. Returns an AsyncDatabase instance connected to the new database
+
+        Args:
+            name: Name of the database to create.
+            host: Database host (default: localhost).
+            port: Database port (default: 5432).
+            user: Database user (default: postgres).
+            password: Database password.
+            owner: Optional owner role for the new database.
+            template: Template database (default: template1).
+            if_not_exists: If True, don't error if database already exists.
+
+        Returns:
+            AsyncDatabase instance connected to the newly created database.
+
+        Example:
+            db = await AsyncDatabase.create("myapp", user="admin", password="secret")
+            db = await AsyncDatabase.create("myapp", if_not_exists=True)
+        """
+        # Create config for the admin connection (to postgres database)
+        admin_config = Config(
+            host=host,
+            port=port,
+            database="postgres",
+            user=user,
+            password=password,
+        )
+
+        # Validate identifiers
+        validate_identifier(name)
+        if owner:
+            validate_identifier(owner)
+        validate_identifier(template)
+
+        # Check if database exists
+        async with await psycopg.AsyncConnection.connect(
+            **admin_config.connect_params(), autocommit=True
+        ) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM pg_database WHERE datname = %s", (name,)
+                )
+                exists = await cur.fetchone() is not None
+
+                if exists:
+                    if not if_not_exists:
+                        raise ValueError(f"Database '{name}' already exists")
+                else:
+                    # Create the database
+                    owner_clause = f" OWNER {owner}" if owner else ""
+                    await cur.execute(
+                        f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}"
+                    )
+
+        # Return a connection to the new database
+        new_config = Config(
+            host=host,
+            port=port,
+            database=name,
+            user=user,
+            password=password,
+        )
+        return cls(new_config)
+
+    @classmethod
+    async def create_from_env(
+        cls,
+        name: str,
+        owner: str | None = None,
+        template: str = "template1",
+        if_not_exists: bool = True,
+        dotenv_path: str | Path | None = None,
+    ) -> AsyncDatabase:
+        """Create a new database using connection params from environment.
+
+        Uses PGHOST, PGPORT, PGUSER, PGPASSWORD from environment or .env file,
+        then creates the database and returns a connection to it.
+
+        Args:
+            name: Name of the database to create.
+            owner: Optional owner role for the new database.
+            template: Template database (default: template1).
+            if_not_exists: If True, don't error if database already exists.
+            dotenv_path: Optional path to .env file.
+
+        Returns:
+            AsyncDatabase instance connected to the newly created database.
+
+        Example:
+            db = await AsyncDatabase.create_from_env("myapp")
+        """
+        # Load config from env (but we'll change the database later)
+        env_config = Config.from_env(dotenv_path)
+
+        return await cls.create(
+            name=name,
+            host=env_config.host,
+            port=env_config.port,
+            user=env_config.user,
+            password=env_config.password,
+            owner=owner,
+            template=template,
+            if_not_exists=if_not_exists,
+        )
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -929,6 +1051,22 @@ class AsyncDatabase:
             JOIN pg_namespace n ON e.extnamespace = n.oid
             ORDER BY e.extname
         """)
+
+    async def drop_extension(
+        self, name: str, if_exists: bool = True, cascade: bool = False
+    ) -> None:
+        """Drop a PostgreSQL extension.
+
+        Args:
+            name: Extension name.
+            if_exists: Don't error if extension doesn't exist.
+            cascade: Drop dependent objects.
+        """
+        if_clause = "IF EXISTS " if if_exists else ""
+        cascade_clause = " CASCADE" if cascade else ""
+        await self.execute(
+            f'DROP EXTENSION {if_clause}"{name}"{cascade_clause}', autocommit=True
+        )
 
     # =========================================================================
     # POSTGIS SPATIAL OPERATIONS
@@ -2069,6 +2207,38 @@ class AsyncDatabase:
                     [name],
                 )
                 await cur.execute(f"DROP DATABASE {if_clause}{name}")
+
+    async def database_exists(self, name: str) -> bool:
+        """Check if a database exists.
+
+        Args:
+            name: Database name.
+
+        Returns:
+            True if database exists.
+        """
+        admin_config = self.config.with_database("postgres")
+        async with await psycopg.AsyncConnection.connect(
+            **admin_config.connect_params()
+        ) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM pg_database WHERE datname = %s", [name]
+                )
+                return await cur.fetchone() is not None
+
+    async def list_databases(self) -> list[str]:
+        """List all databases.
+
+        Returns:
+            List of database names.
+        """
+        result = await self.execute("""
+            SELECT datname FROM pg_database
+            WHERE datistemplate = false
+            ORDER BY datname
+        """)
+        return [r["datname"] for r in result]
 
     # =========================================================================
     # UTILITY
