@@ -2293,7 +2293,10 @@ class AsyncDatabase:
             await db.notify("events", json.dumps({"type": "user_created", "id": 1}))
         """
         validate_identifier(channel)
-        await self.execute(f"NOTIFY {channel}, %s", [payload], autocommit=True)
+        # NOTIFY is a utility statement and cannot bind the payload as a
+        # parameter; use the pg_notify() function so the payload is safely
+        # parameterized. The channel is validated above before interpolation.
+        await self.execute("SELECT pg_notify(%s, %s)", [channel, payload], autocommit=True)
 
     async def close(self) -> None:
         """Close database connections.
