@@ -183,10 +183,7 @@ class Database:
         # Check if database exists
         with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT 1 FROM pg_database WHERE datname = %s",
-                    (name,)
-                )
+                cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (name,))
                 exists = cur.fetchone() is not None
 
                 if exists:
@@ -195,7 +192,9 @@ class Database:
                 else:
                     # Create the database
                     owner_clause = f" OWNER {owner}" if owner else ""
-                    cur.execute(f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}")
+                    cur.execute(
+                        f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}"
+                    )
 
         # Return a connection to the new database
         new_config = Config(
@@ -378,11 +377,12 @@ class Database:
                     session.insert_batch(table, data[table])
         """
         if self._session_conn is not None:
-            raise RuntimeError("Already in session mode. Nested sessions are not supported.")
+            raise RuntimeError(
+                "Already in session mode. Nested sessions are not supported."
+            )
 
         self._session_conn = psycopg.connect(
-            **self.config.connect_params(),
-            autocommit=autocommit
+            **self.config.connect_params(), autocommit=autocommit
         )
         try:
             yield self
@@ -422,7 +422,9 @@ class Database:
         """
         return self._session_conn is not None
 
-    def execute(self, sql: str, params: Sequence | None = None, autocommit: bool = False) -> list[dict]:
+    def execute(
+        self, sql: str, params: Sequence | None = None, autocommit: bool = False
+    ) -> list[dict]:
         """Execute SQL and return results as list of dicts.
 
         Args:
@@ -465,6 +467,141 @@ class Database:
         with self.cursor() as cur:
             cur.executemany(sql, params_seq)
             return cur.rowcount
+
+    def insert_many(
+        self,
+        table: str,
+        rows: list[dict],
+        schema: str = "public",
+        on_conflict: str | None = None,
+    ) -> int:
+        """Insert multiple rows efficiently.
+
+        Args:
+            table: Table name.
+            rows: List of row dicts.
+            schema: Schema name.
+            on_conflict: ON CONFLICT clause (e.g., "DO NOTHING", "DO UPDATE SET ...").
+
+        Returns:
+            Number of rows inserted.
+
+        Example:
+            db.insert_many("users", [
+                {"name": "Alice", "email": "alice@example.com"},
+                {"name": "Bob", "email": "bob@example.com"},
+            ])
+
+            db.insert_many("users", rows, on_conflict="(email) DO NOTHING")
+        """
+        if not rows:
+            return 0
+
+        validate_identifiers(table, schema)
+
+        columns = list(rows[0].keys())
+        validate_identifiers(*columns)
+        placeholders = ", ".join(["%s"] * len(columns))
+        cols_str = ", ".join(columns)
+
+        conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
+
+        sql = f"INSERT INTO {schema}.{table} ({cols_str}) VALUES ({placeholders}){conflict_clause}"
+
+        params_seq = [[row.get(col) for col in columns] for row in rows]
+
+        return self.execute_many(sql, params_seq)
+
+    def upsert_many(
+        self,
+        table: str,
+        rows: list[dict],
+        conflict_columns: list[str],
+        update_columns: list[str] | None = None,
+        schema: str = "public",
+    ) -> int:
+        """Upsert (insert or update) multiple rows.
+
+        Args:
+            table: Table name.
+            rows: List of row dicts.
+            conflict_columns: Columns that define uniqueness.
+            update_columns: Columns to update on conflict (None = all except conflict).
+            schema: Schema name.
+
+        Returns:
+            Number of rows affected.
+
+        Example:
+            db.upsert_many(
+                "users",
+                [{"id": 1, "name": "Alice", "email": "alice@new.com"}],
+                conflict_columns=["id"],
+                update_columns=["name", "email"]
+            )
+        """
+        if not rows:
+            return 0
+
+        columns = list(rows[0].keys())
+        if update_columns is None:
+            update_columns = [c for c in columns if c not in conflict_columns]
+
+        validate_identifiers(*conflict_columns)
+        validate_identifiers(*update_columns)
+
+        conflict_str = ", ".join(conflict_columns)
+        update_str = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_columns])
+
+        on_conflict = f"({conflict_str}) DO UPDATE SET {update_str}"
+
+        return self.insert_many(table, rows, schema, on_conflict)
+
+    def stream(
+        self,
+        sql: str,
+        params: Sequence | None = None,
+        batch_size: int = 1000,
+    ) -> Iterator[dict]:
+        """Stream query results in batches.
+
+        Memory-efficient way to process large result sets.
+
+        Args:
+            sql: SQL query.
+            params: Query parameters.
+            batch_size: Rows to fetch per batch.
+
+        Yields:
+            Row dicts.
+
+        Example:
+            for row in db.stream("SELECT * FROM large_table"):
+                process(row)
+        """
+        with self.cursor() as cur:
+            cur.execute(sql, params)
+            while True:
+                rows = cur.fetchmany(batch_size)
+                if not rows:
+                    break
+                yield from rows
+
+    def notify(self, channel: str, payload: str = "") -> None:
+        """Send notification on a channel.
+
+        Args:
+            channel: Channel name.
+            payload: Notification payload (max 8000 bytes).
+
+        Example:
+            db.notify("events", json.dumps({"type": "user_created", "id": 1}))
+        """
+        validate_identifier(channel)
+        # NOTIFY is a utility statement and cannot bind the payload as a
+        # parameter; use the pg_notify() function so the payload is safely
+        # parameterized. The channel is validated above before interpolation.
+        self.execute("SELECT pg_notify(%s, %s)", [channel, payload], autocommit=True)
 
     def insert_batch(
         self,
@@ -519,7 +656,7 @@ class Database:
         with self.cursor() as cur:
             # Process in batches
             for i in range(0, len(rows), batch_size):
-                batch = rows[i:i + batch_size]
+                batch = rows[i : i + batch_size]
 
                 # Build VALUES (...), (...), ...
                 placeholders = []
@@ -624,7 +761,9 @@ class Database:
     # DATABASE ADMINISTRATION
     # =========================================================================
 
-    def create_database(self, name: str, owner: str | None = None, template: str = "template1") -> None:
+    def create_database(
+        self, name: str, owner: str | None = None, template: str = "template1"
+    ) -> None:
         """Create a new database.
 
         Args:
@@ -663,12 +802,15 @@ class Database:
         with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
             with conn.cursor() as cur:
                 # Terminate existing connections
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT pg_terminate_backend(pg_stat_activity.pid)
                     FROM pg_stat_activity
                     WHERE pg_stat_activity.datname = %s
                     AND pid <> pg_backend_pid()
-                """, [name])
+                """,
+                    [name],
+                )
                 cur.execute(f"DROP DATABASE {if_clause}{name}")
 
     def database_exists(self, name: str) -> bool:
@@ -703,7 +845,9 @@ class Database:
     # EXTENSIONS
     # =========================================================================
 
-    def create_extension(self, name: str, schema: str | None = None, if_not_exists: bool = True) -> None:
+    def create_extension(
+        self, name: str, schema: str | None = None, if_not_exists: bool = True
+    ) -> None:
         """Create a PostgreSQL extension.
 
         Args:
@@ -721,9 +865,13 @@ class Database:
             validate_identifier(schema)
         if_clause = "IF NOT EXISTS " if if_not_exists else ""
         schema_clause = f" SCHEMA {schema}" if schema else ""
-        self.execute(f'CREATE EXTENSION {if_clause}"{name}"{schema_clause}', autocommit=True)
+        self.execute(
+            f'CREATE EXTENSION {if_clause}"{name}"{schema_clause}', autocommit=True
+        )
 
-    def drop_extension(self, name: str, if_exists: bool = True, cascade: bool = False) -> None:
+    def drop_extension(
+        self, name: str, if_exists: bool = True, cascade: bool = False
+    ) -> None:
         """Drop a PostgreSQL extension.
 
         Args:
@@ -733,7 +881,9 @@ class Database:
         """
         if_clause = "IF EXISTS " if if_exists else ""
         cascade_clause = " CASCADE" if cascade else ""
-        self.execute(f'DROP EXTENSION {if_clause}"{name}"{cascade_clause}', autocommit=True)
+        self.execute(
+            f'DROP EXTENSION {if_clause}"{name}"{cascade_clause}', autocommit=True
+        )
 
     def list_extensions(self) -> list[dict]:
         """List installed extensions.
@@ -764,7 +914,9 @@ class Database:
     # SCHEMAS
     # =========================================================================
 
-    def create_schema(self, name: str, if_not_exists: bool = True, owner: str | None = None) -> None:
+    def create_schema(
+        self, name: str, if_not_exists: bool = True, owner: str | None = None
+    ) -> None:
         """Create a schema.
 
         Args:
@@ -783,7 +935,9 @@ class Database:
         owner_clause = f" AUTHORIZATION {owner}" if owner else ""
         self.execute(f"CREATE SCHEMA {if_clause}{name}{owner_clause}")
 
-    def drop_schema(self, name: str, if_exists: bool = True, cascade: bool = False) -> None:
+    def drop_schema(
+        self, name: str, if_exists: bool = True, cascade: bool = False
+    ) -> None:
         """Drop a schema.
 
         Args:
@@ -838,13 +992,16 @@ class Database:
         Returns:
             List of table names.
         """
-        result = self.execute("""
+        result = self.execute(
+            """
             SELECT table_name
             FROM information_schema.tables
             WHERE table_schema = %s
             AND table_type = 'BASE TABLE'
             ORDER BY table_name
-        """, [schema])
+        """,
+            [schema],
+        )
         return [r["table_name"] for r in result]
 
     def table_exists(self, name: str, schema: str = "public") -> bool:
@@ -873,7 +1030,9 @@ class Database:
         result = self.execute(queries.GET_COLUMNS, [schema, table])
         return [row["column_name"] for row in result]
 
-    def columns_with_types(self, table: str, schema: str = "public") -> list[tuple[str, str]]:
+    def columns_with_types(
+        self, table: str, schema: str = "public"
+    ) -> list[tuple[str, str]]:
         """Get list of (column_name, data_type) tuples for a table.
 
         Args:
@@ -886,7 +1045,13 @@ class Database:
         result = self.execute(queries.GET_COLUMNS, [schema, table])
         return [(row["column_name"], row["data_type"]) for row in result]
 
-    def drop_table(self, name: str, schema: str = "public", if_exists: bool = True, cascade: bool = False) -> None:
+    def drop_table(
+        self,
+        name: str,
+        schema: str = "public",
+        if_exists: bool = True,
+        cascade: bool = False,
+    ) -> None:
         """Drop a table.
 
         Args:
@@ -900,7 +1065,9 @@ class Database:
         cascade_clause = " CASCADE" if cascade else ""
         self.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
 
-    def truncate_table(self, name: str, schema: str = "public", cascade: bool = False) -> None:
+    def truncate_table(
+        self, name: str, schema: str = "public", cascade: bool = False
+    ) -> None:
         """Truncate a table (delete all rows).
 
         Args:
@@ -923,7 +1090,8 @@ class Database:
             List of column info dicts with:
             - column_name, data_type, is_nullable, column_default, ordinal_position
         """
-        return self.execute("""
+        return self.execute(
+            """
             SELECT
                 column_name,
                 data_type,
@@ -936,7 +1104,9 @@ class Database:
             FROM information_schema.columns
             WHERE table_schema = %s AND table_name = %s
             ORDER BY ordinal_position
-        """, [schema, name])
+        """,
+            [schema, name],
+        )
 
     def row_count(self, name: str, schema: str = "public") -> int:
         """Get approximate row count for a table.
@@ -950,19 +1120,28 @@ class Database:
         Returns:
             Approximate row count.
         """
-        result = self.execute("""
+        result = self.execute(
+            """
             SELECT reltuples::bigint AS count
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = %s AND c.relname = %s
-        """, [schema, name])
+        """,
+            [schema, name],
+        )
         return result[0]["count"] if result else 0
 
     # =========================================================================
     # CONSTRAINTS & INDEXES
     # =========================================================================
 
-    def add_primary_key(self, table: str, columns: str | list[str], schema: str = "public", name: str | None = None) -> None:
+    def add_primary_key(
+        self,
+        table: str,
+        columns: str | list[str],
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
         """Add primary key constraint to a table.
 
         Args:
@@ -983,7 +1162,9 @@ class Database:
 
         cols_str = ", ".join(columns)
         constraint_name = name or f"{table}_pkey"
-        self.execute(f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({cols_str})")
+        self.execute(
+            f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({cols_str})"
+        )
 
     def add_foreign_key(
         self,
@@ -1019,16 +1200,22 @@ class Database:
             ref_columns = [ref_columns]
 
         # Validate all identifiers
-        validate_identifiers(table, schema, ref_table, ref_schema, *columns, *ref_columns)
+        validate_identifiers(
+            table, schema, ref_table, ref_schema, *columns, *ref_columns
+        )
         if name:
             validate_identifier(name)
 
         # Validate ON DELETE/UPDATE actions
         valid_actions = {"NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"}
         if on_delete.upper() not in valid_actions:
-            raise ValueError(f"Invalid ON DELETE action: {on_delete}. Must be one of: {valid_actions}")
+            raise ValueError(
+                f"Invalid ON DELETE action: {on_delete}. Must be one of: {valid_actions}"
+            )
         if on_update.upper() not in valid_actions:
-            raise ValueError(f"Invalid ON UPDATE action: {on_update}. Must be one of: {valid_actions}")
+            raise ValueError(
+                f"Invalid ON UPDATE action: {on_update}. Must be one of: {valid_actions}"
+            )
 
         cols_str = ", ".join(columns)
         ref_cols_str = ", ".join(ref_columns)
@@ -1043,7 +1230,13 @@ class Database:
             ON UPDATE {on_update}
         """)
 
-    def add_unique_constraint(self, table: str, columns: str | list[str], schema: str = "public", name: str | None = None) -> None:
+    def add_unique_constraint(
+        self,
+        table: str,
+        columns: str | list[str],
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
         """Add unique constraint.
 
         Args:
@@ -1063,7 +1256,9 @@ class Database:
             validate_identifier(name)
         cols_str = ", ".join(columns)
         constraint_name = name or f"{table}_{'_'.join(columns)}_key"
-        self.execute(f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} UNIQUE ({cols_str})")
+        self.execute(
+            f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} UNIQUE ({cols_str})"
+        )
 
     def create_index(
         self,
@@ -1108,7 +1303,9 @@ class Database:
             ON {schema}.{table} USING {method} ({cols_str})
         """)
 
-    def drop_index(self, name: str, schema: str = "public", if_exists: bool = True) -> None:
+    def drop_index(
+        self, name: str, schema: str = "public", if_exists: bool = True
+    ) -> None:
         """Drop an index.
 
         Args:
@@ -1130,7 +1327,8 @@ class Database:
         Returns:
             List of index info dicts.
         """
-        return self.execute("""
+        return self.execute(
+            """
             SELECT
                 i.relname AS index_name,
                 am.amname AS index_type,
@@ -1142,7 +1340,9 @@ class Database:
             JOIN pg_am am ON am.oid = i.relam
             WHERE n.nspname = %s AND t.relname = %s
             ORDER BY i.relname
-        """, [schema, table])
+        """,
+            [schema, table],
+        )
 
     def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
         """List constraints on a table.
@@ -1154,7 +1354,8 @@ class Database:
         Returns:
             List of constraint info dicts.
         """
-        return self.execute("""
+        return self.execute(
+            """
             SELECT
                 c.conname AS constraint_name,
                 c.contype AS constraint_type,
@@ -1164,7 +1365,9 @@ class Database:
             JOIN pg_namespace n ON n.oid = t.relnamespace
             WHERE n.nspname = %s AND t.relname = %s
             ORDER BY c.conname
-        """, [schema, table])
+        """,
+            [schema, table],
+        )
 
     # =========================================================================
     # DATAFRAME OPERATIONS
@@ -1272,7 +1475,9 @@ class Database:
         """
         # Ensure PostGIS is available
         if not self.has_extension("postgis"):
-            raise RuntimeError("PostGIS extension not installed. Run db.create_extension('postgis')")
+            raise RuntimeError(
+                "PostGIS extension not installed. Run db.create_extension('postgis')"
+            )
 
         # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
         if srid is None:
@@ -1344,13 +1549,21 @@ class Database:
             validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
-        return gpd.read_postgis(text(sql), self.engine, geom_col=geometry_column, params=params)
+        return gpd.read_postgis(
+            text(sql), self.engine, geom_col=geometry_column, params=params
+        )
 
     # =========================================================================
     # POSTGIS SPATIAL OPERATIONS
     # =========================================================================
 
-    def create_spatial_index(self, table: str, column: str = "geometry", schema: str = "public", name: str | None = None) -> None:
+    def create_spatial_index(
+        self,
+        table: str,
+        column: str = "geometry",
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
         """Create a GIST spatial index on a geometry column.
 
         Args:
@@ -1382,7 +1595,8 @@ class Database:
         """
         where_clause = "WHERE f_table_schema = %s" if schema else ""
         params = [schema] if schema else None
-        return self.execute(f"""
+        return self.execute(
+            f"""
             SELECT
                 f_table_schema AS schema,
                 f_table_name AS table_name,
@@ -1393,7 +1607,9 @@ class Database:
             FROM geometry_columns
             {where_clause}
             ORDER BY f_table_schema, f_table_name
-        """, params)
+        """,
+            params,
+        )
 
     # =========================================================================
     # TIMESCALEDB OPERATIONS
@@ -1424,7 +1640,9 @@ class Database:
             db.create_hypertable("events", "created_at", chunk_time_interval="1 week")
         """
         if not self.has_extension("timescaledb"):
-            raise RuntimeError("TimescaleDB extension not installed. Run db.create_extension('timescaledb')")
+            raise RuntimeError(
+                "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
+            )
 
         validate_identifiers(table, schema, time_column)
         validate_interval(chunk_time_interval)
@@ -1473,7 +1691,9 @@ class Database:
                 # Extract column name (may have DESC/ASC suffix)
                 col_name = col.split()[0]
                 validate_identifier(col_name)
-            settings.append(f"timescaledb.compress_segmentby = '{','.join(segment_by)}'")
+            settings.append(
+                f"timescaledb.compress_segmentby = '{','.join(segment_by)}'"
+            )
         if order_by:
             if isinstance(order_by, str):
                 order_by = [order_by]
@@ -1585,11 +1805,14 @@ class Database:
                 "Run db.create_extension('timescaledb')"
             )
 
-        result = self.execute("""
+        result = self.execute(
+            """
             SELECT
                 hypertable_size(format('%I.%I', %s, %s)) AS total_size,
                 hypertable_detailed_size(format('%I.%I', %s, %s)) AS detailed_size
-        """, [schema, table, schema, table])
+        """,
+            [schema, table, schema, table],
+        )
         return result[0] if result else {}
 
     # =========================================================================
@@ -1612,17 +1835,18 @@ class Database:
         if pretty:
             result = self.execute(
                 "SELECT pg_size_pretty(pg_database_size(%s)) AS size",
-                [self.config.database]
+                [self.config.database],
             )
             return result[0]["size"]
         else:
             result = self.execute(
-                "SELECT pg_database_size(%s) AS size",
-                [self.config.database]
+                "SELECT pg_database_size(%s) AS size", [self.config.database]
             )
             return result[0]["size"]
 
-    def table_size(self, table: str, schema: str = "public", pretty: bool = True) -> str | int:
+    def table_size(
+        self, table: str, schema: str = "public", pretty: bool = True
+    ) -> str | int:
         """Get table size including indexes.
 
         Args:
@@ -1636,14 +1860,12 @@ class Database:
         full_name = f"{schema}.{table}"
         if pretty:
             result = self.execute(
-                "SELECT pg_size_pretty(pg_total_relation_size(%s)) AS size",
-                [full_name]
+                "SELECT pg_size_pretty(pg_total_relation_size(%s)) AS size", [full_name]
             )
             return result[0]["size"]
         else:
             result = self.execute(
-                "SELECT pg_total_relation_size(%s) AS size",
-                [full_name]
+                "SELECT pg_total_relation_size(%s) AS size", [full_name]
             )
             return result[0]["size"]
 
@@ -1658,7 +1880,8 @@ class Database:
             List of table size info.
         """
         # Use %%I to escape the % for psycopg, format() will see %I
-        return self.execute("""
+        return self.execute(
+            """
             SELECT
                 t.tablename AS table_name,
                 pg_size_pretty(pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS total_size,
@@ -1668,13 +1891,21 @@ class Database:
             WHERE t.schemaname = %s
             ORDER BY pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename)) DESC
             LIMIT %s
-        """, [schema, limit])
+        """,
+            [schema, limit],
+        )
 
     # =========================================================================
     # UTILITY
     # =========================================================================
 
-    def vacuum(self, table: str | None = None, schema: str = "public", analyze: bool = True, full: bool = False) -> None:
+    def vacuum(
+        self,
+        table: str | None = None,
+        schema: str = "public",
+        analyze: bool = True,
+        full: bool = False,
+    ) -> None:
         """Vacuum database or table.
 
         Args:
@@ -1709,7 +1940,13 @@ class Database:
         table_str = f" {schema}.{table}" if table else ""
         self.execute(f"ANALYZE{table_str}", autocommit=True)
 
-    def explain(self, sql: str, params: Sequence | None = None, analyze: bool = False, format: str = "text") -> list[str]:
+    def explain(
+        self,
+        sql: str,
+        params: Sequence | None = None,
+        analyze: bool = False,
+        format: str = "text",
+    ) -> list[str]:
         """Get query execution plan.
 
         Args:
@@ -1931,7 +2168,9 @@ class Database:
         if options:
             options_str = " ".join(options)
             with self.cursor(autocommit=True) as cur:
-                cur.execute(f"ALTER ROLE {name} WITH {options_str}", params if params else None)
+                cur.execute(
+                    f"ALTER ROLE {name} WITH {options_str}", params if params else None
+                )
 
     def grant_role(self, role: str, member: str, with_admin: bool = False) -> None:
         """Grant role membership to another role.
@@ -2008,16 +2247,28 @@ class Database:
 
         if object_type.upper() == "SCHEMA":
             validate_identifier(on)
-            self.execute(f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}", autocommit=True)
+            self.execute(
+                f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}",
+                autocommit=True,
+            )
         elif object_type.upper() == "DATABASE":
             validate_identifier(on)
-            self.execute(f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}", autocommit=True)
+            self.execute(
+                f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}",
+                autocommit=True,
+            )
         elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
             validate_identifier(schema)
-            self.execute(f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}", autocommit=True)
+            self.execute(
+                f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}",
+                autocommit=True,
+            )
         else:
             validate_identifiers(on, schema)
-            self.execute(f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}", autocommit=True)
+            self.execute(
+                f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}",
+                autocommit=True,
+            )
 
     def revoke(
         self,
@@ -2053,16 +2304,28 @@ class Database:
 
         if object_type.upper() == "SCHEMA":
             validate_identifier(on)
-            self.execute(f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}", autocommit=True)
+            self.execute(
+                f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
         elif object_type.upper() == "DATABASE":
             validate_identifier(on)
-            self.execute(f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}", autocommit=True)
+            self.execute(
+                f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
         elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
             validate_identifier(schema)
-            self.execute(f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}", autocommit=True)
+            self.execute(
+                f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
         else:
             validate_identifiers(on, schema)
-            self.execute(f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}", autocommit=True)
+            self.execute(
+                f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}",
+                autocommit=True,
+            )
 
     def list_role_members(self, role: str) -> list[str]:
         """List members of a role.
@@ -2073,14 +2336,17 @@ class Database:
         Returns:
             List of member role names.
         """
-        result = self.execute("""
+        result = self.execute(
+            """
             SELECT m.rolname AS member
             FROM pg_auth_members am
             JOIN pg_roles r ON r.oid = am.roleid
             JOIN pg_roles m ON m.oid = am.member
             WHERE r.rolname = %s
             ORDER BY m.rolname
-        """, [role])
+        """,
+            [role],
+        )
         return [r["member"] for r in result]
 
     def list_role_grants(self, role: str) -> list[dict]:
@@ -2092,7 +2358,8 @@ class Database:
         Returns:
             List of privilege info dicts.
         """
-        return self.execute("""
+        return self.execute(
+            """
             SELECT
                 table_schema AS schema,
                 table_name AS object_name,
@@ -2100,7 +2367,9 @@ class Database:
             FROM information_schema.role_table_grants
             WHERE grantee = %s
             ORDER BY table_schema, table_name, privilege_type
-        """, [role])
+        """,
+            [role],
+        )
 
     # =========================================================================
     # BACKUP & RESTORE
@@ -2188,7 +2457,9 @@ class Database:
 
         # Run with password in environment
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, env={**os.environ, **env}, capture_output=True, text=True
+        )
 
         if result.returncode != 0:
             raise RuntimeError(f"pg_dump failed: {result.stderr}")
@@ -2283,7 +2554,9 @@ class Database:
 
         # Run with password in environment
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, env={**os.environ, **env}, capture_output=True, text=True
+        )
 
         if result.returncode != 0:
             raise RuntimeError(f"pg_restore failed: {result.stderr}")
@@ -2294,15 +2567,22 @@ class Database:
 
         cmd = [
             "psql",
-            "-h", self.config.host,
-            "-p", str(self.config.port),
-            "-U", self.config.user,
-            "-d", self.config.database,
-            "-f", str(sql_file),
+            "-h",
+            self.config.host,
+            "-p",
+            str(self.config.port),
+            "-U",
+            self.config.user,
+            "-d",
+            self.config.database,
+            "-f",
+            str(sql_file),
         ]
 
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, env={**os.environ, **env}, capture_output=True, text=True
+        )
 
         if result.returncode != 0:
             raise RuntimeError(f"psql restore failed: {result.stderr}")
@@ -2359,9 +2639,13 @@ class Database:
 
         with self.cursor() as cur:
             with open(output_file, "w", encoding=encoding) as f:
-                with cur.copy(f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})") as copy:
+                with cur.copy(
+                    f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
+                ) as copy:
                     for data in copy:
-                        f.write(data.decode(encoding) if isinstance(data, bytes) else data)
+                        f.write(
+                            data.decode(encoding) if isinstance(data, bytes) else data
+                        )
 
             # Get row count
             cur.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
@@ -2418,7 +2702,9 @@ class Database:
 
         with self.cursor() as cur:
             with open(input_file, encoding=encoding) as f:
-                with cur.copy(f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})") as copy:
+                with cur.copy(
+                    f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})"
+                ) as copy:
                     while data := f.read(8192):
                         copy.write(data.encode(encoding))
 

@@ -233,7 +233,9 @@ class TestDatabaseSession:
 
         # Use session
         with db.session() as session:
-            session.execute(f'INSERT INTO "{temp_table_name}" (value) VALUES (%s)', (42,))
+            session.execute(
+                f'INSERT INTO "{temp_table_name}" (value) VALUES (%s)', (42,)
+            )
             # Query within session
             result = session.execute(f'SELECT value FROM "{temp_table_name}"')
             assert len(result) == 1
@@ -267,9 +269,7 @@ class TestDatabaseSession:
 
         # Create table in autocommit session
         with db.session(autocommit=True) as session:
-            session.execute(
-                f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)'
-            )
+            session.execute(f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)')
 
         # Verify table exists outside session
         assert db.table_exists(temp_table_name)
@@ -534,3 +534,120 @@ class TestDatabaseConnection:
         # Verify it's listed (should not error)
         extensions = db.list_extensions()
         assert isinstance(extensions, list)
+
+
+class TestDatabaseBatchStreamNotify:
+    """PAR-03: sync mirrors of async insert_many/upsert_many/stream/notify."""
+
+    def _make_kv_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" ' "(id INTEGER PRIMARY KEY, name TEXT, email TEXT)"
+        )
+
+    def test_insert_many_empty_returns_zero(self, db):
+        """insert_many of an empty list returns 0 and makes no DB call."""
+        assert db.insert_many("nonexistent_table", []) == 0
+
+    def test_insert_many_inserts_and_returns_count(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """insert_many of N rows returns N and the rows are readable."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        count = db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "email": "alice@example.com"},
+                {"id": 2, "name": "Bob", "email": "bob@example.com"},
+            ],
+        )
+        assert count == 2
+
+        rows = db.execute(f'SELECT id, name FROM "{temp_table_name}" ORDER BY id')
+        assert [r["name"] for r in rows] == ["Alice", "Bob"]
+
+    def test_insert_many_on_conflict_do_nothing(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """insert_many with ON CONFLICT DO NOTHING skips conflicting rows."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        db.insert_many(
+            temp_table_name, [{"id": 1, "name": "Alice", "email": "a@x.com"}]
+        )
+        # Re-insert same PK with DO NOTHING — should not raise, row unchanged
+        db.insert_many(
+            temp_table_name,
+            [{"id": 1, "name": "Changed", "email": "c@x.com"}],
+            on_conflict="(id) DO NOTHING",
+        )
+        rows = db.execute(f'SELECT name FROM "{temp_table_name}" WHERE id = 1')
+        assert rows[0]["name"] == "Alice"
+
+    def test_upsert_many_updates_on_conflict(self, db, temp_table_name, cleanup_table):
+        """upsert_many updates non-conflict columns on conflict and returns count."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        db.insert_many(
+            temp_table_name, [{"id": 1, "name": "Alice", "email": "old@x.com"}]
+        )
+        affected = db.upsert_many(
+            temp_table_name,
+            [{"id": 1, "name": "Alice", "email": "new@x.com"}],
+            conflict_columns=["id"],
+        )
+        assert affected >= 1
+        rows = db.execute(f'SELECT email FROM "{temp_table_name}" WHERE id = 1')
+        assert rows[0]["email"] == "new@x.com"
+
+    def test_stream_yields_all_rows_in_batches(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """stream over a 3-row table with batch_size=2 yields exactly 3 dict rows in order."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "a", "email": "a@x"},
+                {"id": 2, "name": "b", "email": "b@x"},
+                {"id": 3, "name": "c", "email": "c@x"},
+            ],
+        )
+
+        result = list(
+            db.stream(
+                f'SELECT id, name FROM "{temp_table_name}" ORDER BY id', batch_size=2
+            )
+        )
+        assert len(result) == 3
+        assert all(isinstance(r, dict) for r in result)
+        assert [r["id"] for r in result] == [1, 2, 3]
+
+    def test_stream_is_lazy_generator(self, db, temp_table_name, cleanup_table):
+        """stream returns a generator, not a materialized list."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(temp_table_name, [{"id": 1, "name": "a", "email": "a@x"}])
+
+        import types
+
+        gen = db.stream(f'SELECT * FROM "{temp_table_name}"')
+        assert isinstance(gen, types.GeneratorType)
+        list(gen)  # drain so the cursor/connection is released
+
+    def test_notify_on_valid_channel(self, db):
+        """notify issues NOTIFY on a validated channel without raising."""
+        db.notify("events", "hello")
+
+    def test_notify_rejects_invalid_channel(self, db):
+        """notify on an invalid channel name raises via validate_identifier."""
+        with pytest.raises(Exception):
+            db.notify("bad channel; DROP TABLE x", "payload")
+
+    def test_no_sync_listen_method(self, db):
+        """D-06: listen stays async-only — Database must NOT have a listen method."""
+        assert not hasattr(db, "listen")
