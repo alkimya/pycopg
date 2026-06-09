@@ -87,7 +87,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 11-03-PLAN.md — async add_primary_key/add_foreign_key/add_unique_constraint/truncate_table (PAR-01)
+- [x] 11-03-PLAN.md — async add_primary_key/add_foreign_key/add_unique_constraint/truncate_table (PAR-01)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -188,7 +188,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | — Security Hotfix v0.3.1 | v0.3.1 | — | Shipped | 2026-06-06 |
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
-| 11. Parité sync/async complète | v0.4.0 | 2/7 | In Progress|  |
+| 11. Parité sync/async complète | v0.4.0 | 3/7 | In Progress|  |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/? | Pending (5 req) | — |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
