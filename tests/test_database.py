@@ -144,7 +144,9 @@ class TestDatabaseExecute:
         db = Database(config)
         result = db.execute("SELECT * FROM users WHERE id = %s", [1])
 
-        mock_cursor.execute.assert_called_once_with("SELECT * FROM users WHERE id = %s", [1])
+        mock_cursor.execute.assert_called_once_with(
+            "SELECT * FROM users WHERE id = %s", [1]
+        )
 
     @patch("pycopg.database.psycopg")
     def test_execute_insert(self, mock_psycopg, config):
@@ -801,10 +803,13 @@ class TestDatabaseInsertBatch:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        result = db.insert_batch("users", [
-            {"name": "Alice", "email": "alice@example.com"},
-            {"name": "Bob", "email": "bob@example.com"},
-        ])
+        result = db.insert_batch(
+            "users",
+            [
+                {"name": "Alice", "email": "alice@example.com"},
+                {"name": "Bob", "email": "bob@example.com"},
+            ],
+        )
 
         assert result == 2
         mock_cursor.execute.assert_called()
@@ -832,10 +837,123 @@ class TestDatabaseInsertBatch:
         result = db.insert_batch(
             "users",
             [{"id": 1, "name": "Alice Updated"}],
-            on_conflict="(id) DO UPDATE SET name = EXCLUDED.name"
+            on_conflict="(id) DO UPDATE SET name = EXCLUDED.name",
         )
 
         assert result == 1
+
+
+class TestDatabaseBatchStreamNotify:
+    """PAR-03: edge cases for the sync mirrors insert_many/upsert_many/stream/notify."""
+
+    @patch("pycopg.database.psycopg")
+    def test_insert_many_empty_returns_zero(self, mock_psycopg, config):
+        """insert_many([]) returns 0 without touching the DB."""
+        db = Database(config)
+        assert db.insert_many("users", []) == 0
+        mock_psycopg.connect.assert_not_called()
+
+    @patch("pycopg.database.psycopg")
+    def test_upsert_many_empty_returns_zero(self, mock_psycopg, config):
+        """upsert_many([]) returns 0 without touching the DB."""
+        db = Database(config)
+        assert db.upsert_many("users", [], conflict_columns=["id"]) == 0
+        mock_psycopg.connect.assert_not_called()
+
+    @patch("pycopg.database.psycopg")
+    def test_insert_many_delegates_to_execute_many(self, mock_psycopg, config):
+        """insert_many builds an INSERT and returns the rowcount via executemany."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 2
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        result = db.insert_many(
+            "users",
+            [{"name": "A", "email": "a@x"}, {"name": "B", "email": "b@x"}],
+        )
+
+        assert result == 2
+        mock_cursor.executemany.assert_called_once()
+        sql = mock_cursor.executemany.call_args[0][0]
+        assert sql.startswith("INSERT INTO public.users")
+
+    @patch("pycopg.database.psycopg")
+    def test_upsert_many_builds_on_conflict_clause(self, mock_psycopg, config):
+        """upsert_many builds an ON CONFLICT DO UPDATE clause for non-conflict cols."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 1
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        db.upsert_many(
+            "users",
+            [{"id": 1, "name": "Alice", "email": "a@x"}],
+            conflict_columns=["id"],
+        )
+
+        sql = mock_cursor.executemany.call_args[0][0]
+        assert "ON CONFLICT (id) DO UPDATE SET" in sql
+        assert "name = EXCLUDED.name" in sql
+        assert "email = EXCLUDED.email" in sql
+
+    @patch("pycopg.database.psycopg")
+    def test_stream_yields_dicts_in_batches(self, mock_psycopg, config):
+        """stream fetches in batches and yields each row."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        # Two batches then empty
+        mock_cursor.fetchmany.side_effect = [
+            [{"id": 1}, {"id": 2}],
+            [{"id": 3}],
+            [],
+        ]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        rows = list(db.stream("SELECT * FROM t", batch_size=2))
+
+        assert rows == [{"id": 1}, {"id": 2}, {"id": 3}]
+
+    @patch("pycopg.database.psycopg")
+    def test_notify_uses_pg_notify(self, mock_psycopg, config):
+        """notify issues SELECT pg_notify(channel, payload), not raw NOTIFY."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = None
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        db.notify("events", "hello")
+
+        sql, params = mock_cursor.execute.call_args[0][:2]
+        assert "pg_notify" in sql
+        assert params == ["events", "hello"]
+
+    def test_notify_rejects_invalid_channel(self, config):
+        """notify validates the channel identifier."""
+        db = Database(config)
+        with pytest.raises(InvalidIdentifier):
+            db.notify("bad channel; DROP TABLE x")
+
+    def test_no_sync_listen(self, config):
+        """D-06: Database has no listen method (async-only)."""
+        db = Database(config)
+        assert not hasattr(db, "listen")
 
 
 class TestDatabaseTruncate:
@@ -990,21 +1108,24 @@ class TestDatabaseCreateDropSchema:
         call_args = mock_cursor.execute.call_args[0][0]
         assert "DROP SCHEMA" in call_args
 
+
 class TestDatabaseInspection:
     """Tests for table inspection methods."""
 
     def test_list_columns(self, config):
         """Test list_columns method."""
         db = Database(config)
-        db.execute = MagicMock(return_value=[
-            {"column_name": "id", "data_type": "integer"},
-            {"column_name": "name", "data_type": "text"}
-        ])
+        db.execute = MagicMock(
+            return_value=[
+                {"column_name": "id", "data_type": "integer"},
+                {"column_name": "name", "data_type": "text"},
+            ]
+        )
 
         cols = db.list_columns("users")
-        
+
         assert cols == ["id", "name"]
-        
+
         # Verify call to execute
         call_args = db.execute.call_args
         assert "column_name" in call_args[0][0]
@@ -1013,10 +1134,12 @@ class TestDatabaseInspection:
     def test_columns_with_types(self, config):
         """Test columns_with_types method."""
         db = Database(config)
-        db.execute = MagicMock(return_value=[
-            {"column_name": "id", "data_type": "integer"},
-            {"column_name": "name", "data_type": "text"}
-        ])
+        db.execute = MagicMock(
+            return_value=[
+                {"column_name": "id", "data_type": "integer"},
+                {"column_name": "name", "data_type": "text"},
+            ]
+        )
 
         cols = db.columns_with_types("users")
 
@@ -1033,7 +1156,9 @@ class TestDatabaseRetry:
 
     @patch("pycopg.database.psycopg")
     @patch("time.sleep")  # Patch sleep to avoid delays
-    def test_connect_with_retry_retries_operational_error(self, mock_sleep, mock_psycopg, config):
+    def test_connect_with_retry_retries_operational_error(
+        self, mock_sleep, mock_psycopg, config
+    ):
         """Test _connect_with_retry retries OperationalError."""
         from pycopg.database import OperationalError
 
@@ -1042,7 +1167,7 @@ class TestDatabaseRetry:
         mock_psycopg.connect.side_effect = [
             OperationalError("Connection refused"),
             OperationalError("Connection refused"),
-            mock_conn
+            mock_conn,
         ]
 
         db = Database(config)
@@ -1052,7 +1177,9 @@ class TestDatabaseRetry:
         assert mock_psycopg.connect.call_count == 3
 
     @patch("pycopg.database.psycopg")
-    def test_connect_with_retry_does_not_retry_programming_error(self, mock_psycopg, config):
+    def test_connect_with_retry_does_not_retry_programming_error(
+        self, mock_psycopg, config
+    ):
         """Test _connect_with_retry does NOT retry ProgrammingError."""
         from psycopg import ProgrammingError
 
@@ -1067,7 +1194,9 @@ class TestDatabaseRetry:
 
     @patch("pycopg.database.psycopg")
     @patch("time.sleep")
-    def test_connect_with_retry_reraises_after_max_attempts(self, mock_sleep, mock_psycopg, config):
+    def test_connect_with_retry_reraises_after_max_attempts(
+        self, mock_sleep, mock_psycopg, config
+    ):
         """Test _connect_with_retry reraises after 3 attempts."""
         from pycopg.database import OperationalError
 
@@ -1085,6 +1214,7 @@ class TestDatabaseRetry:
         """Test insert_batch uses config.default_batch_size when batch_size=None."""
         # Use inspect to verify batch_size default is None
         import inspect
+
         sig = inspect.signature(Database.insert_batch)
         param = sig.parameters["batch_size"]
         assert param.default is None
@@ -1092,6 +1222,7 @@ class TestDatabaseRetry:
     def test_insert_batch_explicit_batch_size_overrides_config(self, config):
         """Test insert_batch explicit batch_size overrides config."""
         import inspect
+
         sig = inspect.signature(Database.insert_batch)
         # Verify batch_size parameter exists with default None
         assert "batch_size" in sig.parameters
@@ -1254,7 +1385,9 @@ class TestDatabaseRoleAdminBranches:
         db = self._make_db_with_execute_mock(config)
         db.role_exists = MagicMock(return_value=False)
 
-        db.create_role("superrole", login=True, superuser=True, createdb=True, createrole=True)
+        db.create_role(
+            "superrole", login=True, superuser=True, createdb=True, createrole=True
+        )
 
         call_sql = db.execute.call_args[0][0]
         assert "SUPERUSER" in call_sql
@@ -1267,7 +1400,11 @@ class TestDatabaseRoleAdminBranches:
         db.role_exists = MagicMock(return_value=False)
 
         db.create_role(
-            "limitedrole", login=True, inherit=False, replication=True, connection_limit=5
+            "limitedrole",
+            login=True,
+            inherit=False,
+            replication=True,
+            connection_limit=5,
         )
 
         call_sql = db.execute.call_args[0][0]
@@ -1321,7 +1458,9 @@ class TestDatabaseRoleAdminBranches:
         """Test alter_role() with login/superuser/createdb/createrole options uses cursor."""
         db, mock_cursor = self._make_db_with_cursor_mock(config)
 
-        db.alter_role("appuser", login=True, superuser=False, createdb=True, createrole=False)
+        db.alter_role(
+            "appuser", login=True, superuser=False, createdb=True, createrole=False
+        )
 
         mock_cursor.execute.assert_called_once()
         call_sql = mock_cursor.execute.call_args[0][0]

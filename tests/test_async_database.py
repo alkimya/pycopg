@@ -2540,6 +2540,38 @@ class TestAsyncDatabaseAdminIntegration:
             inspect.getattr_static(AsyncDatabase, "create_from_env"), classmethod
         )
 
+    async def test_create_from_env_delegates_to_create(self):
+        """create_from_env loads env Config then delegates to create with its fields."""
+        env_cfg = Config(
+            host="envhost",
+            port=5433,
+            database="postgres",
+            user="envuser",
+            password="envpass",
+        )
+        with (
+            patch(
+                "pycopg.async_database.Config.from_env", return_value=env_cfg
+            ) as mock_from_env,
+            patch.object(
+                AsyncDatabase, "create", new=AsyncMock(return_value="sentinel")
+            ) as mock_create,
+        ):
+            result = await AsyncDatabase.create_from_env("newdb")
+
+        mock_from_env.assert_called_once()
+        mock_create.assert_awaited_once_with(
+            name="newdb",
+            host="envhost",
+            port=5433,
+            user="envuser",
+            password="envpass",
+            owner=None,
+            template="template1",
+            if_not_exists=True,
+        )
+        assert result == "sentinel"
+
     def test_create_signature_matches_sync(self):
         """AsyncDatabase.create accepts the same params as Database.create."""
         from pycopg import Database
@@ -2702,9 +2734,9 @@ class TestAsyncDatabaseCorrectnessFixes:
 
     async def test_table_info_fields_match_sync(self, db_config):
         """PAR-07: async/sync table_info return the same dict keys."""
-        from pycopg import Database
-
         import uuid
+
+        from pycopg import Database
 
         t = f"test_ti_{uuid.uuid4().hex[:8]}"
         adb = AsyncDatabase(db_config)
