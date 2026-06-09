@@ -28,6 +28,7 @@ from tenacity import (
 )
 
 from pycopg import queries
+from pycopg.base import build_pg_dump_cmd, build_pg_restore_cmd, build_role_options
 from pycopg.config import Config
 from pycopg.utils import (
     validate_csv_option,
@@ -2022,31 +2023,17 @@ class Database:
         if if_not_exists and self.role_exists(name):
             return
 
-        options = []
-        if login:
-            options.append("LOGIN")
-        else:
-            options.append("NOLOGIN")
-
-        if superuser:
-            options.append("SUPERUSER")
-        if createdb:
-            options.append("CREATEDB")
-        if createrole:
-            options.append("CREATEROLE")
-        if not inherit:
-            options.append("NOINHERIT")
-        if replication:
-            options.append("REPLICATION")
-        if connection_limit != -1:
-            options.append(f"CONNECTION LIMIT {connection_limit}")
-        if password:
-            # Use parameterized query for password
-            options.append("PASSWORD %s")
-        if valid_until:
-            validate_timestamp(valid_until)
-            options.append(f"VALID UNTIL '{valid_until}'")
-
+        options = build_role_options(
+            login=login,
+            superuser=superuser,
+            createdb=createdb,
+            createrole=createrole,
+            inherit=inherit,
+            replication=replication,
+            connection_limit=connection_limit,
+            password=password,
+            valid_until=valid_until,
+        )
         options_str = " ".join(options)
 
         if password:
@@ -2421,42 +2408,21 @@ class Database:
         """
         import subprocess
 
-        output_file = Path(output_file)
-        cmd = ["pg_dump"]
-
-        # Connection params
-        cmd.extend(["-h", self.config.host])
-        cmd.extend(["-p", str(self.config.port)])
-        cmd.extend(["-U", self.config.user])
-        cmd.extend(["-d", self.config.database])
-
-        # Format
-        format_map = {"plain": "p", "custom": "c", "directory": "d", "tar": "t"}
-        cmd.extend(["-F", format_map[format]])
-
-        # Options
-        if schema_only:
-            cmd.append("--schema-only")
-        if data_only:
-            cmd.append("--data-only")
-        if compress and format == "custom":
-            cmd.extend(["-Z", str(compress)])
-        if jobs > 1 and format == "directory":
-            cmd.extend(["-j", str(jobs)])
-
-        # Tables
-        if tables:
-            for table in tables:
-                cmd.extend(["-t", table])
-        if exclude_tables:
-            for table in exclude_tables:
-                cmd.extend(["-T", table])
-        if schemas:
-            for schema in schemas:
-                cmd.extend(["-n", schema])
-
-        # Output
-        cmd.extend(["-f", str(output_file)])
+        cmd = build_pg_dump_cmd(
+            host=self.config.host,
+            port=self.config.port,
+            user=self.config.user,
+            database=self.config.database,
+            output_file=output_file,
+            format=format,
+            schema_only=schema_only,
+            data_only=data_only,
+            tables=tables,
+            exclude_tables=exclude_tables,
+            schemas=schemas,
+            compress=compress,
+            jobs=jobs,
+        )
 
         # Run with password in environment
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
@@ -2519,41 +2485,23 @@ class Database:
             self._psql_restore(input_file)
             return
 
-        cmd = ["pg_restore"]
-
-        # Connection params
-        cmd.extend(["-h", self.config.host])
-        cmd.extend(["-p", str(self.config.port)])
-        cmd.extend(["-U", self.config.user])
-        cmd.extend(["-d", self.config.database])
-
-        # Options
-        if clean:
-            cmd.append("--clean")
-        if if_exists:
-            cmd.append("--if-exists")
-        if create:
-            cmd.append("--create")
-        if data_only:
-            cmd.append("--data-only")
-        if schema_only:
-            cmd.append("--schema-only")
-        if jobs > 1:
-            cmd.extend(["-j", str(jobs)])
-        if no_owner:
-            cmd.append("--no-owner")
-        if no_privileges:
-            cmd.append("--no-privileges")
-
-        # Tables/Schemas
-        if tables:
-            for table in tables:
-                cmd.extend(["-t", table])
-        if schemas:
-            for schema in schemas:
-                cmd.extend(["-n", schema])
-
-        cmd.append(str(input_file))
+        cmd = build_pg_restore_cmd(
+            host=self.config.host,
+            port=self.config.port,
+            user=self.config.user,
+            database=self.config.database,
+            input_file=input_file,
+            clean=clean,
+            if_exists=if_exists,
+            create=create,
+            data_only=data_only,
+            schema_only=schema_only,
+            tables=tables,
+            schemas=schemas,
+            jobs=jobs,
+            no_owner=no_owner,
+            no_privileges=no_privileges,
+        )
 
         # Run with password in environment
         env = {"PGPASSWORD": self.config.password} if self.config.password else {}
