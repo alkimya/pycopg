@@ -1704,7 +1704,6 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             schema: Schema name.
             if_exists: What to do if table exists ('fail', 'replace', 'append').
             primary_key: Column(s) to set as primary key after creation.
-                Note: Requires add_primary_key (available in Phase 3).
             index: Write DataFrame index as column.
             dtype: Optional dict of column name to SQLAlchemy types.
 
@@ -1794,9 +1793,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             schema: Schema name.
             if_exists: What to do if table exists.
             primary_key: Column(s) for primary key.
-                Note: Requires add_primary_key (available in Phase 3).
             spatial_index: Create GIST spatial index on geometry.
-                Note: Requires create_spatial_index (available in Phase 4).
             geometry_column: Name of geometry column.
             srid: Override SRID (extracted from CRS if not specified).
 
@@ -2212,7 +2209,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await proc.communicate()
+        _, stderr = await proc.communicate()
 
         if proc.returncode != 0:
             raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
@@ -2297,7 +2294,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await proc.communicate()
+        _, stderr = await proc.communicate()
 
         if proc.returncode != 0:
             raise RuntimeError(f"pg_restore failed: {stderr.decode()}")
@@ -2329,7 +2326,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             stderr=asyncio.subprocess.PIPE,
         )
 
-        stdout, stderr = await proc.communicate()
+        _, stderr = await proc.communicate()
 
         if proc.returncode != 0:
             raise RuntimeError(f"psql restore failed: {stderr.decode()}")
@@ -2386,35 +2383,32 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         # Create parent directory if needed
         await asyncio.to_thread(output_file.parent.mkdir, parents=True, exist_ok=True)
 
-        try:
-            async with self.cursor() as cur:
-                # Open file and write data
-                file_handle = await asyncio.to_thread(
-                    open, output_file, "w", encoding=encoding
-                )
-                try:
-                    async with cur.copy(
-                        f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
-                    ) as copy:
-                        async for data in copy:
-                            # psycopg yields memoryview chunks; bytes(...) handles
-                            # both memoryview and bytes before decoding to text.
-                            decoded = (
-                                data
-                                if isinstance(data, str)
-                                else bytes(data).decode(encoding)
-                            )
-                            await asyncio.to_thread(file_handle.write, decoded)
-                finally:
-                    await asyncio.to_thread(file_handle.close)
+        async with self.cursor() as cur:
+            # Open file and write data
+            file_handle = await asyncio.to_thread(
+                open, output_file, "w", encoding=encoding
+            )
+            try:
+                async with cur.copy(
+                    f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
+                ) as copy:
+                    async for data in copy:
+                        # psycopg yields memoryview chunks; bytes(...) handles
+                        # both memoryview and bytes before decoding to text.
+                        decoded = (
+                            data
+                            if isinstance(data, str)
+                            else bytes(data).decode(encoding)
+                        )
+                        await asyncio.to_thread(file_handle.write, decoded)
+            finally:
+                await asyncio.to_thread(file_handle.close)
 
-                # Get row count
-                result = await self.execute(
-                    f"SELECT COUNT(*) AS count FROM {schema}.{table}"
-                )
-                return result[0]["count"]
-        except Exception:
-            raise
+            # Get row count
+            result = await self.execute(
+                f"SELECT COUNT(*) AS count FROM {schema}.{table}"
+            )
+            return result[0]["count"]
 
     async def copy_from_csv(
         self,
