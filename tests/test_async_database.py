@@ -2761,3 +2761,101 @@ class TestAsyncDatabaseCorrectnessFixes:
         s_roles = sdb.list_roles()
         if a_roles and s_roles:
             assert {*a_roles[0].keys()} == {*s_roles[0].keys()}
+
+
+class TestAsyncDatabaseCoverageFill:
+    """PAR-09 coverage: async copy_insert/size/csv/timescale lifecycle on the real DB."""
+
+    @staticmethod
+    def _t():
+        import uuid
+
+        return f"test_acov_{uuid.uuid4().hex[:8]}"
+
+    async def test_copy_insert(self, db_config):
+        """async copy_insert bulk-loads via COPY."""
+        db = AsyncDatabase(db_config)
+        t = self._t()
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER, name TEXT)', autocommit=True
+            )
+            count = await db.copy_insert(
+                t, [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+            )
+            assert count == 2
+            rows = await db.execute(f'SELECT COUNT(*) AS n FROM "{t}"')
+            assert rows[0]["n"] == 2
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_size_table_size_row_count(self, db_config):
+        """async size/table_size/row_count return values."""
+        db = AsyncDatabase(db_config)
+        t = self._t()
+        try:
+            await db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
+            await db.insert_many(t, [{"id": i} for i in range(3)])
+            assert isinstance(await db.size(pretty=True), str)
+            assert isinstance(await db.size(pretty=False), int)
+            assert await db.table_size(t) is not None
+            assert isinstance(await db.row_count(t), int)
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_copy_to_and_from_csv(self, db_config, tmp_path):
+        """async copy_to_csv exports; copy_from_csv re-imports."""
+        db = AsyncDatabase(db_config)
+        src = self._t()
+        dst = self._t()
+        try:
+            await db.execute(
+                f'CREATE TABLE "{src}" (id INTEGER, name TEXT)', autocommit=True
+            )
+            await db.insert_many(src, [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}])
+            csv_path = tmp_path / "async_out.csv"
+            exported = await db.copy_to_csv(src, str(csv_path))
+            assert exported == 2
+            assert csv_path.exists()
+            await db.execute(
+                f'CREATE TABLE "{dst}" (id INTEGER, name TEXT)', autocommit=True
+            )
+            await db.copy_from_csv(dst, str(csv_path))
+            rows = await db.execute(f'SELECT id, name FROM "{dst}" ORDER BY id')
+            assert rows == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{src}" CASCADE', autocommit=True)
+            await db.execute(f'DROP TABLE IF EXISTS "{dst}" CASCADE', autocommit=True)
+
+    async def test_hypertable_lifecycle(self, db_config):
+        """async create_hypertable -> hypertable_info -> list_hypertables."""
+        db = AsyncDatabase(db_config)
+        if not await db.has_extension("timescaledb"):
+            try:
+                await db.create_extension("timescaledb", if_not_exists=True)
+            except Exception:
+                pytest.skip("TimescaleDB not available")
+        if not await db.has_extension("timescaledb"):
+            pytest.skip("TimescaleDB not available")
+
+        t = self._t()
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (ts TIMESTAMPTZ NOT NULL, v DOUBLE PRECISION)',
+                autocommit=True,
+            )
+            await db.create_hypertable(t, "ts", chunk_time_interval="1 day")
+            info = await db.hypertable_info(t)
+            assert "total_size" in info
+            hts = await db.list_hypertables()
+            assert any(h["table_name"] == t for h in hts)
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    # NOTE: async from_geodataframe/to_geodataframe are intentionally NOT exercised
+    # here. geopandas (a sync-only library) reaches for a raw DBAPI cursor context
+    # manager that SQLAlchemy's async psycopg adapter does not expose under
+    # run_sync, so to_postgis raises TypeError in this environment. Async GIS
+    # DataFrame integration is out of Phase 11 scope (PAR parity covers the
+    # constraint/admin/batch surface); the sync GeoDataFrame round-trip is
+    # covered in test_database_integration.py::TestDatabaseGeoCoverage.

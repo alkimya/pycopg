@@ -1345,10 +1345,12 @@ class AsyncDatabase:
             )
 
         result = await self.execute(
+            # %%I is escaped so psycopg passes a literal %I through to
+            # PostgreSQL's format() (psycopg only allows %s/%b/%t placeholders).
             """
             SELECT
-                hypertable_size(format('%I.%I', %s, %s)) AS total_size,
-                hypertable_detailed_size(format('%I.%I', %s, %s)) AS detailed_size
+                hypertable_size(format('%%I.%%I', %s::text, %s::text)) AS total_size,
+                hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
         """,
             [schema, table, schema, table],
         )
@@ -2631,10 +2633,12 @@ class AsyncDatabase:
                         f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
                     ) as copy:
                         async for data in copy:
+                            # psycopg yields memoryview chunks; bytes(...) handles
+                            # both memoryview and bytes before decoding to text.
                             decoded = (
-                                data.decode(encoding)
-                                if isinstance(data, bytes)
-                                else data
+                                data
+                                if isinstance(data, str)
+                                else bytes(data).decode(encoding)
                             )
                             await asyncio.to_thread(file_handle.write, decoded)
                 finally:

@@ -1806,10 +1806,12 @@ class Database:
             )
 
         result = self.execute(
+            # %%I is escaped so psycopg passes a literal %I through to
+            # PostgreSQL's format() (psycopg only allows %s/%b/%t placeholders).
             """
             SELECT
-                hypertable_size(format('%I.%I', %s, %s)) AS total_size,
-                hypertable_detailed_size(format('%I.%I', %s, %s)) AS detailed_size
+                hypertable_size(format('%%I.%%I', %s::text, %s::text)) AS total_size,
+                hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
         """,
             [schema, table, schema, table],
         )
@@ -2643,9 +2645,12 @@ class Database:
                     f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
                 ) as copy:
                     for data in copy:
-                        f.write(
-                            data.decode(encoding) if isinstance(data, bytes) else data
-                        )
+                        # psycopg yields memoryview chunks; bytes(...) handles
+                        # both memoryview and bytes before decoding to text.
+                        if isinstance(data, str):
+                            f.write(data)
+                        else:
+                            f.write(bytes(data).decode(encoding))
 
             # Get row count
             cur.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")

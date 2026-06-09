@@ -651,3 +651,220 @@ class TestDatabaseBatchStreamNotify:
     def test_no_sync_listen_method(self, db):
         """D-06: listen stays async-only — Database must NOT have a listen method."""
         assert not hasattr(db, "listen")
+
+
+class TestDatabaseConstraintsAdminCoverage:
+    """PAR-09 coverage: sync constraint/admin methods against the real DB."""
+
+    def test_add_foreign_key_cascade(self, db, cleanup_table):
+        """add_foreign_key creates an FK that cascades deletes."""
+        parent = f"test_fk_p_{uuid.uuid4().hex[:8]}"
+        child = f"test_fk_c_{uuid.uuid4().hex[:8]}"
+        cleanup_table(parent)
+        cleanup_table(child)
+        db.execute(f'CREATE TABLE "{parent}" (id INTEGER PRIMARY KEY)', autocommit=True)
+        db.execute(
+            f'CREATE TABLE "{child}" (id INTEGER PRIMARY KEY, parent_id INTEGER)',
+            autocommit=True,
+        )
+        db.add_foreign_key(child, "parent_id", parent, "id", on_delete="CASCADE")
+        db.execute(f'INSERT INTO "{parent}" VALUES (1)', autocommit=True)
+        db.execute(f'INSERT INTO "{child}" VALUES (10, 1)', autocommit=True)
+        db.execute(f'DELETE FROM "{parent}" WHERE id = 1', autocommit=True)
+        assert db.execute(f'SELECT * FROM "{child}"') == []
+
+    def test_add_foreign_key_invalid_action_raises(self, db):
+        """add_foreign_key with a bad on_delete raises ValueError before SQL."""
+        with pytest.raises(ValueError, match="Invalid ON DELETE"):
+            db.add_foreign_key("a", "x", "b", "y", on_delete="BOGUS")
+        with pytest.raises(ValueError, match="Invalid ON UPDATE"):
+            db.add_foreign_key("a", "x", "b", "y", on_update="BOGUS")
+
+    def test_add_unique_constraint_rejects_duplicate(self, db, cleanup_table):
+        """add_unique_constraint enforces uniqueness."""
+        t = f"test_uq_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        db.execute(f'CREATE TABLE "{t}" (id INTEGER, email TEXT)', autocommit=True)
+        db.add_unique_constraint(t, "email")
+        db.execute(f'INSERT INTO "{t}" VALUES (1, %s)', ["a@x"], autocommit=True)
+        with pytest.raises(Exception):
+            db.execute(f'INSERT INTO "{t}" VALUES (2, %s)', ["a@x"], autocommit=True)
+
+    def test_truncate_table_cascade(self, db, cleanup_table):
+        """truncate_table with cascade=True empties a referenced table."""
+        parent = f"test_tr_p_{uuid.uuid4().hex[:8]}"
+        child = f"test_tr_c_{uuid.uuid4().hex[:8]}"
+        cleanup_table(parent)
+        cleanup_table(child)
+        db.execute(f'CREATE TABLE "{parent}" (id INTEGER PRIMARY KEY)', autocommit=True)
+        db.execute(
+            f'CREATE TABLE "{child}" (id INTEGER, p INTEGER REFERENCES "{parent}"(id))',
+            autocommit=True,
+        )
+        db.execute(f'INSERT INTO "{parent}" VALUES (1)', autocommit=True)
+        db.execute(f'INSERT INTO "{child}" VALUES (1, 1)', autocommit=True)
+        db.truncate_table(parent, cascade=True)
+        assert db.execute(f'SELECT COUNT(*) AS n FROM "{parent}"')[0]["n"] == 0
+        assert db.execute(f'SELECT COUNT(*) AS n FROM "{child}"')[0]["n"] == 0
+
+    def test_database_exists_and_list(self, db):
+        """database_exists / list_databases against the real instance."""
+        assert db.database_exists("pycopg_test") is True
+        assert db.database_exists("definitely_absent_xyz") is False
+        names = db.list_databases()
+        assert "pycopg_test" in names
+
+    def test_drop_extension_if_exists(self, db):
+        """drop_extension(if_exists=True) is idempotent."""
+        db.create_extension("pg_trgm", if_not_exists=True)
+        db.drop_extension("pg_trgm", if_exists=True)
+        db.drop_extension("pg_trgm", if_exists=True)  # no error second time
+        db.create_extension("pg_trgm", if_not_exists=True)  # restore
+
+    def test_drop_table_if_exists_and_cascade(self, db, cleanup_table):
+        """drop_table covers if_exists and cascade branches."""
+        t = f"test_dt_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
+        db.drop_table(t, cascade=True)
+        assert not db.table_exists(t)
+        # if_exists=True when already gone must not raise
+        db.drop_table(t, if_exists=True)
+
+    def test_drop_schema_cascade(self, db):
+        """create_schema then drop_schema(cascade=True) round-trip."""
+        s = f"test_sc_{uuid.uuid4().hex[:8]}"
+        db.create_schema(s)
+        assert db.schema_exists(s)
+        db.execute(f'CREATE TABLE "{s}".t (id INTEGER)', autocommit=True)
+        db.drop_schema(s, cascade=True)
+        assert not db.schema_exists(s)
+
+
+class TestDatabaseCsvCoverage:
+    """PAR-09 coverage: copy_to_csv / copy_from_csv round-trip."""
+
+    def test_copy_to_and_from_csv_round_trip(self, db, cleanup_table, tmp_path):
+        """copy_to_csv exports rows; copy_from_csv re-imports them."""
+        src = f"test_csv_src_{uuid.uuid4().hex[:8]}"
+        dst = f"test_csv_dst_{uuid.uuid4().hex[:8]}"
+        cleanup_table(src)
+        cleanup_table(dst)
+        db.execute(f'CREATE TABLE "{src}" (id INTEGER, name TEXT)', autocommit=True)
+        db.insert_many(src, [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}])
+
+        csv_path = tmp_path / "out.csv"
+        exported = db.copy_to_csv(src, str(csv_path))
+        assert exported == 2
+        assert csv_path.exists()
+
+        db.execute(f'CREATE TABLE "{dst}" (id INTEGER, name TEXT)', autocommit=True)
+        db.copy_from_csv(dst, str(csv_path))
+        rows = db.execute(f'SELECT id, name FROM "{dst}" ORDER BY id')
+        assert rows == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+
+
+class TestDatabaseBulkAndSizeCoverage:
+    """PAR-09 coverage: copy_insert + size/table_size/row_count."""
+
+    def test_copy_insert(self, db, cleanup_table):
+        """copy_insert bulk-loads rows via the COPY protocol."""
+        t = f"test_ci_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        db.execute(f'CREATE TABLE "{t}" (id INTEGER, name TEXT)', autocommit=True)
+        count = db.copy_insert(
+            t, [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}, {"id": 3, "name": "c"}]
+        )
+        assert count == 3
+        assert db.execute(f'SELECT COUNT(*) AS n FROM "{t}"')[0]["n"] == 3
+
+    def test_size_pretty_and_raw(self, db):
+        """size returns a human string when pretty, an int otherwise."""
+        pretty = db.size(pretty=True)
+        raw = db.size(pretty=False)
+        assert isinstance(pretty, str)
+        assert isinstance(raw, int)
+
+    def test_table_size_and_row_count(self, db, cleanup_table):
+        """table_size returns size info; row_count returns an int."""
+        t = f"test_sz_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
+        db.insert_many(t, [{"id": i} for i in range(5)])
+        size = db.table_size(t)
+        assert size is not None
+        assert isinstance(db.row_count(t), int)
+
+
+class TestDatabaseGeoCoverage:
+    """PAR-09 coverage: GeoDataFrame round-trip (requires PostGIS + geopandas)."""
+
+    def test_from_and_to_geodataframe(self, db, cleanup_table):
+        """from_geodataframe writes geometry; to_geodataframe reads it back."""
+        gpd = pytest.importorskip("geopandas")
+        from shapely.geometry import Point
+
+        if not db.has_extension("postgis"):
+            pytest.skip("PostGIS not installed")
+
+        t = f"test_geo_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        gdf = gpd.GeoDataFrame(
+            {"name": ["a", "b"]},
+            geometry=[Point(1, 1), Point(2, 2)],
+            crs="EPSG:4326",
+        )
+        db.from_geodataframe(gdf, t, primary_key=None, spatial_index=True)
+        back = db.to_geodataframe(table=t)
+        assert len(back) == 2
+        assert "geometry" in back.columns
+
+
+class TestDatabaseTimescaleCoverage:
+    """PAR-09 coverage: TimescaleDB hypertable lifecycle (requires timescaledb)."""
+
+    @pytest.fixture
+    def ts_db(self, db):
+        if not db.has_extension("timescaledb"):
+            try:
+                db.create_extension("timescaledb", if_not_exists=True)
+            except Exception:
+                pytest.skip("TimescaleDB extension not available")
+        if not db.has_extension("timescaledb"):
+            pytest.skip("TimescaleDB extension not available")
+        return db
+
+    def test_hypertable_lifecycle(self, ts_db, cleanup_table):
+        """create_hypertable -> enable_compression -> policies -> info -> list."""
+        t = f"test_ht_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        ts_db.execute(
+            f'CREATE TABLE "{t}" (ts TIMESTAMPTZ NOT NULL, device TEXT, val DOUBLE PRECISION)',
+            autocommit=True,
+        )
+        ts_db.create_hypertable(t, "ts", chunk_time_interval="1 day")
+
+        info = ts_db.hypertable_info(t)
+        assert "total_size" in info
+
+        hypertables = ts_db.list_hypertables()
+        assert any(h["table_name"] == t for h in hypertables)
+
+        # Compression/retention are TimescaleDB-licensed features. On the Apache
+        # (community) build they raise FeatureNotSupported — exercise the code
+        # paths but tolerate the license limitation in CI/local environments.
+        from psycopg.errors import FeatureNotSupported
+
+        try:
+            ts_db.enable_compression(t, segment_by="device", order_by="ts DESC")
+            ts_db.add_compression_policy(t, compress_after="7 days")
+            ts_db.add_retention_policy(t, drop_after="365 days")
+        except FeatureNotSupported:
+            pass
+
+    def test_create_hypertable_requires_extension(self, db, cleanup_table, monkeypatch):
+        """create_hypertable raises RuntimeError when timescaledb is absent."""
+        t = f"test_ht_err_{uuid.uuid4().hex[:8]}"
+        monkeypatch.setattr(db, "has_extension", lambda name: False)
+        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+            db.create_hypertable(t, "ts")
