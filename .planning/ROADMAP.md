@@ -118,6 +118,24 @@ Plans:
   4. Code mort résiduel nettoyé (imports `re`, `stdout` non lu, `try/except: raise`, constantes `*_SIMPLE`)
   5. Gate coverage montée à 95 (cliquet)
 
+**Plans:** 4 plans
+Plans:
+**Wave 1**
+
+- [ ] 12-01-PLAN.md — builders purs extraits dans base.py + rebranchage pg_dump/pg_restore/create_role sync+async (REF-03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 12-02-PLAN.md — collapse héritage (DatabaseBase, QueryMixin) + suppression from_env/from_url/__repr__ dupliqués + retrait *_SIMPLE (REF-02/REF-04)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 12-03-PLAN.md — wiring queries.* (~25 SQL inline) + _build_batch_insert_sql dans insert/upsert_many + code mort résiduel (REF-01/REF-02/REF-04)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 12-04-PLAN.md — [BLOCKING] tests builders DB-free + mesure coverage puis flip cliquet 90→95 (REF-05)
+
 ### Phase 13: Qualité documentaire (docstrings numpydoc + interrogate)
 
 **Goal**: Doc API homogène et mesurée — numpydoc peu profond sans Examples, interrogate ≥ 95 en CI.
@@ -189,7 +207,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
-| 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/? | Pending (5 req) | — |
+| 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/4 | Planned (5 req) | — |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
