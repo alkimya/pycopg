@@ -60,19 +60,6 @@ GET_COLUMNS = """
     ORDER BY ordinal_position
 """
 
-# Simplified version for AsyncDatabase
-TABLE_INFO_SIMPLE = """
-    SELECT
-        column_name,
-        data_type,
-        is_nullable,
-        column_default,
-        ordinal_position
-    FROM information_schema.columns
-    WHERE table_schema = %s AND table_name = %s
-    ORDER BY ordinal_position
-"""
-
 ROW_COUNT = """
     SELECT reltuples::bigint AS count
     FROM pg_class c
@@ -169,19 +156,6 @@ LIST_ROLES = """
         rolreplication AS replication,
         rolconnlimit AS connection_limit,
         rolvaliduntil AS valid_until
-    FROM pg_roles
-    {where_clause}
-    ORDER BY rolname
-"""
-
-# Simplified version for AsyncDatabase
-LIST_ROLES_SIMPLE = """
-    SELECT
-        rolname AS name,
-        rolsuper AS superuser,
-        rolcreaterole AS createrole,
-        rolcreatedb AS createdb,
-        rolcanlogin AS login
     FROM pg_roles
     {where_clause}
     ORDER BY rolname
