@@ -85,7 +85,7 @@ class AsyncDatabase:
         """Get or create async SQLAlchemy engine (lazy initialization)."""
         if self._async_engine is None:
             from sqlalchemy.ext.asyncio import create_async_engine
-            self._async_engine = create_async_engine(self.config.url)
+            self._async_engine = create_async_engine(self.config.async_url)
         return self._async_engine
 
     @classmethod
