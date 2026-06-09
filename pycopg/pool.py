@@ -172,7 +172,7 @@ class PooledDatabase:
                 for params in params_seq:
                     cur.execute(sql, params)
                     total += cur.rowcount
-            conn.commit()
+                conn.commit()
         return total
 
     @property
@@ -362,7 +362,7 @@ class AsyncPooledDatabase:
                 for params in params_seq:
                     await cur.execute(sql, params)
                     total += cur.rowcount
-            await conn.commit()
+                await conn.commit()
         return total
 
     async def fetch_one(self, sql: str, params: Optional[Sequence] = None) -> Optional[dict]:
