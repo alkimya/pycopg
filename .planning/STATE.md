@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: completed
-last_updated: "2026-06-09T11:57:56.455Z"
-last_activity: 2026-06-09 -- Phase 11 marked complete
+status: in_progress
+last_updated: "2026-06-09T13:33:00.000Z"
+last_activity: 2026-06-09 -- Phase 11 UAT complete (10/10 passed, 0 issues)
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 16
-  completed_plans: 16
+  total_plans: 23
+  completed_plans: 23
   percent: 43
 ---
 
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 11 — parit-sync-async-compl-te
+**Current focus:** Phase 12 — Refactoring (brancher les abstractions base.py/queries.py)
 
 ## Current Position
 
-Phase: 11 — COMPLETE
-Plan: 1 of 7
-Status: Phase 11 complete
-Last activity: 2026-06-09 -- Phase 11 marked complete
+Phase: 12 — Ready to plan
+Plan: Not started
+Status: Phase 11 complete (verified, secured, validated, UAT 10/10) — ready to plan Phase 12
+Last activity: 2026-06-09 -- Phase 11 UAT complete (10/10 passed, 0 issues)
 
 ## Performance Metrics
 
@@ -82,9 +82,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-09T09:46:08.788Z
-Phase 09 complete. All 4 plans executed: pyproject.toml + uv.lock + .python-version (P01),
-tests.yml CI workflow (P02), publish.yml uv build migration (P03), contributor docs + Makefile (P04).
-TOOL-01 through TOOL-05 satisfied. Next phase TBD.
+Last session: 2026-06-09T13:33:00.000Z
+Stopped at: Phase 11 complete, ready to plan Phase 12.
+Phase 11 fully gated — VERIFICATION 9/9, code review clean, SECURITY 14/14 (T-11-07 drop_extension
+  guard added this session), VALIDATION nyquist-compliant 9/9, UAT 10/10 passed / 0 issues.
+13 methods mirrored across sync/async, C1/C2/C3 fixed, coverage ratchet → 90 (measured 91.62%).
+Resume file: None.
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.

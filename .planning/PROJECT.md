@@ -54,14 +54,14 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 - ✓ Edge case testing: migration rollback, session exceptions, pool stress, PostGIS errors — v0.3.0
 - ✓ Automated async parity verification test — v0.3.0
 - ✓ CHANGELOG, MIGRATION guide, updated README, rebuilt Sphinx docs — v0.3.0
+- ✓ uv project tooling: dev + CI + build + `uv.lock` + `.python-version` (hatchling kept) — Phase 9 (TOOL-*)
+- ✓ Residual SQL-injection / robustness bugs B1/B2/B3/B5 + async validation closed — Phase 10 (SEC-*)
+- ✓ Full sync/async parity: 13 mirrored methods, C1/C2/C3 fixes, extended `test_parity`, coverage ratchet → 90 — Phase 11 (PAR-*)
 
 ### Active
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-- [ ] uv project tooling: dev + CI + build + `uv.lock` + `.python-version` (hatchling backend kept) — v0.4.0 (TOOL-*)
-- [ ] Close residual SQL-injection / robustness bugs B1/B2/B3/B5 + residual async validation — v0.4.0 (SEC-*)
-- [ ] Full sync/async parity: 10+ missing methods, C1/C2/C3 fixes, extended `test_parity` — v0.4.0 (PAR-*)
 - [ ] Refactor: wire up `queries.py` + `base.py`, extract pure stateless builders, dead-code cleanup — v0.4.0 (REF-*)
 - [ ] numpydoc docstrings + `interrogate ≥ 95`, real exceptions (V2), `__version__` via importlib, mypy — v0.4.0 (DOC-*)
 - [ ] `db.spatial.*` / `async_db.spatial.*` helpers (resolve 4 open design points at phase start) — v0.4.0 (SPAT-*)
@@ -139,6 +139,9 @@ Breaking change: `from_geodataframe` raises ValueError on unknown CRS instead of
 | v0.4.0: coverage ratchet 70→80→90→95, capped at 95 | Forces steady test growth without blocking on hard-to-mock I/O | — Pending |
 | v0.4.0: numpydoc docstrings, no Examples, interrogate ≥ 95 | Homogeneous measurable API docs; napoleon already active | — Pending |
 | v0.4.0: refactor lifted from Out of Scope | PROJECT.md deferred it to a "future version" — this is that version | — Pending |
+| v0.4.0 (P11): async catches up to richer sync signatures, never the reverse (D-07) | Sync is the established core-value API; align by enriching async | ✓ Good — 0 sync breaking changes, signatures match |
+| v0.4.0 (P11): `listen` stays async-only by design (D-06) | A blocking synchronous NOTIFY listener is an anti-pattern | ✓ Good — sole documented async-only method in `test_parity` |
+| v0.4.0 (P11): measure coverage before raising the ratchet gate (D-08) | Never freeze an unmet threshold | ✓ Good — measured 91.61% then flipped 80→90 |
 
 ## Evolution
 
@@ -158,4 +161,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-09 — Phase 10 complete (residual security fixes B1/B2/B3/B5 closed; SEC-01..06 validated; coverage ratchet → 80).*
+*Last updated: 2026-06-09 — Phase 11 complete (full sync/async parity: 13 mirrored methods + C1/C2/C3 fixes; PAR-01..09 validated; coverage ratchet → 90; T-11-07 drop_extension guard closed; UAT 10/10).*
