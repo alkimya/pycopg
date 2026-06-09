@@ -76,8 +76,18 @@ Plans:
   2. Database implémente insert_many, upsert_many, stream, notify
   3. C1/C2/C3 corrigés (primary_key appliqué async, `close()` dispose l'engine, driver `postgresql+psycopg_async`)
   4. Signatures alignées : create_extension(schema), create_schema(owner), sémantique table_info/list_roles
-  5. `test_parity.py` étendu aux champs de retour + comportement mocké
+  5. `test_parity.py` étendu aux champs de retour + comportement réel (intégration vraie DB, D-03)
   6. Gate coverage montée à 90 (cliquet)
+
+**Plans:** 7 plans
+Plans:
+- [ ] 11-01-PLAN.md — Config.async_url + async_engine rewire (C3/PAR-06)
+- [ ] 11-02-PLAN.md — sync insert_many/upsert_many/stream/notify (PAR-03)
+- [ ] 11-03-PLAN.md — async add_primary_key/add_foreign_key/add_unique_constraint/truncate_table (PAR-01)
+- [ ] 11-04-PLAN.md — async drop_extension/database_exists/list_databases/create/create_from_env (PAR-02)
+- [ ] 11-05-PLAN.md — C1 primary_key applied + C2 close() dispose + signature alignment (PAR-04/05/07)
+- [ ] 11-06-PLAN.md — test_parity integration assertions + allow-lists + per-method tests (PAR-08)
+- [ ] 11-07-PLAN.md — coverage gap-fill + ratchet flip 80→90 (PAR-09)
 
 ### Phase 12: Refactoring — brancher les abstractions
 
