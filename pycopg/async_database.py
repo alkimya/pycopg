@@ -27,7 +27,13 @@ from tenacity import (
 )
 
 from pycopg import queries
-from pycopg.base import build_pg_dump_cmd, build_pg_restore_cmd, build_role_options
+from pycopg.base import (
+    DatabaseBase,
+    QueryMixin,
+    build_pg_dump_cmd,
+    build_pg_restore_cmd,
+    build_role_options,
+)
 from pycopg.config import Config
 from pycopg.utils import (
     validate_csv_option,
@@ -48,7 +54,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-class AsyncDatabase:
+class AsyncDatabase(DatabaseBase, QueryMixin):
     """Async PostgreSQL interface.
 
     Provides async/await versions of Database methods using psycopg's AsyncConnection.
@@ -77,7 +83,7 @@ class AsyncDatabase:
         Args:
             config: Database configuration.
         """
-        self.config = config
+        super().__init__(config)
         self._session_conn: AsyncConnection | None = None
         self._async_engine = None
 
@@ -89,30 +95,6 @@ class AsyncDatabase:
 
             self._async_engine = create_async_engine(self.config.async_url)
         return self._async_engine
-
-    @classmethod
-    def from_env(cls, dotenv_path: str | Path | None = None) -> AsyncDatabase:
-        """Create AsyncDatabase from environment variables.
-
-        Args:
-            dotenv_path: Optional path to .env file.
-
-        Returns:
-            AsyncDatabase instance.
-        """
-        return cls(Config.from_env(dotenv_path))
-
-    @classmethod
-    def from_url(cls, url: str) -> AsyncDatabase:
-        """Create AsyncDatabase from connection URL.
-
-        Args:
-            url: PostgreSQL connection URL.
-
-        Returns:
-            AsyncDatabase instance.
-        """
-        return cls(Config.from_url(url))
 
     @classmethod
     async def create(
@@ -2729,5 +2711,3 @@ class AsyncDatabase:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         await self.close()
 
-    def __repr__(self) -> str:
-        return f"AsyncDatabase({self.config.database!r} @ {self.config.host}:{self.config.port})"

@@ -28,7 +28,13 @@ from tenacity import (
 )
 
 from pycopg import queries
-from pycopg.base import build_pg_dump_cmd, build_pg_restore_cmd, build_role_options
+from pycopg.base import (
+    DatabaseBase,
+    QueryMixin,
+    build_pg_dump_cmd,
+    build_pg_restore_cmd,
+    build_role_options,
+)
 from pycopg.config import Config
 from pycopg.utils import (
     validate_csv_option,
@@ -49,7 +55,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-class Database:
+class Database(DatabaseBase, QueryMixin):
     """High-level PostgreSQL/PostGIS/TimescaleDB interface.
 
     Combines psycopg (for DDL/admin) and SQLAlchemy (for DataFrame operations)
@@ -89,40 +95,9 @@ class Database:
         Args:
             config: Database configuration.
         """
-        self.config = config
+        super().__init__(config)
         self._engine: Engine | None = None
         self._session_conn: psycopg.Connection | None = None
-
-    @classmethod
-    def from_env(cls, dotenv_path: str | Path | None = None) -> Database:
-        """Create Database from environment variables.
-
-        Args:
-            dotenv_path: Optional path to .env file.
-
-        Returns:
-            Database instance.
-
-        Example:
-            db = Database.from_env()
-            db = Database.from_env("/path/to/.env")
-        """
-        return cls(Config.from_env(dotenv_path))
-
-    @classmethod
-    def from_url(cls, url: str) -> Database:
-        """Create Database from connection URL.
-
-        Args:
-            url: PostgreSQL connection URL.
-
-        Returns:
-            Database instance.
-
-        Example:
-            db = Database.from_url("postgresql://admin:secret@localhost:5432/mydb")
-        """
-        return cls(Config.from_url(url))
 
     @classmethod
     def create(
@@ -2676,5 +2651,3 @@ class Database:
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
 
-    def __repr__(self) -> str:
-        return f"Database({self.config.database!r} @ {self.config.host}:{self.config.port})"
