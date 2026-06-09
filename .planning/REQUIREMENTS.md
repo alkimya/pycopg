@@ -40,7 +40,7 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9â€
 
 ### Refactoring â€” Wire Existing Abstractions (Phase 12)
 
-- [ ] **REF-01**: ~25 inline SQL strings replaced by the `queries.py` constants (single source of truth) (R1)
+- [x] **REF-01**: ~25 inline SQL strings replaced by the `queries.py` constants (single source of truth) (R1)
 - [x] **REF-02**: `Database` and `AsyncDatabase` inherit the shared `base.py` layer (`DatabaseBase`, `QueryMixin`); `from_env`/`from_url`/`__repr__` and batch-insert builder lifted up (R3)
 - [ ] **REF-03**: Pure stateless builders extracted and unit-tested without a DB: `_build_role_options`, `_build_pg_dump_cmd`, `_build_pg_restore_cmd` (R4)
 - [x] **REF-04**: Residual dead code removed (unused `import re`, unread `stdout`, no-op `try/except: raise`, unused `*_SIMPLE` constants, stale "Phase 3" comments)
@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAR-07 | Phase 11 | Complete |
 | PAR-08 | Phase 11 | Complete |
 | PAR-09 | Phase 11 | Complete |
-| REF-01 | Phase 12 | Pending |
+| REF-01 | Phase 12 | Complete |
 | REF-02 | Phase 12 | Complete |
 | REF-03 | Phase 12 | Pending |
 | REF-04 | Phase 12 | Complete |
