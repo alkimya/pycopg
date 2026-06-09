@@ -98,6 +98,14 @@ class TestSyncIdentifierInjection:
         # Reaches execute() (mocked) without raising InvalidIdentifier.
         sync_db.create_extension("uuid-ossp")
 
+    def test_drop_extension_injection(self, sync_db):
+        with pytest.raises(InvalidIdentifier):
+            sync_db.drop_extension('postgis"; DROP DATABASE x; --')
+
+    def test_drop_extension_hyphen_ok(self, sync_db):
+        """Legitimate hyphenated extension must NOT be rejected on drop."""
+        sync_db.drop_extension("uuid-ossp")
+
 
 class TestSyncValueInjection:
     """Sync methods must reject malicious non-identifier values."""
@@ -168,6 +176,11 @@ class TestAsyncIdentifierInjection:
     async def test_create_extension(self, async_db):
         with pytest.raises(InvalidIdentifier):
             await async_db.create_extension('postgis"; DROP DATABASE x; --')
+
+    @pytest.mark.asyncio
+    async def test_drop_extension(self, async_db):
+        with pytest.raises(InvalidIdentifier):
+            await async_db.drop_extension('postgis"; DROP DATABASE x; --')
 
 
 class TestAsyncValueInjection:
