@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
-stopped_at: Phase 12 context gathered
-last_updated: "2026-06-09T18:29:49.052Z"
+stopped_at: "Completed Phase 12 (refactoring-brancher-les-abstractions): 4/4 plans, REF-01..05, coverage gate 90->92"
+last_updated: "2026-06-09T19:27:07.984Z"
 last_activity: 2026-06-09 -- Phase 12 execution started
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 20
-  completed_plans: 19
-  percent: 43
+  completed_plans: 20
+  percent: 57
 ---
 
 # Project State
@@ -84,11 +84,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-09T18:29:49.043Z
-Stopped at: Phase 12 context gathered
+Last session: 2026-06-09T19:27:07.976Z
+Stopped at: Completed Phase 12 (refactoring-brancher-les-abstractions): 4/4 plans, REF-01..05, coverage gate 90->92
 Phase 11 fully gated — VERIFICATION 9/9, code review clean, SECURITY 14/14 (T-11-07 drop_extension
   guard added this session), VALIDATION nyquist-compliant 9/9, UAT 10/10 passed / 0 issues.
 13 methods mirrored across sync/async, C1/C2/C3 fixed, coverage ratchet → 90 (measured 91.62%).
-Resume file: .planning/phases/12-refactoring-brancher-les-abstractions/12-CONTEXT.md
+Resume file: None
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
