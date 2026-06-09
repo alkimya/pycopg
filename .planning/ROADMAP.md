@@ -134,7 +134,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 12-04-PLAN.md — [BLOCKING] tests builders DB-free + mesure coverage puis flip cliquet 90→95 (REF-05)
+- [x] 12-04-PLAN.md — [BLOCKING] tests builders DB-free + mesure coverage puis flip cliquet 90→95 (REF-05)
 
 ### Phase 13: Qualité documentaire (docstrings numpydoc + interrogate)
 
@@ -207,7 +207,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
-| 12. Refactoring (base.py + queries.py) | v0.4.0 | 3/4 | In Progress|  |
+| 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
