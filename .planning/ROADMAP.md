@@ -122,11 +122,11 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 12-01-PLAN.md — builders purs extraits dans base.py + rebranchage pg_dump/pg_restore/create_role sync+async (REF-03)
+- [x] 12-01-PLAN.md — builders purs extraits dans base.py + rebranchage pg_dump/pg_restore/create_role sync+async (REF-03)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 12-02-PLAN.md — collapse héritage (DatabaseBase, QueryMixin) + suppression from_env/from_url/__repr__ dupliqués + retrait *_SIMPLE (REF-02/REF-04)
+- [x] 12-02-PLAN.md — collapse héritage (DatabaseBase, QueryMixin) + suppression from_env/from_url/__repr__ dupliqués + retrait *_SIMPLE (REF-02/REF-04)
 
 **Wave 3** *(blocked on Wave 2)*
 
@@ -207,7 +207,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 9. Migration uv (outillage) | v0.4.0 | 4/4 | Complete    | 2026-06-06 |
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
-| 12. Refactoring (base.py + queries.py) | v0.4.0 | 0/4 | Planned (5 req) | — |
+| 12. Refactoring (base.py + queries.py) | v0.4.0 | 2/4 | In Progress|  |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |

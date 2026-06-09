@@ -4,12 +4,12 @@ milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
 stopped_at: Phase 12 context gathered
-last_updated: "2026-06-09T17:17:00.740Z"
-last_activity: 2026-06-09 -- Phase 11 UAT complete (10/10 passed, 0 issues)
+last_updated: "2026-06-09T17:55:54.829Z"
+last_activity: 2026-06-09 -- Phase 12 execution started
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 16
+  total_plans: 20
   completed_plans: 16
   percent: 43
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 12 — Refactoring (brancher les abstractions base.py/queries.py)
+**Current focus:** Phase 12 — refactoring-brancher-les-abstractions
 
 ## Current Position
 
-Phase: 12 — Ready to plan
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 11 UAT complete (10/10 passed, 0 issues)
+Phase: 12 (refactoring-brancher-les-abstractions) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 12
+Last activity: 2026-06-09 -- Phase 12 execution started
 
 ## Performance Metrics
 
