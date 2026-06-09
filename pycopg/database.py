@@ -473,20 +473,12 @@ class Database(DatabaseBase, QueryMixin):
         if not rows:
             return 0
 
-        validate_identifiers(table, schema)
-
         columns = list(rows[0].keys())
-        validate_identifiers(*columns)
-        placeholders = ", ".join(["%s"] * len(columns))
-        cols_str = ", ".join(columns)
+        sql, params = self._build_batch_insert_sql(table, columns, rows, schema, on_conflict)
 
-        conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
-
-        sql = f"INSERT INTO {schema}.{table} ({cols_str}) VALUES ({placeholders}){conflict_clause}"
-
-        params_seq = [[row.get(col) for col in columns] for row in rows]
-
-        return self.execute_many(sql, params_seq)
+        with self.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.rowcount
 
     def upsert_many(
         self,
@@ -801,7 +793,7 @@ class Database(DatabaseBase, QueryMixin):
         admin_config = self.config.with_database("postgres")
         with psycopg.connect(**admin_config.connect_params()) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", [name])
+                cur.execute(queries.DATABASE_EXISTS, [name])
                 return cur.fetchone() is not None
 
     def list_databases(self) -> list[str]:
@@ -810,11 +802,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of database names.
         """
-        result = self.execute("""
-            SELECT datname FROM pg_database
-            WHERE datistemplate = false
-            ORDER BY datname
-        """)
+        result = self.execute(queries.LIST_DATABASES)
         return [r["datname"] for r in result]
 
     # =========================================================================
@@ -868,12 +856,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of dicts with extname, extversion, nspname (schema).
         """
-        return self.execute("""
-            SELECT e.extname, e.extversion, n.nspname
-            FROM pg_extension e
-            JOIN pg_namespace n ON e.extnamespace = n.oid
-            ORDER BY e.extname
-        """)
+        return self.execute(queries.LIST_EXTENSIONS)
 
     def has_extension(self, name: str) -> bool:
         """Check if an extension is installed.
@@ -884,7 +867,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             True if extension is installed.
         """
-        result = self.execute("SELECT 1 FROM pg_extension WHERE extname = %s", [name])
+        result = self.execute(queries.EXTENSION_EXISTS, [name])
         return len(result) > 0
 
     # =========================================================================
@@ -933,13 +916,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of schema names.
         """
-        result = self.execute("""
-            SELECT schema_name
-            FROM information_schema.schemata
-            WHERE schema_name NOT LIKE 'pg_%'
-            AND schema_name != 'information_schema'
-            ORDER BY schema_name
-        """)
+        result = self.execute(queries.LIST_SCHEMAS)
         return [r["schema_name"] for r in result]
 
     def schema_exists(self, name: str) -> bool:
@@ -951,9 +928,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             True if schema exists.
         """
-        result = self.execute(
-            "SELECT 1 FROM information_schema.schemata WHERE schema_name = %s", [name]
-        )
+        result = self.execute(queries.SCHEMA_EXISTS, [name])
         return len(result) > 0
 
     # =========================================================================
@@ -969,16 +944,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of table names.
         """
-        result = self.execute(
-            """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = %s
-            AND table_type = 'BASE TABLE'
-            ORDER BY table_name
-        """,
-            [schema],
-        )
+        result = self.execute(queries.LIST_TABLES, [schema])
         return [r["table_name"] for r in result]
 
     def table_exists(self, name: str, schema: str = "public") -> bool:
@@ -1067,23 +1033,7 @@ class Database(DatabaseBase, QueryMixin):
             List of column info dicts with:
             - column_name, data_type, is_nullable, column_default, ordinal_position
         """
-        return self.execute(
-            """
-            SELECT
-                column_name,
-                data_type,
-                is_nullable,
-                column_default,
-                ordinal_position,
-                character_maximum_length,
-                numeric_precision,
-                numeric_scale
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s
-            ORDER BY ordinal_position
-        """,
-            [schema, name],
-        )
+        return self.execute(queries.TABLE_INFO, [schema, name])
 
     def row_count(self, name: str, schema: str = "public") -> int:
         """Get approximate row count for a table.
@@ -1097,15 +1047,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             Approximate row count.
         """
-        result = self.execute(
-            """
-            SELECT reltuples::bigint AS count
-            FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = %s AND c.relname = %s
-        """,
-            [schema, name],
-        )
+        result = self.execute(queries.ROW_COUNT, [schema, name])
         return result[0]["count"] if result else 0
 
     # =========================================================================
@@ -1304,22 +1246,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of index info dicts.
         """
-        return self.execute(
-            """
-            SELECT
-                i.relname AS index_name,
-                am.amname AS index_type,
-                pg_get_indexdef(i.oid) AS index_def
-            FROM pg_index idx
-            JOIN pg_class t ON t.oid = idx.indrelid
-            JOIN pg_class i ON i.oid = idx.indexrelid
-            JOIN pg_namespace n ON n.oid = t.relnamespace
-            JOIN pg_am am ON am.oid = i.relam
-            WHERE n.nspname = %s AND t.relname = %s
-            ORDER BY i.relname
-        """,
-            [schema, table],
-        )
+        return self.execute(queries.LIST_INDEXES, [schema, table])
 
     def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
         """List constraints on a table.
@@ -1331,20 +1258,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of constraint info dicts.
         """
-        return self.execute(
-            """
-            SELECT
-                c.conname AS constraint_name,
-                c.contype AS constraint_type,
-                pg_get_constraintdef(c.oid) AS constraint_def
-            FROM pg_constraint c
-            JOIN pg_class t ON t.oid = c.conrelid
-            JOIN pg_namespace n ON n.oid = t.relnamespace
-            WHERE n.nspname = %s AND t.relname = %s
-            ORDER BY c.conname
-        """,
-            [schema, table],
-        )
+        return self.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
     # =========================================================================
     # DATAFRAME OPERATIONS
@@ -1573,18 +1487,7 @@ class Database(DatabaseBase, QueryMixin):
         where_clause = "WHERE f_table_schema = %s" if schema else ""
         params = [schema] if schema else None
         return self.execute(
-            f"""
-            SELECT
-                f_table_schema AS schema,
-                f_table_name AS table_name,
-                f_geometry_column AS column_name,
-                coord_dimension AS dimensions,
-                srid,
-                type AS geometry_type
-            FROM geometry_columns
-            {where_clause}
-            ORDER BY f_table_schema, f_table_name
-        """,
+            queries.LIST_GEOMETRY_COLUMNS.format(where_clause=where_clause),
             params,
         )
 
@@ -1755,16 +1658,7 @@ class Database(DatabaseBase, QueryMixin):
                 "Run db.create_extension('timescaledb')"
             )
 
-        return self.execute("""
-            SELECT
-                hypertable_schema AS schema,
-                hypertable_name AS table_name,
-                num_dimensions,
-                num_chunks,
-                compression_enabled
-            FROM timescaledb_information.hypertables
-            ORDER BY hypertable_schema, hypertable_name
-        """)
+        return self.execute(queries.LIST_HYPERTABLES)
 
     def hypertable_info(self, table: str, schema: str = "public") -> dict:
         """Get detailed info about a hypertable.
@@ -1783,13 +1677,9 @@ class Database(DatabaseBase, QueryMixin):
             )
 
         result = self.execute(
-            # %%I is escaped so psycopg passes a literal %I through to
-            # PostgreSQL's format() (psycopg only allows %s/%b/%t placeholders).
-            """
-            SELECT
-                hypertable_size(format('%%I.%%I', %s::text, %s::text)) AS total_size,
-                hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
-        """,
+            # %%I in queries.HYPERTABLE_INFO is escaped so psycopg passes a
+            # literal %I through to PostgreSQL's format() function.
+            queries.HYPERTABLE_INFO,
             [schema, table, schema, table],
         )
         return result[0] if result else {}
@@ -1813,13 +1703,13 @@ class Database(DatabaseBase, QueryMixin):
         """
         if pretty:
             result = self.execute(
-                "SELECT pg_size_pretty(pg_database_size(%s)) AS size",
+                queries.DATABASE_SIZE_PRETTY,
                 [self.config.database],
             )
             return result[0]["size"]
         else:
             result = self.execute(
-                "SELECT pg_database_size(%s) AS size", [self.config.database]
+                queries.DATABASE_SIZE, [self.config.database]
             )
             return result[0]["size"]
 
@@ -1838,14 +1728,10 @@ class Database(DatabaseBase, QueryMixin):
         """
         full_name = f"{schema}.{table}"
         if pretty:
-            result = self.execute(
-                "SELECT pg_size_pretty(pg_total_relation_size(%s)) AS size", [full_name]
-            )
+            result = self.execute(queries.TABLE_SIZE_PRETTY, [full_name])
             return result[0]["size"]
         else:
-            result = self.execute(
-                "SELECT pg_total_relation_size(%s) AS size", [full_name]
-            )
+            result = self.execute(queries.TABLE_SIZE, [full_name])
             return result[0]["size"]
 
     def table_sizes(self, schema: str = "public", limit: int = 20) -> list[dict]:
@@ -1858,21 +1744,8 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of table size info.
         """
-        # Use %%I to escape the % for psycopg, format() will see %I
-        return self.execute(
-            """
-            SELECT
-                t.tablename AS table_name,
-                pg_size_pretty(pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS total_size,
-                pg_size_pretty(pg_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS data_size,
-                pg_size_pretty(pg_indexes_size(format('%%I.%%I', t.schemaname, t.tablename))) AS index_size
-            FROM pg_tables t
-            WHERE t.schemaname = %s
-            ORDER BY pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename)) DESC
-            LIMIT %s
-        """,
-            [schema, limit],
-        )
+        # queries.TABLE_SIZES uses %%I (psycopg-escaped) so PostgreSQL format() sees %I
+        return self.execute(queries.TABLE_SIZES, [schema, limit])
 
     # =========================================================================
     # UTILITY
@@ -2045,7 +1918,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             True if role exists.
         """
-        result = self.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", [name])
+        result = self.execute(queries.ROLE_EXISTS, [name])
         return len(result) > 0
 
     def list_roles(self, include_system: bool = False) -> list[dict]:
@@ -2058,20 +1931,7 @@ class Database(DatabaseBase, QueryMixin):
             List of role info dicts.
         """
         where_clause = "" if include_system else "WHERE rolname NOT LIKE 'pg_%'"
-        return self.execute(f"""
-            SELECT
-                rolname AS name,
-                rolsuper AS superuser,
-                rolcreaterole AS createrole,
-                rolcreatedb AS createdb,
-                rolcanlogin AS login,
-                rolreplication AS replication,
-                rolconnlimit AS connection_limit,
-                rolvaliduntil AS valid_until
-            FROM pg_roles
-            {where_clause}
-            ORDER BY rolname
-        """)
+        return self.execute(queries.LIST_ROLES.format(where_clause=where_clause))
 
     def alter_role(
         self,
@@ -2301,17 +2161,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of member role names.
         """
-        result = self.execute(
-            """
-            SELECT m.rolname AS member
-            FROM pg_auth_members am
-            JOIN pg_roles r ON r.oid = am.roleid
-            JOIN pg_roles m ON m.oid = am.member
-            WHERE r.rolname = %s
-            ORDER BY m.rolname
-        """,
-            [role],
-        )
+        result = self.execute(queries.LIST_ROLE_MEMBERS, [role])
         return [r["member"] for r in result]
 
     def list_role_grants(self, role: str) -> list[dict]:
@@ -2323,18 +2173,7 @@ class Database(DatabaseBase, QueryMixin):
         Returns:
             List of privilege info dicts.
         """
-        return self.execute(
-            """
-            SELECT
-                table_schema AS schema,
-                table_name AS object_name,
-                privilege_type AS privilege
-            FROM information_schema.role_table_grants
-            WHERE grantee = %s
-            ORDER BY table_schema, table_name, privilege_type
-        """,
-            [role],
-        )
+        return self.execute(queries.LIST_ROLE_GRANTS, [role])
 
     # =========================================================================
     # BACKUP & RESTORE

@@ -861,8 +861,8 @@ class TestDatabaseBatchStreamNotify:
         mock_psycopg.connect.assert_not_called()
 
     @patch("pycopg.database.psycopg")
-    def test_insert_many_delegates_to_execute_many(self, mock_psycopg, config):
-        """insert_many builds an INSERT and returns the rowcount via executemany."""
+    def test_insert_many_delegates_to_batch_builder(self, mock_psycopg, config):
+        """insert_many builds a multi-VALUES INSERT via _build_batch_insert_sql and returns rowcount."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_cursor.rowcount = 2
@@ -878,8 +878,8 @@ class TestDatabaseBatchStreamNotify:
         )
 
         assert result == 2
-        mock_cursor.executemany.assert_called_once()
-        sql = mock_cursor.executemany.call_args[0][0]
+        mock_cursor.execute.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
         assert sql.startswith("INSERT INTO public.users")
 
     @patch("pycopg.database.psycopg")
@@ -900,7 +900,7 @@ class TestDatabaseBatchStreamNotify:
             conflict_columns=["id"],
         )
 
-        sql = mock_cursor.executemany.call_args[0][0]
+        sql = mock_cursor.execute.call_args[0][0]
         assert "ON CONFLICT (id) DO UPDATE SET" in sql
         assert "name = EXCLUDED.name" in sql
         assert "email = EXCLUDED.email" in sql

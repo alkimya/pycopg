@@ -152,9 +152,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             **admin_config.connect_params(), autocommit=True
         ) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT 1 FROM pg_database WHERE datname = %s", (name,)
-                )
+                await cur.execute(queries.DATABASE_EXISTS, (name,))
                 exists = await cur.fetchone() is not None
 
                 if exists:
@@ -590,20 +588,12 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
     async def list_schemas(self) -> list[str]:
         """List all schemas."""
-        result = await self.execute("""
-            SELECT schema_name
-            FROM information_schema.schemata
-            WHERE schema_name NOT LIKE 'pg_%'
-            AND schema_name != 'information_schema'
-            ORDER BY schema_name
-        """)
+        result = await self.execute(queries.LIST_SCHEMAS)
         return [r["schema_name"] for r in result]
 
     async def schema_exists(self, name: str) -> bool:
         """Check if a schema exists."""
-        result = await self.execute(
-            "SELECT 1 FROM information_schema.schemata WHERE schema_name = %s", [name]
-        )
+        result = await self.execute(queries.SCHEMA_EXISTS, [name])
         return len(result) > 0
 
     async def create_schema(
@@ -625,16 +615,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
     async def list_tables(self, schema: str = "public") -> list[str]:
         """List tables in a schema."""
-        result = await self.execute(
-            """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema = %s
-            AND table_type = 'BASE TABLE'
-            ORDER BY table_name
-        """,
-            [schema],
-        )
+        result = await self.execute(queries.LIST_TABLES, [schema])
         return [r["table_name"] for r in result]
 
     async def table_exists(self, name: str, schema: str = "public") -> bool:
@@ -681,35 +662,11 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             List of column info dicts with:
             - column_name, data_type, is_nullable, column_default, ordinal_position
         """
-        return await self.execute(
-            """
-            SELECT
-                column_name,
-                data_type,
-                is_nullable,
-                column_default,
-                ordinal_position,
-                character_maximum_length,
-                numeric_precision,
-                numeric_scale
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s
-            ORDER BY ordinal_position
-        """,
-            [schema, name],
-        )
+        return await self.execute(queries.TABLE_INFO, [schema, name])
 
     async def row_count(self, name: str, schema: str = "public") -> int:
         """Get approximate row count for a table."""
-        result = await self.execute(
-            """
-            SELECT reltuples::bigint AS count
-            FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = %s AND c.relname = %s
-        """,
-            [schema, name],
-        )
+        result = await self.execute(queries.ROW_COUNT, [schema, name])
         return result[0]["count"] if result else 0
 
     async def drop_schema(
@@ -973,22 +930,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             for idx in indexes:
                 print(f"{idx['index_name']}: {idx['index_type']}")
         """
-        return await self.execute(
-            """
-            SELECT
-                i.relname AS index_name,
-                am.amname AS index_type,
-                pg_get_indexdef(i.oid) AS index_def
-            FROM pg_index idx
-            JOIN pg_class t ON t.oid = idx.indrelid
-            JOIN pg_class i ON i.oid = idx.indexrelid
-            JOIN pg_namespace n ON n.oid = t.relnamespace
-            JOIN pg_am am ON am.oid = i.relam
-            WHERE n.nspname = %s AND t.relname = %s
-            ORDER BY i.relname
-        """,
-            [schema, table],
-        )
+        return await self.execute(queries.LIST_INDEXES, [schema, table])
 
     async def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
         """List constraints on a table.
@@ -1005,20 +947,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             for c in constraints:
                 print(f"{c['constraint_name']}: {c['constraint_type']}")
         """
-        return await self.execute(
-            """
-            SELECT
-                c.conname AS constraint_name,
-                c.contype AS constraint_type,
-                pg_get_constraintdef(c.oid) AS constraint_def
-            FROM pg_constraint c
-            JOIN pg_class t ON t.oid = c.conrelid
-            JOIN pg_namespace n ON n.oid = t.relnamespace
-            WHERE n.nspname = %s AND t.relname = %s
-            ORDER BY c.conname
-        """,
-            [schema, table],
-        )
+        return await self.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
     # =========================================================================
     # EXTENSIONS
@@ -1026,9 +955,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
     async def has_extension(self, name: str) -> bool:
         """Check if an extension is installed."""
-        result = await self.execute(
-            "SELECT 1 FROM pg_extension WHERE extname = %s", [name]
-        )
+        result = await self.execute(queries.EXTENSION_EXISTS, [name])
         return len(result) > 0
 
     async def create_extension(
@@ -1052,12 +979,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
     async def list_extensions(self) -> list[dict]:
         """List installed extensions."""
-        return await self.execute("""
-            SELECT e.extname, e.extversion, n.nspname
-            FROM pg_extension e
-            JOIN pg_namespace n ON e.extnamespace = n.oid
-            ORDER BY e.extname
-        """)
+        return await self.execute(queries.LIST_EXTENSIONS)
 
     async def drop_extension(
         self, name: str, if_exists: bool = True, cascade: bool = False
@@ -1119,18 +1041,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         where_clause = "WHERE f_table_schema = %s" if schema else ""
         params = [schema] if schema else None
         return await self.execute(
-            f"""
-            SELECT
-                f_table_schema AS schema,
-                f_table_name AS table_name,
-                f_geometry_column AS column_name,
-                coord_dimension AS dimensions,
-                srid,
-                type AS geometry_type
-            FROM geometry_columns
-            {where_clause}
-            ORDER BY f_table_schema, f_table_name
-        """,
+            queries.LIST_GEOMETRY_COLUMNS.format(where_clause=where_clause),
             params,
         )
 
@@ -1301,16 +1212,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                 "Run db.create_extension('timescaledb')"
             )
 
-        return await self.execute("""
-            SELECT
-                hypertable_schema AS schema,
-                hypertable_name AS table_name,
-                num_dimensions,
-                num_chunks,
-                compression_enabled
-            FROM timescaledb_information.hypertables
-            ORDER BY hypertable_schema, hypertable_name
-        """)
+        return await self.execute(queries.LIST_HYPERTABLES)
 
     async def hypertable_info(self, table: str, schema: str = "public") -> dict:
         """Get detailed info about a hypertable.
@@ -1329,13 +1231,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             )
 
         result = await self.execute(
-            # %%I is escaped so psycopg passes a literal %I through to
-            # PostgreSQL's format() (psycopg only allows %s/%b/%t placeholders).
-            """
-            SELECT
-                hypertable_size(format('%%I.%%I', %s::text, %s::text)) AS total_size,
-                hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
-        """,
+            # %%I in queries.HYPERTABLE_INFO is escaped so psycopg passes a
+            # literal %I through to PostgreSQL's format() function.
+            queries.HYPERTABLE_INFO,
             [schema, table, schema, table],
         )
         return result[0] if result else {}
@@ -1346,26 +1244,13 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
     async def role_exists(self, name: str) -> bool:
         """Check if a role exists."""
-        result = await self.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", [name])
+        result = await self.execute(queries.ROLE_EXISTS, [name])
         return len(result) > 0
 
     async def list_roles(self, include_system: bool = False) -> list[dict]:
         """List all roles."""
         where_clause = "" if include_system else "WHERE rolname NOT LIKE 'pg_%'"
-        return await self.execute(f"""
-            SELECT
-                rolname AS name,
-                rolsuper AS superuser,
-                rolcreaterole AS createrole,
-                rolcreatedb AS createdb,
-                rolcanlogin AS login,
-                rolreplication AS replication,
-                rolconnlimit AS connection_limit,
-                rolvaliduntil AS valid_until
-            FROM pg_roles
-            {where_clause}
-            ORDER BY rolname
-        """)
+        return await self.execute(queries.LIST_ROLES.format(where_clause=where_clause))
 
     # =========================================================================
     # ROLE MANAGEMENT
@@ -1693,17 +1578,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Returns:
             List of member role names.
         """
-        result = await self.execute(
-            """
-            SELECT m.rolname AS member
-            FROM pg_auth_members am
-            JOIN pg_roles r ON r.oid = am.roleid
-            JOIN pg_roles m ON m.oid = am.member
-            WHERE r.rolname = %s
-            ORDER BY m.rolname
-        """,
-            [role],
-        )
+        result = await self.execute(queries.LIST_ROLE_MEMBERS, [role])
         return [r["member"] for r in result]
 
     async def list_role_grants(self, role: str) -> list[dict]:
@@ -1715,18 +1590,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Returns:
             List of privilege info dicts.
         """
-        return await self.execute(
-            """
-            SELECT
-                table_schema AS schema,
-                table_name AS object_name,
-                privilege_type AS privilege
-            FROM information_schema.role_table_grants
-            WHERE grantee = %s
-            ORDER BY table_schema, table_name, privilege_type
-        """,
-            [role],
-        )
+        return await self.execute(queries.LIST_ROLE_GRANTS, [role])
 
     # =========================================================================
     # SIZE & STATS
@@ -1736,13 +1600,13 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         """Get database size."""
         if pretty:
             result = await self.execute(
-                "SELECT pg_size_pretty(pg_database_size(%s)) AS size",
+                queries.DATABASE_SIZE_PRETTY,
                 [self.config.database],
             )
             return result[0]["size"]
         else:
             result = await self.execute(
-                "SELECT pg_database_size(%s) AS size", [self.config.database]
+                queries.DATABASE_SIZE, [self.config.database]
             )
             return result[0]["size"]
 
@@ -1752,14 +1616,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         """Get table size including indexes."""
         full_name = f"{schema}.{table}"
         if pretty:
-            result = await self.execute(
-                "SELECT pg_size_pretty(pg_total_relation_size(%s)) AS size", [full_name]
-            )
+            result = await self.execute(queries.TABLE_SIZE_PRETTY, [full_name])
             return result[0]["size"]
         else:
-            result = await self.execute(
-                "SELECT pg_total_relation_size(%s) AS size", [full_name]
-            )
+            result = await self.execute(queries.TABLE_SIZE, [full_name])
             return result[0]["size"]
 
     async def table_sizes(self, schema: str = "public", limit: int = 20) -> list[dict]:
@@ -1777,21 +1637,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             for s in sizes:
                 print(f"{s['table_name']}: {s['total_size']}")
         """
-        # Use %%I to escape the % for psycopg, format() will see %I
-        return await self.execute(
-            """
-            SELECT
-                t.tablename AS table_name,
-                pg_size_pretty(pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS total_size,
-                pg_size_pretty(pg_relation_size(format('%%I.%%I', t.schemaname, t.tablename))) AS data_size,
-                pg_size_pretty(pg_indexes_size(format('%%I.%%I', t.schemaname, t.tablename))) AS index_size
-            FROM pg_tables t
-            WHERE t.schemaname = %s
-            ORDER BY pg_total_relation_size(format('%%I.%%I', t.schemaname, t.tablename)) DESC
-            LIMIT %s
-        """,
-            [schema, limit],
-        )
+        # queries.TABLE_SIZES uses %%I (psycopg-escaped) so PostgreSQL format() sees %I
+        return await self.execute(queries.TABLE_SIZES, [schema, limit])
 
     # =========================================================================
     # DATAFRAME OPERATIONS
@@ -2034,20 +1881,12 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         if not rows:
             return 0
 
-        validate_identifiers(table, schema)
-
         columns = list(rows[0].keys())
-        validate_identifiers(*columns)
-        placeholders = ", ".join(["%s"] * len(columns))
-        cols_str = ", ".join(columns)
+        sql, params = self._build_batch_insert_sql(table, columns, rows, schema, on_conflict)
 
-        conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
-
-        sql = f"INSERT INTO {schema}.{table} ({cols_str}) VALUES ({placeholders}){conflict_clause}"
-
-        params_seq = [[row.get(col) for col in columns] for row in rows]
-
-        return await self.execute_many(sql, params_seq)
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            return cur.rowcount
 
     async def upsert_many(
         self,
@@ -2206,9 +2045,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             **admin_config.connect_params()
         ) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT 1 FROM pg_database WHERE datname = %s", [name]
-                )
+                await cur.execute(queries.DATABASE_EXISTS, [name])
                 return await cur.fetchone() is not None
 
     async def list_databases(self) -> list[str]:
@@ -2217,11 +2054,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Returns:
             List of database names.
         """
-        result = await self.execute("""
-            SELECT datname FROM pg_database
-            WHERE datistemplate = false
-            ORDER BY datname
-        """)
+        result = await self.execute(queries.LIST_DATABASES)
         return [r["datname"] for r in result]
 
     # =========================================================================

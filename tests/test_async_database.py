@@ -373,7 +373,7 @@ class TestAsyncDatabaseBatch:
             )
 
             assert result == 2
-            cursor_mock.executemany.assert_called_once()
+            cursor_mock.execute.assert_called_once()
 
     async def test_insert_many_empty(self, config):
         """Test insert_many with empty list."""

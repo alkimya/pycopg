@@ -238,6 +238,6 @@ LIST_HYPERTABLES = """
 
 HYPERTABLE_INFO = """
     SELECT
-        hypertable_size(format('%I.%I', %s, %s)) AS total_size,
-        hypertable_detailed_size(format('%I.%I', %s, %s)) AS detailed_size
+        hypertable_size(format('%%I.%%I', %s::text, %s::text)) AS total_size,
+        hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
 """
