@@ -212,6 +212,31 @@ class Config:
             base += f"?sslmode={self.sslmode}"
         return base
 
+    @property
+    def async_url(self) -> str:
+        """Generate SQLAlchemy-compatible async URL using psycopg v3.
+
+        Mirrors :attr:`url` exactly but emits the async psycopg driver scheme
+        so SQLAlchemy builds an async engine. ``url`` itself is unchanged and
+        still uses the sync driver.
+
+        Returns:
+            PostgreSQL URL for SQLAlchemy with the async psycopg driver.
+
+        Example:
+            >>> config = Config(host="localhost", database="mydb", user="admin", password="secret")
+            >>> config.async_url
+            'postgresql+psycopg_async://admin:secret@localhost:5432/mydb'
+        """
+        auth = f"{self.user}:{self.password}" if self.password else self.user
+        # Use postgresql+psycopg_async for the async psycopg v3 driver
+        base = (
+            f"postgresql+psycopg_async://{auth}@{self.host}:{self.port}/{self.database}"
+        )
+        if self.sslmode:
+            base += f"?sslmode={self.sslmode}"
+        return base
+
     def connect_params(self) -> dict:
         """Get connection parameters as dict for psycopg.connect().
 
