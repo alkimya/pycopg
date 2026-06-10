@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: executing
-stopped_at: "Completed Phase 12 (refactoring-brancher-les-abstractions): 4/4 plans, REF-01..05, coverage gate 90->92"
-last_updated: "2026-06-09T19:27:07.984Z"
-last_activity: 2026-06-09 -- Phase 12 execution started
+status: ready_to_plan
+stopped_at: "Completed Phase 12 (refactoring-brancher-les-abstractions): 4/4 plans, REF-01..05, coverage gate 90->92. Next: Phase 13 (documentary quality)."
+last_updated: "2026-06-10T00:00:00.000Z"
+last_activity: 2026-06-10 -- Phase 12 complete & verified (PASSED); ready to discuss/plan Phase 13
 progress:
   total_phases: 7
   completed_phases: 4
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 12 — refactoring-brancher-les-abstractions
+**Current focus:** Phase 13 — qualité documentaire (docstrings numpydoc + interrogate)
 
 ## Current Position
 
-Phase: 12 (refactoring-brancher-les-abstractions) — EXECUTING
-Plan: 2 of 4
-Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 12 execution started
+Phase: 12 (refactoring-brancher-les-abstractions) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
+Next phase: 13 (qualité documentaire — docstrings numpydoc + interrogate ≥ 95) — NOT STARTED (no directory yet)
+Status: Ready to discuss/plan Phase 13
+Last activity: 2026-06-10 -- Phase 12 complete & verified; ready for Phase 13
 
 ## Performance Metrics
 
@@ -84,11 +84,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-09T19:27:07.976Z
-Stopped at: Completed Phase 12 (refactoring-brancher-les-abstractions): 4/4 plans, REF-01..05, coverage gate 90->92
-Phase 11 fully gated — VERIFICATION 9/9, code review clean, SECURITY 14/14 (T-11-07 drop_extension
-  guard added this session), VALIDATION nyquist-compliant 9/9, UAT 10/10 passed / 0 issues.
-13 methods mirrored across sync/async, C1/C2/C3 fixed, coverage ratchet → 90 (measured 91.62%).
+Last session: 2026-06-10
+Stopped at: Phase 12 (refactoring-brancher-les-abstractions) COMPLETE & verified — 4/4 plans, REF-01..05,
+  12-VERIFICATION.md PASSED, coverage ratchet 90->92 (measured, honest). Next: Phase 13 (documentary quality).
+Note: ROADMAP target for Phase 12 was coverage 95; actual flip was 90->92 — the 95 goal remains open.
 Resume file: None
+Next action: /gsd-discuss-phase 13 (qualité documentaire — numpydoc + interrogate ≥ 95 + mypy + real exceptions).
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
