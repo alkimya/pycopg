@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 
 ## Current Position
 
-Phase: 12 (refactoring-brancher-les-abstractions) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
-Next phase: 13 (qualité documentaire — docstrings numpydoc + interrogate ≥ 95) — NOT STARTED (no directory yet)
-Status: Ready to discuss/plan Phase 13
-Last activity: 2026-06-10 -- Phase 12 complete & verified; ready for Phase 13
+Phase: 13 (qualité documentaire — docstrings numpydoc + interrogate ≥ 95) — CONTEXT GATHERED, ready to plan
+Prev phase: 12 (refactoring) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
+Status: Ready to plan Phase 13 (13-CONTEXT.md written)
+Last activity: 2026-06-10 -- Phase 13 context gathered (discuss-phase complete)
 
 ## Performance Metrics
 
