@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: ready_to_plan
-stopped_at: "Completed Phase 12 (refactoring-brancher-les-abstractions): 4/4 plans, REF-01..05, coverage gate 90->92. Next: Phase 13 (documentary quality)."
-last_updated: "2026-06-10T00:00:00.000Z"
-last_activity: 2026-06-10 -- Phase 12 complete & verified (PASSED); ready to discuss/plan Phase 13
+status: Ready to discuss/plan Phase 13
+stopped_at: Phase 13 context gathered
+last_updated: "2026-06-10T10:18:23.981Z"
+last_activity: 2026-06-10 -- Phase 12 complete & verified; ready for Phase 13
 progress:
   total_phases: 7
   completed_phases: 4
@@ -84,11 +84,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-10
-Stopped at: Phase 12 (refactoring-brancher-les-abstractions) COMPLETE & verified — 4/4 plans, REF-01..05,
+Last session: 2026-06-10T10:18:23.971Z
+Stopped at: Phase 13 context gathered
   12-VERIFICATION.md PASSED, coverage ratchet 90->92 (measured, honest). Next: Phase 13 (documentary quality).
 Note: ROADMAP target for Phase 12 was coverage 95; actual flip was 90->92 — the 95 goal remains open.
-Resume file: None
+Resume file: .planning/phases/13-qualit-documentaire-docstrings-numpydoc-interrogate/13-CONTEXT.md
 Next action: /gsd-discuss-phase 13 (qualité documentaire — numpydoc + interrogate ≥ 95 + mypy + real exceptions).
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
