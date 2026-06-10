@@ -27,6 +27,12 @@ extensions = [
     'sphinx_copybutton',     # Copy button for code blocks
 ]
 
+# Napoleon settings
+napoleon_numpy_docstring = True    # Enable NumPy-style docstring parsing
+# napoleon_google_docstring remains True (default) during migration;
+# disable after all modules are converted.
+show_warning_types = True
+
 # Copy button settings
 copybutton_prompt_text = r">>> |\.\.\. |\$ "
 copybutton_prompt_is_regexp = True

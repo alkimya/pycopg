@@ -17,6 +17,7 @@ timescaledb
 roles-permissions
 backup-restore
 api-reference
+api-autodoc
 ```
 
 ## Features
