@@ -163,7 +163,7 @@ Plans:
 **Wave 3** *(parallèle ; blocked on Wave 2 for 03/04, Wave 1 for 05)*
 
 - [x] 13-03-PLAN.md — docstrings numpydoc database.py (~77) (DOC-06)
-- [ ] 13-04-PLAN.md — docstrings numpydoc async_database.py (~68) (DOC-06)
+- [x] 13-04-PLAN.md — docstrings numpydoc async_database.py (~68) (DOC-06)
 - [x] 13-05-PLAN.md — docstrings numpydoc base/config/utils/migrations/pool (~42) (DOC-06)
 
 **Wave 4** *(blocked on Wave 3)*
@@ -228,6 +228,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
-| 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 4/6 | In Progress|  |
+| 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 5/6 | In Progress|  |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
