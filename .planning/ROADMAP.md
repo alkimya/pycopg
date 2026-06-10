@@ -150,6 +150,26 @@ Plans:
   5. V1 — `__version__` fixé via `importlib.metadata`
   6. mypy ajouté (dev + config, TY1) ; `async_engine` annoté (TY2)
 
+
+**Plans:** 6 plans en 4 vagues
+Plans:
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — fondations : interrogate+mypy (deps+config), 3 gates CI, baseline, __version__ importlib, DatabaseExists, surface autodoc + vérif empirique garde Sphinx (DOC-07/08/10/11)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 13-02-PLAN.md — exceptions V2 (14 ExtensionNotAvailable + 2 DatabaseExists, messages préservés) + tests màj + async_engine annoté (DOC-09/12)
+
+**Wave 3** *(parallèle ; blocked on Wave 2 for 03/04, Wave 1 for 05)*
+
+- [ ] 13-03-PLAN.md — docstrings numpydoc database.py (~77) (DOC-06)
+- [ ] 13-04-PLAN.md — docstrings numpydoc async_database.py (~68) (DOC-06)
+- [ ] 13-05-PLAN.md — docstrings numpydoc base/config/utils/migrations/pool (~42) (DOC-06)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 13-06-PLAN.md — cleanup final napoleon_google_docstring=False + gate phase consolidée (DOC-06/08/09)
 ### Phase 14: Spatial helpers (Phase 8 réalisée)
 
 **Goal**: `db.spatial.*` / `async_db.spatial.*` en parité, sur fondations saines ; coverage maintenu 95.
@@ -208,6 +228,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
-| 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/? | Pending (7 req) | — |
+| 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 0/6 | Planned (7 req, 6 plans) | — |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
