@@ -24,20 +24,6 @@ class PooledDatabase:
 
     Uses psycopg_pool for efficient connection management.
     Ideal for web applications and services with many concurrent requests.
-
-    Example:
-        # Create pool
-        db = PooledDatabase.from_env(min_size=5, max_size=20)
-
-        # Use connections from pool
-        with db.connection() as conn:
-            result = conn.execute("SELECT * FROM users")
-
-        # Or use the simplified API
-        users = db.execute("SELECT * FROM users WHERE active = %s", [True])
-
-        # Close pool when done
-        db.close()
     """
 
     def __init__(
@@ -55,17 +41,28 @@ class PooledDatabase:
     ):
         """Initialize connection pool.
 
-        Args:
-            config: Database configuration.
-            min_size: Minimum connections to keep open.
-            max_size: Maximum connections allowed.
-            max_idle: Close idle connections after this many seconds.
-            max_lifetime: Close connections after this many seconds.
-            timeout: Wait timeout for getting a connection.
-            num_workers: Background workers for pool management.
-            reconnect_timeout: Time in seconds to keep retrying reconnection (default 300s).
-            reconnect_failed: Callback on prolonged reconnection failure.
-            check: Health check callback for connections.
+        Parameters
+        ----------
+        config : Config
+            Database configuration.
+        min_size : int, optional
+            Minimum connections to keep open, by default 2.
+        max_size : int, optional
+            Maximum connections allowed, by default 10.
+        max_idle : float, optional
+            Close idle connections after this many seconds, by default 300.0.
+        max_lifetime : float, optional
+            Close connections after this many seconds, by default 3600.0.
+        timeout : float, optional
+            Wait timeout for getting a connection, by default 30.0.
+        num_workers : int, optional
+            Background workers for pool management, by default 3.
+        reconnect_timeout : float, optional
+            Time in seconds to keep retrying reconnection, by default 300.0.
+        reconnect_failed : callable, optional
+            Callback on prolonged reconnection failure.
+        check : callable, optional
+            Health check callback for connections.
         """
         self.config = config
         self._pool = ConnectionPool(
@@ -92,13 +89,20 @@ class PooledDatabase:
     ) -> "PooledDatabase":
         """Create PooledDatabase from environment variables.
 
-        Args:
-            dotenv_path: Optional path to .env file.
-            min_size: Minimum pool size.
-            max_size: Maximum pool size.
-            **kwargs: Additional pool options.
+        Parameters
+        ----------
+        dotenv_path : str, optional
+            Path to .env file.
+        min_size : int, optional
+            Minimum pool size, by default 2.
+        max_size : int, optional
+            Maximum pool size, by default 10.
+        **kwargs
+            Additional pool options.
 
-        Returns:
+        Returns
+        -------
+        PooledDatabase
             PooledDatabase instance.
         """
         return cls(Config.from_env(dotenv_path), min_size=min_size, max_size=max_size, **kwargs)
@@ -113,13 +117,20 @@ class PooledDatabase:
     ) -> "PooledDatabase":
         """Create PooledDatabase from connection URL.
 
-        Args:
-            url: PostgreSQL connection URL.
-            min_size: Minimum pool size.
-            max_size: Maximum pool size.
-            **kwargs: Additional pool options.
+        Parameters
+        ----------
+        url : str
+            PostgreSQL connection URL.
+        min_size : int, optional
+            Minimum pool size, by default 2.
+        max_size : int, optional
+            Maximum pool size, by default 10.
+        **kwargs
+            Additional pool options.
 
-        Returns:
+        Returns
+        -------
+        PooledDatabase
             PooledDatabase instance.
         """
         return cls(Config.from_url(url), min_size=min_size, max_size=max_size, **kwargs)
@@ -128,13 +139,10 @@ class PooledDatabase:
     def connection(self) -> Iterator["psycopg.Connection"]:
         """Get a connection from the pool.
 
-        Yields:
+        Yields
+        ------
+        psycopg.Connection
             Connection object.
-
-        Example:
-            with db.connection() as conn:
-                conn.execute("INSERT INTO users (name) VALUES (%s)", ["Alice"])
-                conn.commit()
         """
         with self._pool.connection() as conn:
             yield conn
@@ -142,11 +150,16 @@ class PooledDatabase:
     def execute(self, sql: str, params: Optional[Sequence] = None) -> list[dict]:
         """Execute SQL and return results.
 
-        Args:
-            sql: SQL query.
-            params: Query parameters.
+        Parameters
+        ----------
+        sql : str
+            SQL query.
+        params : sequence, optional
+            Query parameters.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of result rows as dicts.
         """
         with self.connection() as conn:
@@ -159,11 +172,16 @@ class PooledDatabase:
     def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
         """Execute SQL for multiple parameter sets.
 
-        Args:
-            sql: SQL query.
-            params_seq: Sequence of parameter sequences.
+        Parameters
+        ----------
+        sql : str
+            SQL query.
+        params_seq : sequence of sequences
+            Sequence of parameter sequences.
 
-        Returns:
+        Returns
+        -------
+        int
             Total affected rows.
         """
         total = 0
@@ -179,7 +197,9 @@ class PooledDatabase:
     def stats(self) -> dict:
         """Get pool statistics.
 
-        Returns:
+        Returns
+        -------
+        dict
             Dict with pool_size, pool_available, requests_waiting, etc.
         """
         return {
@@ -194,9 +214,12 @@ class PooledDatabase:
     def resize(self, min_size: int, max_size: int) -> None:
         """Resize the pool.
 
-        Args:
-            min_size: New minimum size.
-            max_size: New maximum size.
+        Parameters
+        ----------
+        min_size : int
+            New minimum size.
+        max_size : int
+            New maximum size.
         """
         self._pool.resize(min_size=min_size, max_size=max_size)
 
@@ -207,8 +230,10 @@ class PooledDatabase:
     def wait(self, timeout: float = 30.0) -> None:
         """Wait for pool to be ready.
 
-        Args:
-            timeout: Maximum wait time in seconds.
+        Parameters
+        ----------
+        timeout : float, optional
+            Maximum wait time in seconds, by default 30.0.
         """
         self._pool.wait(timeout=timeout)
 
@@ -237,23 +262,6 @@ class AsyncPooledDatabase:
     """Async database with connection pooling.
 
     Uses psycopg_pool.AsyncConnectionPool for async applications.
-
-    Example:
-        # Create pool
-        db = AsyncPooledDatabase.from_env(min_size=5, max_size=20)
-
-        # Wait for pool to be ready
-        await db.open()
-
-        # Use connections
-        async with db.connection() as conn:
-            await conn.execute("SELECT * FROM users")
-
-        # Or use simplified API
-        users = await db.execute("SELECT * FROM users")
-
-        # Close when done
-        await db.close()
     """
 
     def __init__(
@@ -271,17 +279,28 @@ class AsyncPooledDatabase:
     ):
         """Initialize async connection pool.
 
-        Args:
-            config: Database configuration.
-            min_size: Minimum connections to keep open.
-            max_size: Maximum connections allowed.
-            max_idle: Close idle connections after this many seconds.
-            max_lifetime: Close connections after this many seconds.
-            timeout: Wait timeout for getting a connection.
-            num_workers: Background workers for pool management.
-            reconnect_timeout: Time in seconds to keep retrying reconnection (default 300s).
-            reconnect_failed: Callback on prolonged reconnection failure.
-            check: Health check callback for connections.
+        Parameters
+        ----------
+        config : Config
+            Database configuration.
+        min_size : int, optional
+            Minimum connections to keep open, by default 2.
+        max_size : int, optional
+            Maximum connections allowed, by default 10.
+        max_idle : float, optional
+            Close idle connections after this many seconds, by default 300.0.
+        max_lifetime : float, optional
+            Close connections after this many seconds, by default 3600.0.
+        timeout : float, optional
+            Wait timeout for getting a connection, by default 30.0.
+        num_workers : int, optional
+            Background workers for pool management, by default 3.
+        reconnect_timeout : float, optional
+            Time in seconds to keep retrying reconnection, by default 300.0.
+        reconnect_failed : callable, optional
+            Callback on prolonged reconnection failure.
+        check : callable, optional
+            Health check callback for connections.
         """
         self.config = config
         self._pool = AsyncConnectionPool(
@@ -330,12 +349,10 @@ class AsyncPooledDatabase:
     async def connection(self) -> AsyncIterator["psycopg.AsyncConnection"]:
         """Get a connection from the pool.
 
-        Yields:
+        Yields
+        ------
+        psycopg.AsyncConnection
             AsyncConnection object.
-
-        Example:
-            async with db.connection() as conn:
-                await conn.execute("INSERT INTO users (name) VALUES (%s)", ["Alice"])
         """
         async with self._pool.connection() as conn:
             yield conn
@@ -343,11 +360,16 @@ class AsyncPooledDatabase:
     async def execute(self, sql: str, params: Optional[Sequence] = None) -> list[dict]:
         """Execute SQL and return results.
 
-        Args:
-            sql: SQL query.
-            params: Query parameters.
+        Parameters
+        ----------
+        sql : str
+            SQL query.
+        params : sequence, optional
+            Query parameters.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of result rows as dicts.
         """
         async with self.connection() as conn:
@@ -387,11 +409,6 @@ class AsyncPooledDatabase:
         """Context manager for transactions.
 
         Commits on success, rolls back on exception.
-
-        Example:
-            async with db.transaction() as conn:
-                await conn.execute("INSERT INTO users (name) VALUES (%s)", ["Alice"])
-                await conn.execute("UPDATE stats SET count = count + 1")
         """
         async with self.connection() as conn:
             async with conn.transaction():

@@ -2,18 +2,6 @@
 Simple SQL migrations for pycopg.
 
 Provides a straightforward migration system using numbered SQL files.
-
-Example:
-    migrations/
-    ├── 001_create_users.sql
-    ├── 002_add_email_index.sql
-    └── 003_create_orders.sql
-
-    from pycopg import Database, Migrator
-
-    db = Database.from_env()
-    migrator = Migrator(db, "migrations/")
-    migrator.migrate()
 """
 
 from __future__ import annotations
@@ -39,8 +27,10 @@ class Migration:
     def __init__(self, path: Path):
         """Initialize migration from file path.
 
-        Args:
-            path: Path to SQL migration file.
+        Parameters
+        ----------
+        path : Path
+            Path to SQL migration file.
         """
         self.path = path
         self.filename = path.name
@@ -54,11 +44,15 @@ class Migration:
             - 0001_create_users.sql
             - 1_create_users.sql
 
-        Returns:
+        Returns
+        -------
+        tuple of (int, str)
             Tuple of (version, name).
 
-        Raises:
-            MigrationError: If filename format is invalid.
+        Raises
+        ------
+        MigrationError
+            If filename format is invalid.
         """
         match = re.match(r'^(\d+)_(.+)\.sql$', self.filename)
         if not match:
@@ -82,27 +76,6 @@ class Migrator:
     """Simple SQL migration manager.
 
     Uses numbered SQL files and tracks applied migrations in a database table.
-
-    Example:
-        # Directory structure:
-        # migrations/
-        # ├── 001_create_users.sql
-        # ├── 002_add_email_column.sql
-        # └── 003_create_orders.sql
-
-        from pycopg import Database, Migrator
-
-        db = Database.from_env()
-        migrator = Migrator(db, "migrations/")
-
-        # Run all pending migrations
-        migrator.migrate()
-
-        # Check status
-        migrator.status()
-
-        # Rollback (if DOWN section exists)
-        migrator.rollback()
     """
 
     MIGRATIONS_TABLE = "schema_migrations"
@@ -115,10 +88,14 @@ class Migrator:
     ):
         """Initialize migrator.
 
-        Args:
-            db: Database instance.
-            migrations_dir: Path to directory containing SQL migration files.
-            table: Name of migrations tracking table.
+        Parameters
+        ----------
+        db : Database
+            Database instance.
+        migrations_dir : str or Path
+            Path to directory containing SQL migration files.
+        table : str, optional
+            Name of migrations tracking table, by default "schema_migrations".
         """
         self.db = db
         self.migrations_dir = Path(migrations_dir)
@@ -161,8 +138,10 @@ class Migrator:
     def pending(self) -> list[Migration]:
         """Get list of pending (unapplied) migrations.
 
-        Returns:
-            List of Migration objects that haven't been applied.
+        Returns
+        -------
+        list of Migration
+            Migration objects that haven't been applied.
         """
         applied = self._get_applied()
         return [m for m in self._get_migrations() if m.version not in applied]
@@ -170,7 +149,9 @@ class Migrator:
     def applied(self) -> list[dict]:
         """Get list of applied migrations from database.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of dicts with version, name, applied_at.
         """
         self._ensure_table()
@@ -183,22 +164,21 @@ class Migrator:
     def migrate(self, target: Optional[int] = None) -> list[Migration]:
         """Run pending migrations.
 
-        Args:
-            target: Optional target version. If specified, only migrations
-                   up to and including this version are applied.
+        Parameters
+        ----------
+        target : int, optional
+            Target version. If specified, only migrations up to and
+            including this version are applied.
 
-        Returns:
+        Returns
+        -------
+        list of Migration
             List of applied migrations.
 
-        Raises:
-            MigrationError: If a migration fails.
-
-        Example:
-            # Run all pending
-            migrator.migrate()
-
-            # Run up to version 5
-            migrator.migrate(target=5)
+        Raises
+        ------
+        MigrationError
+            If a migration fails.
         """
         self._ensure_table()
         pending = self.pending()
@@ -221,8 +201,10 @@ class Migrator:
     def _apply(self, migration: Migration) -> None:
         """Apply a single migration.
 
-        Args:
-            migration: Migration to apply.
+        Parameters
+        ----------
+        migration : Migration
+            Migration to apply.
         """
         sql = migration.sql
 
@@ -244,21 +226,20 @@ class Migrator:
 
         Only works if migrations contain a -- DOWN section.
 
-        Args:
-            steps: Number of migrations to rollback.
+        Parameters
+        ----------
+        steps : int, optional
+            Number of migrations to rollback, by default 1.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of rolled back migration info.
 
-        Raises:
-            MigrationError: If rollback fails or DOWN section not found.
-
-        Example:
-            # Rollback last migration
-            migrator.rollback()
-
-            # Rollback last 3 migrations
-            migrator.rollback(steps=3)
+        Raises
+        ------
+        MigrationError
+            If rollback fails or DOWN section not found.
         """
         applied = self.applied()
         if not applied:
@@ -322,11 +303,16 @@ class Migrator:
             -- DOWN
             DROP TABLE users;
 
-        Args:
-            sql: Full migration SQL.
-            section: Section to extract ("UP" or "DOWN").
+        Parameters
+        ----------
+        sql : str
+            Full migration SQL.
+        section : str
+            Section to extract ("UP" or "DOWN").
 
-        Returns:
+        Returns
+        -------
+        str or None
             Section SQL or None if not found.
         """
         pattern = rf'--\s*{section}\s*\n(.*?)(?=--\s*(?:UP|DOWN)\s*\n|$)'
@@ -338,13 +324,10 @@ class Migrator:
     def status(self) -> dict:
         """Get migration status.
 
-        Returns:
+        Returns
+        -------
+        dict
             Dict with applied count, pending count, and lists.
-
-        Example:
-            status = migrator.status()
-            print(f"Applied: {status['applied_count']}")
-            print(f"Pending: {status['pending_count']}")
         """
         applied = self.applied()
         pending = self.pending()
@@ -359,15 +342,15 @@ class Migrator:
     def create(self, name: str) -> Path:
         """Create a new migration file.
 
-        Args:
-            name: Migration name (will be sanitized).
+        Parameters
+        ----------
+        name : str
+            Migration name (will be sanitized).
 
-        Returns:
+        Returns
+        -------
+        Path
             Path to created migration file.
-
-        Example:
-            path = migrator.create("add_email_to_users")
-            # Creates: migrations/004_add_email_to_users.sql
         """
         # Sanitize name
         safe_name = re.sub(r'[^a-z0-9_]', '_', name.lower())
