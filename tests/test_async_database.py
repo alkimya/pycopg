@@ -8,7 +8,7 @@ import pytest
 
 from pycopg import AsyncDatabase, Config
 from pycopg.utils import validate_identifier
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import InvalidIdentifier, ExtensionNotAvailable, DatabaseExists
 
 
 def create_async_cursor_mock(
@@ -737,7 +737,7 @@ class TestAsyncDatabaseGeoDataFrame:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="PostGIS extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="PostGIS extension not installed"):
             await db.from_geodataframe(gdf, "parcels")
 
         db.has_extension.assert_called_once_with("postgis")
@@ -2245,7 +2245,7 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             await db.create_hypertable("events", "timestamp")
 
         db.has_extension.assert_called_once_with("timescaledb")
@@ -2292,7 +2292,7 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             await db.enable_compression("events")
 
     async def test_add_compression_policy_basic(self, config):
@@ -2314,7 +2314,7 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             await db.add_compression_policy("events")
 
     async def test_add_retention_policy_basic(self, config):
@@ -2336,7 +2336,7 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             await db.add_retention_policy("events", drop_after="90 days")
 
     async def test_list_hypertables_basic(self, config):
@@ -2369,7 +2369,7 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             await db.list_hypertables()
 
     async def test_hypertable_info_basic(self, config):
@@ -2393,7 +2393,7 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             await db.hypertable_info("events")
 
 
@@ -2613,7 +2613,7 @@ class TestAsyncDatabaseAdminIntegration:
 
     async def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
         """create(if_not_exists=False) on an existing DB raises ValueError."""
-        with pytest.raises(ValueError, match="already exists"):
+        with pytest.raises(DatabaseExists, match="already exists"):
             await AsyncDatabase.create(
                 "pycopg_test",
                 host=db_config.host,

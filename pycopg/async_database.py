@@ -35,6 +35,7 @@ from pycopg.base import (
     build_role_options,
 )
 from pycopg.config import Config
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 from pycopg.utils import (
     validate_csv_option,
     validate_extension_name,
@@ -52,6 +53,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     import geopandas as gpd
     import pandas as pd
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 class AsyncDatabase(DatabaseBase, QueryMixin):
@@ -85,10 +87,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         """
         super().__init__(config)
         self._session_conn: AsyncConnection | None = None
-        self._async_engine = None
+        self._async_engine: AsyncEngine | None = None
 
     @property
-    def async_engine(self):
+    def async_engine(self) -> AsyncEngine:
         """Get or create async SQLAlchemy engine (lazy initialization)."""
         if self._async_engine is None:
             from sqlalchemy.ext.asyncio import create_async_engine
@@ -157,7 +159,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
                 if exists:
                     if not if_not_exists:
-                        raise ValueError(f"Database '{name}' already exists")
+                        raise DatabaseExists(f"Database '{name}' already exists")
                 else:
                     # Create the database
                     owner_clause = f" OWNER {owner}" if owner else ""
@@ -1074,7 +1076,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             await db.create_hypertable("events", "created_at", chunk_time_interval="1 week")
         """
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
             )
 
@@ -1110,7 +1112,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             await db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
         """
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1157,7 +1159,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         validate_identifiers(table, schema)
         validate_interval(compress_after)
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1188,7 +1190,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         validate_identifiers(table, schema)
         validate_interval(drop_after)
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1207,7 +1209,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             List of hypertable info dicts.
         """
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1225,7 +1227,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             Dict with hypertable details including size info.
         """
         if not await self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1802,7 +1804,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         """
         # Ensure PostGIS is available
         if not await self.has_extension("postgis"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "PostGIS extension not installed. Run db.create_extension('postgis')"
             )
 
