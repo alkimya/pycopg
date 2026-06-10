@@ -295,4 +295,5 @@ class Config:
         )
 
     def __repr__(self) -> str:
+        """Return string representation of the Config instance."""
         return f"Config(host={self.host!r}, port={self.port}, database={self.database!r}, user={self.user!r})"

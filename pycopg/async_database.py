@@ -2533,8 +2533,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             self._async_engine = None
 
     async def __aenter__(self) -> AsyncDatabase:
+        """Enter the async context manager, returning self."""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the async context manager and close the connection."""
         await self.close()
 

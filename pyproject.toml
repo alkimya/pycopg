@@ -66,6 +66,8 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "black>=23.0.0",
     "ruff>=0.1.0",
+    "interrogate>=1.7.0",
+    "mypy>=2.1.0",
 ]
 
 [project.urls]
@@ -100,3 +102,54 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError",
 ]
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-module = false
+ignore-property-decorators = false
+fail-under = 95
+exclude = ["tests", "docs", "setup.py"]
+verbose = 0
+quiet = false
+color = true
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = false
+disallow_untyped_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "sqlalchemy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "psycopg.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "psycopg_pool.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "geopandas.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "geoalchemy2.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "shapely.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tenacity.*"
+ignore_missing_imports = true

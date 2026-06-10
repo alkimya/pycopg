@@ -217,12 +217,15 @@ class PooledDatabase:
         self._pool.close()
 
     def __enter__(self) -> "PooledDatabase":
+        """Enter the context manager, returning self."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and close the pool."""
         self.close()
 
     def __repr__(self) -> str:
+        """Return string representation of the PooledDatabase instance."""
         stats = self._pool.get_stats()
         return (
             f"PooledDatabase({self.config.database!r}, "
@@ -418,13 +421,16 @@ class AsyncPooledDatabase:
         await self._pool.close()
 
     async def __aenter__(self) -> "AsyncPooledDatabase":
+        """Enter the async context manager, opening the pool and returning self."""
         await self.open()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the async context manager and close the pool."""
         await self.close()
 
     def __repr__(self) -> str:
+        """Return string representation of the AsyncPooledDatabase instance."""
         stats = self._pool.get_stats()
         return (
             f"AsyncPooledDatabase({self.config.database!r}, "

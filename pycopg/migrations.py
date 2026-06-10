@@ -74,6 +74,7 @@ class Migration:
         return self.path.read_text(encoding='utf-8')
 
     def __repr__(self) -> str:
+        """Return string representation of the Migration instance."""
         return f"Migration({self.version:03d}_{self.name})"
 
 
@@ -394,6 +395,7 @@ class Migrator:
         return path
 
     def __repr__(self) -> str:
+        """Return string representation of the Migrator instance."""
         status = self.status()
         return (
             f"Migrator({self.migrations_dir}, "

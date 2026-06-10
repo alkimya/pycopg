@@ -54,6 +54,7 @@ class DatabaseBase(ABC):
         return cls(Config.from_url(url))
 
     def __repr__(self) -> str:
+        """Return string representation of the database instance."""
         class_name = self.__class__.__name__
         return f"{class_name}({self.config.database!r} @ {self.config.host}:{self.config.port})"
 

@@ -2485,8 +2485,10 @@ class Database(DatabaseBase, QueryMixin):
             self._engine = None
 
     def __enter__(self) -> Database:
+        """Enter the context manager, returning self."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager and close the connection."""
         self.close()
 
