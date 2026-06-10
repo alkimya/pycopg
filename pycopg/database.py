@@ -62,39 +62,21 @@ class Database(DatabaseBase, QueryMixin):
     Combines psycopg (for DDL/admin) and SQLAlchemy (for DataFrame operations)
     into a simple, unified API.
 
-    Attributes:
-        config: Database connection configuration.
-        engine: SQLAlchemy engine for DataFrame operations.
-
-    Example:
-        # Connect from .env
-        db = Database.from_env()
-
-        # Connect with URL
-        db = Database.from_url("postgresql://user:pass@localhost/mydb")
-
-        # Connect with explicit params
-        db = Database(Config(host="localhost", database="mydb", user="admin", password="secret"))
-
-        # Explore database
-        print(db.list_schemas())
-        print(db.list_tables("public"))
-        print(db.table_info("users"))
-        print(db.size())
-
-        # Create tables from DataFrames
-        db.from_dataframe(df, "users", primary_key="id")
-        db.from_geodataframe(gdf, "parcels", spatial_index=True)
-
-        # TimescaleDB
-        db.create_hypertable("events", "timestamp")
+    Attributes
+    ----------
+    config : Config
+        Database connection configuration.
+    engine : Engine
+        SQLAlchemy engine for DataFrame operations.
     """
 
     def __init__(self, config: Config):
         """Initialize database connection.
 
-        Args:
-            config: Database configuration.
+        Parameters
+        ----------
+        config : Config
+            Database configuration.
         """
         super().__init__(config)
         self._engine: Engine | None = None
@@ -119,28 +101,29 @@ class Database(DatabaseBase, QueryMixin):
         2. Creates the new database
         3. Returns a Database instance connected to the new database
 
-        Args:
-            name: Name of the database to create.
-            host: Database host (default: localhost).
-            port: Database port (default: 5432).
-            user: Database user (default: postgres).
-            password: Database password.
-            owner: Optional owner role for the new database.
-            template: Template database (default: template1).
-            if_not_exists: If True, don't error if database already exists.
+        Parameters
+        ----------
+        name : str
+            Name of the database to create.
+        host : str, optional
+            Database host, by default "localhost".
+        port : int, optional
+            Database port, by default 5432.
+        user : str, optional
+            Database user, by default "postgres".
+        password : str, optional
+            Database password.
+        owner : str, optional
+            Owner role for the new database.
+        template : str, optional
+            Template database, by default "template1".
+        if_not_exists : bool, optional
+            If True, don't error if database already exists, by default True.
 
-        Returns:
-            Database instance connected to the newly created database.
-
-        Example:
-            # Create and connect to a new database
-            db = Database.create("myapp", user="admin", password="secret")
-
-            # With owner
-            db = Database.create("myapp", owner="appuser", user="admin", password="secret")
-
-            # Safe creation (won't fail if exists)
-            db = Database.create("myapp", if_not_exists=True)
+        Returns
+        -------
+        Database
+            Instance connected to the newly created database.
         """
         # Create config for the admin connection (to postgres database)
         admin_config = Config(
@@ -197,22 +180,23 @@ class Database(DatabaseBase, QueryMixin):
         Uses PGHOST, PGPORT, PGUSER, PGPASSWORD from environment or .env file,
         then creates the database and returns a connection to it.
 
-        Args:
-            name: Name of the database to create.
-            owner: Optional owner role for the new database.
-            template: Template database (default: template1).
-            if_not_exists: If True, don't error if database already exists.
-            dotenv_path: Optional path to .env file.
+        Parameters
+        ----------
+        name : str
+            Name of the database to create.
+        owner : str, optional
+            Owner role for the new database.
+        template : str, optional
+            Template database, by default "template1".
+        if_not_exists : bool, optional
+            If True, don't error if database already exists, by default True.
+        dotenv_path : str or Path, optional
+            Path to .env file.
 
-        Returns:
-            Database instance connected to the newly created database.
-
-        Example:
-            # Uses credentials from .env or environment
-            db = Database.create_from_env("myapp")
-
-            # With custom .env path
-            db = Database.create_from_env("myapp", dotenv_path="/path/to/.env")
+        Returns
+        -------
+        Database
+            Instance connected to the newly created database.
         """
         # Load config from env (but we'll change the database later)
         env_config = Config.from_env(dotenv_path)
@@ -250,17 +234,15 @@ class Database(DatabaseBase, QueryMixin):
     def connect(self, autocommit: bool = False) -> Iterator[psycopg.Connection]:
         """Context manager for psycopg connection.
 
-        Args:
-            autocommit: Enable autocommit mode (required for CREATE DATABASE, etc.)
+        Parameters
+        ----------
+        autocommit : bool, optional
+            Enable autocommit mode (required for CREATE DATABASE, etc.), by default False.
 
-        Yields:
+        Yields
+        ------
+        psycopg.Connection
             psycopg Connection object.
-
-        Example:
-            with db.connect() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT * FROM users")
-                    rows = cur.fetchall()
         """
         conn = self._connect_with_retry(autocommit=autocommit)
         try:
@@ -272,16 +254,15 @@ class Database(DatabaseBase, QueryMixin):
     def cursor(self, autocommit: bool = False) -> Iterator[psycopg.Cursor]:
         """Context manager for psycopg cursor with dict rows.
 
-        Args:
-            autocommit: Enable autocommit mode.
+        Parameters
+        ----------
+        autocommit : bool, optional
+            Enable autocommit mode, by default False.
 
-        Yields:
+        Yields
+        ------
+        psycopg.Cursor
             psycopg Cursor with dict_row factory.
-
-        Example:
-            with db.cursor() as cur:
-                cur.execute("SELECT * FROM users WHERE id = %s", [1])
-                user = cur.fetchone()  # Returns dict
         """
         # Use session connection if available
         if self._session_conn is not None:
@@ -329,29 +310,15 @@ class Database(DatabaseBase, QueryMixin):
         In session mode, all operations reuse the same connection,
         significantly reducing overhead for multiple sequential operations.
 
-        Args:
-            autocommit: Enable autocommit mode for the session.
+        Parameters
+        ----------
+        autocommit : bool, optional
+            Enable autocommit mode for the session, by default False.
 
-        Yields:
+        Yields
+        ------
+        Database
             Self (Database instance with active session).
-
-        Example:
-            # Without session: each operation opens/closes a connection
-            db.execute("SELECT 1")  # Open, execute, close
-            db.execute("SELECT 2")  # Open, execute, close
-
-            # With session: single connection for all operations
-            with db.session() as session:
-                session.execute("SELECT 1")  # Reuse connection
-                session.execute("SELECT 2")  # Reuse connection
-                session.insert_batch("users", rows)  # Reuse connection
-                # Connection closed automatically at end
-
-            # Useful for batch operations
-            with db.session() as session:
-                for table in tables:
-                    session.truncate_table(table)
-                    session.insert_batch(table, data[table])
         """
         if self._session_conn is not None:
             raise RuntimeError(
@@ -394,7 +361,9 @@ class Database(DatabaseBase, QueryMixin):
     def in_session(self) -> bool:
         """Check if currently in session mode.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if in session mode, False otherwise.
         """
         return self._session_conn is not None
@@ -404,17 +373,19 @@ class Database(DatabaseBase, QueryMixin):
     ) -> list[dict]:
         """Execute SQL and return results as list of dicts.
 
-        Args:
-            sql: SQL query to execute.
-            params: Query parameters.
-            autocommit: Enable autocommit mode.
+        Parameters
+        ----------
+        sql : str
+            SQL query to execute.
+        params : Sequence, optional
+            Query parameters.
+        autocommit : bool, optional
+            Enable autocommit mode, by default False.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of result rows as dicts.
-
-        Example:
-            users = db.execute("SELECT * FROM users WHERE active = %s", [True])
-            db.execute("UPDATE users SET active = %s WHERE id = %s", [False, 1])
         """
         with self.cursor(autocommit=autocommit) as cur:
             cur.execute(sql, params)
@@ -428,18 +399,17 @@ class Database(DatabaseBase, QueryMixin):
         Uses psycopg's executemany() for better performance than sequential
         execute() calls.
 
-        Args:
-            sql: SQL query with placeholders.
-            params_seq: Sequence of parameter sequences.
+        Parameters
+        ----------
+        sql : str
+            SQL query with placeholders.
+        params_seq : Sequence of Sequence
+            Sequence of parameter sequences.
 
-        Returns:
+        Returns
+        -------
+        int
             Total number of affected rows.
-
-        Example:
-            db.execute_many(
-                "INSERT INTO users (name, email) VALUES (%s, %s)",
-                [("Alice", "alice@example.com"), ("Bob", "bob@example.com")]
-            )
         """
         with self.cursor() as cur:
             cur.executemany(sql, params_seq)
@@ -454,22 +424,21 @@ class Database(DatabaseBase, QueryMixin):
     ) -> int:
         """Insert multiple rows efficiently.
 
-        Args:
-            table: Table name.
-            rows: List of row dicts.
-            schema: Schema name.
-            on_conflict: ON CONFLICT clause (e.g., "DO NOTHING", "DO UPDATE SET ...").
+        Parameters
+        ----------
+        table : str
+            Table name.
+        rows : list of dict
+            List of row dicts.
+        schema : str, optional
+            Schema name, by default "public".
+        on_conflict : str, optional
+            ON CONFLICT clause (e.g., "DO NOTHING", "DO UPDATE SET ...").
 
-        Returns:
+        Returns
+        -------
+        int
             Number of rows inserted.
-
-        Example:
-            db.insert_many("users", [
-                {"name": "Alice", "email": "alice@example.com"},
-                {"name": "Bob", "email": "bob@example.com"},
-            ])
-
-            db.insert_many("users", rows, on_conflict="(email) DO NOTHING")
         """
         if not rows:
             return 0
@@ -491,23 +460,23 @@ class Database(DatabaseBase, QueryMixin):
     ) -> int:
         """Upsert (insert or update) multiple rows.
 
-        Args:
-            table: Table name.
-            rows: List of row dicts.
-            conflict_columns: Columns that define uniqueness.
-            update_columns: Columns to update on conflict (None = all except conflict).
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        rows : list of dict
+            List of row dicts.
+        conflict_columns : list of str
+            Columns that define uniqueness.
+        update_columns : list of str, optional
+            Columns to update on conflict (None = all except conflict).
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        int
             Number of rows affected.
-
-        Example:
-            db.upsert_many(
-                "users",
-                [{"id": 1, "name": "Alice", "email": "alice@new.com"}],
-                conflict_columns=["id"],
-                update_columns=["name", "email"]
-            )
         """
         if not rows:
             return 0
@@ -536,17 +505,19 @@ class Database(DatabaseBase, QueryMixin):
 
         Memory-efficient way to process large result sets.
 
-        Args:
-            sql: SQL query.
-            params: Query parameters.
-            batch_size: Rows to fetch per batch.
+        Parameters
+        ----------
+        sql : str
+            SQL query.
+        params : Sequence, optional
+            Query parameters.
+        batch_size : int, optional
+            Rows to fetch per batch, by default 1000.
 
-        Yields:
+        Yields
+        ------
+        dict
             Row dicts.
-
-        Example:
-            for row in db.stream("SELECT * FROM large_table"):
-                process(row)
         """
         with self.cursor() as cur:
             cur.execute(sql, params)
@@ -559,12 +530,12 @@ class Database(DatabaseBase, QueryMixin):
     def notify(self, channel: str, payload: str = "") -> None:
         """Send notification on a channel.
 
-        Args:
-            channel: Channel name.
-            payload: Notification payload (max 8000 bytes).
-
-        Example:
-            db.notify("events", json.dumps({"type": "user_created", "id": 1}))
+        Parameters
+        ----------
+        channel : str
+            Channel name.
+        payload : str, optional
+            Notification payload (max 8000 bytes), by default "".
         """
         validate_identifier(channel)
         # NOTIFY is a utility statement and cannot bind the payload as a
@@ -586,25 +557,24 @@ class Database(DatabaseBase, QueryMixin):
         which is significantly faster than individual INSERT statements.
         For very large datasets (>10000 rows), consider using copy_insert().
 
-        Args:
-            table: Table name.
-            rows: List of row dicts (all must have same keys).
-            schema: Schema name.
-            on_conflict: Optional ON CONFLICT clause (e.g., "DO NOTHING",
-                        "(id) DO UPDATE SET name = EXCLUDED.name").
-            batch_size: Max rows per INSERT statement (default from config).
+        Parameters
+        ----------
+        table : str
+            Table name.
+        rows : list of dict
+            List of row dicts (all must have same keys).
+        schema : str, optional
+            Schema name, by default "public".
+        on_conflict : str, optional
+            ON CONFLICT clause (e.g., "DO NOTHING",
+            "(id) DO UPDATE SET name = EXCLUDED.name").
+        batch_size : int, optional
+            Max rows per INSERT statement, by default from config.
 
-        Returns:
+        Returns
+        -------
+        int
             Total number of rows inserted.
-
-        Example:
-            db.insert_batch("users", [
-                {"name": "Alice", "email": "alice@example.com"},
-                {"name": "Bob", "email": "bob@example.com"},
-            ])
-
-            # With conflict handling
-            db.insert_batch("users", rows, on_conflict="(email) DO NOTHING")
         """
         if not rows:
             return 0
@@ -657,19 +627,21 @@ class Database(DatabaseBase, QueryMixin):
 
         Note: COPY doesn't support ON CONFLICT. For upserts, use insert_batch().
 
-        Args:
-            table: Table name.
-            rows: List of row dicts.
-            schema: Schema name.
-            columns: Optional list of column names. If not provided,
-                    uses keys from first row.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        rows : list of dict
+            List of row dicts.
+        schema : str, optional
+            Schema name, by default "public".
+        columns : list of str, optional
+            Column names. If not provided, uses keys from first row.
 
-        Returns:
+        Returns
+        -------
+        int
             Number of rows inserted.
-
-        Example:
-            # Insert 100k rows efficiently
-            db.copy_insert("events", events_list)
         """
         if not rows:
             return 0
@@ -694,15 +666,17 @@ class Database(DatabaseBase, QueryMixin):
     def fetch_one(self, sql: str, params: Sequence | None = None) -> dict | None:
         """Execute SQL and return single row.
 
-        Args:
-            sql: SQL query.
-            params: Query parameters.
+        Parameters
+        ----------
+        sql : str
+            SQL query.
+        params : Sequence, optional
+            Query parameters.
 
-        Returns:
+        Returns
+        -------
+        dict or None
             Single row as dict, or None.
-
-        Example:
-            user = db.fetch_one("SELECT * FROM users WHERE id = %s", [1])
         """
         with self.cursor() as cur:
             cur.execute(sql, params)
@@ -711,15 +685,17 @@ class Database(DatabaseBase, QueryMixin):
     def fetch_val(self, sql: str, params: Sequence | None = None) -> Any:
         """Execute SQL and return single value.
 
-        Args:
-            sql: SQL query returning single column.
-            params: Query parameters.
+        Parameters
+        ----------
+        sql : str
+            SQL query returning single column.
+        params : Sequence, optional
+            Query parameters.
 
-        Returns:
+        Returns
+        -------
+        Any
             Single value, or None.
-
-        Example:
-            count = db.fetch_val("SELECT COUNT(*) FROM users")
         """
         row = self.fetch_one(sql, params)
         if row:
@@ -735,14 +711,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create a new database.
 
-        Args:
-            name: Database name.
-            owner: Optional owner role.
-            template: Template database (default: template1).
-
-        Example:
-            db.create_database("myapp")
-            db.create_database("myapp", owner="appuser")
+        Parameters
+        ----------
+        name : str
+            Database name.
+        owner : str, optional
+            Owner role.
+        template : str, optional
+            Template database, by default "template1".
         """
         validate_identifier(name)
         if owner:
@@ -758,12 +734,12 @@ class Database(DatabaseBase, QueryMixin):
     def drop_database(self, name: str, if_exists: bool = True) -> None:
         """Drop a database.
 
-        Args:
-            name: Database name.
-            if_exists: Don't error if database doesn't exist.
-
-        Example:
-            db.drop_database("myapp")
+        Parameters
+        ----------
+        name : str
+            Database name.
+        if_exists : bool, optional
+            Don't error if database doesn't exist, by default True.
         """
         validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
@@ -785,10 +761,14 @@ class Database(DatabaseBase, QueryMixin):
     def database_exists(self, name: str) -> bool:
         """Check if a database exists.
 
-        Args:
-            name: Database name.
+        Parameters
+        ----------
+        name : str
+            Database name.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if database exists.
         """
         admin_config = self.config.with_database("postgres")
@@ -800,7 +780,9 @@ class Database(DatabaseBase, QueryMixin):
     def list_databases(self) -> list[str]:
         """List all databases.
 
-        Returns:
+        Returns
+        -------
+        list of str
             List of database names.
         """
         result = self.execute(queries.LIST_DATABASES)
@@ -815,15 +797,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create a PostgreSQL extension.
 
-        Args:
-            name: Extension name (e.g., 'postgis', 'timescaledb', 'uuid-ossp').
-            schema: Optional schema to install extension in.
-            if_not_exists: Don't error if extension exists.
-
-        Example:
-            db.create_extension("postgis")
-            db.create_extension("uuid-ossp", schema="extensions")
-            db.create_extension("timescaledb")
+        Parameters
+        ----------
+        name : str
+            Extension name (e.g., 'postgis', 'timescaledb', 'uuid-ossp').
+        schema : str, optional
+            Schema to install extension in.
+        if_not_exists : bool, optional
+            Don't error if extension exists, by default True.
         """
         validate_extension_name(name)
         if schema:
@@ -839,10 +820,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Drop a PostgreSQL extension.
 
-        Args:
-            name: Extension name.
-            if_exists: Don't error if extension doesn't exist.
-            cascade: Drop dependent objects.
+        Parameters
+        ----------
+        name : str
+            Extension name.
+        if_exists : bool, optional
+            Don't error if extension doesn't exist, by default True.
+        cascade : bool, optional
+            Drop dependent objects, by default False.
         """
         validate_extension_name(name)
         if_clause = "IF EXISTS " if if_exists else ""
@@ -854,7 +839,9 @@ class Database(DatabaseBase, QueryMixin):
     def list_extensions(self) -> list[dict]:
         """List installed extensions.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of dicts with extname, extversion, nspname (schema).
         """
         return self.execute(queries.LIST_EXTENSIONS)
@@ -862,10 +849,14 @@ class Database(DatabaseBase, QueryMixin):
     def has_extension(self, name: str) -> bool:
         """Check if an extension is installed.
 
-        Args:
-            name: Extension name.
+        Parameters
+        ----------
+        name : str
+            Extension name.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if extension is installed.
         """
         result = self.execute(queries.EXTENSION_EXISTS, [name])
@@ -880,14 +871,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create a schema.
 
-        Args:
-            name: Schema name.
-            if_not_exists: Don't error if schema exists.
-            owner: Optional owner role.
-
-        Example:
-            db.create_schema("data")
-            db.create_schema("app", owner="appuser")
+        Parameters
+        ----------
+        name : str
+            Schema name.
+        if_not_exists : bool, optional
+            Don't error if schema exists, by default True.
+        owner : str, optional
+            Owner role.
         """
         validate_identifier(name)
         if owner:
@@ -901,10 +892,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Drop a schema.
 
-        Args:
-            name: Schema name.
-            if_exists: Don't error if schema doesn't exist.
-            cascade: Drop all objects in schema.
+        Parameters
+        ----------
+        name : str
+            Schema name.
+        if_exists : bool, optional
+            Don't error if schema doesn't exist, by default True.
+        cascade : bool, optional
+            Drop all objects in schema, by default False.
         """
         validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
@@ -914,7 +909,9 @@ class Database(DatabaseBase, QueryMixin):
     def list_schemas(self) -> list[str]:
         """List all schemas.
 
-        Returns:
+        Returns
+        -------
+        list of str
             List of schema names.
         """
         result = self.execute(queries.LIST_SCHEMAS)
@@ -923,10 +920,14 @@ class Database(DatabaseBase, QueryMixin):
     def schema_exists(self, name: str) -> bool:
         """Check if a schema exists.
 
-        Args:
-            name: Schema name.
+        Parameters
+        ----------
+        name : str
+            Schema name.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if schema exists.
         """
         result = self.execute(queries.SCHEMA_EXISTS, [name])
@@ -939,10 +940,14 @@ class Database(DatabaseBase, QueryMixin):
     def list_tables(self, schema: str = "public") -> list[str]:
         """List tables in a schema.
 
-        Args:
-            schema: Schema name (default: public).
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        list of str
             List of table names.
         """
         result = self.execute(queries.LIST_TABLES, [schema])
@@ -951,11 +956,16 @@ class Database(DatabaseBase, QueryMixin):
     def table_exists(self, name: str, schema: str = "public") -> bool:
         """Check if a table exists.
 
-        Args:
-            name: Table name.
-            schema: Schema name.
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        bool
             True if table exists.
         """
         result = self.execute(queries.TABLE_EXISTS, [schema, name])
@@ -964,11 +974,16 @@ class Database(DatabaseBase, QueryMixin):
     def list_columns(self, table: str, schema: str = "public") -> list[str]:
         """Get list of column names for a table.
 
-        Args:
-            table: Table name.
-            schema: Schema name (default: "public").
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        list of str
             List of column names in ordinal order.
         """
         result = self.execute(queries.GET_COLUMNS, [schema, table])
@@ -979,11 +994,16 @@ class Database(DatabaseBase, QueryMixin):
     ) -> list[tuple[str, str]]:
         """Get list of (column_name, data_type) tuples for a table.
 
-        Args:
-            table: Table name.
-            schema: Schema name (default: "public").
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        list of tuple of (str, str)
             List of (name, type) tuples in ordinal order.
         """
         result = self.execute(queries.GET_COLUMNS, [schema, table])
@@ -998,11 +1018,16 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Drop a table.
 
-        Args:
-            name: Table name.
-            schema: Schema name.
-            if_exists: Don't error if table doesn't exist.
-            cascade: Drop dependent objects.
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+        if_exists : bool, optional
+            Don't error if table doesn't exist, by default True.
+        cascade : bool, optional
+            Drop dependent objects, by default False.
         """
         validate_identifiers(name, schema)
         if_clause = "IF EXISTS " if if_exists else ""
@@ -1014,10 +1039,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Truncate a table (delete all rows).
 
-        Args:
-            name: Table name.
-            schema: Schema name.
-            cascade: Truncate dependent tables.
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+        cascade : bool, optional
+            Truncate dependent tables, by default False.
         """
         validate_identifiers(name, schema)
         cascade_clause = " CASCADE" if cascade else ""
@@ -1026,13 +1055,18 @@ class Database(DatabaseBase, QueryMixin):
     def table_info(self, name: str, schema: str = "public") -> list[dict]:
         """Get column information for a table.
 
-        Args:
-            name: Table name.
-            schema: Schema name.
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
-            List of column info dicts with:
-            - column_name, data_type, is_nullable, column_default, ordinal_position
+        Returns
+        -------
+        list of dict
+            List of column info dicts with column_name, data_type, is_nullable,
+            column_default, ordinal_position.
         """
         return self.execute(queries.TABLE_INFO, [schema, name])
 
@@ -1041,11 +1075,16 @@ class Database(DatabaseBase, QueryMixin):
 
         Uses pg_stat for speed. For exact count, use execute("SELECT COUNT(*)...").
 
-        Args:
-            name: Table name.
-            schema: Schema name.
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        int
             Approximate row count.
         """
         result = self.execute(queries.ROW_COUNT, [schema, name])
@@ -1064,15 +1103,16 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Add primary key constraint to a table.
 
-        Args:
-            table: Table name.
-            columns: Column name or list of column names.
-            schema: Schema name.
-            name: Optional constraint name.
-
-        Example:
-            db.add_primary_key("users", "id")
-            db.add_primary_key("order_items", ["order_id", "product_id"])
+        Parameters
+        ----------
+        table : str
+            Table name.
+        columns : str or list of str
+            Column name or list of column names.
+        schema : str, optional
+            Schema name, by default "public".
+        name : str, optional
+            Constraint name.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1100,19 +1140,26 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Add foreign key constraint.
 
-        Args:
-            table: Source table name.
-            columns: Source column(s).
-            ref_table: Referenced table name.
-            ref_columns: Referenced column(s).
-            schema: Source table schema.
-            ref_schema: Referenced table schema.
-            name: Optional constraint name.
-            on_delete: ON DELETE action (CASCADE, SET NULL, NO ACTION, etc.)
-            on_update: ON UPDATE action.
-
-        Example:
-            db.add_foreign_key("orders", "user_id", "users", "id", on_delete="CASCADE")
+        Parameters
+        ----------
+        table : str
+            Source table name.
+        columns : str or list of str
+            Source column(s).
+        ref_table : str
+            Referenced table name.
+        ref_columns : str or list of str
+            Referenced column(s).
+        schema : str, optional
+            Source table schema, by default "public".
+        ref_schema : str, optional
+            Referenced table schema, by default "public".
+        name : str, optional
+            Constraint name.
+        on_delete : str, optional
+            ON DELETE action (CASCADE, SET NULL, NO ACTION, etc.), by default "NO ACTION".
+        on_update : str, optional
+            ON UPDATE action, by default "NO ACTION".
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1159,15 +1206,16 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Add unique constraint.
 
-        Args:
-            table: Table name.
-            columns: Column(s) to make unique.
-            schema: Schema name.
-            name: Optional constraint name.
-
-        Example:
-            db.add_unique_constraint("users", "email")
-            db.add_unique_constraint("products", ["category", "sku"])
+        Parameters
+        ----------
+        table : str
+            Table name.
+        columns : str or list of str
+            Column(s) to make unique.
+        schema : str, optional
+            Schema name, by default "public".
+        name : str, optional
+            Constraint name.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1192,19 +1240,22 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create an index.
 
-        Args:
-            table: Table name.
-            columns: Column(s) to index.
-            schema: Schema name.
-            name: Index name (auto-generated if not provided).
-            unique: Create unique index.
-            method: Index method (btree, hash, gist, gin, etc.)
-            if_not_exists: Don't error if index exists.
-
-        Example:
-            db.create_index("users", "email", unique=True)
-            db.create_index("products", ["category", "price"])
-            db.create_index("documents", "content", method="gin")
+        Parameters
+        ----------
+        table : str
+            Table name.
+        columns : str or list of str
+            Column(s) to index.
+        schema : str, optional
+            Schema name, by default "public".
+        name : str, optional
+            Index name (auto-generated if not provided).
+        unique : bool, optional
+            Create unique index, by default False.
+        method : str, optional
+            Index method (btree, hash, gist, gin, etc.), by default "btree".
+        if_not_exists : bool, optional
+            Don't error if index exists, by default True.
         """
         if isinstance(columns, str):
             columns = [columns]
@@ -1228,10 +1279,14 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Drop an index.
 
-        Args:
-            name: Index name.
-            schema: Schema name.
-            if_exists: Don't error if index doesn't exist.
+        Parameters
+        ----------
+        name : str
+            Index name.
+        schema : str, optional
+            Schema name, by default "public".
+        if_exists : bool, optional
+            Don't error if index doesn't exist, by default True.
         """
         validate_identifiers(schema, name)
         if_clause = "IF EXISTS " if if_exists else ""
@@ -1240,11 +1295,16 @@ class Database(DatabaseBase, QueryMixin):
     def list_indexes(self, table: str, schema: str = "public") -> list[dict]:
         """List indexes on a table.
 
-        Args:
-            table: Table name.
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of index info dicts.
         """
         return self.execute(queries.LIST_INDEXES, [schema, table])
@@ -1252,11 +1312,16 @@ class Database(DatabaseBase, QueryMixin):
     def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
         """List constraints on a table.
 
-        Args:
-            table: Table name.
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of constraint info dicts.
         """
         return self.execute(queries.LIST_CONSTRAINTS, [schema, table])
@@ -1277,18 +1342,22 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create or append to table from pandas DataFrame.
 
-        Args:
-            df: pandas DataFrame.
-            table: Table name.
-            schema: Schema name.
-            if_exists: What to do if table exists ('fail', 'replace', 'append').
-            primary_key: Column(s) to set as primary key after creation.
-            index: Write DataFrame index as column.
-            dtype: Optional dict of column name to SQLAlchemy types.
-
-        Example:
-            db.from_dataframe(users_df, "users", primary_key="id")
-            db.from_dataframe(orders_df, "orders", if_exists="append")
+        Parameters
+        ----------
+        df : pd.DataFrame
+            pandas DataFrame.
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+        if_exists : {'fail', 'replace', 'append'}, optional
+            What to do if table exists, by default "fail".
+        primary_key : str or list of str, optional
+            Column(s) to set as primary key after creation.
+        index : bool, optional
+            Write DataFrame index as column, by default False.
+        dtype : dict, optional
+            Dict of column name to SQLAlchemy types.
         """
         df.to_sql(
             name=table,
@@ -1311,18 +1380,21 @@ class Database(DatabaseBase, QueryMixin):
     ) -> pd.DataFrame:
         """Read table or query into pandas DataFrame.
 
-        Args:
-            table: Table name (mutually exclusive with sql).
-            schema: Schema name.
-            sql: SQL query (mutually exclusive with table).
-            params: Query parameters for sql.
+        Parameters
+        ----------
+        table : str, optional
+            Table name (mutually exclusive with sql).
+        schema : str, optional
+            Schema name, by default "public".
+        sql : str, optional
+            SQL query (mutually exclusive with table).
+        params : dict, optional
+            Query parameters for sql.
 
-        Returns:
+        Returns
+        -------
+        pd.DataFrame
             pandas DataFrame.
-
-        Example:
-            users = db.to_dataframe("users")
-            active = db.to_dataframe(sql="SELECT * FROM users WHERE active = :active", params={"active": True})
         """
         import pandas as pd
 
@@ -1352,18 +1424,29 @@ class Database(DatabaseBase, QueryMixin):
 
         Requires PostGIS extension.
 
-        Args:
-            gdf: geopandas GeoDataFrame.
-            table: Table name.
-            schema: Schema name.
-            if_exists: What to do if table exists.
-            primary_key: Column(s) for primary key.
-            spatial_index: Create GIST spatial index on geometry.
-            geometry_column: Name of geometry column.
-            srid: Override SRID (extracted from CRS if not specified).
+        Parameters
+        ----------
+        gdf : gpd.GeoDataFrame
+            geopandas GeoDataFrame.
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+        if_exists : {'fail', 'replace', 'append'}, optional
+            What to do if table exists, by default "fail".
+        primary_key : str or list of str, optional
+            Column(s) for primary key.
+        spatial_index : bool, optional
+            Create GIST spatial index on geometry, by default True.
+        geometry_column : str, optional
+            Name of geometry column, by default "geometry".
+        srid : int, optional
+            Override SRID (extracted from CRS if not specified).
 
-        Example:
-            db.from_geodataframe(parcels, "parcels", spatial_index=True)
+        Raises
+        ------
+        ExtensionNotAvailable
+            If PostGIS extension is not installed.
         """
         # Ensure PostGIS is available
         if not self.has_extension("postgis"):
@@ -1417,18 +1500,23 @@ class Database(DatabaseBase, QueryMixin):
     ) -> gpd.GeoDataFrame:
         """Read table or query into GeoDataFrame.
 
-        Args:
-            table: Table name.
-            schema: Schema name.
-            sql: SQL query.
-            geometry_column: Name of geometry column.
-            params: Query parameters.
+        Parameters
+        ----------
+        table : str, optional
+            Table name (mutually exclusive with sql).
+        schema : str, optional
+            Schema name, by default "public".
+        sql : str, optional
+            SQL query (mutually exclusive with table).
+        geometry_column : str, optional
+            Name of geometry column, by default "geometry".
+        params : dict, optional
+            Query parameters.
 
-        Returns:
+        Returns
+        -------
+        gpd.GeoDataFrame
             geopandas GeoDataFrame.
-
-        Example:
-            parcels = db.to_geodataframe("parcels", schema="geo")
         """
         import geopandas as gpd
 
@@ -1458,14 +1546,16 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create a GIST spatial index on a geometry column.
 
-        Args:
-            table: Table name.
-            column: Geometry column name.
-            schema: Schema name.
-            name: Index name (auto-generated if not provided).
-
-        Example:
-            db.create_spatial_index("parcels", "geom")
+        Parameters
+        ----------
+        table : str
+            Table name.
+        column : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        name : str, optional
+            Index name (auto-generated if not provided).
         """
         validate_identifiers(table, column, schema)
         if name:
@@ -1479,10 +1569,14 @@ class Database(DatabaseBase, QueryMixin):
     def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
         """List geometry columns in the database.
 
-        Args:
-            schema: Optional schema filter.
+        Parameters
+        ----------
+        schema : str, optional
+            Schema filter.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of geometry column info.
         """
         where_clause = "WHERE f_table_schema = %s" if schema else ""
@@ -1509,16 +1603,25 @@ class Database(DatabaseBase, QueryMixin):
 
         Requires TimescaleDB extension.
 
-        Args:
-            table: Table name (must exist with time column).
-            time_column: Name of the timestamp column.
-            schema: Schema name.
-            chunk_time_interval: Chunk time interval (e.g., '1 day', '1 week').
-            if_not_exists: Don't error if already a hypertable.
-            migrate_data: Migrate existing data to chunks.
+        Parameters
+        ----------
+        table : str
+            Table name (must exist with time column).
+        time_column : str
+            Name of the timestamp column.
+        schema : str, optional
+            Schema name, by default "public".
+        chunk_time_interval : str, optional
+            Chunk time interval (e.g., '1 day', '1 week'), by default "1 day".
+        if_not_exists : bool, optional
+            Don't error if already a hypertable, by default True.
+        migrate_data : bool, optional
+            Migrate existing data to chunks, by default True.
 
-        Example:
-            db.create_hypertable("events", "created_at", chunk_time_interval="1 week")
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
         """
         if not self.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
@@ -1547,14 +1650,21 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Enable compression on a hypertable.
 
-        Args:
-            table: Hypertable name.
-            segment_by: Column(s) to segment compressed data by.
-            order_by: Column(s) to order compressed data by.
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        segment_by : str or list of str, optional
+            Column(s) to segment compressed data by.
+        order_by : str or list of str, optional
+            Column(s) to order compressed data by.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Example:
-            db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
         """
         if not self.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
@@ -1593,13 +1703,19 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Add automatic compression policy to hypertable.
 
-        Args:
-            table: Hypertable name.
-            compress_after: Compress chunks older than this interval.
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        compress_after : str, optional
+            Compress chunks older than this interval, by default "7 days".
+        schema : str, optional
+            Schema name, by default "public".
 
-        Example:
-            db.add_compression_policy("events", compress_after="30 days")
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
         """
         validate_identifiers(table, schema)
         validate_interval(compress_after)
@@ -1624,13 +1740,19 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Add automatic data retention policy to hypertable.
 
-        Args:
-            table: Hypertable name.
-            drop_after: Drop chunks older than this interval.
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        drop_after : str
+            Drop chunks older than this interval.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Example:
-            db.add_retention_policy("logs", drop_after="90 days")
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
         """
         validate_identifiers(table, schema)
         validate_interval(drop_after)
@@ -1650,8 +1772,15 @@ class Database(DatabaseBase, QueryMixin):
     def list_hypertables(self) -> list[dict]:
         """List all hypertables.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of hypertable info dicts.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
         """
         if not self.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
@@ -1664,12 +1793,22 @@ class Database(DatabaseBase, QueryMixin):
     def hypertable_info(self, table: str, schema: str = "public") -> dict:
         """Get detailed info about a hypertable.
 
-        Args:
-            table: Hypertable name.
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        schema : str, optional
+            Schema name, by default "public".
 
-        Returns:
+        Returns
+        -------
+        dict
             Dict with hypertable details including size info.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
         """
         if not self.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
@@ -1692,15 +1831,15 @@ class Database(DatabaseBase, QueryMixin):
     def size(self, pretty: bool = True) -> str | int:
         """Get database size.
 
-        Args:
-            pretty: Return human-readable size (e.g., '1.2 GB').
+        Parameters
+        ----------
+        pretty : bool, optional
+            Return human-readable size (e.g., '1.2 GB'), by default True.
 
-        Returns:
+        Returns
+        -------
+        str or int
             Database size.
-
-        Example:
-            print(db.size())  # '256 MB'
-            print(db.size(pretty=False))  # 268435456
         """
         if pretty:
             result = self.execute(
@@ -1719,12 +1858,18 @@ class Database(DatabaseBase, QueryMixin):
     ) -> str | int:
         """Get table size including indexes.
 
-        Args:
-            table: Table name.
-            schema: Schema name.
-            pretty: Return human-readable size.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+        pretty : bool, optional
+            Return human-readable size, by default True.
 
-        Returns:
+        Returns
+        -------
+        str or int
             Table size.
         """
         full_name = f"{schema}.{table}"
@@ -1738,11 +1883,16 @@ class Database(DatabaseBase, QueryMixin):
     def table_sizes(self, schema: str = "public", limit: int = 20) -> list[dict]:
         """Get sizes of all tables in schema, sorted by size.
 
-        Args:
-            schema: Schema name.
-            limit: Max tables to return.
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+        limit : int, optional
+            Max tables to return, by default 20.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of table size info.
         """
         # queries.TABLE_SIZES uses %%I (psycopg-escaped) so PostgreSQL format() sees %I
@@ -1761,11 +1911,16 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Vacuum database or table.
 
-        Args:
-            table: Table name (None for whole database).
-            schema: Schema name.
-            analyze: Update statistics.
-            full: Full vacuum (reclaims more space but locks table).
+        Parameters
+        ----------
+        table : str, optional
+            Table name (None for whole database).
+        schema : str, optional
+            Schema name, by default "public".
+        analyze : bool, optional
+            Update statistics, by default True.
+        full : bool, optional
+            Full vacuum (reclaims more space but locks table), by default False.
         """
         options = []
         if full:
@@ -1784,9 +1939,12 @@ class Database(DatabaseBase, QueryMixin):
     def analyze(self, table: str | None = None, schema: str = "public") -> None:
         """Update table statistics for query planner.
 
-        Args:
-            table: Table name (None for whole database).
-            schema: Schema name.
+        Parameters
+        ----------
+        table : str, optional
+            Table name (None for whole database).
+        schema : str, optional
+            Schema name, by default "public".
         """
         if table:
             validate_identifiers(table, schema)
@@ -1802,13 +1960,20 @@ class Database(DatabaseBase, QueryMixin):
     ) -> list[str]:
         """Get query execution plan.
 
-        Args:
-            sql: SQL query.
-            params: Query parameters.
-            analyze: Actually run the query for real stats.
-            format: Output format (text, json, xml, yaml).
+        Parameters
+        ----------
+        sql : str
+            SQL query.
+        params : Sequence, optional
+            Query parameters.
+        analyze : bool, optional
+            Actually run the query for real stats, by default False.
+        format : str, optional
+            Output format (text, json, xml, yaml), by default "text".
 
-        Returns:
+        Returns
+        -------
+        list of str
             Query plan lines.
         """
         options = [f"FORMAT {format.upper()}"]
@@ -1839,32 +2004,32 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create a database role/user.
 
-        Args:
-            name: Role name.
-            password: Role password (for login roles).
-            login: Can log in (True = user, False = group role).
-            superuser: Is superuser.
-            createdb: Can create databases.
-            createrole: Can create other roles.
-            inherit: Inherits privileges from member roles.
-            replication: Can initiate streaming replication.
-            connection_limit: Max concurrent connections (-1 = unlimited).
-            valid_until: Password expiration (e.g., '2025-12-31').
-            in_roles: List of roles to be a member of.
-            if_not_exists: Don't error if role exists.
-
-        Example:
-            # Create a regular user
-            db.create_role("appuser", password="secret123", login=True)
-
-            # Create an admin user
-            db.create_role("admin", password="secret", superuser=True)
-
-            # Create a read-only group role
-            db.create_role("readonly", login=False)
-
-            # Create user in a group
-            db.create_role("analyst", password="secret", in_roles=["readonly"])
+        Parameters
+        ----------
+        name : str
+            Role name.
+        password : str, optional
+            Role password (for login roles).
+        login : bool, optional
+            Can log in (True = user, False = group role), by default True.
+        superuser : bool, optional
+            Is superuser, by default False.
+        createdb : bool, optional
+            Can create databases, by default False.
+        createrole : bool, optional
+            Can create other roles, by default False.
+        inherit : bool, optional
+            Inherits privileges from member roles, by default True.
+        replication : bool, optional
+            Can initiate streaming replication, by default False.
+        connection_limit : int, optional
+            Max concurrent connections (-1 = unlimited), by default -1.
+        valid_until : str, optional
+            Password expiration (e.g., '2025-12-31').
+        in_roles : list of str, optional
+            List of roles to be a member of.
+        if_not_exists : bool, optional
+            Don't error if role exists, by default True.
         """
         validate_identifier(name)
 
@@ -1899,12 +2064,12 @@ class Database(DatabaseBase, QueryMixin):
     def drop_role(self, name: str, if_exists: bool = True) -> None:
         """Drop a role.
 
-        Args:
-            name: Role name.
-            if_exists: Don't error if role doesn't exist.
-
-        Example:
-            db.drop_role("olduser")
+        Parameters
+        ----------
+        name : str
+            Role name.
+        if_exists : bool, optional
+            Don't error if role doesn't exist, by default True.
         """
         validate_identifier(name)
         if_clause = "IF EXISTS " if if_exists else ""
@@ -1913,10 +2078,14 @@ class Database(DatabaseBase, QueryMixin):
     def role_exists(self, name: str) -> bool:
         """Check if a role exists.
 
-        Args:
-            name: Role name.
+        Parameters
+        ----------
+        name : str
+            Role name.
 
-        Returns:
+        Returns
+        -------
+        bool
             True if role exists.
         """
         result = self.execute(queries.ROLE_EXISTS, [name])
@@ -1925,10 +2094,14 @@ class Database(DatabaseBase, QueryMixin):
     def list_roles(self, include_system: bool = False) -> list[dict]:
         """List all roles.
 
-        Args:
-            include_system: Include system roles (pg_*).
+        Parameters
+        ----------
+        include_system : bool, optional
+            Include system roles (pg_*), by default False.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of role info dicts.
         """
         where_clause = "" if include_system else "WHERE rolname NOT LIKE 'pg_%'"
@@ -1948,21 +2121,26 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Alter a role's attributes.
 
-        Args:
-            name: Role name.
-            password: New password.
-            login: Enable/disable login.
-            superuser: Enable/disable superuser.
-            createdb: Enable/disable createdb.
-            createrole: Enable/disable createrole.
-            connection_limit: New connection limit.
-            valid_until: New password expiration.
-            rename_to: Rename the role.
-
-        Example:
-            db.alter_role("appuser", password="newpassword")
-            db.alter_role("appuser", connection_limit=10)
-            db.alter_role("oldname", rename_to="newname")
+        Parameters
+        ----------
+        name : str
+            Role name.
+        password : str, optional
+            New password.
+        login : bool, optional
+            Enable/disable login.
+        superuser : bool, optional
+            Enable/disable superuser.
+        createdb : bool, optional
+            Enable/disable createdb.
+        createrole : bool, optional
+            Enable/disable createrole.
+        connection_limit : int, optional
+            New connection limit.
+        valid_until : str, optional
+            New password expiration.
+        rename_to : str, optional
+            Rename the role.
         """
         validate_identifier(name)
 
@@ -2001,14 +2179,14 @@ class Database(DatabaseBase, QueryMixin):
     def grant_role(self, role: str, member: str, with_admin: bool = False) -> None:
         """Grant role membership to another role.
 
-        Args:
-            role: Role to grant.
-            member: Role receiving membership.
-            with_admin: Allow member to grant role to others.
-
-        Example:
-            db.grant_role("readonly", "analyst")
-            db.grant_role("admin", "lead_dev", with_admin=True)
+        Parameters
+        ----------
+        role : str
+            Role to grant.
+        member : str
+            Role receiving membership.
+        with_admin : bool, optional
+            Allow member to grant role to others, by default False.
         """
         validate_identifiers(role, member)
         admin_clause = " WITH ADMIN OPTION" if with_admin else ""
@@ -2017,12 +2195,12 @@ class Database(DatabaseBase, QueryMixin):
     def revoke_role(self, role: str, member: str) -> None:
         """Revoke role membership from a role.
 
-        Args:
-            role: Role to revoke.
-            member: Role losing membership.
-
-        Example:
-            db.revoke_role("admin", "former_admin")
+        Parameters
+        ----------
+        role : str
+            Role to revoke.
+        member : str
+            Role losing membership.
         """
         validate_identifiers(role, member)
         self.execute(f"REVOKE {role} FROM {member}", autocommit=True)
@@ -2038,29 +2216,21 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Grant privileges on database objects.
 
-        Args:
-            privileges: Privilege(s) to grant (SELECT, INSERT, UPDATE, DELETE, ALL, etc.)
-            on: Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
-            to: Role receiving privileges.
-            object_type: Type of object (TABLE, SEQUENCE, FUNCTION, SCHEMA, DATABASE).
-            schema: Schema name (for tables/sequences).
-            with_grant_option: Allow grantee to grant to others.
-
-        Example:
-            # Grant SELECT on a table
-            db.grant("SELECT", "users", "readonly")
-
-            # Grant all on a table
-            db.grant("ALL", "orders", "appuser")
-
-            # Grant on all tables in schema
-            db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
-
-            # Grant on schema
-            db.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
-
-            # Grant on database
-            db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
+        Parameters
+        ----------
+        privileges : str or list of str
+            Privilege(s) to grant (SELECT, INSERT, UPDATE, DELETE, ALL, etc.).
+        on : str
+            Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
+        to : str
+            Role receiving privileges.
+        object_type : str, optional
+            Type of object (TABLE, SEQUENCE, FUNCTION, SCHEMA, DATABASE),
+            by default "TABLE".
+        schema : str, optional
+            Schema name (for tables/sequences), by default "public".
+        with_grant_option : bool, optional
+            Allow grantee to grant to others, by default False.
         """
         validate_identifier(to)
         validate_object_type(object_type)
@@ -2107,17 +2277,20 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Revoke privileges on database objects.
 
-        Args:
-            privileges: Privilege(s) to revoke.
-            on: Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
-            from_role: Role losing privileges.
-            object_type: Type of object.
-            schema: Schema name.
-            cascade: Revoke from dependent privileges.
-
-        Example:
-            db.revoke("INSERT", "users", "readonly")
-            db.revoke("ALL", "orders", "former_user", cascade=True)
+        Parameters
+        ----------
+        privileges : str or list of str
+            Privilege(s) to revoke.
+        on : str
+            Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
+        from_role : str
+            Role losing privileges.
+        object_type : str, optional
+            Type of object, by default "TABLE".
+        schema : str, optional
+            Schema name, by default "public".
+        cascade : bool, optional
+            Revoke from dependent privileges, by default False.
         """
         validate_identifier(from_role)
         validate_object_type(object_type)
@@ -2156,10 +2329,14 @@ class Database(DatabaseBase, QueryMixin):
     def list_role_members(self, role: str) -> list[str]:
         """List members of a role.
 
-        Args:
-            role: Role name.
+        Parameters
+        ----------
+        role : str
+            Role name.
 
-        Returns:
+        Returns
+        -------
+        list of str
             List of member role names.
         """
         result = self.execute(queries.LIST_ROLE_MEMBERS, [role])
@@ -2168,10 +2345,14 @@ class Database(DatabaseBase, QueryMixin):
     def list_role_grants(self, role: str) -> list[dict]:
         """List privileges granted to a role.
 
-        Args:
-            role: Role name.
+        Parameters
+        ----------
+        role : str
+            Role name.
 
-        Returns:
+        Returns
+        -------
+        list of dict
             List of privilege info dicts.
         """
         return self.execute(queries.LIST_ROLE_GRANTS, [role])
@@ -2194,32 +2375,27 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Backup database using pg_dump.
 
-        Args:
-            output_file: Output file path.
-            format: Dump format (plain=SQL, custom=compressed, directory=parallel, tar).
-            schema_only: Dump only schema, no data.
-            data_only: Dump only data, no schema.
-            tables: Only dump these tables.
-            exclude_tables: Exclude these tables.
-            schemas: Only dump these schemas.
-            compress: Compression level (0-9, for custom format).
-            jobs: Parallel jobs (for directory format).
-
-        Example:
-            # Full backup in custom format
-            db.pg_dump("backup.dump")
-
-            # SQL backup
-            db.pg_dump("backup.sql", format="plain")
-
-            # Schema only
-            db.pg_dump("schema.sql", format="plain", schema_only=True)
-
-            # Specific tables
-            db.pg_dump("users.dump", tables=["users", "profiles"])
-
-            # Parallel backup
-            db.pg_dump("backup_dir", format="directory", jobs=4)
+        Parameters
+        ----------
+        output_file : str or Path
+            Output file path.
+        format : {'plain', 'custom', 'directory', 'tar'}, optional
+            Dump format (plain=SQL, custom=compressed, directory=parallel, tar),
+            by default "custom".
+        schema_only : bool, optional
+            Dump only schema, no data, by default False.
+        data_only : bool, optional
+            Dump only data, no schema, by default False.
+        tables : list of str, optional
+            Only dump these tables.
+        exclude_tables : list of str, optional
+            Exclude these tables.
+        schemas : list of str, optional
+            Only dump these schemas.
+        compress : int, optional
+            Compression level (0-9, for custom format), by default 6.
+        jobs : int, optional
+            Parallel jobs (for directory format), by default 1.
         """
         import subprocess
 
@@ -2264,31 +2440,30 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Restore database from pg_dump backup.
 
-        Args:
-            input_file: Backup file path.
-            clean: Drop objects before recreating.
-            if_exists: Use IF EXISTS with clean (prevents errors).
-            create: Create database before restoring.
-            data_only: Restore only data.
-            schema_only: Restore only schema.
-            tables: Only restore these tables.
-            schemas: Only restore these schemas.
-            jobs: Parallel jobs.
-            no_owner: Don't restore ownership.
-            no_privileges: Don't restore privileges.
-
-        Example:
-            # Full restore
-            db.pg_restore("backup.dump")
-
-            # Clean restore (drop and recreate)
-            db.pg_restore("backup.dump", clean=True)
-
-            # Restore specific tables
-            db.pg_restore("backup.dump", tables=["users"])
-
-            # Parallel restore
-            db.pg_restore("backup_dir", jobs=4)
+        Parameters
+        ----------
+        input_file : str or Path
+            Backup file path.
+        clean : bool, optional
+            Drop objects before recreating, by default False.
+        if_exists : bool, optional
+            Use IF EXISTS with clean (prevents errors), by default True.
+        create : bool, optional
+            Create database before restoring, by default False.
+        data_only : bool, optional
+            Restore only data, by default False.
+        schema_only : bool, optional
+            Restore only schema, by default False.
+        tables : list of str, optional
+            Only restore these tables.
+        schemas : list of str, optional
+            Only restore these schemas.
+        jobs : int, optional
+            Parallel jobs, by default 1.
+        no_owner : bool, optional
+            Don't restore ownership, by default False.
+        no_privileges : bool, optional
+            Don't restore privileges, by default False.
         """
         import subprocess
 
@@ -2366,22 +2541,29 @@ class Database(DatabaseBase, QueryMixin):
     ) -> int:
         """Export table to CSV file.
 
-        Args:
-            table: Table name.
-            output_file: Output CSV file path.
-            schema: Schema name.
-            columns: Specific columns to export.
-            delimiter: Field delimiter.
-            header: Include header row.
-            null_string: String for NULL values.
-            encoding: File encoding.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        output_file : str or Path
+            Output CSV file path.
+        schema : str, optional
+            Schema name, by default "public".
+        columns : list of str, optional
+            Specific columns to export.
+        delimiter : str, optional
+            Field delimiter, by default ",".
+        header : bool, optional
+            Include header row, by default True.
+        null_string : str, optional
+            String for NULL values, by default "".
+        encoding : str, optional
+            File encoding, by default "UTF8".
 
-        Returns:
+        Returns
+        -------
+        int
             Number of rows exported.
-
-        Example:
-            db.copy_to_csv("users", "users.csv")
-            db.copy_to_csv("orders", "orders.csv", columns=["id", "total", "created_at"])
         """
         output_file = Path(output_file)
         validate_identifiers(table, schema)
@@ -2433,21 +2615,29 @@ class Database(DatabaseBase, QueryMixin):
     ) -> int:
         """Import CSV file into table.
 
-        Args:
-            table: Table name.
-            input_file: Input CSV file path.
-            schema: Schema name.
-            columns: Specific columns to import.
-            delimiter: Field delimiter.
-            header: First row is header.
-            null_string: String representing NULL.
-            encoding: File encoding.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        input_file : str or Path
+            Input CSV file path.
+        schema : str, optional
+            Schema name, by default "public".
+        columns : list of str, optional
+            Specific columns to import.
+        delimiter : str, optional
+            Field delimiter, by default ",".
+        header : bool, optional
+            First row is header, by default True.
+        null_string : str, optional
+            String representing NULL, by default "".
+        encoding : str, optional
+            File encoding, by default "UTF8".
 
-        Returns:
+        Returns
+        -------
+        int
             Number of rows imported.
-
-        Example:
-            db.copy_from_csv("users", "users.csv")
         """
         input_file = Path(input_file)
         validate_identifiers(table, schema)
