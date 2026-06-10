@@ -29,8 +29,7 @@ extensions = [
 
 # Napoleon settings
 napoleon_numpy_docstring = True    # Enable NumPy-style docstring parsing
-# napoleon_google_docstring remains True (default) during migration;
-# disable after all modules are converted.
+napoleon_google_docstring = False  # Disable Google-style parsing (all modules migrated to numpydoc)
 show_warning_types = True
 
 # Copy button settings

@@ -66,8 +66,6 @@ class Database(DatabaseBase, QueryMixin):
     ----------
     config : Config
         Database connection configuration.
-    engine : Engine
-        SQLAlchemy engine for DataFrame operations.
     """
 
     def __init__(self, config: Config):

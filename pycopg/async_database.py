@@ -65,8 +65,6 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     ----------
     config : Config
         Database connection configuration.
-    async_engine : AsyncEngine
-        SQLAlchemy async engine for DataFrame operations.
     """
 
     def __init__(self, config: Config):
