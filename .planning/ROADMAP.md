@@ -158,7 +158,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 13-02-PLAN.md — exceptions V2 (14 ExtensionNotAvailable + 2 DatabaseExists, messages préservés) + tests màj + async_engine annoté (DOC-09/12)
+- [x] 13-02-PLAN.md — exceptions V2 (14 ExtensionNotAvailable + 2 DatabaseExists, messages préservés) + tests màj + async_engine annoté (DOC-09/12)
 
 **Wave 3** *(parallèle ; blocked on Wave 2 for 03/04, Wave 1 for 05)*
 
@@ -228,6 +228,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 10. Sécurité résiduelle & robustesse | v0.4.0 | 5/5 | Complete    | 2026-06-08 |
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
-| 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 1/6 | In Progress|  |
+| 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 2/6 | In Progress|  |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
