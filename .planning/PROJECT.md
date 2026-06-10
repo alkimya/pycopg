@@ -57,6 +57,7 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 - ✓ uv project tooling: dev + CI + build + `uv.lock` + `.python-version` (hatchling kept) — Phase 9 (TOOL-*)
 - ✓ Residual SQL-injection / robustness bugs B1/B2/B3/B5 + async validation closed — Phase 10 (SEC-*)
 - ✓ Full sync/async parity: 13 mirrored methods, C1/C2/C3 fixes, extended `test_parity`, coverage ratchet → 90 — Phase 11 (PAR-*)
+- ✓ Doc API homogène : docstrings numpydoc shallow (sans Examples), interrogate 100% (gate ≥95 en CI), garde Sphinx `-W` avec Google parsing OFF, exceptions domaine (`ExtensionNotAvailable`/`DatabaseExists`), `__version__` via importlib.metadata, mypy non-bloquant — Phase 13 (DOC-06..12)
 
 ### Active
 
@@ -161,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-09 — Phase 11 complete (full sync/async parity: 13 mirrored methods + C1/C2/C3 fixes; PAR-01..09 validated; coverage ratchet → 90; T-11-07 drop_extension guard closed; UAT 10/10).*
+*Last updated: 2026-06-10 — Phase 13 complete (qualité documentaire : numpydoc shallow partout, interrogate 100%, garde Sphinx -W + napoleon_google_docstring=False, exceptions domaine V2, `__version__` importlib.metadata, mypy non-bloquant ; DOC-06..12 validés, vérification 6/6).*
