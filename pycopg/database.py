@@ -35,8 +35,8 @@ from pycopg.base import (
     build_pg_restore_cmd,
     build_role_options,
 )
-from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 from pycopg.config import Config
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 from pycopg.utils import (
     validate_csv_option,
     validate_extension_name,
@@ -122,6 +122,11 @@ class Database(DatabaseBase, QueryMixin):
         -------
         Database
             Instance connected to the newly created database.
+
+        Raises
+        ------
+        DatabaseExists
+            If the database already exists and if_not_exists is False.
         """
         # Create config for the admin connection (to postgres database)
         admin_config = Config(
@@ -289,8 +294,10 @@ class Database(DatabaseBase, QueryMixin):
         Automatically commits on success, rolls back on exception.
         If a session is active, reuses the session connection.
 
-        Yields:
-            psycopg Connection in a transaction.
+        Yields
+        ------
+        psycopg.Connection
+            Connection in a transaction.
         """
         if self._session_conn is not None:
             # Reuse existing session connection

@@ -4,30 +4,30 @@ pycopg - High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
 Simple, powerful, pythonic database operations.
 """
 
-from pycopg.database import Database
 from pycopg.async_database import AsyncDatabase
 from pycopg.config import Config
-from pycopg.pool import PooledDatabase, AsyncPooledDatabase
-from pycopg.migrations import Migrator
+from pycopg.database import Database
 from pycopg.exceptions import (
-    PycopgError,
-    ConnectionError,
     ConfigurationError,
+    ConnectionError,
+    DatabaseExists,
     ExtensionNotAvailable,
-    TableNotFound,
     InvalidIdentifier,
     MigrationError,
-    DatabaseExists,
+    PycopgError,
+    TableNotFound,
 )
+from pycopg.migrations import Migrator
+from pycopg.pool import AsyncPooledDatabase, PooledDatabase
 from pycopg.utils import (
     validate_identifier,
     validate_identifiers,
-    validate_interval,
     validate_index_method,
+    validate_interval,
 )
 
 try:
-    from importlib.metadata import version, PackageNotFoundError
+    from importlib.metadata import PackageNotFoundError, version
     __version__ = version("pycopg")
 except PackageNotFoundError:
     __version__ = "0.0.0+unknown"

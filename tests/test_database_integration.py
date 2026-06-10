@@ -9,7 +9,7 @@ import uuid
 import pytest
 
 from pycopg import Config, Database
-from pycopg.exceptions import ExtensionNotAvailable, DatabaseExists
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 
 
 @pytest.fixture
@@ -495,6 +495,18 @@ class TestDatabaseAdmin:
 
         # Run analyze (just verify no error)
         db.analyze(temp_table_name)
+
+    def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
+        """create(if_not_exists=False) on an existing DB raises DatabaseExists."""
+        with pytest.raises(DatabaseExists, match="already exists"):
+            Database.create(
+                "pycopg_test",
+                host=db_config.host,
+                port=db_config.port,
+                user=db_config.user,
+                password=db_config.password,
+                if_not_exists=False,
+            )
 
 
 class TestDatabaseConnection:
