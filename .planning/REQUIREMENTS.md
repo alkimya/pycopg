@@ -48,7 +48,7 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9â€
 
 ### Documentation Quality (Phase 13)
 
-- [ ] **DOC-06**: All public docstrings migrated to numpydoc format (Summary/Parameters/Returns/Raises), shallow, no Examples section
+- [x] **DOC-06**: All public docstrings migrated to numpydoc format (Summary/Parameters/Returns/Raises), shallow, no Examples section
 - [x] **DOC-07**: `interrogate` added as a dev dependency with `fail-under=95` and enforced in a CI job
 - [x] **DOC-08**: `napoleon_numpy_docstring` enabled in Sphinx conf
 - [x] **DOC-09**: Public methods raise the real exception types (`ExtensionNotAvailable`, `TableNotFound`, etc.) instead of `RuntimeError`/`ValueError` (V2)
@@ -141,7 +141,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REF-03 | Phase 12 | Complete |
 | REF-04 | Phase 12 | Complete |
 | REF-05 | Phase 12 | Complete |
-| DOC-06 | Phase 13 | Pending |
+| DOC-06 | Phase 13 | Complete |
 | DOC-07 | Phase 13 | Complete |
 | DOC-08 | Phase 13 | Complete |
 | DOC-09 | Phase 13 | Complete |
