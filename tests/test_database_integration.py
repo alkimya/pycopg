@@ -9,6 +9,7 @@ import uuid
 import pytest
 
 from pycopg import Config, Database
+from pycopg.exceptions import ExtensionNotAvailable, DatabaseExists
 
 
 @pytest.fixture
@@ -866,5 +867,5 @@ class TestDatabaseTimescaleCoverage:
         """create_hypertable raises RuntimeError when timescaledb is absent."""
         t = f"test_ht_err_{uuid.uuid4().hex[:8]}"
         monkeypatch.setattr(db, "has_extension", lambda name: False)
-        with pytest.raises(RuntimeError, match="TimescaleDB extension not installed"):
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
             db.create_hypertable(t, "ts")

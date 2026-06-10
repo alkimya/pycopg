@@ -35,6 +35,7 @@ from pycopg.base import (
     build_pg_restore_cmd,
     build_role_options,
 )
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 from pycopg.config import Config
 from pycopg.utils import (
     validate_csv_option,
@@ -164,7 +165,7 @@ class Database(DatabaseBase, QueryMixin):
 
                 if exists:
                     if not if_not_exists:
-                        raise ValueError(f"Database '{name}' already exists")
+                        raise DatabaseExists(f"Database '{name}' already exists")
                 else:
                     # Create the database
                     owner_clause = f" OWNER {owner}" if owner else ""
@@ -1366,7 +1367,7 @@ class Database(DatabaseBase, QueryMixin):
         """
         # Ensure PostGIS is available
         if not self.has_extension("postgis"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "PostGIS extension not installed. Run db.create_extension('postgis')"
             )
 
@@ -1520,7 +1521,7 @@ class Database(DatabaseBase, QueryMixin):
             db.create_hypertable("events", "created_at", chunk_time_interval="1 week")
         """
         if not self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
             )
 
@@ -1556,7 +1557,7 @@ class Database(DatabaseBase, QueryMixin):
             db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
         """
         if not self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1603,7 +1604,7 @@ class Database(DatabaseBase, QueryMixin):
         validate_identifiers(table, schema)
         validate_interval(compress_after)
         if not self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1634,7 +1635,7 @@ class Database(DatabaseBase, QueryMixin):
         validate_identifiers(table, schema)
         validate_interval(drop_after)
         if not self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1653,7 +1654,7 @@ class Database(DatabaseBase, QueryMixin):
             List of hypertable info dicts.
         """
         if not self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
@@ -1671,7 +1672,7 @@ class Database(DatabaseBase, QueryMixin):
             Dict with hypertable details including size info.
         """
         if not self.has_extension("timescaledb"):
-            raise RuntimeError(
+            raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
             )
