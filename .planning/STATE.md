@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: ready_to_execute
-stopped_at: Phase 13 planned (6 plans, 4 waves)
-last_updated: "2026-06-10T14:30:00.000Z"
-last_activity: 2026-06-10 -- Phase 13 planned (plan-phase complete, verification passed)
+status: executing
+stopped_at: Completed 13-01-PLAN.md — tooling foundation done
+last_updated: "2026-06-10T11:33:57.934Z"
+last_activity: 2026-06-10 -- Phase 13 execution started
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 26
+  completed_plans: 21
   percent: 57
 ---
 
@@ -21,14 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 13 — qualité documentaire (docstrings numpydoc + interrogate)
+**Current focus:** Phase 13 — qualit-documentaire-docstrings-numpydoc-interrogate
 
 ## Current Position
 
-Phase: 13 (qualité documentaire — docstrings numpydoc + interrogate ≥ 95) — PLANNED, ready to execute
+Phase: 13 (qualit-documentaire-docstrings-numpydoc-interrogate) — EXECUTING
+Plan: 2 of 6
 Prev phase: 12 (refactoring) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
-Status: Ready to execute Phase 13 (6 plans, 4 waves; plan-checker passed; 7/7 DOC requirements covered)
-Last activity: 2026-06-10 -- Phase 13 planned (research + patterns + 6 plans + verification)
+Status: Ready to execute
+Last activity: 2026-06-10 -- Phase 13 execution started
 
 ## Performance Metrics
 
@@ -57,6 +58,7 @@ Last activity: 2026-06-10 -- Phase 13 planned (research + patterns + 6 plans + v
 | Phase 10-s-curit-r-siduelle-robustesse P05 | 15 minutes | 2 tasks | 3 files |
 | 10 | 5 | - | - |
 | Phase 12 P03 | 35 min | 2 tasks | 5 files |
+| Phase 13 P01 | 467 | 4 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -72,6 +74,8 @@ All v0.3.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
 - [Phase 09 P04]: D-08/D-09/D-10/D-11: Makefile (thin uv wrappers) + CLAUDE.md (path/version/commands fixed) + README Development section (uv); Installation section (pip) preserved; no [dev] extra in any contributor doc
 - [Phase ?]: D-06 (B2 form): targeted mock — defect is exit-path control flow, not real DB behaviour
 - [Phase ?]: D-07 gate flip: --cov-fail-under raised 70->80 after local suite measured 80.71%
+- [Phase ?]: interrogate baseline 94.8% -> 100% after adding docstrings to 14 magic methods; fail-under=95 kept
+- [Phase ?]: Sphinx -W guard chosen; currently exits 1 on pre-existing Google docstrings; will green after Plans 03-05
 
 ### Pending Todos
 
@@ -84,12 +88,12 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-10 (plan-phase 13)
-Stopped at: Phase 13 planned — 6 plans / 4 waves, plan-checker PASSED, gap analysis 7/7 covered.
+Last session: 2026-06-10T11:33:57.927Z
+Stopped at: Completed 13-01-PLAN.md — tooling foundation done
   Research (13-RESEARCH.md), patterns (13-PATTERNS.md), validation strategy (13-VALIDATION.md) all in place.
   ROADMAP Phase 13 requirement IDs corrected DOC-01..07 -> DOC-06..12 (matches REQUIREMENTS.md mapping table).
 Note: ROADMAP target for Phase 12 was coverage 95; actual flip was 90->92 — the 95 goal remains open.
-Resume file: .planning/phases/13-qualit-documentaire-docstrings-numpydoc-interrogate/13-01-PLAN.md
+Resume file: None
 Next action: /gsd-execute-phase 13
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
