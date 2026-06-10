@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: planning
-stopped_at: Phase 13 context gathered
-last_updated: "2026-06-10T11:03:00.585Z"
-last_activity: 2026-06-10 -- Phase 13 context gathered (discuss-phase complete)
+status: ready_to_execute
+stopped_at: Phase 13 planned (6 plans, 4 waves)
+last_updated: "2026-06-10T14:30:00.000Z"
+last_activity: 2026-06-10 -- Phase 13 planned (plan-phase complete, verification passed)
 progress:
   total_phases: 7
   completed_phases: 4
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 
 ## Current Position
 
-Phase: 13 (qualité documentaire — docstrings numpydoc + interrogate ≥ 95) — CONTEXT GATHERED, ready to plan
+Phase: 13 (qualité documentaire — docstrings numpydoc + interrogate ≥ 95) — PLANNED, ready to execute
 Prev phase: 12 (refactoring) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
-Status: Ready to plan Phase 13 (13-CONTEXT.md written)
-Last activity: 2026-06-10 -- Phase 13 context gathered (discuss-phase complete)
+Status: Ready to execute Phase 13 (6 plans, 4 waves; plan-checker passed; 7/7 DOC requirements covered)
+Last activity: 2026-06-10 -- Phase 13 planned (research + patterns + 6 plans + verification)
 
 ## Performance Metrics
 
@@ -84,11 +84,12 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-10T10:18:23.971Z
-Stopped at: Phase 13 context gathered
-  12-VERIFICATION.md PASSED, coverage ratchet 90->92 (measured, honest). Next: Phase 13 (documentary quality).
+Last session: 2026-06-10 (plan-phase 13)
+Stopped at: Phase 13 planned — 6 plans / 4 waves, plan-checker PASSED, gap analysis 7/7 covered.
+  Research (13-RESEARCH.md), patterns (13-PATTERNS.md), validation strategy (13-VALIDATION.md) all in place.
+  ROADMAP Phase 13 requirement IDs corrected DOC-01..07 -> DOC-06..12 (matches REQUIREMENTS.md mapping table).
 Note: ROADMAP target for Phase 12 was coverage 95; actual flip was 90->92 — the 95 goal remains open.
-Resume file: .planning/phases/13-qualit-documentaire-docstrings-numpydoc-interrogate/13-CONTEXT.md
-Next action: /gsd-discuss-phase 13 (qualité documentaire — numpydoc + interrogate ≥ 95 + mypy + real exceptions).
+Resume file: .planning/phases/13-qualit-documentaire-docstrings-numpydoc-interrogate/13-01-PLAN.md
+Next action: /gsd-execute-phase 13
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
