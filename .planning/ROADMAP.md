@@ -140,7 +140,7 @@ Plans:
 
 **Goal**: Doc API homogène et mesurée — numpydoc peu profond sans Examples, interrogate ≥ 95 en CI.
 **Depends on**: Phase 12
-**Requirements**: DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06, DOC-07
+**Requirements**: DOC-06, DOC-07, DOC-08, DOC-09, DOC-10, DOC-11, DOC-12
 **Success Criteria** (what must be TRUE):
 
   1. Docstrings publiques migrées au format numpydoc (Summary + Parameters + Returns + Raises pertinents, sans Examples)
