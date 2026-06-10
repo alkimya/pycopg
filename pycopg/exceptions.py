@@ -36,3 +36,8 @@ class InvalidIdentifier(PycopgError):
 class MigrationError(PycopgError):
     """Error during database migration."""
     pass
+
+
+class DatabaseExists(PycopgError):
+    """Database already exists."""
+    pass

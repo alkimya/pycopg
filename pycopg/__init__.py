@@ -52,6 +52,7 @@ from pycopg.exceptions import (
     TableNotFound,
     InvalidIdentifier,
     MigrationError,
+    DatabaseExists,
 )
 from pycopg.utils import (
     validate_identifier,
@@ -60,7 +61,11 @@ from pycopg.utils import (
     validate_index_method,
 )
 
-__version__ = "0.3.1"
+try:
+    from importlib.metadata import version, PackageNotFoundError
+    __version__ = version("pycopg")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"
 __all__ = [
     # Core
     "Database",
@@ -79,6 +84,7 @@ __all__ = [
     "TableNotFound",
     "InvalidIdentifier",
     "MigrationError",
+    "DatabaseExists",
     # Utilities
     "validate_identifier",
     "validate_identifiers",
