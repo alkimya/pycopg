@@ -24,8 +24,10 @@ class DatabaseBase(ABC):
     def __init__(self, config: Config):
         """Initialize database with configuration.
 
-        Args:
-            config: Database configuration.
+        Parameters
+        ----------
+        config : Config
+            Database configuration.
         """
         self.config = config
 
@@ -33,10 +35,14 @@ class DatabaseBase(ABC):
     def from_env(cls, dotenv_path: str | Path | None = None) -> DatabaseBase:
         """Create database from environment variables.
 
-        Args:
-            dotenv_path: Optional path to .env file.
+        Parameters
+        ----------
+        dotenv_path : str or Path, optional
+            Path to .env file.
 
-        Returns:
+        Returns
+        -------
+        DatabaseBase
             Database instance.
         """
         return cls(Config.from_env(dotenv_path))
@@ -45,10 +51,14 @@ class DatabaseBase(ABC):
     def from_url(cls, url: str) -> DatabaseBase:
         """Create database from connection URL.
 
-        Args:
-            url: PostgreSQL connection URL.
+        Parameters
+        ----------
+        url : str
+            PostgreSQL connection URL.
 
-        Returns:
+        Returns
+        -------
+        DatabaseBase
             Database instance.
         """
         return cls(Config.from_url(url))
@@ -75,13 +85,20 @@ class QueryMixin:
     ) -> tuple[str, str]:
         """Build INSERT SQL template.
 
-        Args:
-            table: Table name.
-            columns: Column names.
-            schema: Schema name.
-            on_conflict: Optional ON CONFLICT clause.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        columns : list of str
+            Column names.
+        schema : str, optional
+            Schema name, by default "public".
+        on_conflict : str, optional
+            ON CONFLICT clause.
 
-        Returns:
+        Returns
+        -------
+        tuple of (str, str)
             Tuple of (sql_template, columns_str).
         """
         validate_identifiers(table, schema, *columns)
@@ -103,14 +120,22 @@ class QueryMixin:
     ) -> tuple[str, list]:
         """Build batch INSERT SQL with multiple VALUES.
 
-        Args:
-            table: Table name.
-            columns: Column names.
-            rows: List of row dicts.
-            schema: Schema name.
-            on_conflict: Optional ON CONFLICT clause.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        columns : list of str
+            Column names.
+        rows : list of dict
+            List of row dicts.
+        schema : str, optional
+            Schema name, by default "public".
+        on_conflict : str, optional
+            ON CONFLICT clause.
 
-        Returns:
+        Returns
+        -------
+        tuple of (str, list)
             Tuple of (sql, params).
         """
         validate_identifiers(table, schema, *columns)
@@ -142,16 +167,26 @@ class QueryMixin:
     ) -> str:
         """Build SELECT SQL.
 
-        Args:
-            table: Table name.
-            columns: Column names (None = *).
-            schema: Schema name.
-            where: Optional WHERE clause (without WHERE keyword).
-            order_by: Optional ORDER BY clause.
-            limit: Optional LIMIT.
-            offset: Optional OFFSET.
+        Parameters
+        ----------
+        table : str
+            Table name.
+        columns : list of str, optional
+            Column names, by default None (selects all columns).
+        schema : str, optional
+            Schema name, by default "public".
+        where : str, optional
+            WHERE clause (without WHERE keyword).
+        order_by : str, optional
+            ORDER BY clause.
+        limit : int, optional
+            LIMIT value.
+        offset : int, optional
+            OFFSET value.
 
-        Returns:
+        Returns
+        -------
+        str
             SQL string.
         """
         validate_identifiers(table, schema)
@@ -215,22 +250,38 @@ def build_pg_dump_cmd(
     I/O, no environment access, no secrets. The caller runs the command
     and manages credentials via environment variables.
 
-    Args:
-        host: Database host.
-        port: Database port.
-        user: Database user.
-        database: Database name.
-        output_file: Output file path (str or Path).
-        format: Dump format — 'plain', 'custom', 'directory', or 'tar'.
-        schema_only: Dump only schema, no data.
-        data_only: Dump only data, no schema.
-        tables: Only dump these tables.
-        exclude_tables: Exclude these tables.
-        schemas: Only dump these schemas.
-        compress: Compression level (0-9, for custom format).
-        jobs: Parallel jobs (for directory format).
+    Parameters
+    ----------
+    host : str
+        Database host.
+    port : int
+        Database port.
+    user : str
+        Database user.
+    database : str
+        Database name.
+    output_file : str or Path
+        Output file path.
+    format : str, optional
+        Dump format — 'plain', 'custom', 'directory', or 'tar', by default "custom".
+    schema_only : bool, optional
+        Dump only schema, no data, by default False.
+    data_only : bool, optional
+        Dump only data, no schema, by default False.
+    tables : list, optional
+        Only dump these tables.
+    exclude_tables : list, optional
+        Exclude these tables.
+    schemas : list, optional
+        Only dump these schemas.
+    compress : int, optional
+        Compression level (0-9, for custom format), by default 6.
+    jobs : int, optional
+        Parallel jobs (for directory format), by default 1.
 
-    Returns:
+    Returns
+    -------
+    list
         List of strings (argv) suitable for passing to a process runner.
     """
     output_file = Path(output_file)
@@ -300,24 +351,42 @@ def build_pg_restore_cmd(
     _psql_restore) is the caller's responsibility; this builder assumes a
     binary-format input file.
 
-    Args:
-        host: Database host.
-        port: Database port.
-        user: Database user.
-        database: Database name.
-        input_file: Backup file path (str or Path).
-        clean: Drop objects before recreating.
-        if_exists: Use IF EXISTS with clean (prevents errors).
-        create: Create database before restoring.
-        data_only: Restore only data.
-        schema_only: Restore only schema.
-        tables: Only restore these tables.
-        schemas: Only restore these schemas.
-        jobs: Parallel jobs.
-        no_owner: Don't restore ownership.
-        no_privileges: Don't restore privileges.
+    Parameters
+    ----------
+    host : str
+        Database host.
+    port : int
+        Database port.
+    user : str
+        Database user.
+    database : str
+        Database name.
+    input_file : str or Path
+        Backup file path.
+    clean : bool, optional
+        Drop objects before recreating, by default False.
+    if_exists : bool, optional
+        Use IF EXISTS with clean (prevents errors), by default True.
+    create : bool, optional
+        Create database before restoring, by default False.
+    data_only : bool, optional
+        Restore only data, by default False.
+    schema_only : bool, optional
+        Restore only schema, by default False.
+    tables : list, optional
+        Only restore these tables.
+    schemas : list, optional
+        Only restore these schemas.
+    jobs : int, optional
+        Parallel jobs, by default 1.
+    no_owner : bool, optional
+        Don't restore ownership, by default False.
+    no_privileges : bool, optional
+        Don't restore privileges, by default False.
 
-    Returns:
+    Returns
+    -------
+    list
         List of strings (argv) suitable for passing to a process runner.
     """
     cmd = ["pg_restore"]
@@ -378,20 +447,32 @@ def build_role_options(
     is appended so the caller can bind the actual secret via a parameterized
     execute call.
 
-    Args:
-        login: Can log in (True = user, False = group role).
-        superuser: Is superuser.
-        createdb: Can create databases.
-        createrole: Can create other roles.
-        inherit: Inherits privileges from member roles.
-        replication: Can initiate streaming replication.
-        connection_limit: Max concurrent connections (-1 = unlimited).
-        password: Truthiness flag only — when truthy, appends "PASSWORD %s"
-            placeholder. The actual secret must be bound by the caller.
-        valid_until: Password expiration (e.g. '2025-12-31'). Validated
-            against the timestamp whitelist before use.
+    Parameters
+    ----------
+    login : bool, optional
+        Can log in (True = user, False = group role), by default True.
+    superuser : bool, optional
+        Is superuser, by default False.
+    createdb : bool, optional
+        Can create databases, by default False.
+    createrole : bool, optional
+        Can create other roles, by default False.
+    inherit : bool, optional
+        Inherits privileges from member roles, by default True.
+    replication : bool, optional
+        Can initiate streaming replication, by default False.
+    connection_limit : int, optional
+        Max concurrent connections (-1 = unlimited), by default -1.
+    password : optional
+        Truthiness flag only — when truthy, appends "PASSWORD %s"
+        placeholder. The actual secret must be bound by the caller.
+    valid_until : str, optional
+        Password expiration (e.g. '2025-12-31'). Validated
+        against the timestamp whitelist before use.
 
-    Returns:
+    Returns
+    -------
+    list
         List of SQL option token strings.
     """
     options = []

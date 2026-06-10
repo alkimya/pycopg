@@ -30,19 +30,6 @@ class Config:
     - Individual parameters
     - DATABASE_URL environment variable
     - .env file
-
-    Examples:
-        # From individual params
-        config = Config(host="localhost", database="mydb", user="postgres", password="secret")
-
-        # From DATABASE_URL
-        config = Config.from_url("postgresql://user:pass@localhost:5432/mydb")
-
-        # From environment
-        config = Config.from_env()
-
-        # From .env file
-        config = Config.from_env("/path/to/.env")
     """
 
     host: str = "localhost"
@@ -59,18 +46,18 @@ class Config:
     def from_url(cls, url: str) -> "Config":
         """Create config from a database URL.
 
-        Args:
-            url: PostgreSQL connection URL.
-                 Formats supported:
-                 - postgresql://user:pass@host:port/dbname
-                 - postgresql+asyncpg://user:pass@host:port/dbname
-                 - postgres://user:pass@host:port/dbname
+        Parameters
+        ----------
+        url : str
+            PostgreSQL connection URL. Formats supported:
+            - postgresql://user:pass@host:port/dbname
+            - postgresql+asyncpg://user:pass@host:port/dbname
+            - postgres://user:pass@host:port/dbname
 
-        Returns:
+        Returns
+        -------
+        Config
             Config instance.
-
-        Example:
-            config = Config.from_url("postgresql://admin:secret@db.example.com:5432/myapp")
         """
         # Normalize URL scheme
         url = url.replace("postgresql+asyncpg://", "postgresql://")
@@ -118,24 +105,18 @@ class Config:
         - DB_USER, PGUSER: Database user
         - DB_PASSWORD, PGPASSWORD: Database password
 
-        Args:
-            dotenv_path: Optional path to .env file. If None, searches
-                        current directory and parents.
-            load_dotenv_file: Whether to load .env file. Set to False to
-                            only use existing environment variables.
+        Parameters
+        ----------
+        dotenv_path : str or Path, optional
+            Path to .env file. If None, searches current directory and parents.
+        load_dotenv_file : bool, optional
+            Whether to load .env file. Set to False to only use existing
+            environment variables, by default True.
 
-        Returns:
+        Returns
+        -------
+        Config
             Config instance.
-
-        Example:
-            # Load from .env in current directory
-            config = Config.from_env()
-
-            # Load from specific .env file
-            config = Config.from_env("/home/user/project/.env")
-
-            # Only use existing env vars, skip .env file
-            config = Config.from_env(load_dotenv_file=False)
         """
         if load_dotenv_file:
             if dotenv_path:
@@ -163,13 +144,10 @@ class Config:
     def dsn(self) -> str:
         """Generate psycopg-compatible DSN string.
 
-        Returns:
+        Returns
+        -------
+        str
             Connection string for psycopg.
-
-        Example:
-            >>> config = Config(host="localhost", database="mydb", user="admin", password="secret")
-            >>> config.dsn
-            'host=localhost port=5432 dbname=mydb user=admin password=secret'
         """
         parts = [
             f"host={self.host}",
@@ -197,13 +175,10 @@ class Config:
     def url(self) -> str:
         """Generate SQLAlchemy-compatible URL using psycopg v3.
 
-        Returns:
+        Returns
+        -------
+        str
             PostgreSQL URL for SQLAlchemy with psycopg driver.
-
-        Example:
-            >>> config = Config(host="localhost", database="mydb", user="admin", password="secret")
-            >>> config.url
-            'postgresql+psycopg://admin:secret@localhost:5432/mydb'
         """
         auth = f"{self.user}:{self.password}" if self.password else self.user
         # Use postgresql+psycopg for psycopg v3 (not psycopg2)
@@ -220,13 +195,10 @@ class Config:
         so SQLAlchemy builds an async engine. ``url`` itself is unchanged and
         still uses the sync driver.
 
-        Returns:
+        Returns
+        -------
+        str
             PostgreSQL URL for SQLAlchemy with the async psycopg driver.
-
-        Example:
-            >>> config = Config(host="localhost", database="mydb", user="admin", password="secret")
-            >>> config.async_url
-            'postgresql+psycopg_async://admin:secret@localhost:5432/mydb'
         """
         auth = f"{self.user}:{self.password}" if self.password else self.user
         # Use postgresql+psycopg_async for the async psycopg v3 driver
@@ -240,12 +212,10 @@ class Config:
     def connect_params(self) -> dict:
         """Get connection parameters as dict for psycopg.connect().
 
-        Returns:
+        Returns
+        -------
+        dict
             Dict with host, port, dbname, user, password.
-
-        Example:
-            config = Config.from_env()
-            conn = psycopg.connect(**config.connect_params())
         """
         params = {
             "host": self.host,
@@ -272,15 +242,15 @@ class Config:
     def with_database(self, database: str) -> "Config":
         """Create a new config pointing to a different database.
 
-        Args:
-            database: Target database name.
+        Parameters
+        ----------
+        database : str
+            Target database name.
 
-        Returns:
+        Returns
+        -------
+        Config
             New Config instance with updated database.
-
-        Example:
-            admin_config = Config.from_env()
-            app_config = admin_config.with_database("myapp")
         """
         return Config(
             host=self.host,

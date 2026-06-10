@@ -52,17 +52,15 @@ def validate_identifier(name: str) -> None:
     - Contains only letters, digits, and underscores
     - Does not use SQL reserved words (basic check)
 
-    Args:
-        name: SQL identifier to validate (table, column, schema, role name, etc.)
+    Parameters
+    ----------
+    name : str
+        SQL identifier to validate (table, column, schema, role name, etc.)
 
-    Raises:
-        InvalidIdentifier: If the identifier contains invalid characters.
-
-    Example:
-        >>> validate_identifier("users")  # OK
-        >>> validate_identifier("my_table_123")  # OK
-        >>> validate_identifier("123_invalid")  # Raises InvalidIdentifier
-        >>> validate_identifier("table; DROP TABLE users;--")  # Raises InvalidIdentifier
+    Raises
+    ------
+    InvalidIdentifier
+        If the identifier contains invalid characters.
     """
     if not name:
         raise InvalidIdentifier("Identifier cannot be empty")
@@ -78,15 +76,15 @@ def validate_identifier(name: str) -> None:
 def validate_identifiers(*names: str) -> None:
     """Validate multiple SQL identifiers.
 
-    Args:
-        *names: SQL identifiers to validate.
+    Parameters
+    ----------
+    *names : str
+        SQL identifiers to validate.
 
-    Raises:
-        InvalidIdentifier: If any identifier is invalid.
-
-    Example:
-        >>> validate_identifiers("schema", "table", "column")  # OK
-        >>> validate_identifiers("good", "bad;drop")  # Raises InvalidIdentifier
+    Raises
+    ------
+    InvalidIdentifier
+        If any identifier is invalid.
     """
     for name in names:
         if name is not None:
@@ -98,17 +96,15 @@ def validate_interval(interval: str) -> None:
 
     Used for TimescaleDB chunk intervals, retention policies, etc.
 
-    Args:
-        interval: Interval string (e.g., "1 day", "7 days", "1 week").
+    Parameters
+    ----------
+    interval : str
+        Interval string (e.g., "1 day", "7 days", "1 week").
 
-    Raises:
-        InvalidIdentifier: If the interval format is invalid.
-
-    Example:
-        >>> validate_interval("1 day")  # OK
-        >>> validate_interval("7 days")  # OK
-        >>> validate_interval("1 week")  # OK
-        >>> validate_interval("drop table")  # Raises InvalidIdentifier
+    Raises
+    ------
+    InvalidIdentifier
+        If the interval format is invalid.
     """
     if not interval:
         raise InvalidIdentifier("Interval cannot be empty")
@@ -128,11 +124,15 @@ def validate_extension_name(name: str) -> None:
     extensions (e.g. ``uuid-ossp``) contain them. The name is emitted inside
     double quotes in the generated SQL.
 
-    Args:
-        name: Extension name (e.g. ``'postgis'``, ``'uuid-ossp'``).
+    Parameters
+    ----------
+    name : str
+        Extension name (e.g. ``'postgis'``, ``'uuid-ossp'``).
 
-    Raises:
-        InvalidIdentifier: If the name contains invalid characters.
+    Raises
+    ------
+    InvalidIdentifier
+        If the name contains invalid characters.
     """
     if not name:
         raise InvalidIdentifier("Extension name cannot be empty")
@@ -151,12 +151,16 @@ def validate_timestamp(value: str) -> None:
     Used for clauses such as ``VALID UNTIL`` where the value cannot be passed
     as a bound parameter and is interpolated into the statement.
 
-    Args:
-        value: Date or timestamp string (e.g. ``'2025-12-31'``,
-            ``'2025-12-31 23:59:59'``, ``'infinity'``).
+    Parameters
+    ----------
+    value : str
+        Date or timestamp string (e.g. ``'2025-12-31'``,
+        ``'2025-12-31 23:59:59'``, ``'infinity'``).
 
-    Raises:
-        InvalidIdentifier: If the value is not a recognized date/timestamp form.
+    Raises
+    ------
+    InvalidIdentifier
+        If the value is not a recognized date/timestamp form.
     """
     if not value:
         raise InvalidIdentifier("Timestamp cannot be empty")
@@ -172,12 +176,16 @@ def validate_timestamp(value: str) -> None:
 def validate_privileges(privileges: str) -> None:
     """Validate SQL privilege keyword(s) for GRANT/REVOKE against a whitelist.
 
-    Args:
-        privileges: A privilege keyword, or several joined by commas
-            (e.g. ``'SELECT'``, ``'SELECT, INSERT'``, ``'ALL'``).
+    Parameters
+    ----------
+    privileges : str
+        A privilege keyword, or several joined by commas
+        (e.g. ``'SELECT'``, ``'SELECT, INSERT'``, ``'ALL'``).
 
-    Raises:
-        InvalidIdentifier: If any privilege is not a recognized SQL privilege.
+    Raises
+    ------
+    InvalidIdentifier
+        If any privilege is not a recognized SQL privilege.
     """
     if not privileges:
         raise InvalidIdentifier("Privileges cannot be empty")
@@ -194,11 +202,15 @@ def validate_privileges(privileges: str) -> None:
 def validate_object_type(object_type: str) -> None:
     """Validate a GRANT/REVOKE object type against a whitelist.
 
-    Args:
-        object_type: Object type keyword (e.g. ``'TABLE'``, ``'SCHEMA'``).
+    Parameters
+    ----------
+    object_type : str
+        Object type keyword (e.g. ``'TABLE'``, ``'SCHEMA'``).
 
-    Raises:
-        InvalidIdentifier: If the object type is not recognized.
+    Raises
+    ------
+    InvalidIdentifier
+        If the object type is not recognized.
     """
     if not object_type or object_type.strip().upper() not in _VALID_OBJECT_TYPES:
         raise InvalidIdentifier(
@@ -214,13 +226,19 @@ def validate_csv_option(value: str, name: str, max_length: int = 32) -> None:
     literal) and over-long values. Used for ``delimiter``, ``null`` and
     ``encoding`` options that cannot be passed as bound parameters.
 
-    Args:
-        value: The option value.
-        name: Option name, used in the error message.
-        max_length: Maximum allowed length.
+    Parameters
+    ----------
+    value : str
+        The option value.
+    name : str
+        Option name, used in the error message.
+    max_length : int, optional
+        Maximum allowed length, by default 32.
 
-    Raises:
-        InvalidIdentifier: If the value contains quotes/backslashes or is too long.
+    Raises
+    ------
+    InvalidIdentifier
+        If the value contains quotes/backslashes or is too long.
     """
     if "'" in value or "\\" in value:
         raise InvalidIdentifier(
@@ -235,11 +253,15 @@ def validate_csv_option(value: str, name: str, max_length: int = 32) -> None:
 def validate_index_method(method: str) -> None:
     """Validate PostgreSQL index method.
 
-    Args:
-        method: Index method name (btree, hash, gist, gin, etc.)
+    Parameters
+    ----------
+    method : str
+        Index method name (btree, hash, gist, gin, etc.)
 
-    Raises:
-        InvalidIdentifier: If the method is not a valid PostgreSQL index type.
+    Raises
+    ------
+    InvalidIdentifier
+        If the method is not a valid PostgreSQL index type.
     """
     valid_methods = {"btree", "hash", "gist", "spgist", "gin", "brin"}
     if method.lower() not in valid_methods:
@@ -255,16 +277,14 @@ def quote_literal(value: str) -> str:
     This escapes single quotes by doubling them and wraps the value in quotes.
     For parameterized queries, prefer using query parameters instead.
 
-    Args:
-        value: String value to quote.
+    Parameters
+    ----------
+    value : str
+        String value to quote.
 
-    Returns:
+    Returns
+    -------
+    str
         Quoted string safe for SQL inclusion.
-
-    Example:
-        >>> quote_literal("hello")
-        "'hello'"
-        >>> quote_literal("it's")
-        "'it''s'"
     """
     return "'" + value.replace("'", "''") + "'"
