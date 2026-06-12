@@ -58,6 +58,7 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 - ✓ Residual SQL-injection / robustness bugs B1/B2/B3/B5 + async validation closed — Phase 10 (SEC-*)
 - ✓ Full sync/async parity: 13 mirrored methods, C1/C2/C3 fixes, extended `test_parity`, coverage ratchet → 90 — Phase 11 (PAR-*)
 - ✓ Doc API homogène : docstrings numpydoc shallow (sans Examples), interrogate 100% (gate ≥95 en CI), garde Sphinx `-W` avec Google parsing OFF, exceptions domaine (`ExtensionNotAvailable`/`DatabaseExists`), `__version__` via importlib.metadata, mypy non-bloquant — Phase 13 (DOC-06..12)
+- ✓ `db.spatial.*` / `async_db.spatial.*` : 11 helpers (builders SQL purs partagés + accesseurs lazy), garde PostGIS, `into="rows"/"gdf"`, 4 points ouverts tranchés (D-01..D-12 → 08-DESIGN.md), parité test_parity, coverage cliquet 92→94 — Phase 14 (SPAT-01..06)
 
 ### Active
 
@@ -65,7 +66,6 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 - [ ] Refactor: wire up `queries.py` + `base.py`, extract pure stateless builders, dead-code cleanup — v0.4.0 (REF-*)
 - [ ] numpydoc docstrings + `interrogate ≥ 95`, real exceptions (V2), `__version__` via importlib, mypy — v0.4.0 (DOC-*)
-- [ ] `db.spatial.*` / `async_db.spatial.*` helpers (resolve 4 open design points at phase start) — v0.4.0 (SPAT-*)
 - [ ] Release v0.4.0: Sphinx docs, CHANGELOG, `uv build`, PyPI publish, RTD live — v0.4.0 (REL-*)
 
 ### Out of Scope
@@ -162,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-10 — Phase 13 complete (qualité documentaire : numpydoc shallow partout, interrogate 100%, garde Sphinx -W + napoleon_google_docstring=False, exceptions domaine V2, `__version__` importlib.metadata, mypy non-bloquant ; DOC-06..12 validés, vérification 6/6).*
+*Last updated: 2026-06-12 — Phase 14 complete (spatial helpers : `db.spatial.*`/`async_db.spatial.*` en parité, 11 helpers, builders purs 100% couverts, garde PostGIS, D-01..D-12 actés dans 08-DESIGN.md, gate coverage 92→94 ; SPAT-01..06 validés, vérification 11/11).*
