@@ -58,7 +58,7 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9â€
 
 ### Spatial Helpers (Phase 14)
 
-- [ ] **SPAT-01**: The 4 open Phase 8 design points (`into=`, geometry input, `unit=`, `where=`) are resolved at phase start and 08-DESIGN.md updated
+- [x] **SPAT-01**: The 4 open Phase 8 design points (`into=`, geometry input, `unit=`, `where=`) are resolved at phase start and 08-DESIGN.md updated
 - [ ] **SPAT-02**: `pycopg/spatial.py` provides pure SQL builders plus `SpatialAccessor` and `AsyncSpatialAccessor`
 - [ ] **SPAT-03**: `db.spatial.*` exposes ~10 helpers (contains, within, intersects, dwithin, distance, nearest, area, perimeter, centroid, buffer, transform)
 - [ ] **SPAT-04**: Spatial helpers guard on PostGIS (`has_extension`) and validate identifiers + parameterize values as `%s`
@@ -148,7 +148,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOC-10 | Phase 13 | Complete |
 | DOC-11 | Phase 13 | Complete |
 | DOC-12 | Phase 13 | Complete |
-| SPAT-01 | Phase 14 | Pending |
+| SPAT-01 | Phase 14 | Complete |
 | SPAT-02 | Phase 14 | Pending |
 | SPAT-03 | Phase 14 | Pending |
 | SPAT-04 | Phase 14 | Pending |

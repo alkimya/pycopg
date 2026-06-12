@@ -187,8 +187,8 @@ Plans:
 Plans:
 **Wave 1** *(parallel)*
 
-- [ ] 14-01-PLAN.md — geometry resolver + 11 pure SQL builders + DB-free unit tests (SPA-02/03/04/06)
-- [ ] 14-03-PLAN.md — update 08-DESIGN.md with resolved decisions D-01..D-12 (SPA-01)
+- [x] 14-01-PLAN.md — geometry resolver + 11 pure SQL builders + DB-free unit tests (SPA-02/03/04/06)
+- [x] 14-03-PLAN.md — update 08-DESIGN.md with resolved decisions D-01..D-12 (SPA-01)
 
 **Wave 2** *(blocked on 14-01)*
 
@@ -244,5 +244,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
-| 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/4 | Planned (4 plans, 3 waves) | — |
+| 14. Spatial helpers (db.spatial.*) | v0.4.0 | 2/4 | In Progress|  |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
