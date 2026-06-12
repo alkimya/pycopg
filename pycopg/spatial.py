@@ -23,9 +23,19 @@ The ``where=`` parameter is a raw SQL fragment following the existing
 responsibility (T-14-04 accepted limitation).
 """
 
-import json
+from __future__ import annotations
 
+import json
+from typing import TYPE_CHECKING
+
+from pycopg.exceptions import ExtensionNotAvailable
 from pycopg.utils import validate_identifiers
+
+if TYPE_CHECKING:
+    import geopandas as gpd
+
+    from pycopg.async_database import AsyncDatabase
+    from pycopg.database import Database
 
 #: Sentinel SQL fragment returned by :func:`_resolve_geometry` for the
 #: ``ref=`` input form. When a builder receives this sentinel, the params
@@ -940,3 +950,1781 @@ def build_transform_sql(
     )
     sql = _append_tail(sql, where, order_by, limit, has_where=False)
     return sql, [to_srid]
+
+
+#: Helpers whose result set has no geometry column — ``into="gdf"`` is
+#: rejected for these (D-02).
+_SCALAR_HELPERS = frozenset({"area", "perimeter", "distance", "centroid"})
+
+#: Accepted ``into=`` values (D-01; ``into="query"`` deferred to the ETL
+#: milestone).
+_VALID_INTO = ("rows", "gdf")
+
+#: Exact PostGIS guard message (mirrors ``from_geodataframe``).
+_POSTGIS_GUARD_MSG = (
+    "PostGIS extension not installed. Run db.create_extension('postgis')"
+)
+
+
+def _check_into(into: str, helper: str) -> None:
+    """Validate the ``into=`` value for a helper before any SQL runs.
+
+    Parameters
+    ----------
+    into : str
+        Requested output form — ``"rows"`` or ``"gdf"`` (D-01).
+    helper : str
+        Helper name, used for error messages and the scalar check.
+
+    Raises
+    ------
+    ValueError
+        If ``into`` is not in the allowed set, or if ``into="gdf"`` is
+        requested on a scalar helper (D-02).
+    """
+    if into not in _VALID_INTO:
+        raise ValueError(f"into must be one of {_VALID_INTO}, got {into!r}")
+    if into == "gdf" and helper in _SCALAR_HELPERS:
+        raise ValueError(
+            f"into='gdf' is invalid for {helper}(): it returns a scalar, "
+            "not a geometry"
+        )
+
+
+def _to_named_binds(sql: str, params: list) -> tuple[str, dict]:
+    """Convert ``%s`` placeholders to named binds for SQLAlchemy ``text()``.
+
+    The pure builders emit psycopg-style ``%s`` placeholders with a
+    positional params list, but ``to_geodataframe`` wraps SQL in
+    SQLAlchemy ``text()``, which requires ``:name`` binds with a dict.
+    This adapter rewrites placeholders to ``:p0``, ``:p1``, ... in order.
+
+    Parameters
+    ----------
+    sql : str
+        SQL containing ``%s`` placeholders.
+    params : list
+        Positional parameter values (one per placeholder).
+
+    Returns
+    -------
+    tuple of (str, dict)
+        SQL with named binds and the matching parameter dict.
+    """
+    parts = sql.split("%s")
+    out = parts[0]
+    binds: dict = {}
+    for i, part in enumerate(parts[1:]):
+        out += f":p{i}{part}"
+        binds[f"p{i}"] = params[i]
+    return out, binds
+
+
+class SpatialAccessor:
+    """Sync spatial helper namespace exposed as ``db.spatial``.
+
+    Each method delegates SQL assembly to the module-level pure builders
+    and routes the result per ``into=`` (D-01): ``"rows"`` returns
+    ``list[dict]`` via ``Database.execute``; ``"gdf"`` returns a
+    GeoDataFrame via ``Database.to_geodataframe``. PostGIS availability is
+    guarded at construction (SPA-04).
+    """
+
+    def __init__(self, db: Database) -> None:
+        """Initialize the accessor and verify PostGIS availability.
+
+        Parameters
+        ----------
+        db : Database
+            Parent database instance.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If the PostGIS extension is not installed.
+        """
+        self._db = db
+        if not db.has_extension("postgis"):
+            raise ExtensionNotAvailable(_POSTGIS_GUARD_MSG)
+
+    def _run(
+        self, sql: str, params: list, into: str, geometry_column: str
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Execute built SQL, routing on ``into=``.
+
+        Parameters
+        ----------
+        sql : str
+            SQL from a pure builder (``%s`` placeholders).
+        params : list
+            Positional parameters for the SQL.
+        into : str
+            ``"rows"`` or ``"gdf"`` (already validated).
+        geometry_column : str
+            Geometry column name for the GeoDataFrame path.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Query results in the requested form.
+        """
+        if into == "gdf":
+            named_sql, binds = _to_named_binds(sql, params)
+            return self._db.to_geodataframe(
+                sql=named_sql, params=binds, geometry_column=geometry_column
+            )
+        return self._db.execute(sql, params)
+
+    def contains(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows whose geometry contains the input geometry.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` (list of dict) or ``"gdf"`` (GeoDataFrame), by
+            default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "contains")
+        sql, params = build_contains_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        schema: str = "public",
+        *,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select left-table rows whose geometry is within a right-table row.
+
+        Two-table JOIN form per 08-DESIGN §3 (dedicated signature, D-08).
+
+        Parameters
+        ----------
+        left_table : str
+            Table whose rows are returned.
+        left_geom : str
+            Geometry column of the left table.
+        right_table : str
+            Containing table.
+        right_geom : str
+            Geometry column of the right table.
+        schema : str, optional
+            Schema name for both tables, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "within")
+        sql, params = build_within_sql(
+            left_table,
+            left_geom,
+            right_table,
+            right_geom,
+            schema,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, left_geom)
+
+    def intersects(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows whose geometry intersects the input geometry.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "intersects")
+        sql, params = build_intersects_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def dwithin(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows within a distance of the input geometry.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        distance : float
+            Search distance, meters by default (D-09).
+        unit : str, optional
+            ``"m"`` or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into``/``unit`` is invalid or geometry forms are not
+            exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "dwithin")
+        sql, params = build_dwithin_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            distance=distance,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def distance(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        srid: int = 4326,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their distance to the input geometry.
+
+        Scalar result (``distance`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-02.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry.
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        unit : str, optional
+            ``"m"`` or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the distance (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body, e.g. ``"distance"`` (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``distance`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or inputs are invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "distance")
+        sql, params = build_distance_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            srid=srid,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def nearest(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select the k rows nearest to the input geometry (KNN).
+
+        Metric ordering via ``::geography`` casts; a GiST index on the
+        geometry column accelerates this. No ``unit=`` parameter (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry.
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        k : int, optional
+            Number of nearest rows to return, by default 5.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            The k nearest rows in proximity order.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "nearest")
+        sql, params = build_nearest_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            srid=srid,
+            k=k,
+            columns=columns,
+            where=where,
+        )
+        return self._run(sql, params, into, geom)
+
+    def area(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with the area of their geometry.
+
+        Scalar result (``area`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-02.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        unit : str, optional
+            ``"m"`` (square meters) or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the area (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``area`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "area")
+        sql, params = build_area_sql(
+            table,
+            geom,
+            schema,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def perimeter(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with the perimeter of their geometry.
+
+        Scalar result (``perimeter`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-02.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        unit : str, optional
+            ``"m"`` (meters) or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the perimeter (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``perimeter`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "perimeter")
+        sql, params = build_perimeter_sql(
+            table,
+            geom,
+            schema,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def centroid(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their geometry centroid coordinates.
+
+        Scalar result (``centroid_x``/``centroid_y`` columns);
+        ``into="gdf"`` raises ``ValueError`` per D-02. No ``unit=``
+        parameter (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the centroid (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including ``centroid_x`` and ``centroid_y`` columns.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper).
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "centroid")
+        sql, params = build_centroid_sql(
+            table,
+            geom,
+            schema,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def buffer(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        distance: float,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with a buffer around their geometry.
+
+        Returns a ``buffer`` geometry column — valid for ``into="gdf"``.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        distance : float
+            Buffer distance, meters by default (D-09).
+        unit : str, optional
+            ``"m"`` or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select alongside the buffer (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``buffer`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into``/``unit`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "buffer")
+        sql, params = build_buffer_sql(
+            table,
+            geom,
+            schema,
+            distance=distance,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "buffer")
+
+    def transform(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        to_srid: int,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with their geometry transformed to another SRID.
+
+        Returns a ``geometry_transformed`` geometry column — valid for
+        ``into="gdf"``. No ``unit=`` parameter (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        to_srid : int
+            Target spatial reference identifier.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select alongside the transform (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``geometry_transformed`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        """
+        _check_into(into, "transform")
+        sql, params = build_transform_sql(
+            table,
+            geom,
+            schema,
+            to_srid=to_srid,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "geometry_transformed")
+
+
+class AsyncSpatialAccessor:
+    """Async spatial helper namespace exposed as ``async_db.spatial``.
+
+    Mirrors :class:`SpatialAccessor` exactly — same builders, same
+    parameters, same ``into=`` routing — with awaited execution. The
+    PostGIS guard is deferred to the first method call because
+    ``__init__`` cannot ``await`` (lazy ``_postgis_ok`` flag, SPA-04).
+    """
+
+    def __init__(self, db: AsyncDatabase) -> None:
+        """Initialize the accessor (PostGIS guard deferred to first call).
+
+        Parameters
+        ----------
+        db : AsyncDatabase
+            Parent async database instance.
+        """
+        self._db = db
+        self._postgis_ok: bool = False
+
+    async def _check_postgis(self) -> None:
+        """Verify PostGIS availability once, caching the positive result.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If the PostGIS extension is not installed.
+        """
+        if not self._postgis_ok:
+            if not await self._db.has_extension("postgis"):
+                raise ExtensionNotAvailable(_POSTGIS_GUARD_MSG)
+            self._postgis_ok = True
+
+    async def _run(
+        self, sql: str, params: list, into: str, geometry_column: str
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Execute built SQL asynchronously, routing on ``into=``.
+
+        Parameters
+        ----------
+        sql : str
+            SQL from a pure builder (``%s`` placeholders).
+        params : list
+            Positional parameters for the SQL.
+        into : str
+            ``"rows"`` or ``"gdf"`` (already validated).
+        geometry_column : str
+            Geometry column name for the GeoDataFrame path.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Query results in the requested form.
+        """
+        if into == "gdf":
+            named_sql, binds = _to_named_binds(sql, params)
+            return await self._db.to_geodataframe(
+                sql=named_sql, params=binds, geometry_column=geometry_column
+            )
+        return await self._db.execute(sql, params)
+
+    async def contains(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows whose geometry contains the input geometry (async).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "contains")
+        sql, params = build_contains_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        schema: str = "public",
+        *,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select left rows whose geometry is within a right row (async).
+
+        Two-table JOIN form per 08-DESIGN §3 (dedicated signature, D-08).
+
+        Parameters
+        ----------
+        left_table : str
+            Table whose rows are returned.
+        left_geom : str
+            Geometry column of the left table.
+        right_table : str
+            Containing table.
+        right_geom : str
+            Geometry column of the right table.
+        schema : str, optional
+            Schema name for both tables, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "within")
+        sql, params = build_within_sql(
+            left_table,
+            left_geom,
+            right_table,
+            right_geom,
+            schema,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, left_geom)
+
+    async def intersects(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows whose geometry intersects the input geometry (async).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "intersects")
+        sql, params = build_intersects_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def dwithin(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows within a distance of the input geometry (async).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        distance : float
+            Search distance, meters by default (D-09).
+        unit : str, optional
+            ``"m"`` or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into``/``unit`` is invalid or geometry forms are not
+            exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "dwithin")
+        sql, params = build_dwithin_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            distance=distance,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def distance(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        srid: int = 4326,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their distance to the input geometry (async).
+
+        Scalar result (``distance`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-02.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry.
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        unit : str, optional
+            ``"m"`` or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the distance (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body, e.g. ``"distance"`` (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``distance`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or inputs are invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "distance")
+        sql, params = build_distance_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            srid=srid,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def nearest(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select the k rows nearest to the input geometry (async KNN).
+
+        Metric ordering via ``::geography`` casts; a GiST index on the
+        geometry column accelerates this. No ``unit=`` parameter (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry.
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        k : int, optional
+            Number of nearest rows to return, by default 5.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            The k nearest rows in proximity order.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "nearest")
+        sql, params = build_nearest_sql(
+            table,
+            geom,
+            schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            srid=srid,
+            k=k,
+            columns=columns,
+            where=where,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def area(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with the area of their geometry (async).
+
+        Scalar result (``area`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-02.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        unit : str, optional
+            ``"m"`` (square meters) or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the area (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``area`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "area")
+        sql, params = build_area_sql(
+            table,
+            geom,
+            schema,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def perimeter(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with the perimeter of their geometry (async).
+
+        Scalar result (``perimeter`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-02.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        unit : str, optional
+            ``"m"`` (meters) or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the perimeter (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``perimeter`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "perimeter")
+        sql, params = build_perimeter_sql(
+            table,
+            geom,
+            schema,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def centroid(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their geometry centroid coordinates (async).
+
+        Scalar result (``centroid_x``/``centroid_y`` columns);
+        ``into="gdf"`` raises ``ValueError`` per D-02. No ``unit=``
+        parameter (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-02).
+        columns : list of str, optional
+            Columns to select alongside the centroid (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including ``centroid_x`` and ``centroid_y`` columns.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper).
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "centroid")
+        sql, params = build_centroid_sql(
+            table,
+            geom,
+            schema,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def buffer(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        distance: float,
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with a buffer around their geometry (async).
+
+        Returns a ``buffer`` geometry column — valid for ``into="gdf"``.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        distance : float
+            Buffer distance, meters by default (D-09).
+        unit : str, optional
+            ``"m"`` or ``"srid"``, by default "m" (D-09).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select alongside the buffer (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``buffer`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into``/``unit`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "buffer")
+        sql, params = build_buffer_sql(
+            table,
+            geom,
+            schema,
+            distance=distance,
+            unit=unit,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "buffer")
+
+    async def transform(
+        self,
+        table: str,
+        geom: str = "geometry",
+        schema: str = "public",
+        *,
+        to_srid: int,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with their geometry transformed to a SRID (async).
+
+        Returns a ``geometry_transformed`` geometry column — valid for
+        ``into="gdf"``. No ``unit=`` parameter (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        to_srid : int
+            Target spatial reference identifier.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select alongside the transform (D-03).
+        where : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``geometry_transformed`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifier
+            If any identifier is invalid.
+        ExtensionNotAvailable
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "transform")
+        sql, params = build_transform_sql(
+            table,
+            geom,
+            schema,
+            to_srid=to_srid,
+            columns=columns,
+            where=where,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "geometry_transformed")
