@@ -101,9 +101,7 @@ def _resolve_geometry(
     """
     given = sum(x is not None for x in (point, wkt, geojson, ref))
     if given != 1:
-        raise ValueError(
-            "Exactly one of point=, wkt=, geojson=, ref= must be provided"
-        )
+        raise ValueError("Exactly one of point=, wkt=, geojson=, ref= must be provided")
 
     if point is not None:
         x, y = point
@@ -113,9 +111,7 @@ def _resolve_geometry(
         return f"ST_GeomFromText(%s, {int(srid)})", [wkt]
 
     if geojson is not None:
-        return f"ST_SetSRID(ST_GeomFromGeoJSON(%s), {int(srid)})", [
-            json.dumps(geojson)
-        ]
+        return f"ST_SetSRID(ST_GeomFromGeoJSON(%s), {int(srid)})", [json.dumps(geojson)]
 
     ref_table, ref_col = ref
     validate_identifiers(ref_table, ref_col)
@@ -633,9 +629,7 @@ def build_nearest_sql(
     sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t"
     if where:
         sql += f" WHERE {where}"
-    sql += (
-        f" ORDER BY t.{geom}::geography <-> {fragment}::geography LIMIT %s"
-    )
+    sql += f" ORDER BY t.{geom}::geography <-> {fragment}::geography LIMIT %s"
     return sql, [*params, k]
 
 
