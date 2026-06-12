@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     import geopandas as gpd
     import pandas as pd
 
+    from pycopg.spatial import SpatialAccessor
+
 
 class Database(DatabaseBase, QueryMixin):
     """High-level PostgreSQL/PostGIS/TimescaleDB interface.
@@ -79,6 +81,7 @@ class Database(DatabaseBase, QueryMixin):
         super().__init__(config)
         self._engine: Engine | None = None
         self._session_conn: psycopg.Connection | None = None
+        self._spatial: SpatialAccessor | None = None
 
     @classmethod
     def create(
@@ -221,6 +224,29 @@ class Database(DatabaseBase, QueryMixin):
         if self._engine is None:
             self._engine = create_engine(self.config.url)
         return self._engine
+
+    @property
+    def spatial(self) -> SpatialAccessor:
+        """Get or create the spatial helper accessor (lazy initialization).
+
+        First access verifies PostGIS availability (the accessor guards
+        at construction).
+
+        Returns
+        -------
+        SpatialAccessor
+            Spatial helper namespace bound to this database.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If the PostGIS extension is not installed.
+        """
+        if self._spatial is None:
+            from pycopg.spatial import SpatialAccessor
+
+            self._spatial = SpatialAccessor(self)
+        return self._spatial
 
     @retry(
         stop=stop_after_attempt(3),

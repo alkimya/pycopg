@@ -55,6 +55,8 @@ if TYPE_CHECKING:
     import pandas as pd
     from sqlalchemy.ext.asyncio import AsyncEngine
 
+    from pycopg.spatial import AsyncSpatialAccessor
+
 
 class AsyncDatabase(DatabaseBase, QueryMixin):
     """Async PostgreSQL interface.
@@ -78,6 +80,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         super().__init__(config)
         self._session_conn: AsyncConnection | None = None
         self._async_engine: AsyncEngine | None = None
+        self._spatial: AsyncSpatialAccessor | None = None
 
     @property
     def async_engine(self) -> AsyncEngine:
@@ -87,6 +90,24 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
             self._async_engine = create_async_engine(self.config.async_url)
         return self._async_engine
+
+    @property
+    def spatial(self) -> AsyncSpatialAccessor:
+        """Get or create the async spatial accessor (lazy initialization).
+
+        The PostGIS guard is deferred to the first helper call (an async
+        check cannot run inside a property).
+
+        Returns
+        -------
+        AsyncSpatialAccessor
+            Async spatial helper namespace bound to this database.
+        """
+        if self._spatial is None:
+            from pycopg.spatial import AsyncSpatialAccessor
+
+            self._spatial = AsyncSpatialAccessor(self)
+        return self._spatial
 
     @classmethod
     async def create(
