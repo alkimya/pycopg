@@ -1,13 +1,14 @@
 # Phase 8: Spatial Helpers — Design
 
-**Status:** Design validated, ready to implement (no code written yet)
-**Date:** 2026-05-29
+**Status:** Design validé et réalisé en Phase 14 (D-01..D-12)
+**Date:** 2026-05-29 (mis à jour 2026-06-12)
 **Domain:** PostGIS spatial query abstraction
 **Author:** discussion Loc + Claude (audit "haut niveau / ETL")
 
-> **Reprise dans VS Code :** ce document capture toute la discussion d'audit.
-> Le cadre et les 2 choix structurants sont validés. Reste à trancher 4 points
-> de détail (section "Points à trancher"), puis implémenter.
+> **Réalisation :** ce document capture toute la discussion d'audit. Le cadre,
+> les 2 choix structurants et les 4 points de détail sont tous tranchés — voir
+> la section "Points tranchés (D-01..D-12)" ; les résolutions complètes sont
+> dans `14-CONTEXT.md` (Phase 14). Implémenté dans `pycopg/spatial.py`.
 
 ---
 
@@ -55,21 +56,28 @@ db.spatial.contains("parcels", "geometry", point=(-122.4, 37.8), srid=4326)
 Source d'inspiration : la section "Common Spatial Operations" de `docs/postgis.md`
 est déjà le catalogue exact des helpers à offrir.
 
+Signature commune (défauts D-06/D-07, paramètres D-01/D-03/D-11/D-12) :
+`geom="geometry"`, `srid=4326`, `into="rows"` (ou `"gdf"`), `columns=None`,
+`where=None`, `order_by=None`, `limit=None`. `unit="m"` (ou `"srid"`) sur les
+helpers métriques uniquement (D-10).
+
 | Méthode | SQL généré (schéma) | Couvre (doc) |
 |---------|---------------------|--------------|
-| `contains(table, geom, *, point=/wkt=/geojson=/ref=, srid)` | `ST_Contains(geom, <geom_in>)` | Point in Polygon |
-| `within(left_t, left_g, right_t, right_g, ...)` | jointure `ST_Within(a.g, b.g)` | Spatial join |
-| `intersects(...)` | `ST_Intersects(...)` | Intersection |
-| `dwithin(table, geom, point, meters)` | `ST_DWithin(geom::geography, <pt>::geography, %s)` | Distance Queries |
-| `distance(table, geom, point, *, unit="m")` | colonne `ST_Distance(...)` + `ORDER BY` | Distance |
-| `nearest(table, geom, point, k=5)` | KNN `ORDER BY geom <-> <pt> LIMIT k` | (manquant, demandé) |
-| `area(table, geom)` | `ST_Area(geom::geography)` | Area and Perimeter |
-| `perimeter(table, geom)` | `ST_Perimeter(geom::geography)` | Area and Perimeter |
-| `centroid(table, geom)` | `ST_X/ST_Y(ST_Centroid(geom))` | Centroid |
-| `buffer(table, geom, meters)` | `ST_Buffer(geom::geography, %s)::geometry` | Buffer |
-| `transform(table, geom, to_srid)` | `ST_Transform(geom, %s)` | Transforming CRS |
+| `contains(table, geom="geometry", *, point=/wkt=/geojson=/ref=, srid=4326, into=, columns=, where=, order_by=, limit=)` | `ST_Contains(t.geom, <geom_in>)` ; `ref=` → EXISTS (D-08) | Point in Polygon |
+| `within(left_t, left_g, right_t, right_g, ...)` | jointure `ST_Within(a.g, b.g)` (signature dédiée conservée, D-08) | Spatial join |
+| `intersects(...)` | `ST_Intersects(...)` (même signature que `contains`) | Intersection |
+| `dwithin(table, geom="geometry", *, <geom_in>, distance, unit="m", ...)` | `ST_DWithin(geom::geography, <g>::geography, %s)` (`unit="srid"` sans cast) | Distance Queries |
+| `distance(table, geom="geometry", *, <geom_in>, unit="m", ...)` | colonne `ST_Distance(...) AS distance` + `order_by=` | Distance |
+| `nearest(table, geom="geometry", *, <geom_in>, k=5, ...)` | KNN `ORDER BY geom::geography <-> <g>::geography LIMIT %s` | (manquant, demandé) |
+| `area(table, geom="geometry", *, unit="m", ...)` | `ST_Area(geom::geography) AS area` | Area and Perimeter |
+| `perimeter(table, geom="geometry", *, unit="m", ...)` | `ST_Perimeter(geom::geography) AS perimeter` | Area and Perimeter |
+| `centroid(table, geom="geometry", ...)` | `ST_X/ST_Y(ST_Centroid(geom))` (scalaire → `into="gdf"` interdit, D-02) | Centroid |
+| `buffer(table, geom="geometry", *, distance, unit="m", ...)` | `ST_Buffer(geom::geography, %s)::geometry AS buffer` | Buffer |
+| `transform(table, geom="geometry", *, to_srid, ...)` | `ST_Transform(geom, %s) AS geometry_transformed` | Transforming CRS |
 
-~10 fonctions = couverture complète de la section "Common Spatial Operations".
+~11 fonctions = couverture complète de la section "Common Spatial Operations".
+Avec les défauts D-06/D-07, le cas courant s'écrit
+`db.spatial.contains("parcels", point=(-122.4, 37.8))` — ni `geom=` ni `srid=`.
 
 ## 4. Sécurité (non négociable)
 
@@ -80,28 +88,48 @@ est déjà le catalogue exact des helpers à offrir.
 - `db.spatial` vérifie `has_extension("postgis")` à la première utilisation,
   message d'erreur clair sinon (réutiliser le pattern de `from_geodataframe`).
 
-## 5. Points à TRANCHER (défauts proposés)
+## 5. Points tranchés (D-01..D-12)
 
-1. **Type de retour** — paramètre `into=`:
-   - `into="rows"` (défaut) → `list[dict]`, comme `execute`.
-   - `into="gdf"` → réutilise `to_geodataframe`.
-   - (futur ETL) `into="query"` → objet requête non exécuté = brique ETL.
+Les 4 points ouverts sont résolus en Phase 14 — décisions complètes dans
+`.planning/phases/14-spatial-helpers-phase-8-r-alis-e/14-CONTEXT.md`.
 
-2. **Expression d'une géométrie en entrée** — mécanisme uniforme partout :
-   - `point=(x, y)`
-   - `wkt="POLYGON((...))"`
-   - `geojson={...}`
-   - `ref=("autre_table", "geom")` pour comparer deux tables.
-   Tout part en `%s`.
+1. **Type de retour** — paramètre `into=` (**TRANCHÉ**) :
+   - **D-01** — `into="rows"` (défaut) → `list[dict]` comme `execute` ;
+     `into="gdf"` → délègue au `to_geodataframe` existant. `into="query"`
+     (objet requête non exécuté) **différé au milestone ETL**.
+   - **D-02** — `into="gdf"` sur un helper à résultat scalaire (`area`,
+     `perimeter`, `distance`, `centroid`) lève un `ValueError` explicite ;
+     valide uniquement sur les helpers retournant une géométrie.
+   - **D-03** — `SELECT *` par défaut + `columns: list[str] | None` validé
+     par `validate_identifiers` (pattern `_build_select_sql`).
+   - **D-04** — pas de `db.spatial.sql(...)` public ; les builders purs
+     module-level restent importables pour inspecter le SQL (debug).
 
-3. **Géographie vs géométrie** — `unit=`:
-   - `unit="m"` (défaut) → cast `::geography`, distances en mètres.
-   - `unit="srid"` → unités natives du SRID.
-   Évite le piège "distance en degrés".
+2. **Expression d'une géométrie en entrée** (**TRANCHÉ**) :
+   - **D-05** — les 4 formes partout : `point=(x, y)` / `wkt="..."` /
+     `geojson={...}` / `ref=("table", "geom")`, mutuellement exclusives
+     (sinon `ValueError`), une seule fonction interne de résolution, tout
+     en `%s`.
+   - **D-06** — paramètre colonne géométrie : `geom`, keyword avec défaut
+     `"geometry"` (aligné sur `geometry_column="geometry"` existant).
+   - **D-07** — `srid=4326` par défaut, surchargeable.
+   - **D-08** — `ref=` = sémantique EXISTS (lignes de la table interrogée
+     matchant au moins une géométrie de la table référencée) ; `within`
+     bi-tables garde sa signature jointure dédiée.
 
-4. **Filtres additionnels** — faut-il un `where=`/`extra` optionnel pour
-   combiner critère spatial + attributaire (ex: `contains(...) AND active`),
-   ou rester strictement spatial en phase 1 ?
+3. **Géographie vs géométrie** — `unit=` (**TRANCHÉ**) :
+   - **D-09** — `unit="m"` par défaut (cast `::geography`, mètres) ;
+     `unit="srid"` pour les unités natives du SRID.
+   - **D-10** — `unit=` exposé sur les helpers métriques seulement :
+     `dwithin`, `distance`, `area`, `perimeter`, `buffer`. Pas sur les
+     prédicats booléens, `nearest`, `centroid`, `transform`.
+
+4. **Filtres additionnels** (**TRANCHÉ**) :
+   - **D-11** — `where: str | None` optionnel = fragment SQL brut (sans
+     mot-clé WHERE) combiné `AND (...spatial...) AND (where)` — convention
+     `_build_select_sql` existante (`where_params=` différé).
+   - **D-12** — trio complet `where=` + `order_by=` + `limit=` sur les
+     helpers de filtrage — même surface que `select()`.
 
 ## 6. Organisation fichiers (proposée)
 
@@ -134,6 +162,10 @@ phase 1 deviennent les transforms de la couche ETL (milestone ultérieur).
 
 ## 9. Décisions encore ouvertes
 
-- Les 4 points de la section 5.
-- Nom exact des paramètres (`geom` vs `column`, `point` vs `coords`).
-- Faut-il un `db.spatial.sql(...)` qui retourne le SQL sans l'exécuter (debug) ?
+Aucune. Toutes les décisions ont été tranchées en Phase 14 (D-01..D-12,
+voir `14-CONTEXT.md`) :
+
+- Les 4 points de la section 5 → résolus (section 5 ci-dessus).
+- Nom des paramètres → `geom` (défaut `"geometry"`, D-06) et `point=` (D-05).
+- `db.spatial.sql(...)` public → écarté (D-04) ; les builders purs
+  module-level de `pycopg/spatial.py` couvrent le besoin de debug.
