@@ -196,7 +196,7 @@ Plans:
 
 **Wave 3** *(blocked on 14-01 + 14-02)*
 
-- [ ] 14-04-PLAN.md — measure coverage, fill DB-free gaps, apply cliquet gate decision (SPA-06)
+- [x] 14-04-PLAN.md — measure coverage, fill DB-free gaps, apply cliquet gate decision (SPA-06)
 
 ### Phase 15: Release v0.4.0 (PyPI + RTD)
 
@@ -244,5 +244,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
-| 14. Spatial helpers (db.spatial.*) | v0.4.0 | 3/4 | In Progress|  |
+| 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete   | 2026-06-12 |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
