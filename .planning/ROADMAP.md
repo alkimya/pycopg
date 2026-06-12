@@ -183,6 +183,21 @@ Plans:
   4. Garde PostGIS (`has_extension`) + validation identifiants/valeurs `%s` (acquis hotfix v0.3.1 / Phase 10)
   5. `test_parity` couvre l'accessor des 2 côtés ; tests builders (sans DB) + intégration PostGIS
 
+**Plans:** 4 plans
+Plans:
+**Wave 1** *(parallel)*
+
+- [ ] 14-01-PLAN.md — geometry resolver + 11 pure SQL builders + DB-free unit tests (SPA-02/03/04/06)
+- [ ] 14-03-PLAN.md — update 08-DESIGN.md with resolved decisions D-01..D-12 (SPA-01)
+
+**Wave 2** *(blocked on 14-01)*
+
+- [ ] 14-02-PLAN.md — SpatialAccessor + AsyncSpatialAccessor + lazy `spatial` properties + exports + guard/integration/parity tests (SPA-02/04/05/06)
+
+**Wave 3** *(blocked on 14-01 + 14-02)*
+
+- [ ] 14-04-PLAN.md — measure coverage, fill DB-free gaps, apply cliquet gate decision (SPA-06)
+
 ### Phase 15: Release v0.4.0 (PyPI + RTD)
 
 **Goal**: Livrer v0.4.0 sur PyPI + ReadTheDocs.
@@ -229,5 +244,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 11. Parité sync/async complète | v0.4.0 | 7/7 | Complete   | 2026-06-09 |
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
-| 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/? | Pending (6 req) | — |
+| 14. Spatial helpers (db.spatial.*) | v0.4.0 | 0/4 | Planned (4 plans, 3 waves) | — |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
