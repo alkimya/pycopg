@@ -672,3 +672,205 @@ class TestIntegration:
             assert rows == [{"id": 1}]
         finally:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+
+class _RecordingSyncDb:
+    """Recording stand-in for Database covering accessor routing DB-free."""
+
+    def __init__(self):
+        self.calls = []
+
+    def has_extension(self, name):
+        return True
+
+    def execute(self, sql, params):
+        self.calls.append(("execute", sql, params))
+        return [{"ok": 1}]
+
+    def to_geodataframe(self, sql=None, params=None, geometry_column=None):
+        self.calls.append(("gdf", sql, params, geometry_column))
+        return "GDF"
+
+
+class _RecordingAsyncDb:
+    """Recording stand-in for AsyncDatabase covering async routing DB-free."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def has_extension(self, name):
+        return True
+
+    async def execute(self, sql, params):
+        self.calls.append(("execute", sql, params))
+        return [{"ok": 1}]
+
+    async def to_geodataframe(self, sql=None, params=None, geometry_column=None):
+        self.calls.append(("gdf", sql, params, geometry_column))
+        return "GDF"
+
+
+# (method name, kwargs) covering every helper in rows mode.
+_HELPER_CALLS = [
+    ("contains", {"point": (1, 2)}),
+    ("intersects", {"wkt": "POINT(0 0)"}),
+    ("dwithin", {"point": (1, 2), "distance": 10}),
+    ("distance", {"point": (1, 2)}),
+    ("nearest", {"point": (1, 2), "k": 2}),
+    ("area", {}),
+    ("perimeter", {}),
+    ("centroid", {}),
+    ("buffer", {"distance": 5}),
+    ("transform", {"to_srid": 3857}),
+]
+
+# Geometry-returning helpers valid for into="gdf", with expected geom column.
+_GDF_CALLS = [
+    ("contains", {"point": (1, 2)}, "geometry"),
+    ("intersects", {"wkt": "POINT(0 0)"}, "geometry"),
+    ("dwithin", {"point": (1, 2), "distance": 10}, "geometry"),
+    ("nearest", {"point": (1, 2)}, "geometry"),
+    ("buffer", {"distance": 5}, "buffer"),
+    ("transform", {"to_srid": 3857}, "geometry_transformed"),
+]
+
+
+class TestAccessorRouting:
+    """DB-free routing tests: every accessor method, rows and gdf paths."""
+
+    @pytest.mark.parametrize("helper,kwargs", _HELPER_CALLS)
+    def test_sync_rows_path(self, helper, kwargs):
+        """Each sync helper routes into='rows' through db.execute."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        result = getattr(acc, helper)("parcels", **kwargs)
+        assert result == [{"ok": 1}]
+        kind, sql, params = db.calls[-1]
+        assert kind == "execute"
+        assert sql.count("%s") == len(params)
+
+    @pytest.mark.parametrize("helper,kwargs", _HELPER_CALLS)
+    async def test_async_rows_path(self, helper, kwargs):
+        """Each async helper routes into='rows' through await db.execute."""
+        db = _RecordingAsyncDb()
+        acc = AsyncSpatialAccessor(db)
+        result = await getattr(acc, helper)("parcels", **kwargs)
+        assert result == [{"ok": 1}]
+        kind, sql, params = db.calls[-1]
+        assert kind == "execute"
+        assert sql.count("%s") == len(params)
+
+    def test_sync_within_rows_path(self):
+        """within (two-table signature) routes through db.execute."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        assert acc.within("parcels", "geometry", "zones", "geom") == [{"ok": 1}]
+
+    async def test_async_within_rows_path(self):
+        """async within (two-table signature) routes through db.execute."""
+        db = _RecordingAsyncDb()
+        acc = AsyncSpatialAccessor(db)
+        result = await acc.within("parcels", "geometry", "zones", "geom")
+        assert result == [{"ok": 1}]
+
+    @pytest.mark.parametrize("helper,kwargs,geom_col", _GDF_CALLS)
+    def test_sync_gdf_path_uses_named_binds(self, helper, kwargs, geom_col):
+        """Sync gdf path converts %s to named binds and sets geom column."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        result = getattr(acc, helper)("parcels", into="gdf", **kwargs)
+        assert result == "GDF"
+        kind, sql, params, geometry_column = db.calls[-1]
+        assert kind == "gdf"
+        assert "%s" not in sql
+        assert isinstance(params, dict)
+        assert all(f":p{i}" in sql for i in range(len(params)))
+        assert geometry_column == geom_col
+
+    @pytest.mark.parametrize("helper,kwargs,geom_col", _GDF_CALLS)
+    async def test_async_gdf_path_uses_named_binds(self, helper, kwargs, geom_col):
+        """Async gdf path converts %s to named binds and sets geom column."""
+        db = _RecordingAsyncDb()
+        acc = AsyncSpatialAccessor(db)
+        result = await getattr(acc, helper)("parcels", into="gdf", **kwargs)
+        assert result == "GDF"
+        kind, sql, params, geometry_column = db.calls[-1]
+        assert kind == "gdf"
+        assert "%s" not in sql
+        assert isinstance(params, dict)
+        assert geometry_column == geom_col
+
+    def test_sync_within_gdf_path(self):
+        """within gdf path uses the left geometry column."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        assert acc.within("parcels", "geometry", "zones", "geom", into="gdf") == "GDF"
+        assert db.calls[-1][3] == "geometry"
+
+    async def test_async_within_gdf_path(self):
+        """async within gdf path uses the left geometry column."""
+        db = _RecordingAsyncDb()
+        acc = AsyncSpatialAccessor(db)
+        result = await acc.within("parcels", "geometry", "zones", "geom", into="gdf")
+        assert result == "GDF"
+        assert db.calls[-1][3] == "geometry"
+
+    async def test_async_scalar_helpers_reject_gdf(self):
+        """Async perimeter/distance/centroid reject into='gdf' (D-02)."""
+        acc = AsyncSpatialAccessor(_RecordingAsyncDb())
+        with pytest.raises(ValueError, match="into='gdf' is invalid"):
+            await acc.perimeter("parcels", into="gdf")
+        with pytest.raises(ValueError, match="into='gdf' is invalid"):
+            await acc.distance("parcels", point=(1, 2), into="gdf")
+        with pytest.raises(ValueError, match="into='gdf' is invalid"):
+            await acc.centroid("parcels", into="gdf")
+
+
+class TestBuilderColumnsValidation:
+    """Residual columns= validation branches (coverage fill, 14-04)."""
+
+    def test_distance_columns_validated(self):
+        """distance validates columns= and supports the column list."""
+        sql, _ = build_distance_sql("parcels", point=(1, 2), columns=["id"])
+        assert sql.startswith("SELECT id, ST_Distance(")
+        with pytest.raises(InvalidIdentifier):
+            build_distance_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_buffer_columns_validated(self):
+        """buffer validates columns= and supports the column list."""
+        sql, _ = build_buffer_sql("parcels", distance=1, columns=["id"])
+        assert sql.startswith("SELECT id, ST_Buffer(")
+        with pytest.raises(InvalidIdentifier):
+            build_buffer_sql("parcels", distance=1, columns=["bad-col"])
+
+    def test_area_columns_validated(self):
+        """area validates columns=."""
+        sql, _ = build_area_sql("parcels", columns=["id"])
+        assert sql.startswith("SELECT id, ST_Area(")
+        with pytest.raises(InvalidIdentifier):
+            build_area_sql("parcels", columns=["bad-col"])
+
+    def test_dwithin_columns_validated(self):
+        """dwithin validates columns=."""
+        with pytest.raises(InvalidIdentifier):
+            build_dwithin_sql("parcels", point=(1, 2), distance=1, columns=["bad-col"])
+
+    def test_within_columns_validated(self):
+        """within validates columns=."""
+        with pytest.raises(InvalidIdentifier):
+            build_within_sql("a", "g", "b", "g", columns=["bad-col"])
+
+    def test_intersects_columns_validated(self):
+        """intersects validates columns=."""
+        with pytest.raises(InvalidIdentifier):
+            build_intersects_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_nearest_columns_validated(self):
+        """nearest validates columns=."""
+        with pytest.raises(InvalidIdentifier):
+            build_nearest_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_transform_columns_validated(self):
+        """transform validates columns=."""
+        with pytest.raises(InvalidIdentifier):
+            build_transform_sql("parcels", to_srid=4326, columns=["bad-col"])
