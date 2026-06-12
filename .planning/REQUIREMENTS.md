@@ -59,11 +59,11 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9â€
 ### Spatial Helpers (Phase 14)
 
 - [x] **SPAT-01**: The 4 open Phase 8 design points (`into=`, geometry input, `unit=`, `where=`) are resolved at phase start and 08-DESIGN.md updated
-- [ ] **SPAT-02**: `pycopg/spatial.py` provides pure SQL builders plus `SpatialAccessor` and `AsyncSpatialAccessor`
-- [ ] **SPAT-03**: `db.spatial.*` exposes ~10 helpers (contains, within, intersects, dwithin, distance, nearest, area, perimeter, centroid, buffer, transform)
-- [ ] **SPAT-04**: Spatial helpers guard on PostGIS (`has_extension`) and validate identifiers + parameterize values as `%s`
-- [ ] **SPAT-05**: `async_db.spatial.*` is at parity with `db.spatial.*`, covered by `test_parity`
-- [ ] **SPAT-06**: Pure builder unit tests (no DB) plus PostGIS integration tests for the spatial helpers
+- [x] **SPAT-02**: `pycopg/spatial.py` provides pure SQL builders plus `SpatialAccessor` and `AsyncSpatialAccessor`
+- [x] **SPAT-03**: `db.spatial.*` exposes ~10 helpers (contains, within, intersects, dwithin, distance, nearest, area, perimeter, centroid, buffer, transform)
+- [x] **SPAT-04**: Spatial helpers guard on PostGIS (`has_extension`) and validate identifiers + parameterize values as `%s`
+- [x] **SPAT-05**: `async_db.spatial.*` is at parity with `db.spatial.*`, covered by `test_parity`
+- [x] **SPAT-06**: Pure builder unit tests (no DB) plus PostGIS integration tests for the spatial helpers
 
 ### Release v0.4.0 (Phase 15)
 
@@ -149,11 +149,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOC-11 | Phase 13 | Complete |
 | DOC-12 | Phase 13 | Complete |
 | SPAT-01 | Phase 14 | Complete |
-| SPAT-02 | Phase 14 | Pending |
-| SPAT-03 | Phase 14 | Pending |
-| SPAT-04 | Phase 14 | Pending |
-| SPAT-05 | Phase 14 | Pending |
-| SPAT-06 | Phase 14 | Pending |
+| SPAT-02 | Phase 14 | Complete |
+| SPAT-03 | Phase 14 | Complete |
+| SPAT-04 | Phase 14 | Complete |
+| SPAT-05 | Phase 14 | Complete |
+| SPAT-06 | Phase 14 | Complete |
 | REL-01 | Phase 15 | Pending |
 | REL-02 | Phase 15 | Pending |
 | REL-03 | Phase 15 | Pending |
