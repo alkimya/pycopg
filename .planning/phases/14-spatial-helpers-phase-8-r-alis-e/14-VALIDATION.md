@@ -1,8 +1,8 @@
 ---
 phase: 14
 slug: spatial-helpers-phase-8-r-alis-e
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-12
 ---
@@ -38,7 +38,13 @@ created: 2026-06-12
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (filled by planner) | | | SPA-01..SPA-06 | | identifiers via validate_identifiers; values via %s only | unit + integration | `uv run pytest tests/test_spatial.py -q -o addopts=""` | ❌ W0 | ⬜ pending |
+| 14-01-01 | 01 | 1 | SPA-02, SPA-03, SPA-04 | T-14-01 | identifiers via validate_identifiers (≥11 calls); values via %s only, no f-string coords | unit (import) | `uv run python -c "import pycopg.spatial as s; ..."` (builder presence assert) | ❌ W0 | ⬜ pending |
+| 14-01-02 | 01 | 1 | SPA-06 | — | exact (sql, params) assertions per builder branch | unit (DB-free) | `uv run pytest tests/test_spatial.py::TestGeometryResolver tests/test_spatial.py::TestBuilders -x -q -o addopts=""` | ❌ W0 | ⬜ pending |
+| 14-02-01 | 02 | 2 | SPA-02, SPA-04 | T-14-02 | PostGIS guard → ExtensionNotAvailable; into="gdf" on scalar → ValueError | unit (import) | `uv run python -c "from pycopg.spatial import SpatialAccessor, AsyncSpatialAccessor; ..."` | ❌ W0 | ⬜ pending |
+| 14-02-02 | 02 | 2 | SPA-05 | — | lazy property, deferred import | unit (import) | `uv run python -c "from pycopg import Database, AsyncDatabase, SpatialAccessor, AsyncSpatialAccessor; ..."` | ❌ W0 | ⬜ pending |
+| 14-02-03 | 02 | 2 | SPA-05, SPA-06 | T-14-04 / T-14-08 | guard tested via mock; where= raw-fragment convention documented | integration + parity | `uv run pytest tests/test_spatial.py::TestGuard tests/test_spatial.py::TestIntegration tests/test_parity.py -x -q -o addopts=""` | ❌ W0 | ⬜ pending |
+| 14-03-01 | 03 | 1 | SPA-01 | — | N/A (documentation) | grep gate | `grep -Eq "D-01" .planning/phases/08-spatial-helpers/08-DESIGN.md && ! grep -qi "Points à TRANCHER" ...` | ✅ | ⬜ pending |
+| 14-04-01 | 04 | 3 | SPA-06 | — | coverage cliquet capped, never lowered | full suite | `uv run pytest -o addopts="" -q && uv run pytest -q && uv run interrogate pycopg` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

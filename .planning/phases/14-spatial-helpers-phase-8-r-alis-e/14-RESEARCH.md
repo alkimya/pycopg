@@ -670,7 +670,7 @@ Use `-o addopts=""` for targeted runs to avoid coverage gate: `uv run pytest tes
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Coverage gate value for Phase 14**
    - What we know: Gate is `--cov-fail-under=92` (current). Milestone target is 95. Phase 12 achieved 92.55% but deferred the 95 gate flip.
