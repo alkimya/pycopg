@@ -1,12 +1,14 @@
-"""Tests for pycopg.spatial — DB-free builder tests (no DB connection)."""
+"""Tests for pycopg.spatial — DB-free builder/guard tests + PostGIS integration."""
 
 import json
 
 import pytest
 
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import ExtensionNotAvailable, InvalidIdentifier
 from pycopg.spatial import (
     _REF_SENTINEL,
+    AsyncSpatialAccessor,
+    SpatialAccessor,
     _resolve_geometry,
     build_area_sql,
     build_buffer_sql,
@@ -461,3 +463,212 @@ class TestBuilders:
         """transform validates the table identifier."""
         with pytest.raises(InvalidIdentifier):
             build_transform_sql("bad-name", to_srid=4326)
+
+
+class _FakeSyncDb:
+    """Minimal stand-in for Database in DB-free guard tests."""
+
+    def __init__(self, has_postgis):
+        self._has_postgis = has_postgis
+
+    def has_extension(self, name):
+        return self._has_postgis
+
+
+class _FakeAsyncDb:
+    """Minimal stand-in for AsyncDatabase in DB-free guard tests."""
+
+    def __init__(self, has_postgis):
+        self._has_postgis = has_postgis
+
+    async def has_extension(self, name):
+        return self._has_postgis
+
+
+class TestGuard:
+    """PostGIS guard and into= validation behavior (mocked, no real DB)."""
+
+    def test_sync_accessor_raises_when_postgis_missing(self):
+        """SpatialAccessor raises ExtensionNotAvailable at construction."""
+        with pytest.raises(ExtensionNotAvailable, match="PostGIS extension"):
+            SpatialAccessor(_FakeSyncDb(has_postgis=False))
+
+    async def test_async_accessor_raises_on_first_call(self):
+        """AsyncSpatialAccessor defers the guard to the first method call."""
+        acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=False))
+        with pytest.raises(ExtensionNotAvailable, match="PostGIS extension"):
+            await acc.contains("parcels", point=(1, 2))
+
+    @pytest.mark.parametrize("helper", ["area", "perimeter", "distance", "centroid"])
+    def test_sync_scalar_helper_rejects_gdf(self, helper):
+        """into='gdf' on a scalar helper raises ValueError (D-02)."""
+        acc = SpatialAccessor(_FakeSyncDb(has_postgis=True))
+        kwargs = {"into": "gdf"}
+        if helper == "distance":
+            kwargs["point"] = (1, 2)
+        with pytest.raises(ValueError, match=f"into='gdf' is invalid for {helper}"):
+            getattr(acc, helper)("parcels", **kwargs)
+
+    async def test_async_scalar_helper_rejects_gdf(self):
+        """Async into='gdf' scalar rejection mirrors the sync side (D-02)."""
+        acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=True))
+        with pytest.raises(ValueError, match="into='gdf' is invalid for area"):
+            await acc.area("parcels", into="gdf")
+
+    def test_invalid_into_value_rejected(self):
+        """An unknown into= value raises ValueError naming the allowed set."""
+        acc = SpatialAccessor(_FakeSyncDb(has_postgis=True))
+        with pytest.raises(ValueError, match="into must be one of"):
+            acc.contains("parcels", point=(1, 2), into="query")
+
+
+def _uniq(prefix):
+    """Generate a unique lowercase table name for integration tests."""
+    import uuid
+
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+
+class TestIntegration:
+    """Real PostGIS integration tests against pycopg_test."""
+
+    @pytest.fixture
+    def sdb(self, db_config):
+        """Sync Database with PostGIS, or skip."""
+        from pycopg import Database
+
+        db = Database(db_config)
+        try:
+            if not db.has_extension("postgis"):
+                pytest.skip("PostGIS not available on test database")
+        except Exception as exc:  # pragma: no cover - environment guard
+            pytest.skip(f"test database unavailable: {exc}")
+        return db
+
+    def _make_points(self, db, t):
+        """Create a points table with three rows at increasing distance."""
+        db.execute(
+            f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+            "geometry geometry(Point, 4326))",
+            autocommit=True,
+        )
+        db.execute(
+            f'INSERT INTO "{t}" VALUES '
+            "(1, ST_GeomFromText('POINT(0 0)', 4326)), "
+            "(2, ST_GeomFromText('POINT(0.1 0.1)', 4326)), "
+            "(3, ST_GeomFromText('POINT(10 10)', 4326))",
+            autocommit=True,
+        )
+
+    def test_contains_returns_correct_rows(self, sdb):
+        """contains returns only the polygon containing the point."""
+        t = _uniq("spat_contains")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326)), "
+                "(2, ST_GeomFromText('POLYGON((5 5, 6 5, 6 6, 5 6, 5 5))', 4326))",
+                autocommit=True,
+            )
+            rows = sdb.spatial.contains(t, point=(0.5, 0.5), columns=["id"])
+            assert rows == [{"id": 1}]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_dwithin_filters_by_distance(self, sdb):
+        """dwithin unit='m' keeps only rows within the meter radius."""
+        t = _uniq("spat_dwithin")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.dwithin(
+                t, point=(0, 0), distance=20000, columns=["id"], order_by="id"
+            )
+            assert [r["id"] for r in rows] == [1, 2]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_nearest_returns_k_closest_in_order(self, sdb):
+        """nearest returns the k closest rows ordered by proximity."""
+        t = _uniq("spat_nearest")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.nearest(t, point=(0.01, 0.01), k=2, columns=["id"])
+            assert [r["id"] for r in rows] == [1, 2]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_area_returns_positive_scalar(self, sdb):
+        """area unit='m' returns a positive square-meter value."""
+        t = _uniq("spat_area")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))",
+                autocommit=True,
+            )
+            rows = sdb.spatial.area(t, columns=["id"])
+            assert rows[0]["area"] > 0
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_buffer_into_gdf_returns_geodataframe(self, sdb):
+        """buffer with into='gdf' returns a GeoDataFrame (gdf params path)."""
+        import geopandas as gpd
+
+        t = _uniq("spat_buffer")
+        try:
+            self._make_points(sdb, t)
+            gdf = sdb.spatial.buffer(t, distance=1000, into="gdf")
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert len(gdf) == 3
+            assert gdf.geometry.name == "buffer"
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_transform_changes_srid(self, sdb):
+        """transform with into='gdf' returns geometry in the target CRS."""
+        t = _uniq("spat_transform")
+        try:
+            self._make_points(sdb, t)
+            gdf = sdb.spatial.transform(t, to_srid=3857, into="gdf")
+            assert gdf.crs is not None
+            assert gdf.crs.to_epsg() == 3857
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_distance_into_gdf_raises_valueerror(self, sdb):
+        """distance with into='gdf' raises before executing (D-02)."""
+        with pytest.raises(ValueError, match="into='gdf' is invalid for distance"):
+            sdb.spatial.distance("any_table", point=(0, 0), into="gdf")
+
+    async def test_async_contains_returns_rows(self, sdb, db_config):
+        """Async contains returns the same rows end-to-end (parity proof)."""
+        from pycopg import AsyncDatabase
+
+        adb = AsyncDatabase(db_config)
+        t = _uniq("spat_async")
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            await adb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))",
+                autocommit=True,
+            )
+            rows = await adb.spatial.contains(t, point=(0.5, 0.5), columns=["id"])
+            assert rows == [{"id": 1}]
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
