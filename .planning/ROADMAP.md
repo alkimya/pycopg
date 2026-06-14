@@ -63,7 +63,9 @@ dependencies. Architecture mirrors `spatial.py`.
   2. Constructing `Pipeline(load_mode='upsert')` without `conflict_columns` raises `ValueError` at construction time, before any DB interaction
   3. All ETL SQL constants (`ETL_INIT_PIPELINE_RUNS`, `ETL_INSERT_RUN`, `ETL_UPDATE_RUN`, `ETL_LIST_RUNS`, `ETL_GET_LAST_RUN`) exist in `queries.py` and contain no f-string identifier interpolation
   4. Pure builder functions (`build_init_sql()`, `build_truncate_sql()`, etc.) are importable and return parameterized SQL strings in unit tests that require no DB fixture
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 16-01-PLAN.md — ETL exception hierarchy + 5 ETL SQL constants + exception exports (Wave 1)
+  - [ ] 16-02-PLAN.md — Pipeline frozen dataclass + build_init_sql/build_truncate_sql + DB-free tests (Wave 2)
 
 ### Phase 17: Run-Tracking Foundation
 **Goal**: The `pipeline_runs` table schema is finalised and the separate-connection run-log write pattern is solid — so all subsequent load phases inherit correct transaction boundary behavior
