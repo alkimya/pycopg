@@ -87,29 +87,29 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ETL-01 | TBD | Pending |
-| ETL-02 | TBD | Pending |
-| ETL-03 | TBD | Pending |
-| ETL-04 | TBD | Pending |
-| ETL-05 | TBD | Pending |
-| ETL-06 | TBD | Pending |
-| ETL-07 | TBD | Pending |
-| ETL-08 | TBD | Pending |
-| ETL-09 | TBD | Pending |
-| ETL-10 | TBD | Pending |
-| ETL-11 | TBD | Pending |
-| ETL-12 | TBD | Pending |
-| ETL-13 | TBD | Pending |
-| ETL-14 | TBD | Pending |
-| ETL-15 | TBD | Pending |
-| ETL-16 | TBD | Pending |
-| ETL-17 | TBD | Pending |
+| ETL-01 | Phase 16 | Pending |
+| ETL-02 | Phase 18 | Pending |
+| ETL-03 | Phase 18 | Pending |
+| ETL-04 | Phase 18 | Pending |
+| ETL-05 | Phase 18 | Pending |
+| ETL-06 | Phase 18 | Pending |
+| ETL-07 | Phase 17 | Pending |
+| ETL-08 | Phase 17 | Pending |
+| ETL-09 | Phase 17 | Pending |
+| ETL-10 | Phase 19 | Pending |
+| ETL-11 | Phase 19 | Pending |
+| ETL-12 | Phase 20 | Pending |
+| ETL-13 | Phase 20 | Pending |
+| ETL-14 | Phase 17 | Pending |
+| ETL-15 | Phase 19 | Pending |
+| ETL-16 | Phase 18 | Pending |
+| ETL-17 | Phase 19 | Pending |
 
 **Coverage:**
 - v0.5.0 requirements: 17 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 17 ⚠️ (resolved at roadmap creation)
+- Mapped to phases: 17
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-14*
-*Last updated: 2026-06-14 after initial definition (v0.5.0 ETL Pipeline Runner)*
+*Last updated: 2026-06-14 — traceability table populated after roadmap creation (Phases 16–20)*
