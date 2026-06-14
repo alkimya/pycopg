@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.4.0
-milestone_name: Quality & Spatial Helpers
-status: Awaiting next milestone
-stopped_at: "milestone v0.4.0 complete + archived"
-last_updated: "2026-06-14T17:05:29.517Z"
-last_activity: 2026-06-14 — Milestone v0.4.0 completed and archived
+milestone: v0.5.0
+milestone_name: ETL Pipeline Runner
+status: planning
+last_updated: "2026-06-14T17:57:14.379Z"
+last_activity: 2026-06-14
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 36
-  completed_plans: 36
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-14)
 
 ## Current Position
 
-Phase: Milestone v0.4.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-14 — Milestone v0.4.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-14 — Milestone v0.5.0 started
 
 ## Performance Metrics
 
