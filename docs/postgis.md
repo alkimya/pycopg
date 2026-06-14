@@ -69,7 +69,8 @@ print(gdf.geometry.head())
 ### With SQL Query
 
 ```python
-# Spatial query
+# Envelope filter — ST_MakeEnvelope is not covered by a db.spatial.* helper;
+# use to_geodataframe(sql=...) directly for bounding-box queries.
 gdf = db.to_geodataframe(
     sql="""
         SELECT * FROM parcels
@@ -80,17 +81,12 @@ gdf = db.to_geodataframe(
     """
 )
 
-# With parameters
-gdf = db.to_geodataframe(
-    sql="""
-        SELECT * FROM parcels
-        WHERE ST_DWithin(
-            geometry::geography,
-            ST_Point(:lon, :lat)::geography,
-            :radius
-        )
-    """,
-    params={"lon": -122.4, "lat": 37.8, "radius": 1000}
+# Distance filter — db.spatial.dwithin with into="gdf" for GeoDataFrame output
+gdf = db.spatial.dwithin(
+    "parcels",
+    point=(-122.4, 37.8),
+    distance=1000,
+    into="gdf",
 )
 ```
 
@@ -145,40 +141,57 @@ columns = db.list_geometry_columns(schema="geo")
 ### Point in Polygon
 
 ```python
-result = db.execute("""
-    SELECT p.id, p.name
-    FROM parcels p
-    WHERE ST_Contains(
-        p.geometry,
-        ST_SetSRID(ST_Point(%s, %s), 4326)
-    )
-""", [-122.4, 37.8])
+result = db.spatial.contains(
+    "parcels",
+    geom="geometry",
+    point=(-122.4, 37.8),
+    srid=4326,
+    columns=["id", "name"],
+)
 ```
 
 ### Distance Queries
 
+The `db.spatial` namespace provides two helpers for distance-based queries: one
+to filter rows within a radius (`dwithin`) and one to compute the distance to
+each row (`distance`). Use them separately or in combination.
+
 ```python
-# Find parcels within 1km of a point
-result = db.execute("""
-    SELECT id, name,
-           ST_Distance(
-               geometry::geography,
-               ST_Point(%s, %s)::geography
-           ) AS distance_meters
-    FROM parcels
-    WHERE ST_DWithin(
-        geometry::geography,
-        ST_Point(%s, %s)::geography,
-        1000
-    )
-    ORDER BY distance_meters
-""", [-122.4, 37.8, -122.4, 37.8])
+# Filter: rows within 1 km of a point
+rows = db.spatial.dwithin(
+    "parcels",
+    geom="geometry",
+    point=(-122.4, 37.8),
+    distance=1000,
+    unit="m",
+)
+
+# Compute distance column with ordering
+rows = db.spatial.distance(
+    "parcels",
+    geom="geometry",
+    point=(-122.4, 37.8),
+    unit="m",
+    columns=["id", "name"],
+    order_by="distance",
+)
 ```
 
 ### Intersection
 
+For simple intersection predicates (does this row's geometry intersect a given point or
+geometry?), use `db.spatial.intersects`. For complex aggregate queries computing the
+overlap area between rows (a self-join or cross-join), raw SQL remains the right tool.
+
 ```python
-# Find overlapping parcels
+# Simple predicate: does this parcel intersect a given WKT polygon?
+rows = db.spatial.intersects(
+    "parcels",
+    geom="geometry",
+    wkt="POLYGON((-122.5 37.7, -122.3 37.7, -122.3 37.9, -122.5 37.9, -122.5 37.7))",
+)
+
+# Complex aggregate: pairwise overlap area (no helper — raw execute)
 result = db.execute("""
     SELECT a.id AS id_a, b.id AS id_b,
            ST_Area(ST_Intersection(a.geometry, b.geometry)) AS overlap_area
@@ -191,38 +204,52 @@ result = db.execute("""
 ### Buffer
 
 ```python
-# Create buffers around points
-result = db.execute("""
-    SELECT id, name,
-           ST_Buffer(geometry::geography, 100)::geometry AS buffer_100m
-    FROM locations
-""")
+# Create 100 m buffers around point geometries
+result = db.spatial.buffer(
+    "locations",
+    geom="geometry",
+    distance=100,
+    unit="m",
+    columns=["id", "name"],
+)
+# Result rows include a "buffer" geometry column.
 ```
 
 ### Centroid
 
 ```python
-# Get centroids of polygons
-result = db.execute("""
-    SELECT id, name,
-           ST_X(ST_Centroid(geometry)) AS lon,
-           ST_Y(ST_Centroid(geometry)) AS lat
-    FROM parcels
-""")
+# Get centroid coordinates for each parcel
+result = db.spatial.centroid(
+    "parcels",
+    geom="geometry",
+    columns=["id", "name"],
+)
+# Result rows include "centroid_x" and "centroid_y" (not "lon"/"lat").
 ```
 
 ### Area and Perimeter
 
+The helpers compute area and perimeter separately. Each returns a scalar result
+column (`"area"` or `"perimeter"`); `into="gdf"` is not supported for these helpers.
+
 ```python
-# Calculate area and perimeter
-result = db.execute("""
-    SELECT id, name,
-           ST_Area(geometry::geography) AS area_sq_meters,
-           ST_Perimeter(geometry::geography) AS perimeter_meters
-    FROM parcels
-    ORDER BY area_sq_meters DESC
-    LIMIT 10
-""")
+# Top 10 parcels by area (sq metres)
+result = db.spatial.area(
+    "parcels",
+    geom="geometry",
+    unit="m",
+    columns=["id", "name"],
+    order_by="area",
+    limit=10,
+)
+
+# Perimeter in metres
+result = db.spatial.perimeter(
+    "parcels",
+    geom="geometry",
+    unit="m",
+    columns=["id", "name"],
+)
 ```
 
 ## Coordinate Reference Systems
@@ -237,13 +264,14 @@ print(gdf.crs)  # EPSG:4326
 ### Transforming CRS
 
 ```python
-# In database
-result = db.execute("""
-    SELECT id, ST_Transform(geometry, 3857) AS geometry_web_mercator
-    FROM parcels
-""")
+# In database (result column is named "geometry_transformed")
+result = db.spatial.transform(
+    "parcels",
+    geom="geometry",
+    to_srid=3857,
+)
 
-# With GeoPandas
+# With GeoPandas (client-side reproject)
 gdf = db.to_geodataframe("parcels")
 gdf_3857 = gdf.to_crs(epsg=3857)
 ```
@@ -254,7 +282,8 @@ gdf_3857 = gdf.to_crs(epsg=3857)
 # When creating table
 db.from_geodataframe(gdf, "parcels", srid=4326)
 
-# Update existing geometry
+# Update existing geometry — DML UPDATE is not covered by db.spatial.* helpers
+# (helpers are SELECT-only); use db.execute() directly for mutations.
 db.execute("""
     UPDATE parcels
     SET geometry = ST_SetSRID(geometry, 4326)
@@ -263,6 +292,10 @@ db.execute("""
 ```
 
 ## Example: Spatial Analysis
+
+For complex multi-table spatial queries (spatial joins, `SUM(ST_Area(...))` aggregates),
+use `db.to_geodataframe(sql=...)` or `db.execute()` directly. The `db.spatial.*` helpers
+cover single-table operations; raw SQL remains the right tool for complex aggregates.
 
 ```python
 import geopandas as gpd

@@ -353,9 +353,12 @@ db.from_geodataframe(gdf, "parcels", primary_key="id", spatial_index=True)
 # Read spatial table
 parcels = db.to_geodataframe("parcels")
 
-# Read with spatial query
-nearby = db.to_geodataframe(
-    sql="SELECT * FROM parcels WHERE ST_DWithin(geometry, ST_Point(-122.4, 37.8)::geography, 1000)"
+# Read with spatial query — use db.spatial.dwithin for cleaner syntax
+nearby = db.spatial.dwithin(
+    "parcels",
+    point=(-122.4, 37.8),
+    distance=1000,
+    into="gdf",
 )
 ```
 
