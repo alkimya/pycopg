@@ -46,7 +46,7 @@ extract → transform → load flows with run tracking and safe, idempotent re-r
 pycopg's existing DataFrame/spatial helpers, at full sync/async parity. Zero new runtime
 dependencies. Architecture mirrors `spatial.py`.
 
-- [ ] **Phase 16: Pure ETL Layer** — Pipeline dataclass, SQL constants, pure builders; fully unit-testable with no DB
+- [x] **Phase 16: Pure ETL Layer** — Pipeline dataclass, SQL constants, pure builders; fully unit-testable with no DB (completed 2026-06-14)
 - [ ] **Phase 17: Run-Tracking Foundation** — `pipeline_runs` DDL + status lifecycle + separate-connection run-log writes
 - [ ] **Phase 18: Load Modes & Extract** — extract (SQL/table), append/replace/upsert with transactional correctness, transform chain
 - [ ] **Phase 19: Sync Runner & Query Surface** — `run()`, `RunResult`, `history()`, `last_run()`, `dry_run`
@@ -68,8 +68,8 @@ dependencies. Architecture mirrors `spatial.py`.
 
 **Plans**: 2 plans
 
-  - [x] 16-01-PLAN.md — ETL exception hierarchy + 5 ETL SQL constants + exception exports (Wave 1)
-  - [ ] 16-02-PLAN.md — Pipeline frozen dataclass + build_init_sql/build_truncate_sql + DB-free tests (Wave 2)
+  - [x] 16-01-PLAN.md — ETL exception hierarchy + 5 ETL SQL constants + exception exports (Wave 1) — completed 2026-06-14
+  - [x] 16-02-PLAN.md — Pipeline frozen dataclass + build_init_sql/build_truncate_sql + DB-free tests (Wave 2) — completed 2026-06-14
 
 ### Phase 17: Run-Tracking Foundation
 
