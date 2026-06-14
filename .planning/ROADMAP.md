@@ -230,7 +230,7 @@ Plans:
 
 **Wave 4** *(release — blocked on Wave 3, ALL autonomous: false, IRREVERSIBLE)*
 
-- [ ] 15-06-PLAN.md — [HUMAN-GATED] supply-chain confirm → tag v0.4.0 → GitHub Release → PyPI auto-publish → milestone audit (REL-04, REL-06)
+- [x] 15-06-PLAN.md — [HUMAN-GATED] supply-chain confirm → tag v0.4.0 → GitHub Release → PyPI auto-publish → milestone audit (REL-04, REL-06)
 
 <details>
 <summary>✅ v0.3.0 Consolidation Release (Phases 1-7) — SHIPPED 2026-02-11</summary>
@@ -265,4 +265,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete    | 2026-06-12 |
-| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 5/6 | In Progress|  |
+| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete   | 2026-06-14 |
