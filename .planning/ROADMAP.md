@@ -212,6 +212,26 @@ Plans:
   5. Actions GitHub bumpées Node 20 → Node 24
   6. Audit milestone (gsd-audit-milestone) passé avant archivage
 
+**Plans:** 6 plans
+Plans:
+**Wave 1** *(parallel prep — no file overlap)*
+
+- [ ] 15-01-PLAN.md — Sphinx docs: PostGIS execute() → db.spatial.* helpers, spatial autodoc surface, new docs/spatial.md, index toctree, api-reference section (REL-01)
+- [ ] 15-02-PLAN.md — version bump 0.3.1→0.4.0 (pyproject + conf.py + uv.lock), CHANGELOG [0.4.0] + footer links, MIGRATION v0.3.x→v0.4.0 notes (REL-03)
+- [ ] 15-03-PLAN.md — GitHub Actions Node 20→24 bumps (checkout/upload/download-artifact), setup-uv/pypi-publish node24 verification (REL-05)
+
+**Wave 2** *(pre-publish go/no-go gate — blocked on Wave 1)*
+
+- [ ] 15-04-PLAN.md — [BLOCKING] full green: pytest + interrogate + sphinx -W + uv build + wheel-contents inspection (0.4.0 + spatial.py) (REL-03)
+
+**Wave 3** *(RTD verify — blocked on Wave 2, autonomous: false)*
+
+- [ ] 15-05-PLAN.md — validate .readthedocs.yaml + spatial import; [HUMAN-GATED] push to main, confirm live RTD build green (REL-02)
+
+**Wave 4** *(release — blocked on Wave 3, ALL autonomous: false, IRREVERSIBLE)*
+
+- [ ] 15-06-PLAN.md — [HUMAN-GATED] supply-chain confirm → tag v0.4.0 → GitHub Release → PyPI auto-publish → milestone audit (REL-04, REL-06)
+
 <details>
 <summary>✅ v0.3.0 Consolidation Release (Phases 1-7) — SHIPPED 2026-02-11</summary>
 
@@ -245,4 +265,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete    | 2026-06-12 |
-| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/? | Pending (6 req) | — |
+| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/6 | Planned (6 plans, 4 waves) | — |
