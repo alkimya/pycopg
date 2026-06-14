@@ -216,7 +216,7 @@ Plans:
 Plans:
 **Wave 1** *(parallel prep — no file overlap)*
 
-- [ ] 15-01-PLAN.md — Sphinx docs: PostGIS execute() → db.spatial.* helpers, spatial autodoc surface, new docs/spatial.md, index toctree, api-reference section (REL-01)
+- [x] 15-01-PLAN.md — Sphinx docs: PostGIS execute() → db.spatial.* helpers, spatial autodoc surface, new docs/spatial.md, index toctree, api-reference section (REL-01)
 - [ ] 15-02-PLAN.md — version bump 0.3.1→0.4.0 (pyproject + conf.py + uv.lock), CHANGELOG [0.4.0] + footer links, MIGRATION v0.3.x→v0.4.0 notes (REL-03)
 - [ ] 15-03-PLAN.md — GitHub Actions Node 20→24 bumps (checkout/upload/download-artifact), setup-uv/pypi-publish node24 verification (REL-05)
 
@@ -265,4 +265,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete    | 2026-06-12 |
-| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 0/6 | Planned (6 plans, 4 waves) | — |
+| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 1/6 | In Progress|  |

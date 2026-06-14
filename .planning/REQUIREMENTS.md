@@ -67,7 +67,7 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9�
 
 ### Release v0.4.0 (Phase 15)
 
-- [ ] **REL-01**: Sphinx docs updated — PostGIS `execute(...)` examples replaced by the new helpers; api-reference regenerated
+- [x] **REL-01**: Sphinx docs updated — PostGIS `execute(...)` examples replaced by the new helpers; api-reference regenerated
 - [ ] **REL-02**: ReadTheDocs build is green (`.readthedocs.yaml` validated, RTD live)
 - [ ] **REL-03**: CHANGELOG v0.4.0 written; version bumped consistently everywhere; MIGRATION notes for any breaking changes
 - [ ] **REL-04**: Wheel published to PyPI via `uv build` + GitHub release → auto-publish; tag created
@@ -154,7 +154,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPAT-04 | Phase 14 | Complete |
 | SPAT-05 | Phase 14 | Complete |
 | SPAT-06 | Phase 14 | Complete |
-| REL-01 | Phase 15 | Pending |
+| REL-01 | Phase 15 | Complete |
 | REL-02 | Phase 15 | Pending |
 | REL-03 | Phase 15 | Pending |
 | REL-04 | Phase 15 | Pending |

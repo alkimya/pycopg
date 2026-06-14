@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
 status: executing
-stopped_at: Phase 14 context gathered
-last_updated: "2026-06-14T11:12:52.327Z"
-last_activity: 2026-06-14 -- Phase 15 planning complete
+stopped_at: "15-01 complete: spatial docs updated, autodoc surface added"
+last_updated: "2026-06-14T11:54:11.401Z"
+last_activity: 2026-06-14 -- Phase 15 execution started
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 30
-  completed_plans: 30
+  total_plans: 36
+  completed_plans: 31
   percent: 86
 ---
 
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-06)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 14 — spatial-helpers-phase-8-r-alis-e
+**Current focus:** Phase 15 — release-v0-4-0-pypi-rtd
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (release-v0-4-0-pypi-rtd) — EXECUTING
+Plan: 2 of 6
 Prev phase: 12 (refactoring) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
 Status: Ready to execute
-Last activity: 2026-06-14 -- Phase 15 planning complete
+Last activity: 2026-06-14 -- Phase 15 execution started
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Last activity: 2026-06-14 -- Phase 15 planning complete
 | Phase 13 P06 | 8 | 1 tasks | 4 files |
 | 13 | 6 | - | - |
 | 14 | 4 | - | - |
+| Phase 15-release-v0-4-0-pypi-rtd P01 | 342 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -98,12 +99,12 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-12T08:32:59.990Z
-Stopped at: Phase 14 context gathered
+Last session: 2026-06-14T11:54:11.392Z
+Stopped at: 15-01 complete: spatial docs updated, autodoc surface added
   All 6 plans complete. Gate results: 698 tests passed, interrogate 100%, sphinx-build -W exit 0, mypy 32 errors (non-blocking).
   REQUIREMENTS: DOC-06, DOC-08, DOC-09 satisfied.
 Note: ROADMAP target for Phase 12 was coverage 95; actual flip was 90->92 — the 95 goal remains open.
-Resume file: .planning/phases/14-spatial-helpers-phase-8-r-alis-e/14-CONTEXT.md
+Resume file: None
 Next action: /gsd-execute-phase 14 (spatial helpers — resolve 4 open design points from Phase 8)
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
