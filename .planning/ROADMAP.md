@@ -222,7 +222,7 @@ Plans:
 
 **Wave 2** *(pre-publish go/no-go gate — blocked on Wave 1)*
 
-- [ ] 15-04-PLAN.md — [BLOCKING] full green: pytest + interrogate + sphinx -W + uv build + wheel-contents inspection (0.4.0 + spatial.py) (REL-03)
+- [x] 15-04-PLAN.md — [BLOCKING] full green: pytest + interrogate + sphinx -W + uv build + wheel-contents inspection (0.4.0 + spatial.py) (REL-03)
 
 **Wave 3** *(RTD verify — blocked on Wave 2, autonomous: false)*
 
@@ -265,4 +265,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete    | 2026-06-12 |
-| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 3/6 | In Progress|  |
+| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 4/6 | In Progress|  |
