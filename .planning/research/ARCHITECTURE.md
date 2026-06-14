@@ -1,1015 +1,745 @@
 # Architecture Research
 
-**Domain:** Python Database Library (PostgreSQL wrapper)
-**Researched:** 2026-02-11
-**Confidence:** HIGH
+**Domain:** ETL pipeline-runner layer on top of an existing sync/async PostgreSQL library
+**Researched:** 2026-06-14
+**Confidence:** HIGH — based on direct source-code reading of the existing codebase
+
+---
 
 ## Standard Architecture
 
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     User-Facing API Layer                    │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐                    ┌──────────────┐       │
-│  │   Database   │                    │AsyncDatabase │       │
-│  │  (sync, 2299 │                    │ (async, 768  │       │
-│  │    lines)    │                    │    lines)    │       │
-│  └──────┬───────┘                    └──────┬───────┘       │
-│         │                                   │               │
-├─────────┴───────────────────────────────────┴───────────────┤
-│                     Shared Base Layer                        │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ DatabaseBase │  │ QueryMixin   │  │SessionMixin  │       │
-│  │ (factory     │  │ (SQL build)  │  │ (conn reuse) │       │
-│  │  methods)    │  │              │  │              │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-├─────────────────────────────────────────────────────────────┤
-│                   Connection Layer                           │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐                    ┌──────────────┐       │
-│  │   psycopg    │                    │  SQLAlchemy  │       │
-│  │ (DDL/admin)  │                    │ (DataFrame)  │       │
-│  └──────┬───────┘                    └──────┬───────┘       │
-│         │                                   │               │
-├─────────┴───────────────────────────────────┴───────────────┤
-│                      PostgreSQL                              │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                          Public API surface                           │
+│   db.etl.init()   db.etl.run(pipeline)   db.etl.list_runs(name)     │
+│   async_db.etl.init()  async_db.etl.run(pipeline)  ...              │
+├──────────────────────────────────────────────────────────────────────┤
+│                    pycopg/etl.py  (NEW FILE)                         │
+│  ┌──────────────────────────────┐   ┌──────────────────────────────┐ │
+│  │  Pure builders / dataclasses  │   │  EtlAccessor (sync)          │ │
+│  │  Pipeline  ExtractSpec        │   │  AsyncEtlAccessor (async)    │ │
+│  │  LoadSpec                     │   │  lazy db._etl/async_db._etl  │ │
+│  │  build_init_sql()             │   │  .init() .run() .list_runs() │ │
+│  │  build_upsert_sql()           │   └──────────────────────────────┘ │
+│  │  build_truncate_sql()         │                                    │
+│  └──────────────────────────────┘                                    │
+├──────────────────────────────────────────────────────────────────────┤
+│                 pycopg/queries.py  (MODIFIED FILE)                   │
+│   ETL_INIT_PIPELINE_RUNS  ETL_INSERT_RUN  ETL_UPDATE_RUN            │
+│   ETL_LIST_RUNS  ETL_GET_LAST_RUN                                   │
+├──────────────────────────────────────────────────────────────────────┤
+│              pycopg/database.py  (MODIFIED — adds etl property)      │
+│              pycopg/async_database.py  (MODIFIED — adds etl property)│
+├──────────────────────────────────────────────────────────────────────┤
+│                    Existing infrastructure                            │
+│  Database / AsyncDatabase   psycopg_pool   tenacity   pandas        │
+│  to_dataframe()  insert_many()  upsert_many()  transaction()        │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| Database | Sync API for all PostgreSQL operations | Class with 82 public methods, uses psycopg.Connection |
-| AsyncDatabase | Async API subset of Database methods | Class with 39 methods (needs ~60% more), uses psycopg.AsyncConnection |
-| DatabaseBase | Factory methods, config, repr | Abstract base class with classmethod constructors |
-| QueryMixin | SQL generation, validation utilities | Static methods for building INSERT, query validation |
-| SessionMixin | Connection reuse for batch operations | Context manager managing _session_conn lifecycle |
-| Config | Connection params, URL parsing | Dataclass with from_env, from_url, connect_params |
-| Pool | Connection pooling (future) | psycopg.ConnectionPool wrapper |
+| Component | Responsibility | Location |
+|-----------|----------------|----------|
+| `Pipeline` | Immutable, DB-free descriptor of a pipeline (extract + transform + load) | `etl.py` |
+| `ExtractSpec` | Describes source: table-name OR raw SQL, optional schema | `etl.py` |
+| `LoadSpec` | Describes target: table-name, schema, load mode (`truncate` or `upsert`), conflict keys | `etl.py` |
+| Pure SQL builders | Build DDL / DML strings without any DB access (shared between sync and async) | `etl.py` |
+| SQL constants | Multi-line SQL strings for `pipeline_runs` DDL and DML | `queries.py` |
+| `EtlAccessor` | Sync orchestrator: init table, run pipeline, record outcome | `etl.py` |
+| `AsyncEtlAccessor` | Async mirror of `EtlAccessor`; re-uses same pure builders | `etl.py` |
+| `db.etl` property | Lazy accessor factory on `Database` | `database.py` |
+| `async_db.etl` property | Lazy accessor factory on `AsyncDatabase` | `async_database.py` |
+
+---
 
 ## Recommended Project Structure
 
-Current structure is appropriate for the library:
-
 ```
 pycopg/
-├── __init__.py           # Public API exports
-├── config.py            # Configuration and connection params
-├── base.py              # Shared base classes and mixins (194 lines)
-├── database.py          # Sync implementation (2299 lines)
-├── async_database.py    # Async implementation (768 lines)
-├── pool.py              # Connection pooling (future)
-├── migrations.py        # Schema migrations
-├── queries.py           # SQL query templates
-├── utils.py             # Validation, helpers
-└── exceptions.py        # Custom exceptions
+├── etl.py               # NEW — pure builders + EtlAccessor + AsyncEtlAccessor
+├── queries.py           # MODIFIED — add ETL_* SQL constants section
+├── database.py          # MODIFIED — add `etl` lazy property + `_etl` field
+├── async_database.py    # MODIFIED — add `etl` lazy property + `_etl` field
+├── __init__.py          # MODIFIED — export EtlAccessor, AsyncEtlAccessor, Pipeline
+└── exceptions.py        # MODIFIED (optional) — add PipelineError
 
 tests/
-├── conftest.py          # Fixtures (db_config, mock connections)
-├── setup_test_db.py     # Real database setup script
-├── test_database.py     # Sync tests
-├── test_async_database.py  # Async tests
-├── test_integration.py  # Real database integration tests
-├── test_migrations.py   # Migration tests
-├── test_config.py       # Config tests
-└── test_utils.py        # Utility tests
+├── test_etl.py              # NEW — unit tests for pure builders + Pipeline dataclass
+├── test_etl_integration.py  # NEW — integration tests for EtlAccessor (real DB)
+├── test_etl_async.py        # NEW — async mirror of test_etl_integration.py
+└── test_parity.py           # NO CHANGES needed if method names match
 ```
 
 ### Structure Rationale
 
-- **Monolithic database.py/async_database.py:** Keep current structure. Splitting into modules adds complexity without benefit at this scale.
-- **Shared base.py:** Extract common logic (factory methods, SQL building) but NOT implementation.
-- **Separate test files:** Sync vs async tests require different fixtures and decorators.
-- **Real DB tests:** Integration tests use `pycopg_test` database, unit tests use mocks.
+- **etl.py:** mirrors `spatial.py` exactly. All pure functions at module level; both accessor classes in the same file. This keeps the pattern consistent and avoids a separate accessors/builders split that would add indirection without benefit.
+- **queries.py:** existing convention — every multi-line SQL constant lives here with a section comment block. ETL constants join existing sections with a new `# ETL QUERIES` block.
+- **database.py / async_database.py:** only a `_etl` field in `__init__` and an `etl` lazy property need to be added. Zero logic changes to the core DB classes.
 
-## Async/Sync Parity Patterns
+---
 
-### Pattern 1: Parallel Implementations (RECOMMENDED)
+## Architectural Patterns
 
-**What:** Separate Database and AsyncDatabase classes with duplicated method implementations.
+### Pattern 1: Pure Builders + Accessor Split (mirror of spatial.py)
 
-**When to use:** When sync and async have fundamentally different control flow (context managers, connection handling, transactions).
+**What:** All SQL assembly lives in stateless module-level functions that return `(sql, params)` or a plain SQL string. The accessor classes hold the DB reference and call these builders.
 
-**Trade-offs:**
-- **Pro:** Clean, readable, type-safe. Each class optimized for its paradigm.
-- **Pro:** No abstraction overhead. Direct calls to psycopg.Connection vs AsyncConnection.
-- **Pro:** Easy to maintain. Changes in one don't break the other.
-- **Con:** Code duplication (~60% of Database methods need async equivalents).
-- **Con:** Feature parity requires discipline (easy to add to one and forget the other).
+**When to use:** Always for ETL — the same extract SQL, upsert SQL, and run-tracking SQL is used by both `EtlAccessor` and `AsyncEtlAccessor` without duplication.
 
-**Example:**
+**Trade-offs:** Slightly more boilerplate (separate builder + accessor method), but builders are fully unit-testable without a DB, and the pattern is already established throughout `spatial.py`.
+
+**Example (builder in etl.py):**
 ```python
-# Sync (database.py)
-class Database:
-    def execute(self, sql: str, params=None) -> list[dict]:
-        with self.cursor() as cur:
-            cur.execute(sql, params)
-            return cur.fetchall() if cur.description else []
+def build_upsert_sql(
+    table: str,
+    columns: list[str],
+    conflict_columns: list[str],
+    schema: str = "public",
+) -> tuple[str, str]:
+    """Build INSERT ... ON CONFLICT DO UPDATE SQL for idempotent load.
 
-# Async (async_database.py)
-class AsyncDatabase:
-    async def execute(self, sql: str, params=None) -> list[dict]:
-        async with self.cursor() as cur:
-            await cur.execute(sql, params)
-            return await cur.fetchall() if cur.description else []
-```
+    Pure function: no I/O, no DB reference.
 
-**Current status:** pycopg uses this pattern. Database has 82 methods, AsyncDatabase has 39. Need to add ~43 methods.
-
-**Recommendation:** Continue with parallel implementations. The duplication is worth the clarity and type safety.
-
-### Pattern 2: Shared Base with Abstract Methods (NOT RECOMMENDED)
-
-**What:** DatabaseBase defines abstract methods, Database/AsyncDatabase implement them.
-
-**Trade-offs:**
-- **Pro:** Forces parity (both must implement all abstract methods).
-- **Con:** Cannot share implementation between sync/async (fundamentally different).
-- **Con:** Type checkers struggle with abstract async methods.
-- **Con:** Adds complexity without reducing code.
-
-**Verdict:** Do not use. The current DatabaseBase is fine for factory methods and config, but don't make operational methods abstract.
-
-### Pattern 3: Code Generation (CONSIDERED)
-
-**What:** Generate AsyncDatabase from Database using AST transformation or templates.
-
-**Trade-offs:**
-- **Pro:** Perfect parity guaranteed.
-- **Pro:** Changes in one automatically propagate.
-- **Con:** Debugging generated code is harder.
-- **Con:** Adds build complexity.
-- **Con:** Special cases (sync-only methods like engine) need handling.
-
-**Verdict:** Overkill for this library. Manual duplication with testing is simpler.
-
-### Pattern 4: Shared Logic with Mixins (PARTIAL USE)
-
-**What:** Extract common logic (SQL building, validation) to mixins. Implementation stays separate.
-
-**Trade-offs:**
-- **Pro:** DRY for business logic (SQL generation, validation).
-- **Pro:** Single source of truth for query templates.
-- **Con:** Only works for logic without I/O.
-
-**Example:**
-```python
-# base.py
-class QueryMixin:
-    @staticmethod
-    def _build_insert_sql(table, columns, schema="public", on_conflict=None):
-        # Shared SQL building logic
-        validate_identifiers(table, schema, *columns)
-        cols_str = ", ".join(columns)
-        placeholders = ", ".join(["%s"] * len(columns))
-        conflict = f" ON CONFLICT {on_conflict}" if on_conflict else ""
-        return f"INSERT INTO {schema}.{table} ({cols_str}) VALUES ({placeholders}){conflict}"
-
-# database.py
-class Database(QueryMixin):
-    def insert_batch(self, table, rows, schema="public", on_conflict=None):
-        sql = self._build_insert_sql(table, list(rows[0].keys()), schema, on_conflict)
-        # Sync execution
-        with self.cursor() as cur:
-            cur.execute(sql, values)
-
-# async_database.py
-class AsyncDatabase(QueryMixin):
-    async def insert_batch(self, table, rows, schema="public", on_conflict=None):
-        sql = self._build_insert_sql(table, list(rows[0].keys()), schema, on_conflict)
-        # Async execution
-        async with self.cursor() as cur:
-            await cur.execute(sql, values)
-```
-
-**Current status:** pycopg already uses this for SQL building. Good pattern.
-
-**Recommendation:** Expand QueryMixin to cover more SQL generation logic when adding AsyncDatabase methods.
-
-## Retry/Backoff Integration
-
-### Current State
-
-No retry logic currently exists. Connections fail immediately on network errors, connection limits, transient failures.
-
-### Recommended Architecture
-
-**Layered approach:** Retry at connection level, not method level.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  Database / AsyncDatabase                    │
-│         (business logic, unaware of retries)                 │
-└────────────┬────────────────────────────────────────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│              Retry Wrapper (Decorator/Context)               │
-│   - Retry config (max_retries, backoff strategy)            │
-│   - Error classification (retriable vs fatal)                │
-│   - Backoff calculation (exponential, jitter)                │
-└────────────┬────────────────────────────────────────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│              psycopg Connection / AsyncConnection            │
-│               (unchanged, no retry awareness)                │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Pattern: Connection-Level Retry Decorator
-
-**Implementation approach:**
-
-```python
-# pycopg/retry.py (new file)
-from functools import wraps
-from typing import Type, Callable
-import time
-import random
-import psycopg
-
-class RetryConfig:
-    """Configuration for retry behavior."""
-    def __init__(
-        self,
-        max_retries: int = 3,
-        base_delay: float = 0.1,  # seconds
-        max_delay: float = 10.0,
-        exponential_base: float = 2.0,
-        jitter: bool = True,
-    ):
-        self.max_retries = max_retries
-        self.base_delay = base_delay
-        self.max_delay = max_delay
-        self.exponential_base = exponential_base
-        self.jitter = jitter
-
-    def calculate_delay(self, attempt: int) -> float:
-        """Calculate delay for given attempt using exponential backoff."""
-        delay = min(self.base_delay * (self.exponential_base ** attempt), self.max_delay)
-        if self.jitter:
-            delay *= (0.5 + random.random())  # 50-150% of calculated delay
-        return delay
-
-# Errors that are retriable (transient failures)
-RETRIABLE_ERRORS = (
-    psycopg.OperationalError,  # Connection lost, timeout
-    psycopg.errors.ConnectionException,  # Connection refused
-    psycopg.errors.AdminShutdown,  # Server restart
-    psycopg.errors.CannotConnectNow,  # Server starting up
-    psycopg.errors.CrashShutdown,  # Server crash
-)
-
-# Errors that are NOT retriable (permanent failures)
-FATAL_ERRORS = (
-    psycopg.errors.InvalidPassword,  # Bad credentials
-    psycopg.errors.InvalidAuthorizationSpecification,  # Auth failure
-    psycopg.errors.SyntaxError,  # SQL syntax error
-    psycopg.errors.UndefinedTable,  # Table doesn't exist
-)
-
-def with_retry(config: RetryConfig):
-    """Decorator for sync functions with retry logic."""
-    def decorator(func: Callable):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            last_exception = None
-            for attempt in range(config.max_retries + 1):
-                try:
-                    return func(*args, **kwargs)
-                except RETRIABLE_ERRORS as e:
-                    last_exception = e
-                    if attempt < config.max_retries:
-                        delay = config.calculate_delay(attempt)
-                        time.sleep(delay)
-                    # Last attempt, will raise
-                except FATAL_ERRORS:
-                    raise  # Don't retry fatal errors
-
-            # All retries exhausted
-            raise last_exception
-        return wrapper
-    return decorator
-
-def with_async_retry(config: RetryConfig):
-    """Decorator for async functions with retry logic."""
-    def decorator(func: Callable):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            import asyncio
-            last_exception = None
-            for attempt in range(config.max_retries + 1):
-                try:
-                    return await func(*args, **kwargs)
-                except RETRIABLE_ERRORS as e:
-                    last_exception = e
-                    if attempt < config.max_retries:
-                        delay = config.calculate_delay(attempt)
-                        await asyncio.sleep(delay)
-                except FATAL_ERRORS:
-                    raise
-            raise last_exception
-        return wrapper
-    return decorator
-```
-
-**Integration into Database:**
-
-```python
-# pycopg/database.py
-from pycopg.retry import with_retry, RetryConfig
-
-class Database:
-    def __init__(self, config: Config, retry_config: Optional[RetryConfig] = None):
-        self.config = config
-        self.retry_config = retry_config or RetryConfig()  # Default retry config
-        self._engine = None
-        self._session_conn = None
-
-    def _connect_with_retry(self, autocommit=False):
-        """Internal method with retry logic."""
-        @with_retry(self.retry_config)
-        def _connect():
-            return psycopg.connect(**self.config.connect_params(), autocommit=autocommit)
-        return _connect()
-
-    @contextmanager
-    def connect(self, autocommit=False):
-        """Context manager for connection with automatic retry."""
-        conn = self._connect_with_retry(autocommit)
-        try:
-            yield conn
-        finally:
-            conn.close()
-```
-
-**Benefits:**
-- Retry logic centralized in one place
-- Database/AsyncDatabase methods unchanged
-- User can configure retry behavior: `Database(config, retry_config=RetryConfig(max_retries=5))`
-- Or disable: `Database(config, retry_config=RetryConfig(max_retries=0))`
-
-**Alternative: Connection Pool with Retry (Future)**
-
-```python
-# pycopg/pool.py
-from psycopg_pool import ConnectionPool
-from pycopg.retry import RetryConfig
-
-class RetryPool:
-    """Connection pool with retry logic."""
-    def __init__(self, config: Config, retry_config: RetryConfig, pool_config: PoolConfig):
-        self.retry_config = retry_config
-        self._pool = ConnectionPool(
-            conninfo=config.url,
-            min_size=pool_config.min_size,
-            max_size=pool_config.max_size,
-        )
-
-    @contextmanager
-    def connection(self):
-        """Get connection from pool with retry on acquisition."""
-        @with_retry(self.retry_config)
-        def _get_conn():
-            return self._pool.connection()
-
-        with _get_conn() as conn:
-            yield conn
-```
-
-## Test Organization
-
-### Current Test Structure
-
-```
-tests/
-├── conftest.py              # Fixtures (db_config, mocks)
-├── setup_test_db.py         # Creates pycopg_test database
-├── test_database.py         # Unit tests (mocked)
-├── test_async_database.py   # Unit tests (mocked)
-├── test_integration.py      # Real DB tests
-└── test_*.py                # Other unit tests
-```
-
-### Recommended Test Architecture
-
-**Three-tier test strategy:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Unit Tests (Fast)                         │
-│  - Mock psycopg connections                                  │
-│  - Test business logic, validation, SQL generation           │
-│  - No database required                                      │
-│  - Run on every commit (~1-2 seconds)                        │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│              Integration Tests (Real DB)                     │
-│  - Use pycopg_test database                                  │
-│  - Test actual PostgreSQL operations                         │
-│  - Verify data persistence, transactions, constraints        │
-│  - Run before PR merge (~10-30 seconds)                      │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│         Extension Tests (PostGIS, TimescaleDB)               │
-│  - Test PostGIS geometry operations                          │
-│  - Test TimescaleDB hypertables                              │
-│  - Optional: skip if extensions not available                │
-│  - Run before release (~30-60 seconds)                       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Pattern: Fixture-Based Database Setup
-
-**conftest.py design:**
-
-```python
-# tests/conftest.py
-import os
-import pytest
-from pycopg import Config, Database, AsyncDatabase
-
-# --- Config Fixtures ---
-
-@pytest.fixture
-def db_config():
-    """Real database config for integration tests."""
-    return Config(
-        host=os.getenv("PGHOST", "localhost"),
-        port=int(os.getenv("PGPORT", "5432")),
-        database="pycopg_test",
-        user=os.getenv("PGUSER", "postgres"),
-        password=os.getenv("PGPASSWORD", "postgres"),
+    Returns
+    -------
+    tuple of (str, str)
+        (sql_template, columns_csv) matching QueryMixin._build_insert_sql shape.
+    """
+    validate_identifiers(table, schema, *columns, *conflict_columns)
+    cols = ", ".join(columns)
+    ph = ", ".join(["%s"] * len(columns))
+    update_cols = [c for c in columns if c not in conflict_columns]
+    update_str = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
+    conflict_str = ", ".join(conflict_columns)
+    sql = (
+        f"INSERT INTO {schema}.{table} ({cols}) VALUES ({ph}) "
+        f"ON CONFLICT ({conflict_str}) DO UPDATE SET {update_str}"
     )
-
-@pytest.fixture
-def mock_config():
-    """Mock config for unit tests."""
-    return Config(
-        host="localhost",
-        port=5432,
-        database="testdb",
-        user="testuser",
-        password="testpass",
-    )
-
-# --- Database Fixtures ---
-
-@pytest.fixture
-def db(db_config):
-    """Real sync database for integration tests."""
-    db = Database(db_config)
-    yield db
-    # Cleanup if needed
-
-@pytest.fixture
-async def async_db(db_config):
-    """Real async database for integration tests."""
-    db = AsyncDatabase(db_config)
-    yield db
-    # Cleanup if needed
-
-# --- Table Fixtures ---
-
-@pytest.fixture
-def test_table(db):
-    """Create and cleanup a test table."""
-    table_name = "test_users"
-    db.execute(f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE,
-            active BOOLEAN DEFAULT true
-        )
-    """)
-    yield table_name
-    db.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-
-@pytest.fixture
-async def async_test_table(async_db):
-    """Create and cleanup a test table for async tests."""
-    table_name = "async_test_users"
-    await async_db.execute(f"""
-        CREATE TABLE IF NOT EXISTS {table_name} (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL
-        )
-    """)
-    yield table_name
-    await async_db.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-
-# --- Transaction Fixtures (Test Isolation) ---
-
-@pytest.fixture
-def isolated_db(db_config):
-    """Database with transaction rollback for test isolation."""
-    db = Database(db_config)
-
-    # Start transaction
-    conn = db._connect_with_retry()
-    conn.autocommit = False
-    old_conn = db._session_conn
-    db._session_conn = conn
-
-    yield db
-
-    # Rollback everything
-    conn.rollback()
-    conn.close()
-    db._session_conn = old_conn
-
-# --- Mock Fixtures ---
-
-@pytest.fixture
-def mock_connection():
-    """Mocked psycopg connection for unit tests."""
-    from unittest.mock import MagicMock
-    conn = MagicMock()
-    cursor = MagicMock()
-    cursor.__enter__ = MagicMock(return_value=cursor)
-    cursor.__exit__ = MagicMock(return_value=False)
-    conn.cursor.return_value = cursor
-    conn.__enter__ = MagicMock(return_value=conn)
-    conn.__exit__ = MagicMock(return_value=False)
-    return conn, cursor
+    return sql, cols
 ```
 
-### Test File Organization
+### Pattern 2: Frozen Dataclass Pipeline Descriptor
 
-**tests/test_database.py (Unit Tests - Mocked):**
+**What:** `Pipeline` is a `@dataclass(frozen=True)` that carries all declarative fields but performs no I/O. It is passed to `db.etl.run(pipeline)`.
+
+**When to use:** Always — frozen ensures the pipeline definition is not mutated between runs, which is important for idempotency guarantees.
+
+**Trade-offs:** Frozen dataclasses cannot have mutable defaults directly; `tuple` is used for `conflict_columns` instead of `list`. The `transform` callable is included, which means the dataclass is not JSON-serializable by default — acceptable for v0.5.0.
+
+**Example (Pipeline + supporting specs in etl.py):**
 ```python
-import pytest
-from unittest.mock import patch, MagicMock
-from pycopg import Database
+from __future__ import annotations
+import dataclasses
+from typing import Callable
+import pandas as pd
 
-class TestDatabaseMethods:
-    """Unit tests with mocked connections."""
 
-    @patch("pycopg.database.psycopg")
-    def test_execute_select(self, mock_psycopg, mock_config):
-        """Test execute with SELECT returns results."""
-        # Setup mock
-        mock_conn, mock_cursor = create_mock_connection()
-        mock_cursor.description = [("id",), ("name",)]
-        mock_cursor.fetchall.return_value = [{"id": 1, "name": "Alice"}]
-        mock_psycopg.connect.return_value = mock_conn
+@dataclasses.dataclass(frozen=True)
+class ExtractSpec:
+    table: str | None = None
+    sql: str | None = None
+    schema: str = "public"
 
-        # Test
-        db = Database(mock_config)
-        result = db.execute("SELECT * FROM users")
+    def __post_init__(self) -> None:
+        if (self.table is None) == (self.sql is None):
+            raise ValueError("Exactly one of table= or sql= must be provided")
+        if self.table:
+            validate_identifiers(self.table, self.schema)
 
-        # Verify
-        assert len(result) == 1
-        assert result[0]["name"] == "Alice"
-        mock_cursor.execute.assert_called_once()
+
+@dataclasses.dataclass(frozen=True)
+class LoadSpec:
+    table: str
+    schema: str = "public"
+    mode: str = "upsert"              # "truncate" | "upsert"
+    conflict_columns: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.mode not in ("truncate", "upsert"):
+            raise ValueError(f"mode must be 'truncate' or 'upsert', got {self.mode!r}")
+        if self.mode == "upsert" and not self.conflict_columns:
+            raise ValueError("conflict_columns must be non-empty for mode='upsert'")
+        validate_identifiers(self.table, self.schema)
+        if self.conflict_columns:
+            validate_identifiers(*self.conflict_columns)
+
+
+@dataclasses.dataclass(frozen=True)
+class Pipeline:
+    name: str
+    extract: ExtractSpec
+    load: LoadSpec
+    transform: Callable[[pd.DataFrame], pd.DataFrame] | None = None
 ```
 
-**tests/test_integration.py (Integration Tests - Real DB):**
+### Pattern 3: Separate Transaction for Run-Log Write
+
+**What:** The load transaction and the `pipeline_runs` write transaction are separate connections. The load uses `db.transaction()` which rolls back on error. The run-log write uses an independent `db.connect()` block that always commits, even if the load failed.
+
+**When to use:** Always, in `EtlAccessor.run()` and `AsyncEtlAccessor.run()`.
+
+**Trade-offs:** Two round-trips to the DB for the run record (INSERT at start, UPDATE at end). Acceptable — run tracking is lightweight metadata. The alternative (same transaction) would lose the failure record on rollback.
+
+**Example (sync execution flow):**
 ```python
-import pytest
-from pycopg import Database
-
-@pytest.mark.integration
-class TestDatabaseIntegration:
-    """Integration tests with real PostgreSQL."""
-
-    def test_create_and_query_table(self, db, test_table):
-        """Test table creation and querying."""
-        # Insert data
-        db.execute(
-            f"INSERT INTO {test_table} (name, email) VALUES (%s, %s)",
-            ["Alice", "alice@example.com"]
-        )
-
-        # Query
-        results = db.execute(f"SELECT * FROM {test_table}")
-        assert len(results) == 1
-        assert results[0]["name"] == "Alice"
-
-    def test_transaction_rollback(self, db, test_table):
-        """Test transaction rollback."""
-        try:
-            with db.transaction() as conn:
-                conn.execute(f"INSERT INTO {test_table} (name) VALUES ('Bob')")
-                raise ValueError("Intentional error")
-        except ValueError:
-            pass
-
-        # Should be rolled back
-        results = db.execute(f"SELECT * FROM {test_table}")
-        assert len(results) == 0
+def run(self, pipeline: Pipeline) -> dict:
+    run_id = self._start_run(pipeline.name)   # independent connection, commits immediately
+    try:
+        with self._db.transaction() as conn:
+            df = self._extract(pipeline.extract)
+            if pipeline.transform is not None:
+                df = pipeline.transform(df)
+            rows_loaded = self._load(pipeline.load, df)
+        self._end_run(run_id, "success", rows_loaded)
+        return {"run_id": run_id, "status": "success", "rows_loaded": rows_loaded}
+    except Exception as exc:
+        self._end_run(run_id, "error", 0, error=str(exc))  # commits failure record
+        raise
 ```
 
-**pytest.ini configuration:**
-```ini
-[pytest]
-markers =
-    integration: marks tests as integration tests (require database)
-    postgis: marks tests as requiring PostGIS extension
-    timescaledb: marks tests as requiring TimescaleDB extension
-    slow: marks tests as slow running
-
-# Run only fast unit tests by default
-addopts = -v -m "not integration and not slow"
-
-# Async test support
-asyncio_mode = auto
-```
-
-**Running tests:**
-```bash
-# Fast unit tests (default)
-pytest
-
-# All tests including integration
-pytest -m ""
-
-# Only integration tests
-pytest -m integration
-
-# Skip extension tests
-pytest -m "not postgis and not timescaledb"
-```
-
-### Pattern: Test Database Isolation
-
-**Problem:** Parallel tests interfering with each other.
-
-**Solution 1: Transaction Rollback (Fast)**
-```python
-@pytest.fixture
-def isolated_db(db_config):
-    """Each test runs in a transaction that's rolled back."""
-    db = Database(db_config)
-    with db.transaction() as conn:
-        db._temp_conn = conn
-        yield db
-        # Transaction automatically rolled back on exit
-```
-
-**Solution 2: Unique Table Names (Parallel-Safe)**
-```python
-import uuid
-
-@pytest.fixture
-def unique_table(db):
-    """Create table with unique name for parallel testing."""
-    table_name = f"test_{uuid.uuid4().hex[:8]}"
-    db.execute(f"CREATE TABLE {table_name} (id SERIAL, data TEXT)")
-    yield table_name
-    db.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-```
-
-**Solution 3: Database-Per-Test (Slow but Isolated)**
-```python
-@pytest.fixture
-def isolated_database():
-    """Create temporary database for test."""
-    db_name = f"test_{uuid.uuid4().hex[:8]}"
-    admin_db = Database.from_env()
-    admin_db.create_database(db_name)
-
-    test_db = Database(Config(database=db_name, ...))
-    yield test_db
-
-    test_db.close()
-    admin_db.drop_database(db_name)
-```
-
-**Recommendation:** Use transaction rollback for most tests, unique tables for tests that need DDL.
+---
 
 ## Data Flow
 
-### Sync Request Flow
+### ETL Execution Flow (sync)
 
 ```
-User Call: db.execute("SELECT * FROM users WHERE active = %s", [True])
-    ↓
-Database.execute()
-    ↓
-db.cursor() context manager
-    ↓
-psycopg.connect(**config.connect_params())  [with retry if configured]
-    ↓
-cursor.execute(sql, params)
-    ↓
-PostgreSQL query execution
-    ↓
-cursor.fetchall() → list[dict]
-    ↓
-conn.commit()
-    ↓
-conn.close()
-    ↓
-Return results to user
+db.etl.run(pipeline)
+    |
+    +-- _start_run(name)                    [independent conn, commits]
+    |       INSERT INTO pipeline_runs (status='running', started_at=now())
+    |       returns run_id (int)
+    |
+    +-- with db.transaction():              [load transaction -- rolls back on error]
+    |       |
+    |       +-- _extract(extract_spec)
+    |       |     db.to_dataframe(table=... or sql=...) -> pd.DataFrame
+    |       |
+    |       +-- pipeline.transform(df)      [Python, no I/O, sync callable]
+    |       |     -> pd.DataFrame
+    |       |
+    |       +-- _load(load_spec, df)
+    |             mode="truncate": TRUNCATE TABLE ... then df via from_dataframe(if_exists="append")
+    |             mode="upsert":   db.upsert_many(table, rows, conflict_columns)
+    |             returns rows_loaded (int)
+    |
+    +-- _end_run(run_id, status, rows_loaded [, error])
+            [independent conn, commits always -- even if load raised]
+            UPDATE pipeline_runs SET status=..., finished_at=now(), rows_loaded=... WHERE id=...
 ```
 
-### Async Request Flow
+### ETL Execution Flow (async)
 
 ```
-User Call: await db.execute("SELECT * FROM users WHERE active = %s", [True])
-    ↓
-AsyncDatabase.execute()
-    ↓
-db.cursor() async context manager
-    ↓
-await psycopg.AsyncConnection.connect(...)  [with async retry if configured]
-    ↓
-await cursor.execute(sql, params)
-    ↓
-PostgreSQL query execution
-    ↓
-await cursor.fetchall() → list[dict]
-    ↓
-await conn.commit()
-    ↓
-await conn.close()
-    ↓
-Return results to user
+await async_db.etl.run(pipeline)
+    |
+    +-- await _start_run(name)              [independent async conn, commits]
+    |
+    +-- async with async_db.transaction(): [load transaction]
+    |       |
+    |       +-- await _extract(extract_spec)
+    |       |     await async_db.to_dataframe(...)       [uses conn.run_sync internally]
+    |       |
+    |       +-- await loop.run_in_executor(None, pipeline.transform, df)
+    |       |     [thread pool for sync callable -- consistent with run_sync pattern]
+    |       |
+    |       +-- await _load(load_spec, df)
+    |             await async_db.upsert_many(...)  OR  TRUNCATE + conn.run_sync(df.to_sql)
+    |
+    +-- await _end_run(run_id, status, rows_loaded [, error])
 ```
 
-### Session Mode Flow (Connection Reuse)
+### Key Data Flows
+
+1. **Run tracking:** `pipeline_runs` row inserted before load starts; updated after load completes or fails. Two independent connections ensure the failure record always commits.
+2. **Extract:** Delegates to existing `db.to_dataframe()` / `async_db.to_dataframe()` — no new extract logic needed beyond wrapping.
+3. **Transform:** Pure Python callable on a DataFrame. No DB I/O. In async context, delegated to thread pool via `run_in_executor`.
+4. **Load (truncate):** TRUNCATE DDL (autocommit=False inside transaction), then `from_dataframe(if_exists="append")`.
+5. **Load (upsert):** Direct `upsert_many()` call — existing method handles batching and conflict resolution.
+
+---
+
+## Module Layout — What Goes Where
+
+### pycopg/etl.py (NEW FILE)
 
 ```
-User: with db.session() as session:
-    ↓
-Database.session() context manager
-    ↓
-self._session_conn = psycopg.connect(...)  [single connection]
-    ↓
-session.execute(...)  ┐
-session.execute(...)  ├─ All reuse _session_conn
-session.insert_batch()┘
-    ↓
-conn.commit()  [on session exit]
-    ↓
-conn.close()
-    ↓
-self._session_conn = None
+Module-level (pure -- no DB, no I/O):
+  @dataclass(frozen=True)  ExtractSpec
+  @dataclass(frozen=True)  LoadSpec
+  @dataclass(frozen=True)  Pipeline
+  build_init_sql() -> str           # returns queries.ETL_INIT_PIPELINE_RUNS
+  build_truncate_sql(table, schema) -> str
+  _validate_pipeline(pipeline)      # raises ValueError on bad input
+
+class EtlAccessor:
+  __init__(db: Database)
+  init() -> None                    # CREATE TABLE IF NOT EXISTS pipeline_runs
+  run(pipeline: Pipeline) -> dict   # full ETL + run tracking
+  list_runs(name: str | None, limit: int) -> list[dict]
+  get_last_run(name: str) -> dict | None
+  _start_run(name) -> int           # private: insert run row, return id
+  _end_run(run_id, status, rows, error=None) -> None   # private: update row
+  _extract(spec) -> pd.DataFrame    # private: calls db.to_dataframe
+  _load(spec, df) -> int            # private: truncate or upsert, returns row count
+
+class AsyncEtlAccessor:
+  __init__(db: AsyncDatabase)
+  async init() -> None
+  async run(pipeline: Pipeline) -> dict
+  async list_runs(name: str | None, limit: int) -> list[dict]
+  async get_last_run(name: str) -> dict | None
+  async _start_run(name) -> int
+  async _end_run(run_id, status, rows, error=None) -> None
+  async _extract(spec) -> pd.DataFrame
+  async _load(spec, df) -> int
 ```
 
-**Key insight:** Session mode is critical for performance. Batch operations should encourage/require session mode.
+### pycopg/queries.py (MODIFIED)
+
+Add a `# ETL QUERIES` section at the bottom:
+
+```python
+# =============================================================================
+# ETL QUERIES
+# =============================================================================
+
+ETL_INIT_PIPELINE_RUNS = """
+    CREATE TABLE IF NOT EXISTS pipeline_runs (
+        id             BIGSERIAL    PRIMARY KEY,
+        pipeline_name  TEXT         NOT NULL,
+        status         TEXT         NOT NULL DEFAULT 'running',
+        started_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        finished_at    TIMESTAMPTZ,
+        rows_loaded    BIGINT,
+        error_message  TEXT,
+        watermark      JSONB
+    )
+"""
+
+ETL_INSERT_RUN = """
+    INSERT INTO pipeline_runs (pipeline_name, status, started_at)
+    VALUES (%s, 'running', now())
+    RETURNING id
+"""
+
+ETL_UPDATE_RUN = """
+    UPDATE pipeline_runs
+    SET status = %s, finished_at = now(), rows_loaded = %s, error_message = %s
+    WHERE id = %s
+"""
+
+ETL_LIST_RUNS = """
+    SELECT id, pipeline_name, status, started_at, finished_at,
+           rows_loaded, error_message
+    FROM pipeline_runs
+    {where_clause}
+    ORDER BY started_at DESC
+    LIMIT %s
+"""
+
+ETL_GET_LAST_RUN = """
+    SELECT id, pipeline_name, status, started_at, finished_at,
+           rows_loaded, error_message
+    FROM pipeline_runs
+    WHERE pipeline_name = %s
+    ORDER BY started_at DESC
+    LIMIT 1
+"""
+```
+
+### pycopg/database.py (MODIFIED)
+
+Two additions only:
+
+```python
+# In __init__:
+self._etl: EtlAccessor | None = None
+
+# New lazy property (after spatial property, same shape):
+@property
+def etl(self) -> EtlAccessor:
+    """Get or create the ETL accessor (lazy initialization).
+
+    Returns
+    -------
+    EtlAccessor
+        ETL pipeline runner namespace bound to this database.
+    """
+    if self._etl is None:
+        from pycopg.etl import EtlAccessor
+        self._etl = EtlAccessor(self)
+    return self._etl
+```
+
+### pycopg/async_database.py (MODIFIED)
+
+```python
+# In __init__:
+self._etl: AsyncEtlAccessor | None = None
+
+# New lazy property:
+@property
+def etl(self) -> AsyncEtlAccessor:
+    """Get or create the async ETL accessor (lazy initialization).
+
+    Returns
+    -------
+    AsyncEtlAccessor
+        Async ETL pipeline runner namespace bound to this database.
+    """
+    if self._etl is None:
+        from pycopg.etl import AsyncEtlAccessor
+        self._etl = AsyncEtlAccessor(self)
+    return self._etl
+```
+
+### pycopg/__init__.py (MODIFIED)
+
+```python
+from pycopg.etl import AsyncEtlAccessor, EtlAccessor, ExtractSpec, LoadSpec, Pipeline
+```
+
+Add to `__all__`:  `"EtlAccessor"`, `"AsyncEtlAccessor"`, `"Pipeline"`, `"ExtractSpec"`, `"LoadSpec"`.
+
+---
+
+## Runner Method Signatures (Complete Reference)
+
+### EtlAccessor (sync)
+
+```python
+def init(self) -> None:
+    """Create the pipeline_runs tracking table if it does not exist."""
+
+def run(self, pipeline: Pipeline) -> dict:
+    """Execute a pipeline end-to-end and record the run outcome.
+
+    Parameters
+    ----------
+    pipeline : Pipeline
+        Declarative pipeline descriptor.
+
+    Returns
+    -------
+    dict
+        Keys: run_id (int), status ("success" or "error"), rows_loaded (int).
+
+    Raises
+    ------
+    Exception
+        Re-raises the original exception after recording failure in pipeline_runs.
+    """
+
+def list_runs(
+    self,
+    name: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    """Return recent pipeline run records.
+
+    Parameters
+    ----------
+    name : str, optional
+        Filter to this pipeline name. None returns all pipelines.
+    limit : int, optional
+        Maximum rows to return, by default 100.
+
+    Returns
+    -------
+    list of dict
+        Run records ordered newest-first.
+    """
+
+def get_last_run(self, name: str) -> dict | None:
+    """Return the most recent run for a pipeline name, or None.
+
+    Parameters
+    ----------
+    name : str
+        Pipeline name.
+
+    Returns
+    -------
+    dict or None
+        Most recent run record, or None if no runs exist.
+    """
+```
+
+### AsyncEtlAccessor (async -- identical parameter names)
+
+```python
+async def init(self) -> None: ...
+async def run(self, pipeline: Pipeline) -> dict: ...
+async def list_runs(self, name: str | None = None, limit: int = 100) -> list[dict]: ...
+async def get_last_run(self, name: str) -> dict | None: ...
+```
+
+**Parity note:** `test_parity.py` uses `inspect.getmembers(Database)` and `inspect.getmembers(AsyncDatabase)`. The `etl` property is a member of both classes, so it is picked up automatically. The public methods `init`, `run`, `list_runs`, `get_last_run` exist on both accessor classes — their signatures have identical parameter names, which satisfies `test_method_signatures_match`. No changes to `test_parity.py` are needed.
+
+---
+
+## Transaction Boundaries
+
+### The Tension
+
+A failed load must roll back all inserted data (atomicity). But the `pipeline_runs` failure record must commit independently — otherwise a failed run leaves no trace, defeating the purpose of run tracking.
+
+### Recommended Pattern: Two Independent Connections
+
+Run-tracking writes (`_start_run` and `_end_run`) each open their own short-lived connection via `db.connect()` (sync) or an independent `async_db.connect()` (async). These commits are unconditional.
+
+The load step (`_extract` + `transform` + `_load`) runs inside `db.transaction()`. If it raises, the load transaction rolls back, but `_end_run` is called in the `except` block using a fresh connection.
+
+```
+START:  independent conn
+            INSERT pipeline_runs (status='running') COMMIT
+
+LOAD:   db.transaction()
+            extract -> transform -> load
+            [COMMIT on success]  [ROLLBACK on error]
+
+END:    independent conn
+            UPDATE pipeline_runs (status, finished_at, rows_loaded) COMMIT
+            [called in both success path AND except block]
+```
+
+**Why not use the session connection for run tracking?** Sessions and transactions in psycopg share the underlying connection. Writing to `pipeline_runs` inside the same transaction means the failure record is lost on rollback. A fresh connection avoids this — the same approach used by PostgreSQL job schedulers and migration systems.
+
+**Why not SAVEPOINT?** Savepoints are deferred to v0.6.0 (API-05 in PROJECT.md). The two-connection approach is simpler and sufficient for v0.5.0.
+
+**Impact on async:** `AsyncDatabase` uses psycopg async connections. The same two-connection pattern applies: `_start_run` and `_end_run` open independent `AsyncConnection` instances via `psycopg.AsyncConnection.connect(...)` or the async pool, bypassing the active session.
+
+---
+
+## `pipeline_runs` Schema and Forward Compatibility
+
+### Recommended Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    id             BIGSERIAL    PRIMARY KEY,
+    pipeline_name  TEXT         NOT NULL,
+    status         TEXT         NOT NULL DEFAULT 'running',
+                   -- allowed values: 'running' | 'success' | 'error'
+    started_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    finished_at    TIMESTAMPTZ,           -- NULL until run completes
+    rows_loaded    BIGINT,                -- NULL until run completes
+    error_message  TEXT,                  -- NULL unless status='error'
+
+    -- Reserved for v0.6.0 incremental watermarks.
+    -- Always NULL in v0.5.0 rows. JSONB accommodates any watermark
+    -- shape (timestamp, integer offset, string cursor) without ALTER TABLE.
+    watermark      JSONB
+);
+```
+
+### Forward-Compat Design Choices
+
+- **`watermark JSONB`** is present but always NULL in v0.5.0. v0.6.0 writes watermark values into this column without an `ALTER TABLE` or migration. No migration pain — the column exists, it's just unused.
+- **`status TEXT`** (not ENUM) — avoids `ALTER TYPE` to add future status values. A CHECK constraint can be added later if desired.
+- **`BIGSERIAL`** id — handles high-volume pipelines without risk of integer overflow.
+- **`TIMESTAMPTZ`** (not `TIMESTAMP`) for all time columns — timezone-aware, required for deployments running across zones.
+- All nullable columns (`finished_at`, `rows_loaded`, `error_message`, `watermark`) are NOT constrained NOT NULL — they are genuinely unknown at insert time.
+
+### Table Initialization: Explicit `db.etl.init()`
+
+**Recommendation: explicit `db.etl.init()` call, not lazy auto-create inside `run()`.**
+
+Rationale:
+- Lazy init inside `run()` adds an existence-check round-trip on every pipeline execution. For frequent pipelines this matters.
+- Migration system approach (versioned SQL files) would require the migration runner — coupling ETL setup to migration workflow is invasive and inconsistent with how PostGIS is handled (`db.create_extension('postgis')` is always explicit).
+- `db.etl.init()` is a single bootstrap call. Callers put it in their startup script. `CREATE TABLE IF NOT EXISTS` makes it idempotent — calling `init()` multiple times is always safe.
+- This is consistent with the existing `db.spatial` accessor pattern: PostGIS availability is checked explicitly, not lazily injected into every helper call.
+
+---
+
+## Parity-Safe Data Flow: Pure vs Accessor
+
+### What is Pure (shared, no I/O — usable in both accessors and unit tests)
+
+| Item | Why Pure |
+|------|----------|
+| `ExtractSpec`, `LoadSpec`, `Pipeline` dataclasses | no DB, no I/O; validated in `__post_init__` |
+| `build_init_sql()` | returns `queries.ETL_INIT_PIPELINE_RUNS` string |
+| `build_truncate_sql(table, schema)` | returns `TRUNCATE TABLE ...` string |
+| `_validate_pipeline(pipeline)` | raises `ValueError` on invalid combos |
+| All `queries.py` ETL constants | string literals |
+
+### What is Accessor-Only (does I/O, differs sync/async)
+
+| Method | Sync implementation | Async implementation |
+|--------|---------------------|----------------------|
+| `init()` | `db.execute(ETL_INIT_PIPELINE_RUNS)` | `await async_db.execute(...)` |
+| `_start_run(name)` | `db.execute(ETL_INSERT_RUN, [name])` | `await async_db.execute(...)` |
+| `_end_run(...)` | `db.execute(ETL_UPDATE_RUN, [...])` | `await async_db.execute(...)` |
+| `_extract(spec)` | `db.to_dataframe(table=... or sql=...)` | `await async_db.to_dataframe(...)` |
+| `transform(df)` | `pipeline.transform(df)` direct call | `await loop.run_in_executor(None, fn, df)` |
+| `_load mode=truncate` | `db.execute("TRUNCATE ...")` + `db.from_dataframe(if_exists="append")` | `await async_db.execute(...)` + `await conn.run_sync(df.to_sql)` |
+| `_load mode=upsert` | `db.upsert_many(table, rows, conflict_columns)` | `await async_db.upsert_many(...)` |
+| `list_runs(...)` | `db.execute(ETL_LIST_RUNS, [...])` | `await async_db.execute(...)` |
+| `get_last_run(name)` | `db.execute(ETL_GET_LAST_RUN, [name])` | `await async_db.execute(...)` |
+
+### The One Parity Risk: Transform Callable in Async Context
+
+The `transform` callable is a sync Python function (pandas is sync-only). In the async accessor, calling it directly blocks the event loop. The existing `run_sync` pattern (used in `async_database.py` at lines 1937, 1971, 2026) shows how to handle this for pandas operations: `await conn.run_sync(lambda sync_conn: pd.read_sql(...))`. However, `transform` takes a DataFrame, not a connection.
+
+**Recommendation:** In `AsyncEtlAccessor.run()`, wrap the transform call:
+```python
+import asyncio
+loop = asyncio.get_event_loop()
+df = await loop.run_in_executor(None, pipeline.transform, df)
+```
+This delegates the sync callable to the default thread pool executor, consistent with how `conn.run_sync` works internally. Document this in the numpydoc docstring under a "Notes" section. This is the only divergence between sync and async execution paths.
+
+---
 
 ## Scaling Considerations
 
 | Scale | Architecture Adjustments |
 |-------|--------------------------|
-| Single developer | Current architecture perfect. Direct connections, no pooling. |
-| Small team, low traffic | Add connection pooling (psycopg_pool), keep monolithic. |
-| High traffic, connection limits | Implement RetryPool, add read replicas, query result caching. |
-| Very high traffic | Split to connection pooler service (PgBouncer), add monitoring. |
+| Small pipelines (<100K rows) | No changes; `upsert_many` batch insert suffices |
+| Large pipelines (>1M rows) | For truncate-load mode, swap `from_dataframe` for `copy_insert()` (already on `Database`); upsert-by-key stays row-batched |
+| High-frequency pipelines | Add index on `(pipeline_name, started_at)` in `pipeline_runs` for efficient `list_runs` queries |
+| Many parallel pipelines | `pipeline_runs` is append-only; no locking contention on run-tracking writes |
 
-### Scaling Priorities
+These are v0.6.0+ concerns. v0.5.0 uses the standard `upsert_many` / `from_dataframe` paths that exist today.
 
-1. **First bottleneck:** Connection exhaustion (too many clients)
-   - **Fix:** Add connection pooling via psycopg_pool
-   - **When:** More than ~100 concurrent connections
+---
 
-2. **Second bottleneck:** Query performance
-   - **Fix:** Add query caching layer, read replicas
-   - **When:** Specific queries taking >100ms consistently
+## Integration Points with Existing Architecture
 
-3. **Third bottleneck:** Write contention
-   - **Fix:** Batch operations, COPY instead of INSERT
-   - **When:** Bulk imports slow down
+### Existing Patterns Being Reused
 
-**Note:** pycopg is a library, not a service. Users handle their own scaling. Library should provide tools (pooling, batching, COPY) not enforce them.
+| Existing Pattern | How ETL Uses It |
+|-----------------|-----------------|
+| `db.spatial` lazy property in `database.py` | `db.etl` property follows identical shape |
+| `_spatial` private field in `__init__` | `_etl` private field follows identical shape |
+| `AsyncSpatialAccessor` deferred guard pattern | `AsyncEtlAccessor` — no guard needed; `init()` is explicit |
+| `queries.py` SQL constants with section headers | ETL SQL constants added in new `# ETL QUERIES` section |
+| `db.transaction()` context manager | Used for the load step |
+| `db.connect()` context manager | Used for isolated run-tracking writes (`_start_run`, `_end_run`) |
+| `db.to_dataframe()` | Used in `EtlAccessor._extract()` |
+| `db.upsert_many()` | Used in `EtlAccessor._load(mode="upsert")` |
+| `db.from_dataframe()` | Used in `EtlAccessor._load(mode="truncate")` |
+| `conn.run_sync(fn)` pattern | Used in `AsyncEtlAccessor._load` for `df.to_sql` |
+| `validate_identifiers()` | Called in `ExtractSpec.__post_init__` and `LoadSpec.__post_init__` |
+| `test_parity.py` harness | No changes needed — `etl` property appears on both classes automatically |
 
-## Build Order and Dependencies
+---
 
-### Phase 1: Foundation (Current State)
-**Status:** COMPLETE
-- Config, Database (sync), basic operations
-- psycopg integration, context managers
-- Session mode, transactions
+## New vs Modified Files (Explicit List)
 
-### Phase 2: AsyncDatabase Parity (Next)
-**Depends on:** Phase 1
-**Goal:** AsyncDatabase has same features as Database
+### New Files
 
-**Method-by-method approach:**
-1. Audit Database methods (82 total)
-2. Check AsyncDatabase (39 implemented)
-3. Missing: ~43 methods
-4. Add by category:
-   - **DDL:** create_table, drop_table, alter_table, create_index, drop_index
-   - **DQL:** table_info, list_columns, columns_with_types, list_indexes
-   - **Schema:** create_schema, drop_schema
-   - **Extensions:** create_extension, drop_extension
-   - **PostGIS:** create_spatial_index, list_geometry_columns
-   - **TimescaleDB:** create_hypertable, list_hypertables
-   - **Admin:** create_role, drop_role, grant, revoke
-   - **Stats:** table_sizes, index_sizes
+| File | Purpose |
+|------|---------|
+| `pycopg/etl.py` | All ETL code: dataclasses, pure builders, EtlAccessor, AsyncEtlAccessor |
+| `tests/test_etl.py` | Unit tests for pure builders and Pipeline dataclass validation (no DB needed) |
+| `tests/test_etl_integration.py` | Integration tests for EtlAccessor (real PostgreSQL) |
+| `tests/test_etl_async.py` | Integration tests for AsyncEtlAccessor (real PostgreSQL) |
+| `docs/etl.md` | Sphinx documentation page (mirrors `docs/spatial.md`) |
 
-**Pattern:** For each sync method:
-```python
-# 1. Copy signature, add async
-def list_tables(self, schema: str = "public") -> list[str]:
-    ↓
-async def list_tables(self, schema: str = "public") -> list[str]:
+### Modified Files
 
-# 2. Extract SQL from sync version (move to queries.py if not there)
-SQL_LIST_TABLES = "SELECT tablename FROM pg_tables WHERE schemaname = %s"
+| File | Change |
+|------|--------|
+| `pycopg/queries.py` | Add `# ETL QUERIES` section with 5 SQL constants |
+| `pycopg/database.py` | Add `_etl: EtlAccessor | None = None` in `__init__`; add `etl` property |
+| `pycopg/async_database.py` | Add `_etl: AsyncEtlAccessor | None = None` in `__init__`; add `etl` property |
+| `pycopg/__init__.py` | Import and export `EtlAccessor`, `AsyncEtlAccessor`, `Pipeline`, `ExtractSpec`, `LoadSpec` |
+| `docs/index.rst` | Add ETL page to the Sphinx TOC |
+| `CHANGELOG.md` | Record new `db.etl.*` surface |
+| `MIGRATION.md` | Document `db.etl.init()` bootstrap requirement |
 
-# 3. Replace cursor → async with cursor
-with self.cursor() as cur:
-    ↓
-async with self.cursor() as cur:
+### Untouched Files
 
-# 4. Add await to all I/O
-cur.execute(sql, params)
-    ↓
-await cur.execute(sql, params)
+| File | Why |
+|------|-----|
+| `pycopg/base.py` | ETL logic is accessor-level; no new base-class behavior needed |
+| `pycopg/spatial.py` | Not affected |
+| `tests/test_parity.py` | Existing harness catches `etl` property automatically; no changes needed |
 
-cur.fetchall()
-    ↓
-await cur.fetchall()
-```
-
-### Phase 3: Retry/Backoff (Future)
-**Depends on:** Phase 2 (AsyncDatabase parity)
-**Goal:** Production-ready error handling
-
-**Components:**
-1. Create pycopg/retry.py with RetryConfig, with_retry, with_async_retry
-2. Add retry_config parameter to Database.__init__ and AsyncDatabase.__init__
-3. Wrap connection creation in _connect_with_retry() and _async_connect_with_retry()
-4. Document error classification (retriable vs fatal)
-5. Add tests for retry behavior
-
-**Dependencies:**
-- Database parity complete (so both get retry at once)
-- Error catalog documented (what's retriable?)
-- Backoff strategy decided (exponential with jitter)
-
-### Phase 4: Connection Pooling (Future)
-**Depends on:** Phase 3 (Retry)
-**Goal:** High-performance connection reuse
-
-**Components:**
-1. Create pycopg/pool.py with Pool class
-2. Wrap psycopg_pool.ConnectionPool and AsyncConnectionPool
-3. Integrate with RetryConfig
-4. Add pool configuration (min_size, max_size, timeout)
-5. Update Database/AsyncDatabase to optionally use pool
-
-**Why after Retry:** Pool needs retry for connection acquisition failures.
+---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Shared Implementation with Runtime Dispatch
+### Anti-Pattern 1: Lazy `init()` Inside `run()`
 
-**What people do:** Single class with `is_async` flag and runtime checks.
-```python
-# BAD
-class Database:
-    def __init__(self, config, is_async=False):
-        self.is_async = is_async
+**What people do:** Check `IF NOT EXISTS pipeline_runs` on every `run()` call to avoid requiring an explicit init step.
 
-    def execute(self, sql):
-        if self.is_async:
-            return self._async_execute(sql)
-        else:
-            return self._sync_execute(sql)
-```
+**Why it's wrong:** Adds a redundant existence-check round-trip on every pipeline execution. Hides the setup step from the caller's view. Inconsistent with `db.create_extension('postgis')` which is always explicit.
 
-**Why it's wrong:**
-- Type checkers can't infer return type (sync vs awaitable)
-- IDE autocomplete broken
-- Runtime overhead on every call
-- Easy to forget `await` (silent bugs)
+**Do this instead:** Require `db.etl.init()` once at startup. `CREATE TABLE IF NOT EXISTS` makes it safe to call repeatedly.
 
-**Do this instead:** Separate Database and AsyncDatabase classes.
+### Anti-Pattern 2: Writing Run-Tracking Inside the Load Transaction
 
-### Anti-Pattern 2: Method-Level Retry
+**What people do:** Put `pipeline_runs` INSERTs/UPDATEs inside the same `db.transaction()` block as the load.
 
-**What people do:** Add retry logic to each method.
-```python
-# BAD
-def execute(self, sql):
-    for attempt in range(3):
-        try:
-            with self.cursor() as cur:
-                return cur.execute(sql)
-        except OperationalError:
-            time.sleep(1)
-```
+**Why it's wrong:** When the load fails and the transaction rolls back, the `pipeline_runs` row disappears. A failed run leaves no trace.
 
-**Why it's wrong:**
-- Duplicated retry logic across methods
-- Hard to configure (retry count hardcoded)
-- Can't distinguish retriable vs fatal errors
-- Transaction retries need special handling
+**Do this instead:** Use independent connections for run-tracking writes, as described in the Transaction Boundaries section.
 
-**Do this instead:** Retry at connection level with configurable RetryConfig.
+### Anti-Pattern 3: Blocking Transform in Async Accessor
 
-### Anti-Pattern 3: Mocking Real Database in Integration Tests
+**What people do:** Call `pipeline.transform(df)` directly inside an async method.
 
-**What people do:** Use unittest.mock for integration tests.
-```python
-# BAD
-@patch("psycopg.connect")
-def test_integration_create_table(mock_connect):
-    mock_cursor = MagicMock()
-    # ... complex mock setup
-    db.create_table("users", ...)
-```
+**Why it's wrong:** pandas operations are synchronous and can take seconds. This blocks the entire event loop, starving all other coroutines.
 
-**Why it's wrong:**
-- Not testing actual PostgreSQL behavior
-- Mocks diverge from reality (constraint violations, type handling)
-- False confidence (tests pass, real DB fails)
+**Do this instead:** `await loop.run_in_executor(None, pipeline.transform, df)`, consistent with the `conn.run_sync` pattern already in `async_database.py`.
 
-**Do this instead:** Use real `pycopg_test` database for integration tests. Use mocks only for unit tests.
+### Anti-Pattern 4: ETL Logic in base.py
 
-### Anti-Pattern 4: Nested Sessions
+**What people do:** Add `_extract`, `_load`, or pipeline helpers to `DatabaseBase` or `QueryMixin`.
 
-**What people do:** Call session() inside session().
-```python
-# BAD
-with db.session() as s1:
-    with db.session() as s2:  # Error!
-        s2.execute(...)
-```
+**Why it's wrong:** The base/mixin layer is for SQL builders and shared config, not for feature-specific orchestration. Adding ETL logic there couples all Database subclasses to ETL concepts. `spatial.py` established the correct pattern: feature logic goes in a dedicated module with a dedicated accessor.
 
-**Why it's wrong:**
-- Connection leak (s1 connection abandoned)
-- Confusing transaction semantics
-- Not actually reusing connection
+**Do this instead:** All ETL logic stays in `etl.py`. The `Database` and `AsyncDatabase` classes get only a lazy property — no logic.
 
-**Do this instead:** Check for existing session and raise error (already implemented).
+---
 
-### Anti-Pattern 5: Forgetting to Copy Changes to Both Sync and Async
+## Suggested Build Order
 
-**What people do:** Add feature to Database, forget AsyncDatabase.
-```python
-# database.py
-def cool_new_feature(self): ...
+Dependencies drive this order. Each step produces a stable, testable artifact before the next step begins. Sync and async are built simultaneously at each step (not sync-first then async catch-up — the PAR-* rework lesson from v0.4.0).
 
-# async_database.py - MISSING!
-```
+| Step | Components | Deliverable | Test coverage |
+|------|------------|-------------|---------------|
+| 1 | `Pipeline`, `ExtractSpec`, `LoadSpec` frozen dataclasses + `_validate_pipeline()` | Stable, serializable descriptors | `test_etl.py` unit tests, no DB |
+| 2 | `queries.py` ETL constants + `build_init_sql()` + `build_truncate_sql()` pure builders | SQL string constants ready for accessors | `test_etl.py` unit tests, no DB |
+| 3 | `EtlAccessor.init()` + `AsyncEtlAccessor.init()` + `pipeline_runs` table DDL | Foundation for run tracking | Integration: table exists after `init()` |
+| 4 | `_start_run()` + `_end_run()` (sync + async) | Run lifecycle recording | Integration: rows with correct status appear |
+| 5 | `_extract()` (sync + async) | Extract step for both modes | Integration: DataFrame returned from table or SQL |
+| 6 | `_load(mode="truncate")` (sync + async) | Truncate-load path | Integration: data in target table, idempotent on re-run |
+| 7 | `_load(mode="upsert")` (sync + async) | Upsert-by-key path | Integration: idempotent re-runs, conflict resolution |
+| 8 | `EtlAccessor.run()` + `AsyncEtlAccessor.run()` full wiring | End-to-end pipeline execution | Integration: `run()` returns correct dict; `list_runs()` shows history; failure records commit |
+| 9 | `list_runs()` + `get_last_run()` (sync + async) | Query surface complete | Integration: filtering by name, newest-first ordering |
+| 10 | `db.etl` / `async_db.etl` lazy properties + `__init__.py` exports | Public API wired | Parity test passes; import `from pycopg import Pipeline` works |
+| 11 | Docs page + CHANGELOG + coverage gate check | Shippable milestone | `interrogate >= 95`, coverage >= 94 |
 
-**Why it's wrong:**
-- Feature parity breaks
-- Users confused (works in sync, not async)
-- Hard to track what's missing
+**Phase decomposition hint for roadmapper:**
+- Phase A: Steps 1–2 (pure layer — no DB, fully unit-tested before any I/O code)
+- Phase B: Steps 3–4 (run tracking foundation — `init()` + `_start_run`/`_end_run`, sync + async)
+- Phase C: Steps 5–7 (load modes — extract + truncate + upsert, sync + async)
+- Phase D: Steps 8–9 (full runner — `run()` + `list_runs` + `get_last_run`, sync + async)
+- Phase E: Step 10–11 (property wiring + exports + docs + release gate)
 
-**Do this instead:**
-- Checklist when adding methods: "Did I add async version?"
-- Test coverage comparison (sync vs async method count)
-- CI check: `assert len(Database.__dict__) == len(AsyncDatabase.__dict__) + EXPECTED_DIFF`
-
-## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| PostgreSQL | psycopg.Connection | Direct connection, supports all PostgreSQL versions 12+ |
-| PostGIS | ST_* functions via execute() | Optional, detected via list_extensions() |
-| TimescaleDB | create_hypertable, time_bucket | Optional, detected via list_extensions() |
-| SQLAlchemy | engine property (lazy init) | Used only for DataFrame operations (to_dataframe, from_dataframe) |
-| pandas | engine.read_sql, df.to_sql | Optional dependency, import guarded |
-| geopandas | gpd.read_postgis | Optional dependency, import guarded |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Database ↔ Config | Direct attribute access | Config is immutable after creation |
-| Database ↔ psycopg | Context managers | Connection lifecycle managed by with blocks |
-| Database ↔ SQLAlchemy | engine property | Lazy initialization, only created when needed |
-| QueryMixin ↔ Database | Static method calls | Stateless SQL generation |
-| SessionMixin ↔ Database | _session_conn attribute | State stored in instance variable |
-| Database ↔ AsyncDatabase | No communication | Completely independent |
+---
 
 ## Sources
 
-**Confidence level: HIGH** - Based on direct codebase analysis and established Python async patterns.
-
-**Primary sources:**
-- pycopg codebase analysis (database.py: 2299 lines, async_database.py: 768 lines, base.py: 194 lines)
-- psycopg 3 documentation (official PostgreSQL adapter patterns)
-- Python asyncio patterns (context managers, async/await semantics)
-- pytest async testing patterns (pytest-asyncio, fixtures)
-
-**Patterns validated by:**
-- HTTPX library (parallel sync/async implementations)
-- aiohttp vs requests (separate async/sync libraries)
-- SQLAlchemy 2.0 (separate async extension)
-- encode/databases (async-first database library)
-
-**Limitations:**
-- No access to web search or external docs during research
-- Retry/backoff patterns based on training data (standard exponential backoff with jitter)
-- Test isolation patterns based on common pytest practices
+- Direct source reading: `pycopg/spatial.py` (2731 lines) — canonical pattern mirrored
+- Direct source reading: `pycopg/queries.py` — SQL constant style and sectioning convention
+- Direct source reading: `pycopg/base.py` — `DatabaseBase`, `QueryMixin`, `SessionMixin`, pure builder functions
+- Direct source reading: `pycopg/database.py` — `spatial` property (lines 229–249), `transaction()` (lines 316–335), `upsert_many` (lines 484–527)
+- Direct source reading: `pycopg/async_database.py` — `spatial` property (lines 95–110), `run_sync` usage in `to_dataframe`/`from_dataframe` (lines 1937, 1971, 2026)
+- Direct source reading: `pycopg/__init__.py` — `__all__` export conventions
+- Direct source reading: `tests/test_parity.py` — parity harness mechanics (lines 1–110): `inspect.getmembers`, `SYNC_ONLY_METHODS`, `ASYNC_ONLY_METHODS`, signature comparison
+- Direct source reading: `.planning/PROJECT.md` — v0.5.0 scope, deferred items (API-05 savepoints, v0.6.0 watermarks), architectural decisions table
 
 ---
-*Architecture research for: pycopg v0.2.0 - PostgreSQL/PostGIS/TimescaleDB Python library*
-*Researched: 2026-02-11*
+
+*Architecture research for: pycopg v0.5.0 ETL Pipeline Runner*
+*Researched: 2026-06-14*

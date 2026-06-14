@@ -1,208 +1,412 @@
-# Pitfalls Research: Python Database Library Consolidation
+# Pitfalls Research
 
-**Domain:** Python database abstraction libraries (PostgreSQL)
-**Researched:** 2026-02-11
-**Confidence:** MEDIUM-HIGH
+**Domain:** Same-DB ETL pipeline-runner on psycopg 3 — adding `db.etl.*` / `async_db.etl.*` to pycopg v0.5.0
+**Researched:** 2026-06-14
+**Confidence:** HIGH (codebase read directly; pitfalls derived from actual code patterns, not generic ETL theory)
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Incomplete Async Parity Creates Silent Feature Gaps
+### Pitfall 1: Failed Run Leaves No Trace — the Log-in-Same-Transaction Trap
 
 **What goes wrong:**
-AsyncDatabase is missing ~60% of Database methods (DataFrame ops, backup/restore, extensive admin). Users discover missing methods at runtime, not import time. No type hints or documentation warn about incomplete parity.
+
+The run-tracking INSERT into `pipeline_runs` lives inside the same transaction as the load step. When the load fails, the transaction rolls back — taking the failure record with it. The next operator has no evidence the run ever started, no error message, no timestamp, no partial row count. Debugging requires grep-ing logs rather than querying `pipeline_runs`.
+
+The mirror failure also exists: if the run-log UPDATE (marking success) runs before a commit that then fails, the "success" record is also rolled back, leaving `pipeline_runs` showing "running" forever.
 
 **Why it happens:**
-- Async methods require different implementation (await, AsyncIterator, asynccontextmanager)
-- DataFrame/SQLAlchemy integration is inherently synchronous (pandas/geopandas lack async support)
-- Developers add features to sync first, defer async "for later"
-- No automated parity checking enforces feature completeness
+
+The natural implementation wraps everything in one `with db.transaction()` block: open run record → extract → transform → load → update run record → commit. This seems clean but the transaction atomicity guarantee works against observability. The pattern is copied from simpler "wrap all side effects in one transaction" thinking.
 
 **How to avoid:**
-1. **Document divergence explicitly** - README comparison matrix showing which methods exist in each
-2. **Raise NotImplementedError with helpful messages** - Add stubs for missing methods that explain why unavailable
-3. **Use shared base class or protocol** - Define interface, mark async-incompatible methods clearly
-4. **Automated parity tests** - CI checks that every Database method either exists in AsyncDatabase or has documented exception
+
+Use a separate, independent connection for all `pipeline_runs` writes. This is the standard pattern in ETL tooling (Airflow, dbt, Prefect all write task state on a dedicated connection with `autocommit=True` to survive the main transaction's rollback).
+
+Concretely for pycopg:
+
+1. Open the `pipeline_runs` row immediately on a *new* connection (not the pool's main connection) with `autocommit=True`. Use `psycopg.connect(**db.config.connect_params(), autocommit=True)`.
+2. Run the pipeline (extract → transform → load) on the main connection/pool.
+3. On any exception, write `status='failed'`, `error=str(exc)`, `finished_at=now()` on the same dedicated autocommit connection before re-raising.
+4. On success, write `status='success'`, `rows_loaded=n`, `finished_at=now()` on the dedicated connection.
+
+The dedicated connection must be opened and closed within the runner function — never grabbed from the existing pool while the pool may be exhausted (see Pitfall 4).
 
 **Warning signs:**
-- Users file issues like "AsyncDatabase doesn't have X method"
-- Documentation doesn't mention sync vs async differences
-- No tests comparing method lists between Database and AsyncDatabase
-- Import errors discovered at runtime instead of type-check time
+
+- `pipeline_runs` table has a "running" row with no corresponding failure row after a known-failed run.
+- `SELECT * FROM pipeline_runs WHERE status = 'running' AND started_at < now() - interval '1 hour'` returns rows.
+- The run-log INSERT is inside the same `db.transaction()` context manager as the TRUNCATE and the INSERT of loaded data.
 
 **Phase to address:**
-Phase 1 (API Audit) - Document all gaps, add NotImplementedError stubs, create parity comparison matrix
+
+Run-tracking phase (design the schema + runner skeleton). Must be settled before the load phase is wired, because the load transaction boundary depends on this decision. Write a test: deliberately fail the load step and assert a `failed` row exists in `pipeline_runs`.
 
 ---
 
-### Pitfall 2: Connection Lifecycle Leaks in Session Mode Exception Paths
+### Pitfall 2: Truncate-Then-Fail Destroys Target Data With No Recovery Path
 
 **What goes wrong:**
-In session mode, if exception occurs during cleanup (`_session_conn.close()` line 352), connection stays alive but `_session_conn` eventually set to None. Connection leaks accumulate, exhausting database connection limits. Subsequent session attempts create new connections without closing orphaned ones.
+
+Truncate-load order is: TRUNCATE target → extract from source → transform → INSERT into target. If extraction or transform fails after the TRUNCATE but before data is inserted, the target table is empty and the source data is still in its original table (because same-DB). However if the TRUNCATE and INSERT are in the same transaction, a rollback restores the target — which is correct and safe. The trap is implementing truncate-load outside a transaction (e.g., as two separate `autocommit` statements), leaving the target empty with no rollback possible.
 
 **Why it happens:**
-- Cleanup logic: `finally` block in lines 350-353 (database.py) sets `_session_conn = None` after close
-- If `close()` raises exception, `_session_conn` may stay populated OR be set to None while connection remains open
-- No timeout for idle session connections
-- No protection against reentry beyond single RuntimeError check
+
+Developers think "TRUNCATE is fast and I'll INSERT right after" and skip the transaction wrapper. This is particularly likely when COPY is used for the INSERT (the existing `copy_insert` opens its own `conn.commit()` — see `database.py:694`), because COPY already manages its own commit internally, making it incompatible with an outer transaction without explicit savepoints or a staging table.
 
 **How to avoid:**
-1. **Separate state tracking from resource cleanup** - Use try/finally to guarantee `_session_conn = None` even if close fails
-2. **Track connection state separately** - Add `_session_active` flag independent of connection object
-3. **Add connection timeout** - Set `idle_in_transaction_session_timeout` at connection level
-4. **Catch and log cleanup errors** - Wrap `close()` in try/except, log but don't reraise during cleanup
+
+For truncate-load: always wrap TRUNCATE + INSERT in a single `db.transaction()` block. This guarantees atomicity: either both succeed or the target is restored.
+
+For large-data loads where COPY performance is needed: use a staging table pattern — INSERT into `target_staging` via COPY (own commit), then `BEGIN; TRUNCATE target; INSERT INTO target SELECT * FROM target_staging; COMMIT; DROP TABLE target_staging`. The staging copy is resumable; only the atomic swap risks data loss if crashed mid-swap, and the source is always intact.
+
+For v0.5.0's scope (same-DB, not huge tables initially), the simple `TRUNCATE + batch INSERT` inside one transaction is the safe default. Document that COPY-based truncate-load is deferred.
 
 **Warning signs:**
-- PostgreSQL connection count grows over time without returning to baseline
-- "Too many connections" errors after extended running
-- Tests pass individually but fail when run in suite (connection exhaustion)
-- `pg_stat_activity` shows IDLE connections from application long after requests complete
+
+- `TRUNCATE` is called via `db.execute(..., autocommit=True)` anywhere in the load path.
+- The existing `copy_insert` method is used for truncate-load without a staging table.
+- Tests do not assert that a failed mid-load leaves the target in its pre-run state.
 
 **Phase to address:**
-Phase 2 (Connection Lifecycle) - Refactor session cleanup with guaranteed state reset, add connection timeout config
+
+Load phase (idempotent load implementation). Write a specific test: start truncate-load, raise an exception mid-insert, assert target row count equals the pre-run count (not zero).
 
 ---
 
-### Pitfall 3: Silent Migration File Skipping Masks Configuration Errors
+### Pitfall 3: Upsert With Missing or Wrong Conflict Key — Silent Duplicates or Constraint Errors
 
 **What goes wrong:**
-`_get_migrations()` (line 152-153) catches MigrationError and continues silently. User creates `001-create_users.sql` (dash instead of underscore) but migration is skipped without warning. Database state diverges from expected without indication.
+
+Two failure modes. First: the conflict key is not the table's actual unique/PK constraint. psycopg's `ON CONFLICT (col)` requires an exact index match. If `conflict_columns` doesn't match an existing unique index, PostgreSQL raises `ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification` — loud and clear. But if the caller passes a subset of the natural key (e.g., `conflict_columns=["id"]` when the PK is actually `(id, source)`), the INSERT silently creates duplicates because the conflict never triggers.
+
+Second: if `update_columns` is empty (all columns are conflict columns), the generated `DO UPDATE SET` clause is empty, which raises a syntax error. The existing `upsert_many` in database.py computes `update_columns = [c for c in columns if c not in conflict_columns]` but does not guard against the empty-update case.
 
 **Why it happens:**
-- Defensive programming assumes some .sql files may not be migrations
-- No distinction between "invalid migration file" vs "non-migration SQL file"
-- Silent error handling prioritizes robustness over visibility
-- No logging or validation feedback during migration discovery
+
+The ETL pipeline definition will accept `conflict_columns` as a user-provided list. Users copy column names by hand, miss a composite key component, and get no immediate error because inserts still succeed (they just don't deduplicate). The bug only surfaces when data accumulates or when a unique constraint elsewhere catches the duplicate.
 
 **How to avoid:**
-1. **Log skipped files at WARNING level** - `logger.warning(f"Skipping invalid migration file: {f.name}")`
-2. **Validate migration directory on init** - Check all .sql files match pattern, fail fast on invalid names
-3. **Strict mode option** - `strict=True` parameter makes invalid files raise error instead of skip
-4. **Migration validation command** - `migrator.validate()` checks all files parseable before migrate
+
+1. At pipeline definition time (not run time), validate that the `conflict_columns` list is non-empty.
+2. Guard that `update_columns` (or the derived set) is non-empty when using upsert mode. If all columns are conflict columns, raise `ValueError("upsert_mode requires at least one non-conflict column to update; use load_mode='truncate' for replace semantics")`.
+3. Document clearly: the user must ensure `conflict_columns` matches an existing unique constraint or PK. pycopg cannot auto-detect this without an introspection query (which would be overengineering for v0.5.0).
+4. Consider an optional `verify_conflict_constraint=True` flag on the pipeline that does a one-time introspection check via `pg_constraint`.
 
 **Warning signs:**
-- Migration count lower than number of .sql files in directory
-- Migrations directory has files with similar but incorrect naming patterns
-- Database schema missing expected tables/columns after migrate
-- No log output during migration discovery phase
+
+- `pipeline_runs` shows `rows_loaded=N` but `SELECT COUNT(*) FROM target` grows without bound across re-runs (duplicates accumulating).
+- `conflict_columns` is set to `["id"]` on a table with a composite PK.
+- No test asserts that re-running a pipeline leaves the row count unchanged (idempotency assertion).
 
 **Phase to address:**
-Phase 3 (Migration Reliability) - Add logging to skipped files, create validation command, add strict mode
+
+Pipeline definition and load phase. Add a test: run the same pipeline twice with upsert mode; assert `SELECT COUNT(*) FROM target` is the same after both runs.
 
 ---
 
-### Pitfall 4: Retry/Backoff Absence Amplifies Transient Network Errors
+### Pitfall 4: Pool Exhaustion When Run-Log Connection Is Grabbed From the Same Pool
 
 **What goes wrong:**
-Single transient connection error (network hiccup, database restart, connection pool exhaustion on server) causes entire operation to fail. Users must implement retry logic in every callsite. Long-running batch operations fail 90% complete due to momentary network issue.
+
+If the run-log writes (open, update, close) use `async_db.execute(...)` or `db.execute(...)` — which draw from the connection pool — while the main pipeline connection is already held, a pool of size 1 deadlocks: the main connection waits for the log write, the log write waits for a free connection. With pool size > 1 this works but wastes a connection slot and makes the ETL surface depend on pool sizing.
+
+For the async path this is more dangerous: `AsyncDatabase` uses `psycopg_pool.AsyncConnectionPool`. If the runner holds one connection for the duration of the run and then tries to execute the run-log update on the same pool's second connection, concurrency is lost and pool exhaustion is a ticking clock as more pipelines run simultaneously.
 
 **Why it happens:**
-- psycopg raises `OperationalError` for transient issues, but pycopg doesn't distinguish transient from permanent
-- No retry policy at Database/AsyncDatabase level
-- Operations assumed to be atomic and short-lived (not true for migrations, batch inserts, pg_dump)
-- Connection errors treated same as SQL syntax errors
+
+The simplest implementation of run-log writes reuses `self._db.execute(...)`. This is natural — why open a new connection when we already have one? The answer is that the log write must survive the main transaction's rollback, which requires a *separate* connection outside the pool's transaction lifecycle.
 
 **How to avoid:**
-1. **Categorize exceptions** - Distinguish transient (connection timeout, server shutdown) from permanent (auth failure, missing database)
-2. **Exponential backoff decorator** - `@retry(on=[OperationalError], max_attempts=3, backoff=exponential)`
-3. **Operation-level retry config** - `execute(..., retry_policy=RetryPolicy(max_attempts=3))`
-4. **Circuit breaker for permanent failures** - Stop retrying after N consecutive failures of same type
+
+Open the dedicated run-log connection directly via `psycopg.connect(...)` / `psycopg.AsyncConnection.connect(...)` using `db.config.connect_params()`, not via the pool. Close it explicitly in a `finally` block. This is a raw connection, not managed by the pool, so it does not exhaust pool slots and its commits are independent.
+
+For the async path, the run-log connection must be `await psycopg.AsyncConnection.connect(..., autocommit=True)` and closed with `await log_conn.close()` in `finally`.
 
 **Warning signs:**
-- Application logs show identical connection errors repeatedly in quick succession
-- Operations fail with "connection reset by peer" or "server closed the connection unexpectedly"
-- Batch operations fail near completion and must restart from beginning
-- Users implementing their own retry wrappers around pycopg methods
+
+- The runner method calls `self._db.execute("INSERT INTO pipeline_runs ...")` while inside a `with self._db.transaction()` block.
+- Pool size is 1 and a test hangs (deadlock) when both the main flow and run-log write are attempted.
+- The run-log connection appears in `pg_stat_activity` with a name tied to the pool connection label.
 
 **Phase to address:**
-Phase 4 (Resilience) - Add retry policy to Config, implement backoff decorator, categorize exception types
+
+Run-tracking phase. Test: configure a pool of size 1; run a pipeline; assert it completes without hanging and that the run-log row was written.
 
 ---
 
-### Pitfall 5: Real Database Testing Without Isolation Causes Cascade Failures
+### Pitfall 5: Sync Transform Called Bare Inside the Async Runner (Blocks the Event Loop)
 
 **What goes wrong:**
-Tests run against real PostgreSQL (`pycopg_test` database) without proper isolation. One test creates table `users`, another test assumes it doesn't exist. Test execution order matters. Parallel test execution causes conflicts. CI randomly fails with "table already exists" or "table does not exist".
+
+The transform callable is a user-supplied Python function, typically operating on a pandas DataFrame. pandas is synchronous and CPU-bound. If the async runner calls it directly — `result = transform_fn(df)` — it blocks the event loop for the duration of the transform, stalling all other coroutines. For large DataFrames this can block for seconds.
+
+This is exactly the problem `run_sync` / `conn.run_sync` was adopted for in the existing `AsyncDatabase.to_dataframe` / `from_dataframe` (see `async_database.py:1937`).
 
 **Why it happens:**
-- Shared database state across tests
-- Cleanup (DROP/TRUNCATE) in teardown misses edge cases (transactions not committed, cascade dependencies)
-- Tests not idempotent - assume clean slate but don't guarantee it
-- No per-test schema isolation or database cloning
+
+The transform callable's type is `Callable[[pd.DataFrame], pd.DataFrame]` — identical between sync and async paths. The async runner naturally calls it the same way as the sync runner does, forgetting that in async context the call must be delegated to a thread pool.
 
 **How to avoid:**
-1. **Per-test schema isolation** - Create `test_schema_{uuid}` for each test, drop in teardown
-2. **Transaction rollback pattern** - Run each test in transaction, rollback at end (if DDL allows)
-3. **Fixture-based database cloning** - Use template database, clone for each test/class
-4. **Cleanup verification** - Assert no leftover objects before AND after each test
-5. **Parallel execution safety** - Use pytest-xdist with per-worker database or schema
+
+In the async runner, wrap all transform calls in `await asyncio.to_thread(transform_fn, df)` (Python 3.9+; pycopg already requires 3.11+). This is the correct async pattern for CPU/IO-bound callables.
+
+The async runner method signature remains identical to the sync runner (for parity), but internally the transform dispatch differs: sync calls `transform_fn(df)` directly; async calls `await asyncio.to_thread(transform_fn, df)`.
+
+Document the contract: transforms must be thread-safe (they receive a DataFrame slice, not a shared reference). Since transforms operate on in-memory DataFrame copies, thread safety is trivially satisfied.
 
 **Warning signs:**
-- Tests pass individually (`pytest test_database.py::test_create_table`) but fail in suite
-- Tests fail differently on different runs (flaky tests)
-- CI failures don't reproduce locally
-- Error messages like "relation already exists" or "relation does not exist"
-- Tests fail when run in parallel but pass serially
+
+- The async runner's transform dispatch reads `result = transform_fn(df)` without `await asyncio.to_thread(...)`.
+- The async runner test passes with small DataFrames but the event loop appears to stall under load.
+- `asyncio.sleep(0)` injected into a concurrent coroutine never yields during a pipeline run.
 
 **Phase to address:**
-Phase 5 (Test Infrastructure) - Implement per-test schema isolation, add cleanup verification, enable parallel testing
+
+Async accessor phase (ETL parity). Write a test: run a pipeline with a slow transform (`time.sleep(0.1)` inside) concurrently with an `asyncio.sleep(0)` task; assert the sleep task completes while the transform is running (fails if the event loop is blocked).
 
 ---
 
-### Pitfall 6: Breaking Changes Without Migration Path Strand Existing Users
+### Pitfall 6: Identifier Injection via f-String Table Names in Load Builders
 
 **What goes wrong:**
-v0.3.0 renames methods, changes signatures, removes deprecated APIs. Users upgrade via `pip install --upgrade pycopg` and application breaks at runtime. No warnings, no deprecation period, no migration guide. Production incidents spike after upgrade.
+
+The ETL load step needs to generate SQL like `TRUNCATE public.target_table` and `INSERT INTO public.target_table (col1, col2) VALUES (...)`. The temptation is to use f-strings directly: `f"TRUNCATE {schema}.{table}"`. This bypasses the `validate_identifiers` guard that every other module in pycopg uses and that was specifically hardened in v0.3.1.
+
+This is a security regression: a pipeline definition with `target_table="target; DROP TABLE users; --"` would execute arbitrary SQL.
 
 **Why it happens:**
-- "Breaking changes allowed" interpreted as "no migration support needed"
-- Assumption users read changelogs before upgrading
-- No versioning strategy for API compatibility
-- Type hints change but runtime errors only discovered in production
+
+The ETL load builder is new code written quickly; the developer knows the identifier validation exists in `utils.py` but writes the SQL builder first ("I'll add validation later") and later never comes. The spatial.py builders are a working example of every identifier passing through `validate_identifiers` before interpolation — the ETL builders must follow the same pattern.
 
 **How to avoid:**
-1. **Deprecation warnings before removal** - Use `warnings.warn()` for 1-2 versions before breaking change
-2. **Compatibility shims** - Keep old names as aliases with deprecation warnings
-3. **Migration guide in CHANGELOG** - Before/after examples for every breaking change
-4. **Semver enforcement** - 0.2.0 → 0.3.0 signals breaking changes, document in release notes
-5. **Runtime version checks** - Allow users to pin API version: `Database(config, api_version="0.2")`
+
+Copy the spatial.py builder pattern exactly: the ETL load builder functions (analogous to `build_contains_sql`) must call `validate_identifiers(table, schema)` and `validate_identifiers(*conflict_columns)` before any string interpolation. Column lists must be validated before joining. Values are always `%s` parameters, never f-string interpolated.
+
+The existing `upsert_many` already calls `validate_identifiers(*conflict_columns)` and `validate_identifiers(*update_columns)` — the ETL builders must reuse this same call site pattern, not replicate it ad-hoc.
 
 **Warning signs:**
-- GitHub issues titled "Upgrade to 0.3.0 broke our application"
-- Questions like "What happened to Database.from_dataframe()?"
-- No deprecation warnings in 0.2.x versions
-- CHANGELOG has "Breaking Changes" section but no migration examples
-- Type hints incompatible between versions but no runtime errors until production
+
+- Any ETL load builder function that does not call `validate_identifiers` before the first f-string including a user-supplied identifier.
+- A test_sql_injection.py test that does NOT cover `db.etl.run(pipeline=Pipeline(target="malicious; DROP"))`.
+- Column names from a DataFrame being joined with `", ".join(df.columns)` without validation.
 
 **Phase to address:**
-Phase 6 (Breaking Changes Management) - Add deprecation warnings, create migration guide, implement compatibility shims where feasible
+
+Load phase (SQL builder, day one). Add ETL cases to `test_sql_injection.py`. This must be in the first load phase, not deferred to a hardening phase.
 
 ---
 
-### Pitfall 7: Mixing Sync/Async in Event Loop Creates Deadlocks
+### Pitfall 7: Materializing the Full Source Table Into Memory for Transform
 
 **What goes wrong:**
-User calls sync `Database.execute()` from within async function. Thread blocks waiting for connection, but connection callback needs event loop. Deadlock or `RuntimeError: cannot schedule new futures after shutdown`. Subtle - works in simple cases, fails under load.
+
+The transform callable receives a `pd.DataFrame`. For a small table (thousands of rows) this is fine. For a large table (millions of rows) this is a silent OOM bomb: `to_dataframe("source_table")` reads the entire table into a single DataFrame before the transform is called, exhausting memory with no warning.
+
+The tension is fundamental: Python-callable transforms need data in memory; large tables cannot fit in memory. The wrong solution is to silently allow unbounded extraction. The right solution is to document the constraint and add a safety opt-in.
 
 **Why it happens:**
-- Python asyncio doesn't prevent calling sync code from async context
-- psycopg sync connection works "by accident" in simple async contexts
-- Database and AsyncDatabase both exposed, users mix them
-- No clear documentation about sync/async boundaries
+
+The MVP is designed for medium-sized datasets where the pattern works. No one adds a limit to the extraction query because "the user knows their data". Then the first production run on a 50M-row table OOMs the process.
 
 **How to avoid:**
-1. **Detect event loop and warn** - Check `asyncio.get_running_loop()` in Database methods, warn if exists
-2. **Separate imports** - Put AsyncDatabase in `pycopg.async_api`, make mixing harder
-3. **Document sync/async rules** - Clear warning in README: "Never call Database from async functions"
-4. **Provide sync-from-async helper** - `await db.run_in_executor(sync_operation)` pattern
+
+For v0.5.0 (same-DB, DataFrame transforms):
+
+1. Add an optional `extract_limit: int | None = None` parameter to the pipeline definition. When set, the extraction SQL appends `LIMIT {int(extract_limit)}`.
+2. Add an optional `extract_batch_size: int | None = None` parameter. When set, the runner uses `db.stream(sql, batch_size=extract_batch_size)` to iterate in batches, calling the transform on each batch DataFrame and loading each batch incrementally.
+3. Document prominently: "The default extraction materializes the full result set into a DataFrame. For tables larger than available RAM, use `extract_batch_size` to process in chunks."
+4. Do NOT silently limit extraction (e.g., force `LIMIT 10000`). That would silently corrupt the load for large tables.
+
+The existing `db.stream()` method (database.py:529, async_database.py:2204) is the mechanism for batch extraction. The ETL runner uses it when `extract_batch_size` is set.
 
 **Warning signs:**
-- Users report hangs when using Database in async web frameworks (FastAPI, aiohttp)
-- Errors like "RuntimeError: Task attached to a different loop"
-- Code works with small datasets, hangs with large datasets (connection pool exhaustion)
-- Deadlocks in CI but not local development
+
+- The extraction step always calls `db.to_dataframe(sql=extract_sql)` with no size guard.
+- No parameter on `Pipeline` or `run()` controls extraction size.
+- The docs do not mention memory requirements.
 
 **Phase to address:**
-Phase 2 (Connection Lifecycle) - Add event loop detection, document sync/async boundaries clearly
+
+Extract phase. Document the memory model in the API docstring. Implement `extract_limit` and `extract_batch_size` as optional parameters from the start rather than retrofitting them.
+
+---
+
+### Pitfall 8: Re-Run While Previous Run Is Still "Running" — Concurrent Execution Corruption
+
+**What goes wrong:**
+
+Two concurrent calls to `db.etl.run(pipeline)` both read `pipeline_runs` and find no active run, then both proceed to TRUNCATE the target and INSERT. With truncate-load, the second TRUNCATE wipes the first run's partial inserts. With upsert mode, both runs write the same conflict keys and the result is non-deterministic. The `pipeline_runs` table ends up with two "running" rows for the same pipeline.
+
+**Why it happens:**
+
+The status check ("is this pipeline already running?") and the run-log INSERT are not atomic. A standard SELECT + INSERT has a race window. This is the classic check-then-act TOCTOU problem.
+
+**How to avoid:**
+
+Use PostgreSQL advisory locks. Before starting the pipeline:
+
+```sql
+SELECT pg_try_advisory_lock(hashtext('pipeline:' || pipeline_name))
+```
+
+If this returns false, the pipeline is already running — raise `PipelineAlreadyRunning` and exit. Advisory locks are session-scoped in PostgreSQL and automatically released when the connection closes, so they survive abnormal termination. They require no schema migration.
+
+Use `pg_try_advisory_lock` (non-blocking) rather than `pg_advisory_lock` (blocking) so the caller gets an immediate error rather than a hang.
+
+The advisory lock must be acquired on the dedicated run-log connection (the same connection opened for run-log writes), so the lock persists for the duration of the run and is released atomically when the log connection closes.
+
+**Warning signs:**
+
+- `pipeline_runs` has two rows with `status='running'` and the same `pipeline_name`.
+- No advisory lock or unique constraint guards concurrent pipeline execution.
+- Tests do not test concurrent `run()` calls on the same pipeline name.
+
+**Phase to address:**
+
+Run-tracking phase. Write a test: a second concurrent `run()` call raises `PipelineAlreadyRunning` immediately rather than proceeding.
+
+---
+
+### Pitfall 9: `test_parity` Passes but ETL Async Accessor Is Missing Methods
+
+**What goes wrong:**
+
+The `test_parity` harness (test_parity.py) inspects `inspect.getmembers(Database)` for all non-underscore members. If `db.etl` is a property returning `EtlAccessor` and `async_db.etl` is a property returning `AsyncEtlAccessor`, the property name `etl` appears in both and parity passes. But if `EtlAccessor` has method `run` and `AsyncEtlAccessor` is missing `run`, the *accessor's* methods are invisible to `test_parity` — it only sees top-level Database/AsyncDatabase members.
+
+The risk is implementing the ETL accessor with full `EtlAccessor` coverage but forgetting to wire the async accessor, then having `test_parity` pass because both have an `etl` property, while `async_db.etl.run()` is missing.
+
+**Why it happens:**
+
+The `test_parity` harness checks `Database` vs `AsyncDatabase` surface. It does not recursively inspect accessor classes. The spatial accessor had the same gap: SpatialAccessor and AsyncSpatialAccessor needed their own parity test (test_spatial.py covers both sync and async paths).
+
+**How to avoid:**
+
+1. Add a dedicated `TestEtlParity` test class (analogous to the spatial parity tests in test_spatial.py) that inspects `EtlAccessor` vs `AsyncEtlAccessor` method surfaces using the same `inspect.getmembers` pattern.
+2. Add behavioral parity tests: run the same pipeline on both `db.etl` and `async_db.etl`, assert identical `pipeline_runs` outcomes and target row counts.
+3. The `SYNC_ONLY_METHODS` and `ASYNC_ONLY_METHODS` sets in `TestAsyncParity` must remain unchanged (neither `etl` nor its methods should be added as exceptions).
+
+**Warning signs:**
+
+- `test_parity.py` passes but `async_db.etl.run()` has not been implemented.
+- `EtlAccessor` and `AsyncEtlAccessor` have different method names or signatures.
+- No test file named `test_etl.py` or `test_etl_parity.py` with accessor-level method inspection.
+
+**Phase to address:**
+
+Async accessor phase. Write the accessor parity test skeleton before implementing `AsyncEtlAccessor`, so the test fails (xfail or outright) until the async implementation is complete.
+
+---
+
+### Pitfall 10: `pipeline_runs` Schema Blocks v0.6.0 Watermarks — Non-Additive Design
+
+**What goes wrong:**
+
+v0.5.0 defers incremental watermarks to v0.6.0. If `pipeline_runs` is designed without watermark columns in mind, v0.6.0 will require an `ALTER TABLE pipeline_runs ADD COLUMN watermark_value TEXT` migration — which is additive and safe — or worse, a destructive schema change if the status enum or primary key were designed incompatibly.
+
+The specific trap: designing `pipeline_runs` with `status` as a PostgreSQL `ENUM` type. Adding a new enum value (`'partial'`) in v0.6.0 requires `ALTER TYPE` which in older PostgreSQL versions is not transactional and can cause production issues. Using a plain `TEXT` column for status avoids this.
+
+**Why it happens:**
+
+Developers use Postgres ENUM because it feels more correct for a fixed set of values ('running', 'success', 'failed'). But ENUM types are hard to evolve and offer no real constraint benefit over a TEXT column with a CHECK constraint.
+
+**How to avoid:**
+
+Design `pipeline_runs` with explicit forward compatibility from day one:
+
+```sql
+CREATE TABLE pipeline_runs (
+    id SERIAL PRIMARY KEY,
+    pipeline_name TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at TIMESTAMPTZ,
+    rows_extracted INTEGER,
+    rows_loaded INTEGER,
+    error TEXT,
+    -- v0.6.0 watermark slots (nullable, ignored by v0.5.0 runner):
+    watermark_column TEXT,
+    watermark_value TEXT
+);
+```
+
+The watermark columns are nullable and ignored by the v0.5.0 runner. v0.6.0 writes to them without a migration. The PROJECT.md explicitly states: "the `pipeline_runs` table is designed so watermarks slot on additively (nothing wasted)."
+
+**Warning signs:**
+
+- `status` column defined as `ENUM` rather than `TEXT ... CHECK`.
+- No `watermark_column` / `watermark_value` nullable columns in the initial schema.
+- The CREATE TABLE migration is written to be "minimal now, extend later" without the watermark stubs.
+
+**Phase to address:**
+
+Run-tracking phase (schema design, the very first ETL phase). This is a one-time, low-cost action (two nullable columns) with a high-value payoff (no breaking migration in v0.6.0).
+
+---
+
+### Pitfall 11: Scope Creep Toward DAG / Orchestrator
+
+**What goes wrong:**
+
+The natural evolution of "run one pipeline" is "run pipelines in dependency order", then "schedule pipelines", then "retry failed pipelines", then "fan-out on partial failure". Each step is locally reasonable but collectively they build an orchestrator, not a library helper. v0.5.0 is explicitly same-DB, no scheduling, no DAG.
+
+The specific API leaks that trigger this: adding a `depends_on` parameter to `Pipeline`, adding `retry_on_failure` to `run()`, adding a `schedule` cron expression, or adding cross-pipeline status checks in the runner.
+
+**Why it happens:**
+
+The pipeline runner's `pipeline_runs` table is a ready-made task state table. Adding `depends_on` feels like a two-line change. It is — but it also commits to DAG semantics that require topo-sort, cycle detection, fan-out, fan-in, and a scheduler loop. The complexity is O(N pipelines), not O(1).
+
+**How to avoid:**
+
+The v0.5.0 `Pipeline` dataclass must have no `depends_on`, `schedule`, `retry_on_failure`, or `timeout` fields. The `run()` method executes exactly one pipeline, unconditionally. Retry belongs at the caller's level (tenacity is already in the dependency tree if needed). Document the boundary explicitly in the API docstring.
+
+The `pipeline_runs` table does not need a `trigger_source` or `parent_run_id` column in v0.5.0. Those slots can be added additively in a future milestone.
+
+**Warning signs:**
+
+- A `depends_on: list[str]` field appears on the `Pipeline` class.
+- The runner iterates over a list of pipelines in dependency order.
+- `pipeline_runs` has a `parent_run_id` FK column in the v0.5.0 schema.
+- The runner has retry logic beyond the existing tenacity integration.
+
+**Phase to address:**
+
+Pipeline definition phase (define `Pipeline` dataclass). Enforce the boundary in the design document and in the `Pipeline.__init__` signature — simplicity is maintained by not having the parameter.
+
+---
+
+### Pitfall 12: Coverage Gate Drops Below 94% — ETL I/O Paths Hard to Cover
+
+**What goes wrong:**
+
+The 94% coverage ratchet (`--cov-fail-under=94`) was set after measuring actual coverage at 94.09%. ETL code adds new I/O-heavy paths: the dedicated run-log connection, the advisory lock query, the TRUNCATE + INSERT transaction, the `pipeline_runs` DDL. Some of these paths (the failure branch of the run-log write, the pool-size-1 deadlock guard) are hard to cover without real-PostgreSQL integration tests.
+
+If the ETL phase is implemented with only unit tests (mocking the DB), the integration coverage for these paths is zero, and the ratchet blocks the commit.
+
+**Why it happens:**
+
+The existing spatial.py builders are pure functions (no I/O) that are trivially unit-testable. The ETL runner is an I/O-heavy orchestrator that requires a real DB to test meaningfully. Developers writing unit tests for ETL logic (mock DB, mock advisory lock) get high apparent coverage but miss the real integration paths. Then the CI coverage measurement (on real PG) shows lower coverage.
+
+**How to avoid:**
+
+Follow D-08 precedent: measure coverage before raising the ratchet gate. Specifically:
+
+1. Write real-PostgreSQL integration tests for all ETL paths in the test suite (using `pycopg_test` DB), not mocks.
+2. The run-log failure branch (transaction rolled back, failure row written) must be an integration test with a real transaction rollback.
+3. The advisory lock path (second concurrent run blocked) must be an integration test with two connections.
+4. Check `uv run pytest --cov` on real PG before the phase is marked done; if coverage drops below 94%, add more integration tests before raising the gate.
+5. Do not raise the gate in the middle of the ETL phases — only at the final ETL phase after all paths are covered.
+
+**Warning signs:**
+
+- ETL tests use `unittest.mock.patch` for the DB connection instead of `pycopg_test`.
+- `uv run pytest --cov` reports coverage below 94% after ETL code is added.
+- The run-log failure branch has no test.
+
+**Phase to address:**
+
+Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage must be monitored continuously per D-08. The final ETL phase should raise the ratchet only after measuring the new baseline.
 
 ---
 
@@ -210,192 +414,117 @@ Phase 2 (Connection Lifecycle) - Add event loop detection, document sync/async b
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Skip async parity for DataFrame methods | Ship AsyncDatabase faster, avoid complex sync/async bridge | Users blocked from async data pipelines, inconsistent API | Never - document as limitation instead |
-| Hardcode batch size to 1000 | Simple default, no config complexity | Memory issues with wide rows, performance issues with narrow rows | MVP only - must add tuning docs |
-| Silent SRID defaulting to 4326 | Spatial operations work without config | Subtle spatial analysis bugs, data misalignment | Never - require explicit SRID or error |
-| No retry by default | Simple implementation, predictable behavior | Production instability from transient errors | Only if documented as "not production-ready" |
-| Shared test database without isolation | Fast test setup, simple CI | Flaky tests, parallel execution impossible | Local dev only, never CI |
-| Execute pg_dump via subprocess | Avoids reimplementing pg_dump protocol | Password in environment, process control complexity | Acceptable - standard PostgreSQL practice |
-| Monolithic Database class (2299 lines) | Everything in one place, easy to find | Hard to test, hard to extend, navigation difficult | Refactor before adding more features |
+| Run-log INSERT in same transaction as load | Simpler code, one transaction | Failed runs leave no trace; debugging blind | Never |
+| `copy_insert` for truncate-load without staging table | Faster inserts | Truncate-then-fail leaves empty target; cannot roll back | Never for truncate-load path |
+| Skip `validate_identifiers` in ETL load builders | Faster to write | SQL injection regression, bypasses hardened security | Never |
+| Use Postgres ENUM for `pipeline_runs.status` | Feels type-safe | ALTER TYPE headache in v0.6.0 when adding watermark status values | Never |
+| Call `transform_fn(df)` directly in async runner | Identical code path to sync | Blocks event loop; test passes (small df) but fails in production | Never |
+| No advisory lock for concurrent runs | Simpler pipeline runner | Silent data corruption on concurrent invocation of truncate-load | Never for truncate-load; acceptable for upsert only if idempotency proven |
+| Materialize full table with no size guard | Simpler API | OOM on first production-scale run | Acceptable only if `extract_limit` documented as mandatory for large tables |
+| Skip ETL accessor parity test | test_parity still passes | Async accessor silently diverges; parity is pycopg's core value | Never |
+| Mock DB in ETL tests instead of real PG | Faster test run | Coverage metric lies; real bugs (pool deadlock, txn rollback) not caught | Never for integration paths |
+
+---
 
 ## Integration Gotchas
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| SQLAlchemy for DataFrames | Mixing psycopg connection with SQLAlchemy engine causes connection leaks | Use SQLAlchemy engine exclusively for DataFrame ops, psycopg for everything else |
-| AsyncDatabase with FastAPI | Calling sync Database methods from FastAPI async endpoints causes blocking | Always use AsyncDatabase in async web frameworks |
-| TimescaleDB operations | Calling compression/retention before creating hypertable gives cryptic errors | Check extension exists AND table is hypertable before all timescale ops |
-| PostGIS SRID inference | Assuming gdf.crs.to_epsg() always works silently defaults to 4326 | Require explicit SRID parameter, error if CRS cannot be determined |
-| Connection pooling | Using PooledDatabase with long-running operations exhausts pool | Set timeout, use session mode, or increase pool size for batch operations |
-| Migration rollback | Assuming DOWN section exists causes error on rollback attempt | Check for DOWN section before allowing rollback, document as optional |
+| psycopg 3 `executemany` | Using for large bulk loads | `executemany` in psycopg 3 sends rows one by one (not batched VALUES); use `insert_batch` for <10k rows or `copy_insert` for >10k rows |
+| psycopg 3 COPY inside a transaction | Wrapping `COPY FROM STDIN` in `conn.transaction()` | COPY operates within the current transaction in psycopg 3; `copy_insert` opens its own connection and calls `conn.commit()` explicitly — ETL must not call `copy_insert` inside an outer `db.transaction()` block without a staging table |
+| pandas `to_sql` / `read_sql` in async | Calling directly in async method | Must go through `conn.run_sync(lambda sync_conn: ...)` as all existing `to_dataframe`/`from_dataframe` async methods already do (async_database.py:1937) |
+| pandas NaN in numeric columns | `NaN` sent to a nullable integer or text column | psycopg 3 sends `float('nan')` as the float NaN literal, not SQL NULL; use `df.where(df.notna(), other=None)` before `insert_batch` or `to_sql` |
+| Timezone-naive timestamps | DataFrame `datetime64[ns]` (naive) inserted into `TIMESTAMPTZ` column | PostgreSQL infers session timezone, producing silent data corruption; ensure DataFrame timestamps are `datetime64[ns, UTC]` or use `dtype={"col": TIMESTAMP(timezone=True)}` in `to_sql` |
+| `validate_identifier` vs DataFrame column names | DataFrame columns with spaces or hyphens (e.g., `"order-date"`) fail `validate_identifier` | ETL load builder must validate all target column names; if source DataFrame has non-identifier columns, the transform step must rename them before load |
+| psycopg 3 `stream()` and server-side cursors | Using `fetchmany` on a regular cursor thinking it streams from DB | `fetchmany` on a regular cursor buffers the full result set server-side after `execute()`; for true streaming, use `psycopg.ServerCursor` (sync) or `psycopg.AsyncServerCursor` (async) — the existing `stream()` method uses regular `fetchmany` which is not truly server-side streaming |
+
+---
 
 ## Performance Traps
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| fetchall() on large result sets | OOM errors, application freeze | Use cursor iteration or streaming API | >100k rows with wide tables |
-| Connection per operation (no pooling) | High latency, connection exhaustion | Use PooledDatabase or session mode | >10 concurrent requests |
-| No statement_timeout | Long-running queries never timeout, block connections | Set statement_timeout in Config | First unbounded query (SELECT * JOIN) |
-| insert_batch with huge batches | Memory spike, transaction timeout | Chunk into smaller batches, tune batch_size | >10k rows or wide rows (>100 columns) |
-| Sync Database in async framework | Thread pool exhaustion, blocking event loop | Use AsyncDatabase exclusively | First high-concurrency load test |
-| Missing indexes on migration tracking | Migration status queries slow with many migrations | Index on schema_migrations(version) | >1000 migrations |
+| `executemany` for ETL load | Loading 50k rows takes 30s instead of 3s | Use `insert_batch` (batch VALUES) for <10k rows; `copy_insert` for >10k rows | >1k rows |
+| Full-table DataFrame extract | Memory spike then OOM or swap thrash | Use `extract_batch_size` to stream in chunks via `db.stream()` | >100k rows on a typical 4GB instance |
+| Advisory lock on pool connection | Lock released when pool recycles the connection before the run ends | Acquire advisory lock on the dedicated run-log connection (not the pool) | Any run lasting longer than pool's `max_idle` timeout |
+| Upsert with no index on conflict columns | Upsert degrades to sequential scan for each row; target table locks | Ensure `conflict_columns` are covered by a unique index before the pipeline runs | >10k rows in target table |
+| Transform receiving the full DataFrame then re-chunking | Two copies of the data in memory (source df + chunked df) | Design the transform to operate on the chunk size that will be passed; document batch size contract | >50k rows with complex transforms |
+
+---
 
 ## Security Mistakes
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Logging connection strings with passwords | Credentials in log files, error tracking services | Mask passwords in Config.url/dsn, warn in docstrings |
-| SQL identifier validation bypass | SQL injection via crafted schema/table names | Never allow user input directly as identifiers without validation |
-| PGPASSWORD in subprocess environment | Password visible in process environment during pg_dump | Document as unavoidable PostgreSQL limitation, consider .pgpass |
-| No SSL/TLS connection enforcement | Man-in-the-middle attacks, credential interception | Add sslmode parameter to Config, default to 'require' |
-| Overly permissive role grants | Application users with superuser or DDL permissions | Document principle of least privilege, provide grant templates |
+| f-string interpolation of `pipeline.target_table` | SQL injection via pipeline definition | Call `validate_identifiers(table, schema)` before any interpolation, same as all other pycopg builders |
+| f-string interpolation of `pipeline.conflict_columns` | SQL injection via conflict column list | Call `validate_identifiers(*conflict_columns)` before joining into ON CONFLICT clause |
+| User-controlled `extract_sql` with raw string injection | ETL pipeline as SQL injection vector if query params not used | Document that `extract_sql` is user-supplied raw SQL (same accepted limitation as spatial `where=` raw fragment); consider noting it in the docstring |
+| `pipeline_runs.error` storing full exception repr | Exception messages may leak internal paths or connection strings | Truncate to 1024 chars; strip connection strings from exception messages before storing |
 
-## UX Pitfalls
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| RuntimeError on missing async method | Users discover incompleteness at runtime | Provide NotImplementedError with helpful message linking docs |
-| Silent migration file skipping | Database state diverges from expected | Log skipped files, provide validation command |
-| No feedback during long operations | Users think pg_dump/migrate is hung | Add progress callbacks or verbose mode |
-| Cryptic psycopg errors propagated | "server closed connection unexpectedly" without context | Catch and wrap with operation context ("Failed during migration 005_...") |
-| No connection string validation | Errors on first execute instead of at init | Validate config on Database creation, test connection if requested |
+---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Async parity:** Verify all Database methods either exist in AsyncDatabase OR explicitly documented as unavailable
-- [ ] **Connection cleanup:** Check session mode cleans up connections even if close() raises exception
-- [ ] **Migration validation:** Confirm all .sql files in migrations/ are valid migrations (no silent skips)
-- [ ] **Test isolation:** Verify each test can run independently and in parallel without conflicts
-- [ ] **Error categorization:** Confirm transient errors (connection reset) distinguished from permanent (auth failure)
-- [ ] **Retry logic:** Check retry happens for appropriate errors, doesn't retry on SQL syntax errors
-- [ ] **Breaking changes:** Verify deprecation warnings exist in 0.2.x for features removed in 0.3.0
-- [ ] **SRID handling:** Confirm spatial operations require explicit SRID, never silently default
-- [ ] **Pool exhaustion:** Check PooledDatabase handles timeout gracefully, doesn't deadlock
-- [ ] **Transaction isolation:** Verify migrations run in transaction, rollback on failure (or document as not transactional)
+- [ ] **Run-log independence:** The `pipeline_runs` INSERT and UPDATE use a dedicated non-pool connection, not `db.execute()`. Test: fail a load step; assert `pipeline_runs` has `status='failed'` row.
+- [ ] **Truncate atomicity:** TRUNCATE and subsequent INSERT share a single transaction. Test: exception mid-insert; assert target row count equals pre-run count.
+- [ ] **Upsert idempotency:** Run the same pipeline twice; assert `SELECT COUNT(*) FROM target` is identical after both runs (no duplicates).
+- [ ] **Async event-loop safety:** Transform callable goes through `asyncio.to_thread()` in the async runner. Test: slow transform + concurrent coroutine; assert concurrent coroutine is not blocked.
+- [ ] **ETL accessor parity:** `EtlAccessor` and `AsyncEtlAccessor` have identical method names and signatures. `TestEtlParity` class exists and passes.
+- [ ] **Identifier validation in load builders:** Every ETL SQL builder calls `validate_identifiers` before any identifier interpolation. `test_sql_injection.py` covers `etl.run(target="malicious")`.
+- [ ] **Watermark slots in schema:** `pipeline_runs` has nullable `watermark_column` and `watermark_value` TEXT columns from the initial migration.
+- [ ] **Memory guard documented:** API docstring for `Pipeline` or `run()` states the memory contract and documents `extract_limit` / `extract_batch_size` parameters.
+- [ ] **Advisory lock test:** A second concurrent `run()` call raises `PipelineAlreadyRunning` immediately rather than proceeding or hanging.
+- [ ] **Coverage gate:** `uv run pytest` still reports >= 94% after all ETL code is added. Coverage measured on real PG (per D-08), not mocks.
+- [ ] **No scope creep:** `Pipeline` dataclass has no `depends_on`, `schedule`, `retry_on_failure`, or `parent_run_id` fields.
+- [ ] **NaN/timezone type adaptation:** Test with DataFrame containing NaN numerics and timezone-naive timestamps; assert NULL and UTC stored correctly in target.
+
+---
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Connection leak from session mode | LOW | Add connection timeout config, restart application |
-| Silent migration skipping | HIGH | Write manual migration to reconcile DB state, fix file naming |
-| Async/sync mixing deadlock | MEDIUM | Refactor to use AsyncDatabase, add event loop detection |
-| Test database pollution | LOW | Drop and recreate test database, improve cleanup |
-| Breaking change without migration | MEDIUM | Release patch with compatibility shim, document migration path |
-| SRID silent defaulting | HIGH | Audit all spatial data, re-import with correct SRID |
-| Missing retry causing production failures | MEDIUM | Add retry at application level temporarily, upgrade to version with retry |
-| Pool exhaustion | LOW | Increase pool size via resize(), add connection timeout |
+| Failed run leaves no trace (log in same txn) | HIGH | Audit PostgreSQL logs for ERROR messages; check `pg_stat_activity` history if `log_min_duration_statement` is enabled; architectural fix required before next run |
+| Truncate-load data loss (no transaction wrapper) | HIGH | Source data is intact (same-DB); restore target from source with manual INSERT SELECT; add transaction wrapper before next run |
+| Duplicate rows from wrong conflict key | MEDIUM | `DELETE FROM target WHERE ctid NOT IN (SELECT MIN(ctid) FROM target GROUP BY natural_key_cols)`; audit pipeline definition for correct conflict_columns |
+| Pool deadlock from run-log on pool connection | MEDIUM | Restart application; switch run-log to dedicated raw connection |
+| OOM from full-table DataFrame extract | LOW | Kill process; re-run with `extract_batch_size` set; no data corruption (transaction rolled back or extract never completed) |
+| Async event-loop blockage from direct transform call | LOW | No data corruption; fix async runner to use `asyncio.to_thread`; redeploy |
+| test_parity failure from missing async ETL method | LOW | Implement missing async accessor method; parity test is a CI gate so this surfaces immediately before merge |
+
+---
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Incomplete async parity | Phase 1 (API Audit) | All Database methods have AsyncDatabase equivalent OR documented exception |
-| Session connection leaks | Phase 2 (Connection Lifecycle) | Stress test session mode with exception injection, no leaked connections |
-| Silent migration skipping | Phase 3 (Migration Reliability) | Invalid migration filenames logged at WARNING level |
-| No retry/backoff | Phase 4 (Resilience) | Transient connection errors retry 3x with exponential backoff |
-| Test isolation failures | Phase 5 (Test Infrastructure) | Tests pass in parallel with pytest-xdist |
-| Breaking changes without migration | Phase 6 (Breaking Changes Management) | All breaking changes have deprecation warnings in 0.2.x |
-| Sync/async mixing | Phase 2 (Connection Lifecycle) | Database methods warn if called from async context |
-| SRID silent defaulting | Phase 4 (Resilience) | from_geodataframe requires srid param or raises error |
-
-## Domain-Specific Warnings
-
-### PostgreSQL-Specific
-
-**DDL requires autocommit:**
-Many Database methods (`create_database`, `create_extension`, `vacuum`) require `autocommit=True`. If called within transaction, PostgreSQL raises cryptic "cannot run inside a transaction block" error.
-
-**Prevention:** Document autocommit requirement in docstrings, auto-enable for known DDL operations
-
----
-
-**pg_dump blocking behavior:**
-`pg_dump` subprocess blocks Python process. Async users expect non-blocking. No async version available because subprocess I/O.
-
-**Prevention:** Document as sync-only operation, consider ThreadPoolExecutor wrapper for AsyncDatabase
-
----
-
-**TimescaleDB hypertable restrictions:**
-Once table converted to hypertable, cannot drop columns or alter primary key. Silent failure if attempted.
-
-**Prevention:** Document restrictions in create_hypertable docstring, check for hypertable before destructive operations
-
----
-
-### Python Async-Specific
-
-**Context manager cleanup timing:**
-`async with db.transaction()` commits/rollbacks on exit, but if exception during cleanup, may leak transaction state.
-
-**Prevention:** psycopg handles this correctly, but document that user code in finally block sees committed/rolled-back state
-
----
-
-**Event loop closure:**
-If AsyncDatabase instance outlives event loop, connection cleanup fails. Common in pytest with async fixtures.
-
-**Prevention:** Always use `async with AsyncDatabase()` pattern or call `await db.close()` explicitly
-
----
-
-**Asyncio subprocess limitations:**
-`asyncio.create_subprocess_exec` doesn't support all subprocess features (pg_dump piping). Forces sync subprocess usage.
-
-**Prevention:** Document pg_dump/pg_restore as sync-only even in AsyncDatabase
-
----
-
-### Testing-Specific
-
-**DDL not transactional:**
-CREATE/DROP TABLE cannot rollback. Per-test transaction isolation doesn't work for DDL-heavy tests.
-
-**Prevention:** Use per-test schema instead of per-test transaction for tests with DDL
-
----
-
-**PostgreSQL template database corruption:**
-If test crashes during write to template, all future clones corrupted. Rare but catastrophic.
-
-**Prevention:** Never write to template database, only clone from it. Use template0 as base if needed
-
----
-
-**Connection pool interference:**
-PooledDatabase maintains background workers. If not closed in test teardown, workers interfere with next test.
-
-**Prevention:** Always call `db.close()` or use context manager in pooling tests
+| Run-log in same transaction (no trace on failure) | Run-tracking phase (schema + runner skeleton) | Test: fail a load step; assert `pipeline_runs` has `status='failed'` row |
+| Truncate-then-fail data loss | Load phase (idempotent load) | Test: exception mid-insert; assert target row count unchanged |
+| Wrong upsert conflict key / empty update set | Pipeline definition + load phase | Test: two runs of same pipeline; assert count unchanged |
+| Pool exhaustion from run-log on pool | Run-tracking phase | Test: pool size 1; run completes without deadlock; run-log row written |
+| Sync transform blocks async event loop | Async accessor phase (ETL parity) | Test: slow transform + concurrent sleep; assert sleep yields during transform |
+| Identifier injection in load builders | Load phase (SQL builders, day one) | test_sql_injection.py covers `etl.run(target="malicious; DROP --")` |
+| Full-table OOM | Extract phase | `extract_limit` / `extract_batch_size` params in API; test with explicit limit |
+| Concurrent run corruption | Run-tracking phase | Test: second concurrent `run()` raises `PipelineAlreadyRunning` immediately |
+| ETL accessor parity gap | Async accessor phase | `TestEtlParity` inspects `EtlAccessor` vs `AsyncEtlAccessor` method surfaces |
+| `pipeline_runs` schema blocks v0.6.0 watermarks | Run-tracking phase (initial migration) | Schema has nullable `watermark_column` + `watermark_value` from creation |
+| NaN/timezone type adaptation | Load phase | Test: DataFrame with NaN numerics and naive timestamps; assert NULL and UTC stored |
+| Scope creep toward DAG/orchestrator | Pipeline definition phase (design gate) | `Pipeline` has no `depends_on`, `schedule`, `retry_on_failure` parameters |
+| Coverage gate drops below 94% | Every ETL phase | `uv run pytest --cov` on real PG; measure before raising gate per D-08 |
 
 ---
 
 ## Sources
 
-**Confidence: MEDIUM-HIGH**
-
-- **HIGH confidence sources:**
-  - pycopg codebase analysis (database.py, async_database.py, migrations.py, pool.py)
-  - .planning/codebase/CONCERNS.md (known bugs and tech debt)
-  - Python training data on asyncio patterns and database library patterns
-
-- **MEDIUM confidence sources (training data, needs verification):**
-  - psycopg3 async behavior and connection pooling patterns
-  - Common Python library migration/versioning practices
-  - PostgreSQL testing best practices
-
-- **Areas needing verification:**
-  - Specific psycopg3 retry/backoff recommendations (not found in codebase)
-  - Latest PostgreSQL DDL transaction behavior changes
-  - Modern pytest-asyncio fixture patterns
-
-**Recommendations:**
-- Verify retry/backoff patterns against psycopg3 official docs when available
-- Validate test isolation strategies against actual CI environment
-- Confirm breaking change migration practices against PyPI ecosystem norms
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/database.py` — `transaction()`, `insert_batch()`, `upsert_many()`, `copy_insert()`, `stream()`
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/async_database.py` — `run_sync` via `conn.run_sync()`, async `stream()`, async `transaction()`, `to_dataframe()`/`from_dataframe()` patterns
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/spatial.py` — builder pattern with `validate_identifiers`, accessor pattern precedent for ETL
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/utils.py` — `validate_identifiers`, `validate_identifier` — reuse mandated for ETL load builders
+- pycopg source: `/home/loc/workspace/pycopg/tests/test_parity.py` — `TestAsyncParity` harness; `SYNC_ONLY_METHODS` / `ASYNC_ONLY_METHODS` — ETL must not add to exception lists
+- pycopg project: `/home/loc/workspace/pycopg/.planning/PROJECT.md` — D-06/D-07/D-08 parity/coverage decisions; "pipeline_runs designed so watermarks slot on additively"; coverage ratchet stays at 94% baseline
+- Pattern precedent: Airflow, dbt, Prefect all use separate/autocommit connections for task-state persistence (run-log must survive main transaction rollback)
+- PostgreSQL docs: `pg_try_advisory_lock` for non-blocking concurrency guard; `TEXT + CHECK` vs `ENUM` for evolvable status columns; COPY within transaction semantics in psycopg 3
 
 ---
-
-*Pitfalls research for: Python Database Library Consolidation (pycopg v0.3.0)*
-*Researched: 2026-02-11*
-*Note: WebSearch/WebFetch unavailable during research. Findings based on codebase analysis, known issues documentation, and training data. Mark as needing validation for production use.*
+*Pitfalls research for: same-DB ETL pipeline-runner on psycopg 3 (pycopg v0.5.0)*
+*Researched: 2026-06-14*

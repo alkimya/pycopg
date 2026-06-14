@@ -1,324 +1,381 @@
 # Project Research Summary
 
-**Project:** pycopg v0.3.0 Consolidation
-**Domain:** Python Database Library (PostgreSQL/PostGIS/TimescaleDB)
-**Researched:** 2026-02-11
-**Confidence:** MEDIUM-HIGH
+**Project:** pycopg v0.5.0 — ETL Pipeline Runner
+**Domain:** Declarative same-DB ETL layer on top of an existing sync/async PostgreSQL library
+**Researched:** 2026-06-14
+**Confidence:** HIGH
 
 ## Executive Summary
 
-pycopg is a high-level Python database library providing DataFrame-first API, native PostGIS/TimescaleDB support, and built-in migrations. Research reveals v0.3.0 consolidation must address critical technical debt: 60% async/sync parity gap, missing resilience features (retry/backoff), and connection lifecycle leaks in session mode. The recommended approach is to achieve full API parity between Database and AsyncDatabase through parallel implementations (not abstraction layers), add production-grade error handling with retry policies, and strengthen test infrastructure with isolation patterns. This consolidation release lays the foundation for production readiness without requiring breaking changes to existing user code.
+pycopg v0.5.0 adds a thin, declarative ETL layer (`db.etl.*` / `async_db.etl.*`) on top of the
+primitives already shipped in v0.4.0 — no new runtime dependencies. The entire feature surface
+(Pipeline dataclass, EtlAccessor, AsyncEtlAccessor, `pipeline_runs` run-tracking table) is built
+from stdlib `dataclasses` + `typing.Protocol`, the existing `to_dataframe` / `upsert_many` /
+`from_dataframe` / `transaction()` methods, and SQL constants added to `queries.py`. The
+implementation mirrors `spatial.py` exactly: pure, DB-free builder functions at module level; a
+single `etl.py` file containing both sync and async accessors; lazy `db.etl` / `async_db.etl`
+properties in `database.py` / `async_database.py`.
 
-The key insight from architecture research is that pycopg's parallel sync/async implementation pattern (following psycopg3's design) is correct—the challenge is discipline in maintaining parity across 82+ methods. Testing infrastructure needs containerized PostgreSQL (testcontainers) for reliable integration tests and proper isolation patterns to prevent cascade failures. The biggest risk is incomplete async parity creating silent feature gaps that users discover at runtime—this can be mitigated through automated parity checking, explicit documentation of limitations, and NotImplementedError stubs with helpful messages.
+The recommended build order flows from the hard dependency graph: the pure layer (Pipeline
+dataclass + SQL builders) must precede any I/O code; the `pipeline_runs` schema must be finalised
+before load modes are wired (the two-independent-connection pattern for run-log writes is a
+transaction-boundary architectural decision that the load step depends on); load modes (truncate /
+upsert) must be solid before the full `run()` orchestrator is assembled; async parity is built in
+parallel at each step — not bolted on at the end, per the PAR-* lesson from v0.4.0.
 
-Core recommendation: Structure v0.3.0 around 6 phases focusing on (1) API audit and parity documentation, (2) connection lifecycle robustness, (3) migration reliability, (4) retry/backoff resilience, (5) test infrastructure modernization, and (6) breaking change management. This ordering addresses critical stability issues first while enabling parallel feature development.
+Three open design decisions surface across the research files and must be resolved at requirements
+or early roadmap planning before any code is written: (1) how `pipeline_runs.watermark` is
+represented (JSONB single column vs. two TEXT columns); (2) whether a load failure re-raises the
+original exception or wraps it in a new `PipelineError`; and (3) whether `pipeline_runs` is
+auto-created lazily on first `run()` or requires an explicit `db.etl.init()` call. The researchers
+are not unanimous on (3): ARCHITECTURE.md favours explicit `init()`, FEATURES.md lists auto-create
+as table stakes (ETL-14). This must be decided before Phase B starts.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Current stack (psycopg3, SQLAlchemy 2, pandas 2, pytest) is solid for core operations. v0.3.0 consolidation requires incremental additions focused on testing infrastructure and resilience patterns. No major rewrites needed—most additions are non-breaking enhancements.
+**Verdict: zero new runtime dependencies.** Every ETL capability required by v0.5.0 is already
+present in the installed stack (psycopg 3.3.4, psycopg_pool 3.3.1, pandas 3.0.3, SQLAlchemy 2.0.50,
+tenacity 9.1.4) or in Python 3.11+ stdlib (`dataclasses`, `typing.Protocol`, `asyncio.to_thread`,
+`datetime`, `uuid`). No new `pyproject.toml` entry is needed.
 
-**Core technologies to add:**
-- **testcontainers[postgres] 4.8.2**: Isolated PostgreSQL instances per test suite—industry standard for database integration testing, far superior to pytest-postgresql for complex scenarios
-- **tenacity 9.0.0**: Declarative retry with exponential backoff—de facto standard for resilience, cleaner than custom implementations
-- **pytest-asyncio 0.24.0**: Async test support with auto mode—required for AsyncDatabase testing, reduces boilerplate
-- **pytest-xdist 3.6.1**: Parallel test execution—catches connection pool issues, verifies thread safety
-- **mypy 1.13.0**: Static type checking—critical for library code, catches async type errors
+**Core technologies (roles in ETL layer):**
+- **stdlib `dataclasses` + `typing.Protocol`:** `Pipeline`, `ExtractSpec`, `LoadSpec` frozen
+  dataclasses; `TransformFn` Protocol. Zero-dep, introspectable, validated via `__post_init__`.
+- **psycopg 3.3.4:** extract (raw SQL SELECT), load (INSERT / COPY), DDL for `pipeline_runs`,
+  independent autocommit connections for run-log writes.
+- **pandas 3.0.3:** extract result is a DataFrame; transform callable receives and returns one;
+  load delegates to existing `from_dataframe` / `upsert_many`.
+- **SQLAlchemy 2.0.50:** already wired via `to_dataframe` / `from_dataframe`; ETL load reuses the
+  same path.
+- **`asyncio.to_thread` (stdlib):** wraps sync transform callables in `AsyncEtlAccessor` — the
+  same delegation pattern as `conn.run_sync` throughout `async_database.py`.
+- **tenacity 9.1.4:** inherited transparently; ETL runner benefits from existing
+  `OperationalError` retry without any new wiring.
 
-**Critical version notes:** All versions from training data (Jan 2025), verify current versions with `pip index versions [package]` before implementation.
+Do NOT add: dlt, Airflow, Prefect, Pydantic, attrs, alembic, apache-beam, asyncpg, pyarrow, or any
+scheduler. All are overkill for same-DB, single-process, Python-callable-transform ETL.
 
 ### Expected Features
 
-pycopg's value proposition is high-level API without ORM complexity. Users expect production-grade resilience features alongside the unique DataFrame/PostGIS/TimescaleDB integrations.
+**Must have (table stakes — all 14 ETL-* items):**
+- ETL-01: `Pipeline` dataclass — declarative, inspectable descriptor
+- ETL-02: Extract from SQL string or table name — delegates to `to_dataframe`
+- ETL-03: Python callable transform (`DataFrame -> DataFrame`), optional / no-op
+- ETL-04: Load mode `append` — `insert_many`, target must exist
+- ETL-05: Load mode `replace` (truncate-load) — atomic TRUNCATE + INSERT in one transaction
+- ETL-06: Load mode `upsert` — `upsert_many` with `conflict_columns`, validated at construction
+- ETL-07: `pipeline_runs` table — persistent run audit, auto-created, forward-compat schema
+- ETL-08: Status lifecycle `running` -> `success` / `failed` with timestamps + row counts + error
+- ETL-09: Transactional load — load transaction separate from run-tracking transaction
+- ETL-10: `db.etl.run(pipeline) -> RunResult` — primary execution entry point
+- ETL-11: `db.etl.history(pipeline_name)` — query past runs, newest-first
+- ETL-12: Full async parity — `async_db.etl.run(pipeline)` and `async_db.etl.history(name)`
+- ETL-13: `EtlAccessor` / `AsyncEtlAccessor` lazy accessor on `db.etl` / `async_db.etl`
+- ETL-14: `pipeline_runs` auto-created on first use — no manual DDL required
 
-**Must have (table stakes for v0.3.0):**
-- Full async/sync parity (currently 40%, needs 60% more methods in AsyncDatabase)
-- Retry policy with exponential backoff for transient connection errors
-- Query timeout support (expose PostgreSQL statement_timeout)
-- Named parameter support (`:name` syntax like SQLAlchemy, not just `%s`)
-- Comprehensive structured logging (connection lifecycle, query execution, errors)
-- Session mode robustness (fix cleanup leak at line 352 of database.py)
-- Migration gap detection (validate sequence, detect deleted files)
-- Extension pre-checks (all PostGIS/TimescaleDB methods validate extension exists)
-- Connection health checks (validate pool connections before checkout)
-- Error context improvements (migration errors include file path, line number)
+**Should have (differentiators — add after MVP validation):**
+- Transform chain: `transform=[clean, normalize, enrich]` — replace single callable with list
+- `dry_run=True` mode — extract + transform, skip load, return `RunResult(status='dry_run')`
+- `db.etl.last_run(pipeline_name)` — convenience wrapper over `history()[0]`
+- GeoDataFrame-aware load — detect GeoDataFrame post-transform, route to `from_geodataframe`
+- `pipeline_runs` schema-configurable — `ETLAccessor(db, schema='etl')` for multi-tenant isolation
 
-**Should have (competitive differentiators):**
-- DataFrame-first API (unique strength—expand to async, currently sync-only)
-- TimescaleDB first-class support (hypertable, compression as native methods)
-- PostGIS first-class support (GeoDataFrame round-trip without type guessing)
-- Built-in migration system (zero-config, no Alembic complexity)
-- COPY protocol helpers (optimized bulk insert, 10-100x faster than INSERT)
-- Transaction isolation levels (SERIALIZABLE, READ COMMITTED control)
-- Savepoint support (nested transactions)
-- Result streaming for sync (async already has it, sync missing)
-
-**Defer to v0.4.0+ (avoid scope creep):**
-- ORM/model layer (duplicates SQLAlchemy, maintenance nightmare)
-- Query builder/fluent API (never as good as SQLAlchemy Core)
-- Schema diff/auto-migration (complex, error-prone)
-- Multi-database support (pycopg is PostgreSQL-specific by design)
-- Query result caching (application concern, not library responsibility)
+**Defer to v0.6.0+ (anti-features for v0.5.0):**
+- Incremental / watermark-based extract (`pipeline_runs` schema includes nullable watermark now so
+  v0.6.0 requires no ALTER TABLE)
+- Cross-DB transfer
+- File source / sink (CSV, Parquet)
+- SQL-only transforms
+- Scheduling / cron / DAG / orchestration
+- Streaming / micro-batch transforms
 
 ### Architecture Approach
 
-pycopg's architecture is appropriate for its scale: monolithic Database/AsyncDatabase classes with shared mixins for SQL generation. The parallel sync/async implementation pattern (separate classes, duplicated methods) is the correct choice despite code duplication—runtime abstraction layers would add complexity without benefit.
+The ETL layer adds one new file (`pycopg/etl.py`) and modifies four existing files (`queries.py`,
+`database.py`, `async_database.py`, `__init__.py`). The pattern is a direct mirror of `spatial.py`:
+pure, DB-free builder functions and frozen dataclasses at module level; both `EtlAccessor` (sync)
+and `AsyncEtlAccessor` (async) in the same file; shared SQL builders called by both accessors
+without duplication; lazy `db.etl` / `async_db.etl` properties using the identical shape as
+`db.spatial` / `async_db.spatial`.
 
 **Major components:**
-1. **Database (sync, 2299 lines)** — Complete PostgreSQL operations API using psycopg.Connection
-2. **AsyncDatabase (async, 768 lines)** — Async subset (needs ~43 additional methods for parity)
-3. **Shared base layer** — DatabaseBase (factory methods), QueryMixin (SQL building), SessionMixin (connection reuse)
-4. **Connection layer** — psycopg for DDL/admin, SQLAlchemy engine for DataFrame operations (lazy init)
 
-**Critical architectural patterns:**
-- **Parallel implementations over abstraction**: Maintain separate Database and AsyncDatabase, share only non-I/O logic through mixins
-- **Connection-level retry**: Retry at connection acquisition, not per-method—keeps business logic clean
-- **Session mode for batching**: Connection reuse critical for performance, but cleanup logic needs hardening
-- **Three-tier testing**: Unit (mocked), integration (real DB), extension (PostGIS/TimescaleDB optional)
+1. **`Pipeline` / `ExtractSpec` / `LoadSpec` frozen dataclasses** (`etl.py`) — immutable, DB-free,
+   validated in `__post_init__`; `conflict_columns` validated at construction time, not run time;
+   `validate_identifiers` called on all identifier fields.
+2. **Pure SQL builders** (`etl.py` module level) — `build_init_sql()`, `build_truncate_sql()`,
+   shared between sync and async accessors; fully unit-testable without a DB.
+3. **ETL SQL constants** (`queries.py` new `# ETL QUERIES` section) — `ETL_INIT_PIPELINE_RUNS`,
+   `ETL_INSERT_RUN`, `ETL_UPDATE_RUN`, `ETL_LIST_RUNS`, `ETL_GET_LAST_RUN`.
+4. **`EtlAccessor` (sync)** (`etl.py`) — public: `init()`, `run(pipeline)`, `list_runs(name,
+   limit)`, `get_last_run(name)`; private: `_start_run()`, `_end_run()`, `_extract()`, `_load()`.
+5. **`AsyncEtlAccessor` (async)** (`etl.py`) — identical public signature; all methods `async def`;
+   transform dispatch via `asyncio.to_thread(transform_fn, df)` instead of direct call.
+6. **Lazy `db.etl` / `async_db.etl` properties** (`database.py` / `async_database.py`) — two lines
+   each: `_etl` field in `__init__`, lazy property following `db.spatial` shape exactly.
+7. **`pipeline_runs` table** — forward-compat schema: TEXT status with CHECK constraint, BIGSERIAL PK,
+   nullable `watermark` JSONB column (present and NULL in v0.5.0), independent autocommit connections
+   for run-log writes.
+
+**Critical transaction boundary:**
+Run-log writes (`_start_run`, `_end_run`) use a dedicated raw connection opened via
+`psycopg.connect(**db.config.connect_params(), autocommit=True)`, never the pool. The load step
+runs inside `db.transaction()`. This ensures a failed load still records `status='failed'` in
+`pipeline_runs` — the failure record is never rolled back.
 
 ### Critical Pitfalls
 
-Research identified 7 critical pitfalls based on codebase analysis and CONCERNS.md documentation. Top 5 must be addressed in v0.3.0:
+1. **Run-log in same transaction as load** — if `pipeline_runs` INSERT/UPDATE shares the load
+   transaction, a failed run leaves no trace. Prevention: always use a dedicated autocommit
+   connection for run-log writes, opened independently of the pool. Test: deliberately fail the
+   load; assert `pipeline_runs` has `status='failed'` row.
 
-1. **Incomplete async parity creates silent feature gaps** — Users discover missing methods at runtime, not import time. 60% of Database methods missing from AsyncDatabase. **Avoid by:** documenting divergence explicitly, adding NotImplementedError stubs with helpful messages, automated parity tests in CI
+2. **Truncate-then-fail data loss** — TRUNCATE without a wrapping transaction leaves the target
+   empty if load fails after TRUNCATE. Prevention: always wrap TRUNCATE + INSERT in a single
+   `db.transaction()`. Do NOT use `copy_insert` for truncate-load (COPY manages its own commit and
+   is incompatible with an outer transaction without a staging table). Test: exception mid-insert;
+   assert target row count equals pre-run count.
 
-2. **Connection lifecycle leaks in session mode exception paths** — If `_session_conn.close()` raises exception (line 352), connection stays alive but reference lost. Connections accumulate, exhausting database limits. **Avoid by:** separate state tracking from resource cleanup, wrap close() in try/except that never reraises during cleanup, add connection timeout config
+3. **Identifier injection in load SQL builders** — f-string interpolation of `pipeline.load_table`
+   or `conflict_columns` without `validate_identifiers` is a SQL injection regression against the
+   hardening shipped in v0.3.1. Prevention: every ETL load builder must call
+   `validate_identifiers(table, schema)` and `validate_identifiers(*conflict_columns)` before any
+   string interpolation. Extend `test_sql_injection.py` to cover ETL cases.
 
-3. **Silent migration file skipping masks configuration errors** — `_get_migrations()` catches MigrationError and continues silently (lines 152-153). User creates `001-create_users.sql` (dash instead of underscore) but migration skipped without warning. **Avoid by:** log skipped files at WARNING level, add validation command, implement strict mode option
+4. **Sync transform blocks the async event loop** — calling `transform_fn(df)` directly in
+   `AsyncEtlAccessor.run()` blocks the event loop. Prevention: `await asyncio.to_thread(transform_fn, df)`
+   — the same pattern as `conn.run_sync` in `async_database.py`. Test: slow transform + concurrent
+   coroutine; assert the concurrent coroutine is not blocked.
 
-4. **Retry/backoff absence amplifies transient network errors** — Single transient connection error (network hiccup, database restart) causes entire operation to fail immediately. Long-running batch operations fail 90% complete. **Avoid by:** categorize exceptions (transient vs permanent), exponential backoff decorator with jitter, operation-level retry config, circuit breaker for permanent failures
+5. **ETL accessor parity gap invisible to `test_parity`** — `test_parity.py` inspects top-level
+   `Database` vs `AsyncDatabase` members; it sees `db.etl` on both but does not recurse into
+   accessor classes. Prevention: add `TestEtlParity` class that inspects `EtlAccessor` vs
+   `AsyncEtlAccessor` method surfaces using `inspect.getmembers`.
 
-5. **Real database testing without isolation causes cascade failures** — Tests against `pycopg_test` database without proper isolation. One test creates table, another assumes it doesn't exist. Parallel execution causes conflicts, CI randomly fails. **Avoid by:** per-test schema isolation with unique names, transaction rollback pattern where possible, fixture-based cleanup verification, parallel execution safety with pytest-xdist
+6. **`pipeline_runs` schema blocks v0.6.0** — using a PostgreSQL ENUM for `status` requires
+   `ALTER TYPE` to add future values. Prevention: `status TEXT NOT NULL CHECK (status IN
+   ('running', 'success', 'failed'))` with a nullable `watermark JSONB` column present from
+   creation (always NULL in v0.5.0, written by v0.6.0 without ALTER TABLE).
 
-**Additional pitfalls for Phase 6:**
-6. **Breaking changes without migration path** — v0.3.0 changes strand users if no deprecation warnings, compatibility shims, or migration guide provided
-7. **Mixing sync/async in event loop creates deadlocks** — Users call sync Database.execute() from async functions, thread blocks waiting for connection while callback needs event loop
+7. **Coverage gate drops below 94%** — ETL adds I/O-heavy paths that need real-PG integration
+   tests to cover. Prevention: write integration tests against `pycopg_test` for all ETL paths;
+   measure `uv run pytest --cov` on real PG before raising the gate; per D-08, never raise the
+   ratchet without measuring.
+
+8. **Scope creep toward DAG / orchestrator** — `Pipeline` must not grow `depends_on`, `schedule`,
+   `retry_on_failure`, or `parent_run_id` fields. `run()` executes exactly one pipeline,
+   unconditionally. Document this boundary in the `Pipeline` docstring.
 
 ## Implications for Roadmap
 
-Based on combined research, v0.3.0 consolidation should be structured around **6 sequential phases** that build on each other. This ordering addresses critical stability issues first (async parity, connection leaks) before adding new features (retry, testing). Each phase delivers incremental value while avoiding the pitfall of "big bang" releases.
+The four researcher agents converged on a five-phase build order. Slight ordering differences
+(ARCHITECTURE.md listed 11 steps; FEATURES.md grouped by feature cluster; PITFALLS.md mapped
+pitfalls to phases) are reconciled here into one recommended sequence.
 
-### Phase 1: API Audit & Async Parity Foundation
-**Rationale:** Cannot add features to AsyncDatabase until we know what's missing. Documenting gaps unblocks parallel development of async methods.
+### Phase A: Pure Layer + Dataclasses (no DB)
 
-**Delivers:**
-- Complete API comparison matrix (Database vs AsyncDatabase methods)
-- NotImplementedError stubs for all missing async methods with helpful messages
-- Automated parity checking in CI (fails if method count diverges)
-- Documentation section: "Sync vs Async API Differences"
+**Rationale:** All downstream phases depend on the `Pipeline` / `ExtractSpec` / `LoadSpec`
+dataclasses and the shared SQL builders. Building these first produces a stable, fully unit-testable
+artifact before any I/O code is written.
 
-**Addresses features:** Full async/sync parity (documentation phase), comprehensive logging (identify what needs instrumentation)
+**Delivers:** Frozen dataclasses with `__post_init__` validation; `TransformFn` Protocol;
+`_validate_pipeline()`; pure builder functions; `queries.py` ETL constants section. All
+unit-tested without a DB connection.
 
-**Avoids pitfall:** #1 (Incomplete async parity creating silent feature gaps)
+**Addresses:** ETL-01 (Pipeline dataclass), ETL-13 partial (accessor stubs)
 
-**Research needed:** No—this is audit work, patterns are clear
+**Avoids:** Scope creep (no DAG/scheduler fields in Pipeline); identifier injection
+(`validate_identifiers` called in `__post_init__` from day one); wrong-schema trap
+(`pipeline_runs` schema decided here, before DDL is written — resolve OD-1 and OD-3 in this phase).
 
----
-
-### Phase 2: Connection Lifecycle Robustness
-**Rationale:** Connection leaks prevent long-running applications from being production-ready. Must fix before adding pooling or retry (both make leaks worse).
-
-**Delivers:**
-- Hardened session mode cleanup (guaranteed state reset even if close() fails)
-- Connection timeout configuration (idle_in_transaction_session_timeout)
-- Event loop detection in Database methods (warn if called from async context)
-- Stress tests for session mode with exception injection
-- Connection leak monitoring test utilities
-
-**Addresses features:** Session mode robustness, connection health checks foundation
-
-**Avoids pitfall:** #2 (Connection lifecycle leaks), #7 (Sync/async mixing deadlocks)
-
-**Uses stack:** pytest-xdist for concurrent stress testing
-
-**Research needed:** No—psycopg3 connection patterns are well-documented
+**Research flag:** No deeper research needed. Pattern is fully established by `spatial.py`.
 
 ---
 
-### Phase 3: AsyncDatabase Method Parity
-**Rationale:** With audit complete and connection lifecycle solid, systematically add missing async methods. Longest phase but enables all async use cases.
+### Phase B: Run-Tracking Foundation (schema + lifecycle)
 
-**Delivers:**
-- 43 missing async methods implemented (DataFrame ops, backup/restore, admin, PostGIS, TimescaleDB)
-- Async integration tests for all new methods
-- DataFrame async patterns documented (workarounds for pandas sync-only limitation)
-- All extension methods (PostGIS, TimescaleDB) check for extension existence before operations
+**Rationale:** The `pipeline_runs` schema and the two-connection run-log pattern are architectural
+decisions that load wiring depends on. If the transaction boundary is designed wrong here, all
+subsequent load phases inherit the bug. This phase must be complete and tests green before any
+load code is written.
 
-**Addresses features:** Full async/sync parity (implementation), async DataFrame methods, async backup methods, extension pre-checks
+**Delivers:** `ETL_INIT_PIPELINE_RUNS` DDL; `EtlAccessor.init()` + `AsyncEtlAccessor.init()`;
+`_start_run()` / `_end_run()` on dedicated autocommit connection (sync + async); `pipeline_runs`
+row lifecycle (running -> success / failed); advisory lock (`pg_try_advisory_lock`) for
+concurrent-run guard.
 
-**Avoids pitfall:** #1 (Complete async parity eliminates feature gaps)
+**Addresses:** ETL-07, ETL-08, ETL-14, ETL-09 partial (transaction boundary design)
 
-**Uses stack:** pytest-asyncio for async test coverage, QueryMixin for shared SQL building
+**Avoids:** Run-log-in-same-transaction trap; pool exhaustion (raw `psycopg.connect`, not pool);
+`pipeline_runs` schema blocking v0.6.0 (JSONB watermark column present, TEXT status with CHECK).
 
-**Implements architecture:** Parallel async implementations following sync method patterns
+**Key dependency:** OD-3 (`init()` explicit vs. lazy auto-create) must be resolved before this
+phase starts.
 
-**Research needed:** Minimal—each method follows established pattern. May need research for DataFrame async workarounds (pandas is sync-only).
-
----
-
-### Phase 4: Retry/Backoff Resilience
-**Rationale:** Production readiness requires transient error handling. Now that async parity exists, add retry to both Database and AsyncDatabase simultaneously.
-
-**Delivers:**
-- pycopg/retry.py module with RetryConfig, with_retry, with_async_retry decorators
-- Exception categorization (transient vs permanent errors)
-- Exponential backoff with jitter (prevents thundering herd)
-- Query timeout support (expose statement_timeout in Config)
-- Comprehensive logging integration (retry attempts, connection failures)
-- Circuit breaker for repeated permanent failures
-
-**Addresses features:** Retry policy with backoff, query timeout support, comprehensive logging, connection health checks
-
-**Avoids pitfall:** #4 (Retry/backoff absence causing cascading failures from transient errors)
-
-**Uses stack:** tenacity 9.0.0 for declarative retry logic (or custom implementation following researched pattern)
-
-**Research needed:** No—retry patterns are standard. Verify tenacity integration or use custom decorator from STACK.md pattern.
+**Research flag:** No deeper research needed. Two-connection pattern confirmed by Airflow/dbt/Prefect
+precedent and directly described in PITFALLS.md.
 
 ---
 
-### Phase 5: Migration Reliability & Test Infrastructure
-**Rationale:** Migrations are critical for production deployments. Testing infrastructure enables confident iteration. Both can develop in parallel.
+### Phase C: Load Modes (extract + truncate + upsert)
 
-**Delivers:**
-- Migration gap detection (validate sequence, detect deleted files, fail fast)
-- Migration validation command (dry-run checker before apply)
-- Logging for skipped migration files (WARNING level)
-- Strict mode option (invalid filenames raise errors instead of silent skip)
-- testcontainers integration for isolated test databases
-- Per-test schema isolation fixtures
-- Parallel test execution configuration (pytest-xdist)
-- Transaction rollback test pattern
-- Extension test markers (postgis, timescaledb)
+**Rationale:** Extract and load compose existing primitives (`to_dataframe`, `upsert_many`,
+`from_dataframe`, `transaction()`). Building them after run-tracking means load errors are
+immediately recorded by `_end_run()` during development.
 
-**Addresses features:** Migration gap detection, error context improvements, extension pre-checks validation
+**Delivers:** `_extract()` (sync + async); `_load(mode='replace')` — TRUNCATE +
+`from_dataframe(if_exists='append')` inside `db.transaction()` (sync + async);
+`_load(mode='upsert')` — `upsert_many` with `conflict_columns` (sync + async);
+`_load(mode='append')` — `insert_many` (sync + async). All load builders call
+`validate_identifiers` before any f-string.
 
-**Avoids pitfall:** #3 (Silent migration skipping), #5 (Test isolation failures causing cascade)
+**Addresses:** ETL-02, ETL-04, ETL-05, ETL-06, ETL-09
 
-**Uses stack:** testcontainers[postgres] for isolated DB, pytest-xdist for parallel execution, pytest-asyncio for async test fixtures
+**Avoids:** Truncate-then-fail data loss (TRUNCATE inside transaction, not autocommit); identifier
+injection (validate_identifiers in every builder); `copy_insert` incompatibility (do NOT use for
+truncate-load — COPY and outer transactions conflict; document COPY-based path as deferred).
 
-**Research needed:** No—migration validation is straightforward, testcontainers patterns well-documented
+**Research flag:** No deeper research needed. Load primitives are existing, tested code.
 
 ---
 
-### Phase 6: Breaking Changes Management & Polish
-**Rationale:** v0.3.0 can break APIs, but users need migration path. Final phase ensures upgrade experience is smooth.
+### Phase D: Full Runner + Query Surface
 
-**Delivers:**
-- Deprecation warnings for any removed APIs (warnings.warn())
-- Compatibility shims where feasible (old names as aliases)
-- Migration guide in CHANGELOG (before/after examples)
-- SRID validation enforcement (error on unknown CRS, never silent default)
-- Named parameter support (`:name` syntax converts to `%s` internally)
-- Transaction isolation level control
-- Savepoint support (nested transactions)
-- Sync result streaming (async already exists)
+**Rationale:** `EtlAccessor.run()` is the integration point that wires Phases A-C together. It
+must come after all building blocks are independently tested. `list_runs` / `get_last_run` are
+trivial once `pipeline_runs` rows exist.
 
-**Addresses features:** Named parameter support, transaction isolation levels, savepoint support, result streaming (sync), SRID validation
+**Delivers:** `EtlAccessor.run(pipeline) -> RunResult` (sync + async); `list_runs(name, limit)`
+(sync + async); `get_last_run(name)` (sync + async); `RunResult` dataclass with all required fields;
+end-to-end integration tests covering success, failure, re-run idempotency; `TestEtlParity` class
+inspecting accessor method surfaces.
 
-**Avoids pitfall:** #6 (Breaking changes without migration path stranding users)
+**Addresses:** ETL-10, ETL-11, ETL-12, ETL-03 (transform dispatch)
 
-**Uses stack:** Python warnings module, mypy for type hint compatibility checking
+**Avoids:** Async event-loop blockage (`asyncio.to_thread` in async `run()`); ETL accessor parity
+gap (`TestEtlParity` written test-first before async implementation); coverage gate drop (all
+failure branches are integration-tested against `pycopg_test`, no mock-DB shortcuts).
 
-**Research needed:** Minimal—named parameter conversion is string manipulation, savepoints are native PostgreSQL
+**OD-2 must be resolved here:** does `run()` re-raise the original exception or wrap in
+`PipelineError`? Recommendation: re-raise the original; document that the run is recorded before
+re-raise.
+
+**Research flag:** No deeper research needed. Orchestration pattern fully described in ARCHITECTURE.md.
+
+---
+
+### Phase E: Wiring, Exports, Docs, Coverage Gate
+
+**Rationale:** Lazy properties and public exports add no logic — they are the integration seam.
+Wiring last avoids exposing an incomplete API surface during development.
+
+**Delivers:** `db.etl` / `async_db.etl` lazy properties; `from pycopg import Pipeline,
+EtlAccessor, AsyncEtlAccessor` exports; `docs/etl.md` Sphinx page; CHANGELOG v0.5.0 entry;
+MIGRATION.md bootstrap note; coverage gate measured and held at >= 94%; `interrogate >= 95` on
+ETL docstrings.
+
+**Addresses:** ETL-13 (lazy accessor), public API completeness, docs/release readiness
+
+**Avoids:** Coverage gate drop (measure before declaring done, per D-08); `test_parity` regression
+(the `etl` property must appear on both `Database` and `AsyncDatabase`; `SYNC_ONLY_METHODS` /
+`ASYNC_ONLY_METHODS` must not gain ETL exceptions).
+
+**Research flag:** No deeper research needed. Follows established release checklist from Phase 15.
 
 ---
 
 ### Phase Ordering Rationale
 
-**Why this sequence:**
-1. **Audit before implementation**: Cannot fix async parity without knowing what's missing (Phase 1 → Phase 3)
-2. **Stability before features**: Connection leaks make retry worse, fix first (Phase 2 before Phase 4)
-3. **Parity before resilience**: Retry needs to work in both sync/async, requires parity (Phase 3 before Phase 4)
-4. **Infrastructure enables iteration**: Testing improvements accelerate all other phases (Phase 5 can run parallel to Phase 3-4)
-5. **Polish last**: Breaking changes and nice-to-haves only after core stability (Phase 6)
-
-**Dependencies identified:**
-- Phase 3 depends on Phase 1 (audit reveals what to implement)
-- Phase 4 depends on Phase 3 (retry in both sync/async requires parity)
-- Phase 5 can develop in parallel to Phase 3-4 (testing infrastructure is independent)
-- Phase 6 depends on all previous phases (need stable foundation before API refinements)
-
-**Avoiding pitfalls through ordering:**
-- Phases 1-3 address async parity gap (pitfall #1) progressively: document → fix leaks → implement
-- Phase 2 addresses connection leaks (pitfall #2) before adding features that worsen leaks
-- Phase 5 addresses migration reliability (pitfall #3) and test isolation (pitfall #5) before heavy feature testing
-- Phase 4 addresses retry absence (pitfall #4) after async parity complete
-- Phase 6 addresses breaking changes (pitfall #6) last, with full context
+- **Pure layer first (A):** zero dependencies; forces open design decisions before any I/O code.
+- **Run-tracking before load (B before C):** the two-connection transaction pattern is an
+  architectural constraint the load step's error handling depends on.
+- **Load before full runner (C before D):** `run()` is a thin orchestrator of extract + transform
+  + load + run tracking; all four must exist independently before wiring.
+- **Sync and async together at each phase:** PAR-* lesson from v0.4.0 Phase 11 — sync-only then
+  async-catch-up produces parity drift.
+- **Wiring last (E):** lazy properties and exports have no logic; wiring last keeps the public API
+  complete at first exposure.
 
 ### Research Flags
 
-**Phases with standard patterns (skip deeper research):**
-- **Phase 1:** Audit/documentation work, no implementation research needed
-- **Phase 2:** psycopg3 connection patterns well-documented
-- **Phase 4:** Retry patterns are standard across database libraries
-- **Phase 5:** testcontainers and pytest patterns well-established
-- **Phase 6:** Named parameters, savepoints are straightforward PostgreSQL features
+All phases have standard, well-established patterns. No phase requires
+`/gsd-plan-phase --research-phase` deep-dive:
+- **Phase A:** direct mirror of `spatial.py` frozen dataclasses + Protocol
+- **Phase B:** two-connection run-log and `pg_try_advisory_lock` are stable, documented PG APIs
+- **Phase C:** load primitives are existing tested methods; transaction pattern is established
+- **Phase D:** orchestration wiring; all patterns known; `asyncio.to_thread` is stdlib since 3.9
+- **Phase E:** release checklist identical to Phase 15 (v0.4.0)
 
-**Phases needing targeted research during planning:**
-- **Phase 3:** DataFrame async workarounds—pandas is fundamentally synchronous, may need research on async patterns or documentation on limitations. Not blocking, but worth 1-2 hours research.
-- **Phase 4:** Verify tenacity library API if used (or validate custom retry implementation against psycopg3 error types)
+## Open Design Decisions
 
-**Overall research recommendation:** v0.3.0 consolidation does not require `/gsd:research-phase` during roadmap creation. Patterns are well-established, codebase structure is clear, and any uncertainties (DataFrame async) are small enough to handle during implementation.
+These three items must be decided at requirements or roadmap review time, before Phase B starts.
+
+### OD-1: `pipeline_runs` Watermark Column Shape
+
+ARCHITECTURE.md recommends a single `watermark JSONB` column. PITFALLS.md (Pitfall 10) recommends
+two TEXT columns `watermark_column TEXT` + `watermark_value TEXT`. Both are forward-compat for v0.6.0.
+**Recommendation: JSONB single column** — leaner schema, flexible for any watermark type, avoids
+manual column-name-to-value mapping at v0.6.0 read time.
+
+### OD-2: Exception Strategy on Load Failure
+
+FEATURES.md: "Re-raises the original exception after recording failure." ARCHITECTURE.md mentions
+optional `PipelineError` in `exceptions.py`. **Recommendation: re-raise the original exception** —
+stack trace is preserved; callers do not need a new exception type to catch ETL failures.
+
+### OD-3: `pipeline_runs` Initialisation
+
+ARCHITECTURE.md strongly recommends explicit `db.etl.init()`. FEATURES.md ETL-14 requires
+auto-create. **Recommendation: both** — lazy `CREATE TABLE IF NOT EXISTS` inside `run()` as the
+zero-config default, with `init()` also exposed as an explicit bootstrap convenience for callers
+who want separation of setup from execution. The idempotent DDL makes both safe to call.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM | testcontainers/tenacity recommendations solid, but version numbers from Jan 2025 training data—verify current versions before use |
-| Features | HIGH | Feature expectations based on codebase analysis (CONCERNS.md) and established database library patterns (SQLAlchemy, asyncpg) |
-| Architecture | HIGH | Direct codebase analysis (database.py, async_database.py), parallel implementation pattern validated by psycopg3 design |
-| Pitfalls | HIGH | Based on actual bugs documented in CONCERNS.md plus standard Python async/database pitfalls from training data |
+| Stack | HIGH | All versions verified against live venv; zero-new-deps conclusion is certain |
+| Features | HIGH | 14 table-stakes items have clear codebase anchors; differentiators confirmed against petl/dlt/Airflow precedent |
+| Architecture | HIGH | Pattern read directly from `spatial.py`; all signatures and file paths verified in source |
+| Pitfalls | HIGH | Derived from actual codebase code paths (`database.py`, `async_database.py`, `test_parity.py`), not generic ETL theory |
 
-**Overall confidence:** MEDIUM-HIGH
-
-Confidence is high on patterns, architecture, and known bugs. Confidence is medium on specific package versions (need verification) and some edge cases (DataFrame async patterns). All research was completed without web search, so recommendations should be validated against current documentation during implementation.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-Areas where research was constrained or needs validation during planning/execution:
-
-- **Package versions**: All versions (testcontainers 4.8.2, tenacity 9.0.0, pytest-asyncio 0.24.0, pytest-xdist 3.6.1, mypy 1.13.0) from Jan 2025 training data. Verify current versions with `pip index versions [package]` before adding to pyproject.toml. Patterns are correct regardless of version.
-
-- **DataFrame async patterns**: pandas and geopandas are synchronous libraries. AsyncDatabase may need to document limitations or use thread pool executor pattern for DataFrame operations. Research this specifically during Phase 3 planning—likely 1-2 hours to determine best approach (document limitation vs. run_in_executor wrapper).
-
-- **PostgreSQL version compatibility**: Research assumes PostgreSQL 12-16. Verify specific feature compatibility (SRID handling, TimescaleDB version requirements) during Phase 3 implementation for PostGIS/TimescaleDB methods.
-
-- **testcontainers CI integration**: Research recommends testcontainers for integration tests. Verify GitHub Actions Docker availability and performance during Phase 5. Fallback: use PostgreSQL service container if testcontainers too slow.
-
-- **Breaking changes inventory**: Phase 6 requires identifying all breaking changes. During Phase 6 planning, audit git history and CONCERNS.md for any planned API changes and add deprecation warnings in advance.
+- **OD-1 / OD-2 / OD-3:** one-sentence decisions each; no additional research required.
+- **Advisory lock scope:** PITFALLS.md recommends `pg_try_advisory_lock` for concurrent-run
+  protection. If deemed too complex for MVP, it can be deferred with documented risk. The data
+  integrity risk for concurrent truncate-load is HIGH; deferral is not recommended.
+- **`extract_limit` / `extract_batch_size`:** PITFALLS.md Pitfall 7 recommends these to prevent OOM
+  on large tables; FEATURES.md does not include them in table stakes. Recommendation: add
+  `extract_limit: int | None = None` as a zero-cost optional `Pipeline` field with a clear memory
+  contract in the docstring; full `extract_batch_size` streaming deferred to v0.6.0.
 
 ## Sources
 
-### Primary (HIGH confidence)
-- **pycopg v0.2.0 codebase**: Direct analysis of database.py (2299 lines), async_database.py (768 lines), base.py (194 lines), migrations.py, pool.py, exceptions.py
-- **.planning/codebase/CONCERNS.md**: Documented tech debt, known bugs (session cleanup leak line 352, migration skipping lines 152-153), async parity gaps
-- **README.md**: Current feature set, API surface, usage examples
-- **Python asyncio patterns**: Training data on async/await semantics, context managers, event loop management
+### Primary (HIGH confidence — direct source reading)
 
-### Secondary (MEDIUM confidence)
-- **psycopg3 documentation patterns**: Connection lifecycle, async implementation, connection pooling—from training data, not live verification
-- **Database library patterns**: SQLAlchemy 2.0, asyncpg 0.29, encode/databases 0.8 feature comparison—training data on standard resilience patterns (retry, timeout, health checks)
-- **pytest-asyncio patterns**: Fixture design, event loop management, async test isolation—training data on testing patterns
-- **testcontainers-python**: Docker PostgreSQL container management for integration testing—training data on usage patterns
+- `/home/loc/workspace/pycopg/pycopg/spatial.py` — canonical accessor pattern mirrored by ETL layer
+- `/home/loc/workspace/pycopg/pycopg/database.py` — `upsert_many`, `from_dataframe`, `transaction()`, `spatial` lazy property
+- `/home/loc/workspace/pycopg/pycopg/async_database.py` — `run_sync` pattern, async `to_dataframe`, async `transaction()`
+- `/home/loc/workspace/pycopg/pycopg/queries.py` — SQL constant conventions and section style
+- `/home/loc/workspace/pycopg/pycopg/base.py` — `DatabaseBase`, `QueryMixin`, pure builder functions
+- `/home/loc/workspace/pycopg/pycopg/migrations.py` — tracking-table bootstrap pattern for `Migrator`
+- `/home/loc/workspace/pycopg/tests/test_parity.py` — parity harness mechanics and exception sets
+- `/home/loc/workspace/pycopg/.planning/PROJECT.md` — v0.5.0 scope, deferred items, D-08 coverage rule
+- Live venv introspection — psycopg 3.3.4, pandas 3.0.3, psycopg_pool 3.3.1, tenacity 9.1.4, SQLAlchemy 2.0.50
 
-### Tertiary (LOW confidence—needs verification)
-- **Specific package versions**: All version numbers from Jan 2025 training cutoff, may not reflect current stable versions
-- **DataFrame async workarounds**: pandas synchronous limitation acknowledged, but optimal async pattern needs validation during implementation
-- **CI/CD patterns**: GitHub Actions with testcontainers from training data, actual performance unknown
+### Secondary (MEDIUM confidence — ecosystem documentation)
 
-### Research Constraints
-- **No web search/WebFetch available**: All research from training data and codebase analysis
-- **No Context7 library access**: Could not verify against external PostgreSQL/psycopg3 documentation
-- **Version currency**: Training data cutoff January 2025, current 2026-02-11—package versions and best practices may have evolved
-
-**Validation checklist for roadmap planning:**
-1. Verify package versions: `pip index versions testcontainers tenacity pytest-asyncio pytest-xdist mypy`
-2. Check psycopg3 docs for connection retry patterns (if available online during planning)
-3. Research pandas async alternatives during Phase 3 planning (1-2 hours)
-4. Test testcontainers performance in CI during Phase 5 (may need fallback)
+- petl documentation — load mode naming, chain transform pattern
+- dlt load dispositions — `write_disposition='replace'/'merge'`, `_dlt_loads` table schema
+- Airflow dag_run schema — status lifecycle, separate state connection precedent
+- asyncio.to_thread with pandas — event-loop-safe sync callable dispatch
+- PostgreSQL docs — `pg_try_advisory_lock`, `TEXT + CHECK` vs `ENUM`, COPY within transaction
 
 ---
-*Research completed: 2026-02-11*
+*Research completed: 2026-06-14*
 *Ready for roadmap: yes*

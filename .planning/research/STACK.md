@@ -1,622 +1,283 @@
-# Stack Research: Python Database Library Testing & Consolidation
+# Stack Research
 
-**Domain:** Python database library (PostgreSQL)
-**Researched:** 2026-02-11
-**Confidence:** MEDIUM (training data from Jan 2025, no web verification available)
+**Domain:** Same-DB declarative ETL pipeline runner added to an existing thin PostgreSQL library (pycopg v0.5.0)
+**Researched:** 2026-06-14
+**Confidence:** HIGH — all claims verified against installed package versions and running source code in the v0.4.0 codebase
 
-## Research Context
+---
 
-This research focuses on **incremental stack additions** for pycopg v0.3.0 consolidation. Existing core dependencies (psycopg 3, SQLAlchemy 2, pandas 2, pytest) are already in place and not re-evaluated here.
+## Verdict: No New Runtime Dependencies
 
-**Scope:**
-- Testing infrastructure for real PostgreSQL databases
-- Retry/backoff patterns for database operations
-- Async/sync parity testing patterns
-- Release and quality tooling
+The ETL pipeline runner (extract → transform → load, idempotent, run-tracked, sync/async parity) can be built
+entirely on the existing runtime stack. Every required capability is already present in the library or in Python
+3.11+ stdlib. The only additions are new source files within `pycopg/`.
 
-## Recommended Stack
+---
 
-### Testing Infrastructure
+## Existing Runtime Stack (Unchanged for v0.5.0)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| testcontainers[postgres] | ~4.8.2 | Isolated PostgreSQL instances per test suite | Industry standard for database integration tests. Manages Docker PostgreSQL containers with automatic cleanup. Better than pytest-postgresql for complex scenarios. |
-| pytest-asyncio | ~0.24.0 | Async test support | Required for testing AsyncDatabase. Provides async fixtures and event loop management. Version 0.23+ has auto mode that reduces boilerplate. |
-| pytest-xdist | ~3.6.1 | Parallel test execution | Runs tests in parallel to catch connection pool issues and improve CI speed. Critical for database libraries to verify thread safety. |
-| coverage[toml] | ~7.6.9 | Code coverage with pyproject.toml config | Standard coverage tool. [toml] extra allows configuration in pyproject.toml instead of separate .coveragerc. |
+| Technology | Installed Version | Role in ETL Layer |
+| ---------- | ----------------- | ----------------- |
+| Python | 3.11+ | `dataclasses`, `typing.Protocol`, `datetime`, `uuid` — all ETL scaffold is stdlib |
+| psycopg | 3.3.4 | extract (raw SQL SELECT), load (`INSERT` / `COPY`), DDL for `pipeline_runs` table |
+| psycopg_pool | 3.3.1 | sync + async pools already wired — ETL uses them unchanged |
+| pandas | 3.0.3 | `DataFrame` returned by `to_dataframe()`; transform callable receives and returns it |
+| SQLAlchemy | 2.0.50 | Already used for `to_dataframe` / `from_dataframe` — ETL load phase uses the same path |
+| tenacity | 9.1.4 | Retry on `OperationalError` already wired — ETL runner inherits it transparently |
+| geopandas (optional) | via `[geo]` extra | GeoDataFrame transforms, same optional path as today |
 
-### Retry/Backoff Patterns
+Versions sourced from `uv run python -c "import ..."` against the live venv at `/home/loc/workspace/pycopg`.
 
-| Library | Version | Purpose | Why Recommended |
-|---------|---------|---------|-----------------|
-| tenacity | ~9.0.0 | Declarative retry with backoff | De facto standard for retry logic in Python. Cleaner than custom implementations. Supports exponential backoff, jitter, custom stop conditions. Used by major projects (OpenStack, etc). |
+---
 
-**Alternative:** Custom retry implementation with `time.sleep()` and exponential backoff. Only use if tenacity adds unacceptable dependency weight, but for a library already depending on psycopg/SQLAlchemy, tenacity is negligible.
+## New Source Files (Zero New Deps)
 
-### Release & Quality Tooling
+The ETL layer adds Python source files only.
 
-| Tool | Version | Purpose | When to Use |
-|------|---------|---------|-------------|
-| hatch | ~1.12.0 | Build backend & version management | Already in pyproject.toml. Modern replacement for setuptools. Handles versioning, builds, and environment management. |
-| ruff | ~0.8.4 | Linting & formatting | Already in dev deps. Replaces black + flake8 + isort. 10-100x faster than alternatives. |
-| mypy | ~1.13.0 | Static type checking | Missing from current stack. Critical for library code to catch type errors. Async code especially benefits from type checking. |
-| pre-commit | ~4.0.1 | Git hooks for quality checks | Automates ruff, mypy, tests before commits. Prevents broken commits. |
-| pytest-benchmark | ~5.1.0 | Performance regression testing | Optional but valuable for database library. Detects performance regressions in connection pooling, batch operations. |
+| New File | Purpose | Pattern It Follows |
+| -------- | ------- | ------------------ |
+| `pycopg/etl.py` | `Pipeline` dataclass, `TransformFn` Protocol, `SyncETLAccessor`, `AsyncETLAccessor`, module-level SQL builders | Mirrors `spatial.py` exactly |
+| Additions to `pycopg/queries.py` | `CREATE_PIPELINE_RUNS_TABLE`, `INSERT_PIPELINE_RUN`, `UPDATE_PIPELINE_RUN` SQL constants | Follows existing query constants pattern |
 
-### Documentation (Already in place)
+No new module, no new package install step.
 
-| Tool | Current | Notes |
-|------|---------|-------|
-| Sphinx | ~8.1.3 | Already configured. Keep current version. |
-| sphinx-rtd-theme | ~3.0.2 | Already configured for Read the Docs. |
+---
 
-## Supporting Libraries
+## How Each ETL Capability Maps to Existing Stack
 
-### Async/Sync Parity Patterns
+### 1. Declarative pipeline definition
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| anyio | ~4.7.0 | Async abstraction layer | AVOID for pycopg. Adds complexity when psycopg 3 already provides sync/async. Better to maintain parallel implementations. |
-| trio | ~0.27.0 | Alternative async runtime | AVOID. Stick with asyncio. psycopg 3 is asyncio-native. |
+Use `dataclasses.dataclass` (stdlib, Python 3.11+) for the `Pipeline` descriptor:
 
-**Pattern Recommendation:** Maintain **parallel sync/async implementations** rather than runtime abstraction layers. This is what psycopg 3 does, and it's the right pattern for database libraries where performance and control matter.
+```python
+from __future__ import annotations
+import dataclasses
+from typing import Literal
 
-### Database Testing Utilities
+@dataclasses.dataclass
+class Pipeline:
+    name: str
+    extract_sql: str
+    load_table: str
+    transform: TransformFn | None = None   # see Protocol below
+    load_mode: Literal["truncate", "upsert"] = "truncate"
+    conflict_columns: list[str] = dataclasses.field(default_factory=list)
+    schema: str = "public"
+    extract_params: list | None = None
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| Faker | ~33.1.0 | Generate test data | Useful for generating realistic test datasets. Better than hand-crafted test data for edge cases. |
-| pytest-postgresql | ~6.1.1 | PostgreSQL fixtures | AVOID if using testcontainers. pytest-postgresql manages system PostgreSQL, less isolated than containers. Use testcontainers instead. |
-| docker-py | (implicit) | Docker control | Required by testcontainers. Don't add explicitly; testcontainers brings it. |
-
-## Installation
-
-```bash
-# Testing infrastructure (add to [dev])
-pip install testcontainers[postgres]~=4.8.2
-pip install pytest-asyncio~=0.24.0
-pip install pytest-xdist~=3.6.1
-pip install coverage[toml]~=7.6.9
-
-# Retry/backoff (add to core dependencies)
-pip install tenacity~=9.0.0
-
-# Quality tooling (add to [dev])
-pip install mypy~=1.13.0
-pip install pre-commit~=4.0.1
-pip install pytest-benchmark~=5.1.0  # Optional
-
-# Test data generation (add to [dev], optional)
-pip install Faker~=33.1.0
+    def __post_init__(self) -> None:
+        if self.load_mode == "upsert" and not self.conflict_columns:
+            raise ValueError("conflict_columns required when load_mode='upsert'")
 ```
 
-## Alternatives Considered
+`dataclasses` is the right choice — lightweight, introspectable, zero-dep, and the `__post_init__` hook
+provides validation without Pydantic or attrs.
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| testcontainers | pytest-postgresql | Never for pycopg. testcontainers provides better isolation and matches real deployment environments. |
-| testcontainers | Manual Docker management | Only if testcontainers has incompatibility issues. Managing containers manually is error-prone. |
-| tenacity | backoff library | If you need simpler API. backoff uses decorators, tenacity has more features. For database ops, tenacity is better. |
-| tenacity | Custom retry logic | Never for library code. Custom implementations miss edge cases (jitter, logging, max time limits). |
-| mypy | pyright | If using VS Code with Pylance. Pyright is faster but mypy has better ecosystem support. Stick with mypy for library code. |
-| pytest-asyncio auto mode | strict mode | If you have complex event loop requirements. Auto mode (default in 0.23+) is simpler for standard async tests. |
+### 2. Transform callable contract
 
-## What NOT to Use
+Use `typing.Protocol` (stdlib, Python 3.11+, stable since Python 3.8) to define the transform shape:
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| pytest-postgresql | Less isolated than containers. Requires system PostgreSQL installation. | testcontainers[postgres] |
-| asyncio-compat wrappers | Adds runtime overhead and complexity. Database libraries need direct control. | Parallel sync/async implementations |
-| unittest instead of pytest | pytest fixtures are superior for database testing. | pytest with fixtures |
-| Coverage without TOML support | Requires separate .coveragerc file. | coverage[toml] |
-| green/nose2 | Deprecated or unmaintained. pytest is the standard. | pytest |
-| freezegun for time mocking | Can break asyncio event loops. Use with caution in async tests. | Manual time control or asyncio-aware mocking |
-
-## Stack Patterns for v0.3.0 Consolidation
-
-### Pattern 1: Isolated Test Database per Test Suite
-
-**Implementation:**
 ```python
-# conftest.py
-import pytest
-from testcontainers.postgres import PostgresContainer
+from typing import Protocol, runtime_checkable
+import pandas as pd
 
-@pytest.fixture(scope="session")
-def postgres_container():
-    with PostgresContainer("postgres:16-alpine") as postgres:
-        yield postgres
+@runtime_checkable
+class TransformFn(Protocol):
+    def __call__(self, df: pd.DataFrame) -> pd.DataFrame: ...
+```
 
-@pytest.fixture(scope="session")
-def db_config(postgres_container):
-    return Config(
-        host=postgres_container.get_container_host_ip(),
-        port=postgres_container.get_exposed_port(5432),
-        database=postgres_container.dbname,
-        user=postgres_container.username,
-        password=postgres_container.password,
+This covers:
+
+- `transform=None` — identity; runner passes extracted DataFrame through unchanged
+- Any plain function `def clean(df): return df.dropna()`
+- Any lambda, `functools.partial`, or class with `__call__`
+
+`@runtime_checkable` lets the runner check `isinstance(pipeline.transform, TransformFn)` at construction,
+producing a clear error before any SQL runs. No Pydantic, beartype, or typeguard needed.
+
+For async transforms that call sync pandas operations, the async runner applies the existing
+`await conn.run_sync(...)` delegation pattern already used in `async_database.py` (lines 1937, 1971, 2026,
+2100). No new pattern needed.
+
+### 3. Extract phase
+
+`db.to_dataframe(pipeline.extract_sql, params=pipeline.extract_params)` already exists in both
+`Database` and `AsyncDatabase` (full parity shipped in v0.4.0). The ETL runner calls this and feeds
+the result to `pipeline.transform(df)` (or passes it through if `transform is None`). No new method.
+
+### 4. Idempotent load — truncate-load mode
+
+```python
+# Inside SyncETLAccessor.run()
+with self._db.transaction():
+    self._db.execute(f"TRUNCATE {schema}.{table}")
+    self._db.from_dataframe(transformed_df, table, schema=schema)
+```
+
+Both `execute` and `from_dataframe` are already present in `Database` and `AsyncDatabase`. The
+truncate + reload sequence is atomic when wrapped in the existing `transaction()` context manager.
+No new method needed.
+
+For large DataFrames the existing COPY path (database.py line 654, psycopg `cur.copy()`) is available
+for the truncate-load mode where `ON CONFLICT` semantics are not needed. COPY is significantly faster
+for bulk loads and already wired.
+
+### 5. Idempotent load — upsert-by-key mode
+
+```python
+rows = transformed_df.to_dict("records")   # pandas stdlib, no new dep
+self._db.upsert_many(
+    table,
+    rows,
+    conflict_columns=pipeline.conflict_columns,
+    schema=schema,
+)
+```
+
+`upsert_many` is already in `database.py` (line 484). It builds `ON CONFLICT (...) DO UPDATE SET ...`
+internally using psycopg parameterized queries — no new SQL builder needed. The async equivalent
+`AsyncDatabase.upsert_many` is already at full parity (v0.4.0).
+
+### 6. Run tracking — `pipeline_runs` table
+
+Add SQL constants to `queries.py` (following the exact existing pattern):
+
+```python
+# queries.py additions — no new file, no migration framework
+CREATE_PIPELINE_RUNS_TABLE = """
+    CREATE TABLE IF NOT EXISTS public.pipeline_runs (
+        id          BIGSERIAL    PRIMARY KEY,
+        pipeline    TEXT         NOT NULL,
+        started_at  TIMESTAMPTZ  NOT NULL,
+        finished_at TIMESTAMPTZ,
+        status      TEXT         NOT NULL
+                    CHECK (status IN ('running', 'success', 'error')),
+        rows_in     BIGINT,
+        rows_out    BIGINT,
+        error       TEXT
     )
+"""
+
+INSERT_PIPELINE_RUN = """
+    INSERT INTO public.pipeline_runs
+        (pipeline, started_at, status)
+    VALUES (%s, %s, 'running')
+    RETURNING id
+"""
+
+UPDATE_PIPELINE_RUN = """
+    UPDATE public.pipeline_runs
+    SET finished_at = %s, status = %s, rows_in = %s, rows_out = %s, error = %s
+    WHERE id = %s
+"""
 ```
 
-**Why:** Each test run gets clean PostgreSQL. Prevents test pollution. Matches CI environment.
+The ETL accessor's `ensure_schema()` method calls `db.execute(CREATE_PIPELINE_RUNS_TABLE)` on first use —
+identical to how pycopg's existing `Migrator` creates its own `_migrations` tracking table (migrations.py).
+No external migration framework is warranted.
 
-### Pattern 2: Retry with Tenacity
+Timestamps use `datetime.datetime.now(tz=datetime.timezone.utc)` (stdlib). BIGSERIAL primary key (not UUID)
+gives better index locality for an append-heavy run log. The `rows_in` / `rows_out` split is designed so
+the v0.6.0 incremental watermark addition (reading `rows_out` of the last successful run as a cursor
+lower-bound) requires no schema change.
 
-**Implementation:**
-```python
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-)
-import psycopg
-
-@retry(
-    retry=retry_if_exception_type((psycopg.OperationalError, psycopg.DatabaseError)),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    stop=stop_after_attempt(3),
-)
-def connect_with_retry(config: Config):
-    return psycopg.connect(**config.to_psycopg())
-```
-
-**Why:** Handles transient connection failures. Exponential backoff prevents overwhelming database. Configurable stop conditions.
-
-**Advanced pattern with jitter:**
-```python
-from tenacity import wait_exponential_jitter
-
-@retry(
-    retry=retry_if_exception_type((psycopg.OperationalError,)),
-    wait=wait_exponential_jitter(initial=1, max=10),
-    stop=stop_after_attempt(5),
-)
-```
-
-**Why jitter:** Prevents thundering herd when many clients retry simultaneously.
-
-### Pattern 3: Async/Sync Test Parity
-
-**Implementation:**
-```python
-# test_database.py (sync)
-def test_execute_select(db):
-    result = db.execute("SELECT 1 AS value")
-    assert result[0]["value"] == 1
-
-# test_async_database.py (async)
-@pytest.mark.asyncio
-async def test_execute_select(async_db):
-    result = await async_db.execute("SELECT 1 AS value")
-    assert result[0]["value"] == 1
-```
-
-**Structure:**
-- Separate test files: `test_database.py` (sync) and `test_async_database.py` (async)
-- Parallel test implementations, not shared
-- Use `pytest.mark.asyncio` for async tests
-- Separate fixtures: `db` vs `async_db`
-
-**Why:** Clearer than parameterized tests. Catches async-specific issues. Easier to debug failures.
-
-**Anti-pattern to avoid:**
-```python
-# DON'T DO THIS - parameterized sync/async in same test
-@pytest.mark.parametrize("db_class", [Database, AsyncDatabase])
-def test_execute(db_class):
-    # This gets messy with async/await conditional logic
-```
-
-### Pattern 4: Connection Pool Testing with pytest-xdist
-
-**Configuration:**
-```toml
-# pyproject.toml
-[tool.pytest.ini_options]
-addopts = "-v --cov=pycopg --cov-report=term-missing -n auto"
-```
-
-**Why:** `-n auto` runs tests in parallel (one process per CPU). This stress-tests connection pools and catches thread safety issues that sequential tests miss.
-
-**Caution:** Database fixtures must be `scope="session"` or tests will interfere. testcontainers handles this correctly.
-
-### Pattern 5: Type Checking Async Code
-
-**Configuration:**
-```toml
-# pyproject.toml
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-
-# Async-specific
-warn_unused_ignores = true
-check_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = "psycopg.*"
-ignore_missing_imports = true
-```
-
-**Why:** Async code has more type complexity (Awaitable, Coroutine, AsyncIterator). mypy catches `await` on non-awaitable, missing `async`, etc.
-
-**Critical for library code:** Users depend on type hints for IDE autocomplete and type safety.
-
-## Version Compatibility
-
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| pytest-asyncio 0.24.x | Python 3.11-3.13 | Auto mode works with pytest 7.0+. |
-| testcontainers 4.8.x | Docker 20.10+ | Requires Docker daemon. Won't work in environments without Docker. |
-| tenacity 9.0.x | Python 3.8+ | No breaking changes from 8.x. Async support built-in. |
-| pytest-xdist 3.6.x | pytest 7.0+ | Works with pytest-asyncio. Use `scope="session"` fixtures. |
-| mypy 1.13.x | Python 3.11+ | Use `--python-version 3.11` flag. Supports Python 3.13. |
-
-**PostgreSQL Version Compatibility:**
-- testcontainers supports PostgreSQL 12-16
-- Recommend testing against PostgreSQL 14 (stable) and 16 (latest)
-- Use `PostgresContainer("postgres:14-alpine")` for faster CI
-
-## Configuration Recommendations
-
-### pytest-asyncio Configuration
-
-```toml
-# pyproject.toml
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "session"
-```
-
-**Why:**
-- `auto` mode: Automatically detects async tests without `@pytest.mark.asyncio` on every test
-- `session` scope: Reuses event loop across tests for performance
-
-**Caution:** If you need strict event loop isolation per test, use `asyncio_mode = "strict"` and explicit marks.
-
-### Coverage Configuration
-
-```toml
-# pyproject.toml
-[tool.coverage.run]
-source = ["pycopg"]
-omit = ["*/tests/*", "*/venv/*"]
-concurrency = ["thread", "greenlet"]  # If using gevent/eventlet
-
-[tool.coverage.report]
-precision = 2
-show_missing = true
-skip_covered = false
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-]
-
-[tool.coverage.html]
-directory = "htmlcov"
-```
-
-### pre-commit Configuration
-
-```yaml
-# .pre-commit-config.yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-all]
-
-  - repo: local
-    hooks:
-      - id: pytest-quick
-        name: pytest-quick
-        entry: pytest tests/ -x --lf
-        language: system
-        pass_filenames: false
-        always_run: true
-```
-
-**Why:** Catches issues before commit. `-x --lf` runs only previously failed tests for speed.
-
-## Async/Sync Parity Best Practices
-
-### 1. Maintain Parallel Implementations
-
-**DO:**
-```python
-# pycopg/database.py
-class Database:
-    def execute(self, sql: str, params=None):
-        with self._connect() as conn:
-            return conn.execute(sql, params)
-
-# pycopg/async_database.py
-class AsyncDatabase:
-    async def execute(self, sql: str, params=None):
-        async with self._connect() as conn:
-            return await conn.execute(sql, params)
-```
-
-**DON'T:**
-```python
-# Avoid runtime abstraction
-class Database:
-    def execute(self, sql, params=None):
-        if self._is_async:
-            return asyncio.run(self._async_execute(sql, params))
-        return self._sync_execute(sql, params)
-```
-
-**Why:** Runtime abstraction adds overhead and complexity. Separate classes are clearer and faster.
-
-### 2. Test Async Code with Async Assertions
-
-**DO:**
-```python
-@pytest.mark.asyncio
-async def test_async_transaction():
-    async with db.transaction() as conn:
-        await conn.execute("INSERT INTO users (name) VALUES ('test')")
-        # Verify inside transaction
-        result = await conn.execute("SELECT name FROM users WHERE name = 'test'")
-        assert result[0]["name"] == "test"
-```
-
-**DON'T:**
-```python
-def test_async_transaction():
-    # Don't use asyncio.run in tests - breaks pytest-asyncio event loop
-    asyncio.run(async_transaction())
-```
-
-### 3. Use Separate Fixtures for Sync/Async
-
-**DO:**
-```python
-# conftest.py
-@pytest.fixture
-def db(db_config):
-    return Database(db_config)
-
-@pytest.fixture
-async def async_db(db_config):
-    db = AsyncDatabase(db_config)
-    yield db
-    await db.close()
-```
-
-**DON'T:**
-```python
-# Don't parameterize sync/async - gets messy
-@pytest.fixture(params=[Database, AsyncDatabase])
-def db(request, db_config):
-    return request.param(db_config)
-```
-
-### 4. Verify API Parity with Linting
-
-**Pattern:**
-```python
-# tests/test_parity.py
-import inspect
-from pycopg import Database, AsyncDatabase
-
-def test_api_parity():
-    """Verify sync and async have matching methods."""
-    sync_methods = {name for name, _ in inspect.getmembers(Database, inspect.isfunction)}
-    async_methods = {name for name, _ in inspect.getmembers(AsyncDatabase, inspect.isfunction)}
-
-    # Allow async-only methods (listen, notify, stream)
-    async_only = {"listen", "notify", "stream"}
-
-    assert sync_methods == async_methods - async_only, "API mismatch between sync/async"
-```
-
-**Why:** Catches when you add a method to one class but forget the other.
-
-## Retry/Backoff Pattern Details
-
-### Connection Retry Pattern
+### 7. Accessor pattern — mirrors `spatial.py` exactly
 
 ```python
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    stop_after_delay,
-    wait_exponential_jitter,
-    retry_if_exception_type,
-    before_sleep_log,
-)
-import logging
+# database.py addition
+@property
+def etl(self) -> SyncETLAccessor:
+    """Get or create the ETL accessor (lazy initialization)."""
+    if self._etl is None:
+        from pycopg.etl import SyncETLAccessor
+        self._etl = SyncETLAccessor(self)
+    return self._etl
 
-logger = logging.getLogger(__name__)
-
-@retry(
-    retry=retry_if_exception_type((
-        psycopg.OperationalError,
-        psycopg.DatabaseError,
-    )),
-    wait=wait_exponential_jitter(initial=1, max=30),
-    stop=stop_after_attempt(5) | stop_after_delay(60),
-    before_sleep=before_sleep_log(logger, logging.WARNING),
-)
-def connect_with_retry(config: Config):
-    return psycopg.connect(**config.to_psycopg())
+# async_database.py addition — identical structure
+@property
+def etl(self) -> AsyncETLAccessor:
+    """Get or create the async ETL accessor (lazy initialization)."""
+    if self._etl is None:
+        from pycopg.etl import AsyncETLAccessor
+        self._etl = AsyncETLAccessor(self)
+    return self._etl
 ```
 
-**Features:**
-- **Jittered exponential backoff:** 1s, 2s, 4s, 8s, 16s with random jitter
-- **Max wait:** 30 seconds between attempts
-- **Combined stop:** Stop after 5 attempts OR 60 seconds total
-- **Logging:** Logs before each retry at WARNING level
+Module-level SQL builder functions (e.g., `build_run_insert_sql`) are shared byte-identical between
+`SyncETLAccessor` and `AsyncETLAccessor`, following the `build_*_sql` pattern in `spatial.py`. Stateless,
+no I/O, fully unit-testable without a database.
 
-### Query Retry Pattern (More Conservative)
+---
 
-```python
-@retry(
-    retry=retry_if_exception_type(psycopg.OperationalError),  # Only transient errors
-    wait=wait_exponential(multiplier=0.5, min=0.5, max=5),
-    stop=stop_after_attempt(3),
-)
-def execute_with_retry(conn, sql: str, params=None):
-    return conn.execute(sql, params)
-```
+## What NOT to Add
 
-**Why more conservative:** Queries might have side effects. Only retry operational errors (connection lost), not data errors.
+| Do NOT Add | Why It Is Overkill | What to Use Instead |
+| ---------- | ------------------ | ------------------- |
+| **dlt** (data load tool) | Full ETL framework with connectors, schemas, staging, secrets management — pycopg is same-DB only, single-process; dlt becomes a heavyweight transitive dep with its own version matrix | `db.from_dataframe` + `db.upsert_many` |
+| **Airflow / Prefect / Dagster** | Distributed scheduler/orchestrators — v0.5.0 is an in-process runner; scheduling, DAG topology, and workers are the caller's concern entirely | Caller's own loop or `schedule` |
+| **SQLAlchemy Core query builder** | In `Out of Scope` in PROJECT.md; would balloon the API surface; pycopg intentionally keeps raw SQL | SQL constants in `queries.py` |
+| **Pydantic** | Schema validation for `Pipeline` fields — `dataclasses` + `__post_init__` raises `ValueError` and covers all necessary validation with zero new deps | `dataclasses.dataclass` + `__post_init__` |
+| **attrs / cattrs** | Same role as Pydantic, richer dataclasses — overkill for a 6-field pipeline descriptor | `dataclasses.dataclass` |
+| **alembic** | Schema migration for `pipeline_runs` — `CREATE TABLE IF NOT EXISTS` is sufficient for a single auto-created tracking table; pycopg already has its own migration system | `CREATE_PIPELINE_RUNS_TABLE` constant + `execute()` |
+| **apache-beam / petl / dask** | Full ETL pipeline libraries — they replace pycopg entirely for this purpose rather than extending it; multi-process / distributed, not same-DB | The thin ETL layer we're building |
+| **asyncpg** | Different async driver — psycopg 3 already ships async natively; switching drivers rewrites the entire library | `psycopg` async (already in use) |
+| **beartype / typeguard** | Runtime type-checking of transform callable — `isinstance(fn, TransformFn)` via `@runtime_checkable Protocol` provides structural checking without any new dep | `@runtime_checkable` `Protocol` from `typing` |
+| **pyarrow / pyarrow-parquet** | Columnar / Parquet I/O — out of scope for v0.5.0; cross-format sinks deferred to v0.6.0+ | pandas `DataFrame` (already present) |
+| **schedule / APScheduler** | Job scheduling — pycopg is a library, not a daemon; callers schedule ETL runs using their own tools | Caller-provided scheduler |
 
-### Pool Checkout Retry Pattern
+---
 
-```python
-from psycopg_pool import PoolTimeout
+## Version Compatibility (Existing Stack)
 
-@retry(
-    retry=retry_if_exception_type(PoolTimeout),
-    wait=wait_exponential(multiplier=0.1, max=2),
-    stop=stop_after_attempt(10),
-)
-def get_connection_from_pool(pool):
-    return pool.connection(timeout=5)
-```
+| Pair | Status | Notes |
+| ---- | ------ | ----- |
+| psycopg 3.3.x + psycopg_pool 3.3.x | Compatible | Same major stream; both provide async natively |
+| pandas 3.0.x + SQLAlchemy 2.0.x | Compatible | `to_dataframe` uses SQLAlchemy 2 engine; `read_sql` signature verified working |
+| Python 3.11 + `dataclasses` + `typing.Protocol` | Compatible | Both stable since Python 3.7/3.8 respectively |
+| Python 3.11 + `@runtime_checkable` Protocol | Compatible | Stable since Python 3.8; structural instance checks work correctly |
+| tenacity 9.x + psycopg `OperationalError` | Compatible | Retry wiring unchanged; ETL runner inherits it transparently |
 
-**Why:** Pool exhaustion is transient. Retry quickly (0.1s multiplier) since pool might free up soon.
+---
 
-### Async Retry Pattern
-
-```python
-from tenacity import AsyncRetrying
-
-async def async_connect_with_retry(config: Config):
-    async for attempt in AsyncRetrying(
-        retry=retry_if_exception_type(psycopg.OperationalError),
-        wait=wait_exponential_jitter(initial=1, max=10),
-        stop=stop_after_attempt(5),
-    ):
-        with attempt:
-            return await psycopg.AsyncConnection.connect(**config.to_psycopg())
-```
-
-**Note:** Use `AsyncRetrying` for async code, not `@retry` decorator. Allows proper async/await.
-
-## Release Tooling Recommendations
-
-### Versioning Strategy
-
-Use **hatch** for version management:
-
-```toml
-# pyproject.toml
-[tool.hatch.version]
-path = "pycopg/__init__.py"
-```
-
-```python
-# pycopg/__init__.py
-__version__ = "0.3.0"
-```
-
-**Commands:**
-```bash
-# Bump version
-hatch version minor  # 0.2.0 -> 0.3.0
-hatch version patch  # 0.3.0 -> 0.3.1
-
-# Build
-hatch build
-
-# Publish (after testing on test.pypi.org)
-hatch publish
-```
-
-### CI/CD Pattern
-
-**GitHub Actions pattern for database libraries:**
-
-```yaml
-# .github/workflows/test.yml
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-        postgres-version: ["14", "16"]
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: |
-          pip install -e ".[all,dev]"
-
-      - name: Run tests with coverage
-        run: |
-          pytest -v --cov=pycopg --cov-report=xml
-        env:
-          POSTGRES_VERSION: ${{ matrix.postgres-version }}
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-```
-
-**Why testcontainers in CI:** GitHub Actions has Docker, so testcontainers works. No need for service containers.
-
-### Documentation Build Verification
+## Installation (No Change for Users)
 
 ```bash
-# Add to pre-commit or CI
-cd docs/
-make clean html
-# Fails if documentation has errors
+# No new dep — identical to v0.4.0
+pip install pycopg          # core ETL included in default install
+pip install pycopg[geo]     # if transforms use GeoDataFrames
 ```
 
-## Confidence Levels by Recommendation
+```bash
+# Dev — no new dev deps either
+uv sync --all-extras --dev
+```
 
-| Recommendation | Confidence | Notes |
-|----------------|------------|-------|
-| testcontainers | HIGH | Standard for Python database testing. Well-maintained. |
-| pytest-asyncio 0.24.x | MEDIUM | Version number from training data. Verify current version. |
-| tenacity | HIGH | De facto standard for retry logic. Stable API. |
-| Avoid pytest-postgresql | HIGH | testcontainers is superior for modern projects. |
-| mypy for library code | HIGH | Critical for Python libraries with type hints. |
-| Parallel sync/async implementations | HIGH | This is how psycopg 3 does it. Proven pattern. |
-| pytest-xdist for pool testing | HIGH | Standard practice for concurrent code testing. |
-| Version numbers | LOW | All versions from Jan 2025 training data. VERIFY before using. |
+---
+
+## Supporting Libraries (Dev — Already Present)
+
+| Tool | Version | ETL-specific Use |
+| ---- | ------- | ---------------- |
+| pytest | existing | ETL integration tests with real PostgreSQL (same `pycopg_test` DB) |
+| pytest-asyncio | existing | Async ETL accessor tests; `asyncio_mode = "auto"` already configured |
+| black + ruff | existing | Format/lint `etl.py` and queries additions |
+| interrogate | existing | Enforce numpydoc docstring coverage on new ETL public API |
+
+---
 
 ## Sources
 
-**Note:** This research was completed without access to web search, WebFetch, or Context7 due to tool restrictions. All information is from training data (January 2025) and should be verified with official sources before implementation.
-
-**Recommended verification:**
-1. Check current versions: `pip index versions [package]`
-2. Verify testcontainers-python docs: https://testcontainers-python.readthedocs.io/
-3. Verify pytest-asyncio docs: https://pytest-asyncio.readthedocs.io/
-4. Verify tenacity docs: https://tenacity.readthedocs.io/
-5. Check psycopg 3 testing patterns: https://www.psycopg.org/psycopg3/docs/
+- Live venv introspection: `uv run python -c "import ..."` — psycopg 3.3.4, pandas 3.0.3, psycopg_pool 3.3.1, tenacity 9.1.4, SQLAlchemy 2.0.50 (HIGH confidence)
+- `/home/loc/workspace/pycopg/pycopg/spatial.py` — `SpatialAccessor` / `AsyncSpatialAccessor` pattern with lazy `@property` and shared module-level builders (HIGH confidence: read directly)
+- `/home/loc/workspace/pycopg/pycopg/database.py` — `upsert_many` (line 484), COPY insert (line 654), `from_dataframe` (line 1364), `spatial` lazy property (line 228) (HIGH confidence: read directly)
+- `/home/loc/workspace/pycopg/pycopg/queries.py` — SQL constant pattern and conventions (HIGH confidence: read directly)
+- `/home/loc/workspace/pycopg/pycopg/base.py` — `QueryMixin`, `DatabaseBase` shared between sync/async (HIGH confidence: read directly)
+- `/home/loc/workspace/pycopg/pycopg/migrations.py` — `Migrator` tracking table pattern (HIGH confidence: read directly)
+- `/home/loc/workspace/pycopg/pyproject.toml` — declared runtime deps and optional extras (HIGH confidence: read directly)
+- `/home/loc/workspace/pycopg/.planning/PROJECT.md` — Out of Scope list, v0.5.0 ETL goals, key decisions (HIGH confidence: read directly)
+- Python 3.11 stdlib — `dataclasses`, `typing.Protocol`, `@runtime_checkable`, `datetime`, `uuid` (HIGH confidence: stable stdlib, confirmed importable in live venv)
 
 ---
-*Stack research for: Python database library consolidation*
-*Researched: 2026-02-11*
-*Confidence: MEDIUM (training data only, web verification unavailable)*
+
+*Stack research for: pycopg v0.5.0 ETL Pipeline Runner*
+*Researched: 2026-06-14*
