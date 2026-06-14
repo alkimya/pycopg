@@ -14,7 +14,8 @@ findings:
   warning: 3
   info: 4
   total: 7
-status: issues_found
+status: resolved
+resolution: "WR-01, WR-02, WR-03, IN-04 fixed in c6f44b0; IN-01/IN-02/IN-03 accepted/deferred (Phase 18/20 boundary)"
 ---
 
 # Phase 16: Code Review Report
