@@ -18,7 +18,7 @@ Détails : [milestones/v0.4.0-MILESTONE.md](milestones/v0.4.0-MILESTONE.md) · E
 - [ ] Phase 12: Refactoring (brancher base.py + queries.py) — coverage cliquet → 95
 - [x] Phase 13: Qualité documentaire (docstrings numpydoc + interrogate ≥ 95) (completed 2026-06-10)
 - [x] Phase 14: Spatial helpers (`db.spatial.*`, ex-Phase 8) — trancher 4 points ouverts en début de phase (completed 2026-06-12)
-- [ ] Phase 15: Release v0.4.0 (PyPI + ReadTheDocs)
+- [x] Phase 15: Release v0.4.0 (PyPI + ReadTheDocs) (completed 2026-06-14)
 
 ## Phase Details
 
@@ -212,7 +212,7 @@ Plans:
   5. Actions GitHub bumpées Node 20 → Node 24
   6. Audit milestone (gsd-audit-milestone) passé avant archivage
 
-**Plans:** 6 plans
+**Plans:** 6/6 plans complete
 Plans:
 **Wave 1** *(parallel prep — no file overlap)*
 
@@ -265,4 +265,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete    | 2026-06-12 |
-| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete   | 2026-06-14 |
+| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete    | 2026-06-14 |

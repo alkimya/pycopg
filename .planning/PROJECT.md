@@ -8,7 +8,9 @@ A production-ready Python library providing high-level sync and async APIs for P
 
 Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-## Current Milestone: v0.4.0 Quality & Spatial Helpers
+## Current Milestone: v0.4.0 Quality & Spatial Helpers — ✅ SHIPPED 2026-06-14
+
+**Status:** COMPLETE — v0.4.0 published to PyPI (`pip install pycopg==0.4.0` verified) and live on ReadTheDocs. All 7 phases (9–15) verified passed; milestone audit passed (46/46 requirements, 4/4 integration flows). See `.planning/v0.4.0-MILESTONE-AUDIT.md`.
 
 **Goal:** Make pycopg cleanly publishable — first sanitize (security, parity, debt, tests, docs), then add spatial helpers on healthy foundations, and ship (PyPI + ReadTheDocs).
 
@@ -163,3 +165,5 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 *Last updated: 2026-06-12 — Phase 14 complete (spatial helpers : `db.spatial.*`/`async_db.spatial.*` en parité, 11 helpers, builders purs 100% couverts, garde PostGIS, D-01..D-12 actés dans 08-DESIGN.md, gate coverage 92→94 ; SPAT-01..06 validés, vérification 11/11).*
+
+*Last updated: 2026-06-14 — Phase 15 complete + milestone v0.4.0 SHIPPED. Released to PyPI (wheel+sdist via OIDC trusted publishing, tag `v0.4.0`, clean-venv install verified) and ReadTheDocs (green build, Spatial Helpers page live). REL-01..06 satisfied: Sphinx spatial docs + `docs/spatial.md`, version bump 0.4.0, CHANGELOG/MIGRATION, Node 24 CI actions, RTD green, PyPI publish, milestone audit passed (6/6 plans, verification 6/6).*
