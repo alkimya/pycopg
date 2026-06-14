@@ -71,7 +71,7 @@ Requirements for the v0.4.0 release. Each maps to exactly one roadmap phase (9â€
 - [ ] **REL-02**: ReadTheDocs build is green (`.readthedocs.yaml` validated, RTD live)
 - [x] **REL-03**: CHANGELOG v0.4.0 written; version bumped consistently everywhere; MIGRATION notes for any breaking changes
 - [ ] **REL-04**: Wheel published to PyPI via `uv build` + GitHub release â†’ auto-publish; tag created
-- [ ] **REL-05**: GitHub Actions bumped from Node 20 to Node 24 (deprecation noted during the 0.3.1 release)
+- [x] **REL-05**: GitHub Actions bumped from Node 20 to Node 24 (deprecation noted during the 0.3.1 release)
 - [ ] **REL-06**: Milestone audit (`gsd-audit-milestone`) passes before archiving
 
 ## v2 Requirements
@@ -158,7 +158,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-02 | Phase 15 | Pending |
 | REL-03 | Phase 15 | Complete |
 | REL-04 | Phase 15 | Pending |
-| REL-05 | Phase 15 | Pending |
+| REL-05 | Phase 15 | Complete |
 | REL-06 | Phase 15 | Pending |
 
 **Coverage:**
