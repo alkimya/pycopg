@@ -241,3 +241,55 @@ HYPERTABLE_INFO = """
         hypertable_size(format('%%I.%%I', %s::text, %s::text)) AS total_size,
         hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
 """
+
+# =============================================================================
+# ETL QUERIES
+# =============================================================================
+
+ETL_INIT_PIPELINE_RUNS = """
+    CREATE TABLE IF NOT EXISTS pipeline_runs (
+        run_id BIGSERIAL PRIMARY KEY,
+        pipeline_name TEXT NOT NULL,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        finished_at TIMESTAMPTZ,
+        status TEXT NOT NULL CHECK (status IN ('running','success','failed')),
+        rows_extracted BIGINT,
+        rows_loaded BIGINT,
+        error_message TEXT,
+        error_traceback TEXT,
+        watermark JSONB
+    )
+"""
+
+ETL_INSERT_RUN = """
+    INSERT INTO pipeline_runs (pipeline_name, status, started_at)
+    VALUES (%s, %s, %s)
+    RETURNING run_id
+"""
+
+ETL_UPDATE_RUN = """
+    UPDATE pipeline_runs
+    SET status = %s,
+        finished_at = %s,
+        rows_extracted = %s,
+        rows_loaded = %s,
+        error_message = %s,
+        error_traceback = %s
+    WHERE run_id = %s
+"""
+
+ETL_LIST_RUNS = """
+    SELECT *
+    FROM pipeline_runs
+    WHERE pipeline_name = %s
+    ORDER BY started_at DESC
+    LIMIT %s
+"""
+
+ETL_GET_LAST_RUN = """
+    SELECT *
+    FROM pipeline_runs
+    WHERE pipeline_name = %s
+    ORDER BY started_at DESC
+    LIMIT 1
+"""
