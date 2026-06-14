@@ -226,7 +226,7 @@ Plans:
 
 **Wave 3** *(RTD verify — blocked on Wave 2, autonomous: false)*
 
-- [ ] 15-05-PLAN.md — validate .readthedocs.yaml + spatial import; [HUMAN-GATED] push to main, confirm live RTD build green (REL-02)
+- [x] 15-05-PLAN.md — validate .readthedocs.yaml + spatial import; [HUMAN-GATED] push to main, confirm live RTD build green (REL-02)
 
 **Wave 4** *(release — blocked on Wave 3, ALL autonomous: false, IRREVERSIBLE)*
 
@@ -265,4 +265,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 12. Refactoring (base.py + queries.py) | v0.4.0 | 4/4 | Complete   | 2026-06-09 |
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete    | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete    | 2026-06-12 |
-| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 4/6 | In Progress|  |
+| 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 5/6 | In Progress|  |
