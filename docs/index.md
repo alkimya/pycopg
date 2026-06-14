@@ -13,6 +13,7 @@ async-database
 connection-pooling
 migrations
 postgis
+spatial
 timescaledb
 roles-permissions
 backup-restore

@@ -158,6 +158,29 @@ Database(config: Config)
 | `create_spatial_index` | `table, column="geometry", schema="public", name=None` | - |
 | `list_geometry_columns` | `schema=None` | `list[dict]` |
 
+### Spatial Helpers (db.spatial.*)
+
+Accessed via `db.spatial.<method>(...)`. The accessor is initialized lazily on first
+access and raises `ExtensionNotAvailable` if PostGIS is not installed. All helpers accept
+one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
+`ref=(table, col)`. The `into=` parameter controls output: `"rows"` returns
+`list[dict]` (default); `"gdf"` returns a `GeoDataFrame`. Scalar helpers (`area`,
+`perimeter`, `distance`, `centroid`) only support `into="rows"`.
+
+| Method | Key Parameters | Returns |
+|--------|----------------|---------|
+| `contains` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `within` | `left_table, left_geom, right_table, right_geom, schema="public", into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `intersects` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `dwithin` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, distance=, unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `distance` | `table, geom="geometry", point=, wkt=, geojson=, srid=4326, unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
+| `nearest` | `table, geom="geometry", point=, wkt=, geojson=, srid=4326, k=5, into="rows", columns=, where=` | `list[dict] \| GeoDataFrame` |
+| `area` | `table, geom="geometry", unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
+| `perimeter` | `table, geom="geometry", unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
+| `centroid` | `table, geom="geometry", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
+| `buffer` | `table, geom="geometry", distance=, unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `transform` | `table, geom="geometry", to_srid=, into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+
 ### TimescaleDB Methods
 
 | Method | Parameters | Returns |

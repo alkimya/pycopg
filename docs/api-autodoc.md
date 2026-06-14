@@ -9,6 +9,9 @@ Auto-generated API documentation from pycopg docstrings.
 .. automodule:: pycopg.async_database
    :members:
 
+.. automodule:: pycopg.spatial
+   :members:
+
 .. automodule:: pycopg.base
    :members:
 
