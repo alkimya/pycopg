@@ -41,3 +41,18 @@ class MigrationError(PycopgError):
 class DatabaseExists(PycopgError):
     """Database already exists."""
     pass
+
+
+class ETLError(PycopgError):
+    """Base exception for ETL pipeline errors."""
+    pass
+
+
+class ETLTransformError(ETLError):
+    """Error raised when a pipeline transform function fails."""
+    pass
+
+
+class ETLTargetNotFoundError(ETLError):
+    """Error raised when an append-mode load target table is missing."""
+    pass
