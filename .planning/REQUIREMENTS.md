@@ -9,7 +9,7 @@ A declarative ETL pipeline-runner layer (`db.etl.*` / `async_db.etl.*`) that run
 
 ### Pipeline & Transform
 
-- [ ] **ETL-01**: User can define a pipeline with `Pipeline(name=..., source=..., target=..., load_mode=...)`; the object is inspectable (`name`, `source`, `target`, `load_mode`, `conflict_columns`, `schema` are readable attributes).
+- [x] **ETL-01**: User can define a pipeline with `Pipeline(name=..., source=..., target=..., load_mode=...)`; the object is inspectable (`name`, `source`, `target`, `load_mode`, `conflict_columns`, `schema` are readable attributes).
 - [ ] **ETL-02**: User can set `source="SELECT ..."` (SQL) or `source="table_name"` (table) and both extract a DataFrame on `run()` (same-DB, delegates to `to_dataframe`).
 - [ ] **ETL-03**: User can pass `transform=None` (no-op) or a `Callable[[DataFrame], DataFrame]`; the transform is applied before load. An exception in the transform raises `ETLTransformError` and records a failed run.
 
@@ -87,7 +87,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ETL-01 | Phase 16 | Pending |
+| ETL-01 | Phase 16 | Complete |
 | ETL-02 | Phase 18 | Pending |
 | ETL-03 | Phase 18 | Pending |
 | ETL-04 | Phase 18 | Pending |
@@ -106,6 +106,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ETL-17 | Phase 19 | Pending |
 
 **Coverage:**
+
 - v0.5.0 requirements: 17 total
 - Mapped to phases: 17
 - Unmapped: 0 ✓

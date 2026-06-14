@@ -55,63 +55,79 @@ dependencies. Architecture mirrors `spatial.py`.
 ## Phase Details
 
 ### Phase 16: Pure ETL Layer
+
 **Goal**: Users can define a `Pipeline` dataclass that is inspectable and validated at construction time — all ETL SQL constants and pure DB-free builder functions exist and are unit-testable without any database connection
 **Depends on**: Phase 15
 **Requirements**: ETL-01
 **Success Criteria** (what must be TRUE):
+
   1. `Pipeline(name=..., source=..., target=..., load_mode=...)` can be instantiated and all attributes (`name`, `source`, `target`, `load_mode`, `conflict_columns`, `schema`) are readable
   2. Constructing `Pipeline(load_mode='upsert')` without `conflict_columns` raises `ValueError` at construction time, before any DB interaction
   3. All ETL SQL constants (`ETL_INIT_PIPELINE_RUNS`, `ETL_INSERT_RUN`, `ETL_UPDATE_RUN`, `ETL_LIST_RUNS`, `ETL_GET_LAST_RUN`) exist in `queries.py` and contain no f-string identifier interpolation
   4. Pure builder functions (`build_init_sql()`, `build_truncate_sql()`, etc.) are importable and return parameterized SQL strings in unit tests that require no DB fixture
+
 **Plans**: 2 plans
-  - [ ] 16-01-PLAN.md — ETL exception hierarchy + 5 ETL SQL constants + exception exports (Wave 1)
+
+  - [x] 16-01-PLAN.md — ETL exception hierarchy + 5 ETL SQL constants + exception exports (Wave 1)
   - [ ] 16-02-PLAN.md — Pipeline frozen dataclass + build_init_sql/build_truncate_sql + DB-free tests (Wave 2)
 
 ### Phase 17: Run-Tracking Foundation
+
 **Goal**: The `pipeline_runs` table schema is finalised and the separate-connection run-log write pattern is solid — so all subsequent load phases inherit correct transaction boundary behavior
 **Depends on**: Phase 16
 **Requirements**: ETL-07, ETL-08, ETL-09, ETL-14
 **Success Criteria** (what must be TRUE):
+
   1. After any `run()`, a row exists in `pipeline_runs` with `run_id`, `pipeline_name`, `started_at`, `finished_at`, `status`, `rows_extracted`, `rows_loaded`, and a nullable `watermark` JSONB column (always NULL in v0.5.0)
   2. `db.etl.init()` creates the `pipeline_runs` table; calling it a second time is idempotent (no error, no duplicate table)
   3. If no explicit `init()` is called, the first `run()` auto-creates `pipeline_runs` via `CREATE TABLE IF NOT EXISTS`
   4. A run that fails during load records `status='failed'` with non-null `error_message` and `error_traceback`; the `pipeline_runs` row is committed even when the load transaction rolled back, because run-log writes use a dedicated autocommit connection separate from the load transaction
+
 **Plans**: TBD
 
 ### Phase 18: Load Modes & Extract
+
 **Goal**: All three load modes and both extract source types work correctly with transactional safety and SQL injection prevention via `validate_identifiers`
 **Depends on**: Phase 17
 **Requirements**: ETL-02, ETL-03, ETL-04, ETL-05, ETL-06, ETL-16
 **Success Criteria** (what must be TRUE):
+
   1. `source="SELECT ..."` (SQL) and `source="table_name"` (table) both extract a DataFrame correctly, delegating to `to_dataframe`
   2. `load_mode='append'` inserts rows into an existing target; running the pipeline twice doubles the row count; a non-existent target raises `ETLTargetNotFoundError`
   3. `load_mode='replace'` with a mid-load error leaves the target with its original rows (TRUNCATE + INSERT are atomic in one transaction; a failed mid-INSERT rolls back the TRUNCATE too); if the target does not exist it is created
   4. `load_mode='upsert'` with `conflict_columns` updates existing rows and inserts new ones with no duplicates across two identical runs
   5. `transform=None` is a no-op; a single `Callable[[DataFrame], DataFrame]` is applied before load; `transform=[fn1, fn2, fn3]` applies callables in sequence; an exception in any transform step raises `ETLTransformError` and records a failed run, identifying which step failed
   6. Every load SQL builder calls `validate_identifiers` on table names and conflict columns before any string interpolation
+
 **Plans**: TBD
 
 ### Phase 19: Sync Runner & Query Surface
+
 **Goal**: The complete sync ETL surface (`run`, `history`, `last_run`, `dry_run`) is wired and returns correct `RunResult` objects backed by real `pipeline_runs` rows
 **Depends on**: Phase 18
 **Requirements**: ETL-10, ETL-11, ETL-15, ETL-17
 **Success Criteria** (what must be TRUE):
+
   1. `db.etl.run(pipeline)` returns a `RunResult` with `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, and `error`
   2. `db.etl.history("my_pipeline")` returns a list of `RunResult` objects for that pipeline ordered newest-first; running the pipeline twice yields two entries
   3. `db.etl.last_run("my_pipeline")` returns the most recent `RunResult`; returns `None` when no runs exist for that pipeline name
   4. `db.etl.run(pipeline, dry_run=True)` executes extract and transform but skips load; returns `RunResult(status='dry_run', rows_loaded=0)` and writes no row to `pipeline_runs`
+
 **Plans**: TBD
 
 ### Phase 20: Async Parity, Wiring & Release
+
 **Goal**: `AsyncETLAccessor` reaches full parity with `EtlAccessor`, `db.etl` / `async_db.etl` lazy properties are wired, `TestEtlParity` enumerates the ETL surface, and pycopg v0.5.0 ships to PyPI with green Sphinx docs and a held ≥ 94% coverage gate
 **Depends on**: Phase 19
 **Requirements**: ETL-12, ETL-13
 **Success Criteria** (what must be TRUE):
+
   1. `await async_db.etl.run(pipeline)`, `await async_db.etl.history(name)`, `await async_db.etl.last_run(name)`, and `await async_db.etl.run(pipeline, dry_run=True)` exist and produce results equivalent to their sync counterparts
   2. Sync transform callables are dispatched via `asyncio.to_thread` in `AsyncETLAccessor.run()` — a slow transform does not block the event loop for concurrent coroutines
   3. `db.etl` returns a lazily-created `ETLAccessor`; `async_db.etl` returns a lazily-created `AsyncETLAccessor`; both follow the `db.spatial` / `async_db.spatial` lazy-creation pattern exactly
   4. `TestEtlParity` (an extension to the existing `test_parity` harness using `inspect.getmembers`) enumerates `EtlAccessor` vs `AsyncETLAccessor` method surfaces and asserts full parity; it passes in CI
   5. `docs/etl.md` Sphinx autodoc page renders without `-W` warnings and is live on ReadTheDocs; `interrogate ≥ 95` passes on ETL docstrings; `uv run pytest --cov` on real PG measures ≥ 94% and the ratchet gate is held; CHANGELOG + MIGRATION updated; `pycopg==0.5.0` tagged and published to PyPI
+
 **Plans**: TBD
 
 ## Progress
@@ -135,7 +151,7 @@ dependencies. Architecture mirrors `spatial.py`.
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete | 2026-06-12 |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
-| 16. Pure ETL Layer | v0.5.0 | 0/TBD | Not started | - |
+| 16. Pure ETL Layer | v0.5.0 | 1/2 | In Progress|  |
 | 17. Run-Tracking Foundation | v0.5.0 | 0/TBD | Not started | - |
 | 18. Load Modes & Extract | v0.5.0 | 0/TBD | Not started | - |
 | 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
