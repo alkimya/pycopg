@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-14
+
+### Added
+
+- `db.spatial.*` / `async_db.spatial.*` namespace: 11 spatial helpers (`contains`, `within`,
+  `intersects`, `dwithin`, `distance`, `nearest`, `area`, `perimeter`, `centroid`, `buffer`,
+  `transform`) with full sync/async parity; pure SQL builders, PostGIS guard, GeoDataFrame
+  output via `into="gdf"`, four geometry input forms (`point=`, `wkt=`, `geojson=`, `ref=`)
+- `SpatialAccessor` and `AsyncSpatialAccessor` exported from `pycopg` top-level
+- Async methods previously missing: `add_primary_key`, `add_foreign_key`,
+  `add_unique_constraint`, `truncate_table`, `drop_extension`, `database_exists`,
+  `list_databases`, `create`, `create_from_env` on `AsyncDatabase`
+- Sync methods previously missing: `insert_many`, `upsert_many`, `stream`, `notify`
+  on `Database`
+- `PooledDatabase.execute` now commits results before returning so `INSERT ... RETURNING`
+  results are not rolled back on pool return
+- `DatabaseExists` exception in the public exception hierarchy
+- `validate_timestamp()`, `validate_privileges()`, `validate_object_type()`,
+  `validate_csv_option()`, `validate_extension_name()` in `pycopg.utils`
+- `interrogate` enforced in CI (docstring coverage ≥ 95%)
+- mypy type checking in CI (non-blocking)
+- `uv.lock` and `.python-version` for reproducible contributor environments
+
+### Changed
+
+- **BREAKING**: Async engine now uses `postgresql+psycopg_async://` driver URL (was
+  `postgresql+psycopg://`) — fixes async query execution
+- **BREAKING**: `AsyncDatabase.close()` now disposes the SQLAlchemy async engine
+  (was a no-op) — connections are properly released
+- **BREAKING**: Custom exception types now raised instead of `RuntimeError`/`ValueError`
+  for domain errors: `ExtensionNotAvailable` (was RuntimeError), `TableNotFound` (was
+  RuntimeError), `DatabaseExists` (was RuntimeError) — see MIGRATION.md
+- `create_extension(schema=...)` and `create_schema(owner=...)` signatures aligned
+  between sync and async (parameters added to async)
+- `table_info` and `list_roles` semantics aligned sync/async
+- All docstrings migrated to numpydoc format (Summary/Parameters/Returns/Raises)
+- Dev tooling migrated to `uv` (`uv sync`, `uv run`, `uv build`); `pip install pycopg`
+  for end users unchanged
+- CI test and publish workflows use `uv` for dependency management and build
+
+### Fixed
+
+- `session()` context manager no longer masks the original exception when commit/close
+  fails in the finally block
+- Migration `_apply` and `rollback` now run inside an explicit atomic transaction
+  (fixes partial-apply on error)
+- Subprocess helpers use `os.environ` correctly (was `subprocess.os.environ`)
+- Async `create_role` validates identifiers before executing (closes residual injection gap)
+- Async `from_dataframe`/`from_geodataframe` now correctly apply `primary_key` (was silently
+  ignoring it)
+- `__version__` resolved via `importlib.metadata` (was stuck at `0.1.0`)
+
+### Security
+
+- Identifier validation extended to all remaining unvalidated parameters (see v0.3.1 for the
+  initial hotfix; this release closes the residual gaps in `create_role` async path)
+
 ## [0.3.1] - 2026-06-06
 
 ### Security
@@ -79,6 +136,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/alkimya/pycopg/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/alkimya/pycopg/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/alkimya/pycopg/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/alkimya/pycopg/releases/tag/v0.2.0

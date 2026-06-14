@@ -242,3 +242,104 @@ If you encounter issues during migration:
 1. Check that you're using a supported Python version (3.11+)
 2. Review the [CHANGELOG.md](CHANGELOG.md) for full list of changes
 3. Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
+
+---
+
+# Migration Guide: v0.3.x to v0.4.0
+
+This guide helps you upgrade from pycopg 0.3.x to 0.4.0. Version 0.4.0 adds spatial helpers,
+full sync/async parity, and custom exception types. There are three breaking changes.
+
+## Breaking Changes
+
+### 1. AsyncDatabase engine URL (psycopg_async driver)
+
+**Affected users:** Anyone inspecting or passing through `AsyncDatabase._async_engine` URLs.
+
+**What changed:** The async engine now uses the `postgresql+psycopg_async://` URL scheme (was
+`postgresql+psycopg://`). This is the correct driver for async psycopg v3.
+
+**Impact:** Low. Only affects code that reads or logs `async_engine.url`. The API
+(`execute`, `connect`, etc.) is unchanged — you do not need to update connection strings
+passed to `AsyncDatabase.from_env()` or `AsyncDatabase.from_url()`.
+
+### 2. AsyncDatabase.close() now disposes the engine
+
+**What changed:** `close()` now calls `await engine.dispose()`. Previously it was a no-op.
+
+**Impact:** Any code that called `close()` and then attempted to use the same
+`AsyncDatabase` instance again will now fail — the engine is disposed. This was already
+incorrect behavior: `close()` semantics have always implied the object should not be
+used afterward. Treat this as a bug fix rather than a behavior change.
+
+### 3. Custom exception types replace RuntimeError/ValueError
+
+**What changed:** Several methods now raise domain-specific exceptions instead of
+`RuntimeError` or `ValueError`:
+
+| Method | Old exception | New exception |
+|--------|---------------|---------------|
+| `create_extension()` when extension is missing | `RuntimeError` | `ExtensionNotAvailable` |
+| `create_database()` when database already exists | `RuntimeError` | `DatabaseExists` |
+| Other extension-requiring methods | `RuntimeError` | `ExtensionNotAvailable` |
+
+**Migration:** Update `except` clauses:
+
+```python
+# Before (0.3.x)
+try:
+    db.create_extension("postgis")
+except RuntimeError:
+    pass
+
+# After (0.4.0)
+from pycopg import ExtensionNotAvailable
+try:
+    db.create_extension("postgis")
+except ExtensionNotAvailable:
+    pass
+```
+
+```python
+# Before (0.3.x)
+try:
+    db.create_database("mydb")
+except RuntimeError:
+    pass
+
+# After (0.4.0)
+from pycopg import DatabaseExists
+try:
+    db.create_database("mydb")
+except DatabaseExists:
+    pass
+```
+
+**Impact:** Medium. Code with broad `except Exception` or `except PycopgError` catch-all
+clauses is unaffected. Only explicit `except RuntimeError` or `except ValueError` blocks
+that catch database-domain errors need updating.
+
+## Upgrade Checklist
+
+- [ ] Review breaking changes above
+- [ ] Search codebase for `except RuntimeError` near `create_extension` / `create_database`
+  calls and update to `except ExtensionNotAvailable` / `except DatabaseExists`
+- [ ] Import new exception types: `from pycopg import ExtensionNotAvailable, DatabaseExists`
+- [ ] If you inspect `async_engine.url` anywhere, update expected URL scheme to
+  `postgresql+psycopg_async://`
+- [ ] Run test suite to verify compatibility
+
+## New in 0.4.0
+
+- `db.spatial.*` / `async_db.spatial.*`: 11 spatial helpers (contains, within, intersects,
+  dwithin, distance, nearest, area, perimeter, centroid, buffer, transform)
+- Full sync/async API parity (all public methods now available on both `Database` and `AsyncDatabase`)
+- `PooledDatabase.execute` commits results before returning (fixes `INSERT ... RETURNING`)
+
+## Getting Help
+
+If you encounter issues during migration:
+
+1. Check that you're using a supported Python version (3.11+)
+2. Review the [CHANGELOG.md](CHANGELOG.md) for the full list of changes
+3. Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
