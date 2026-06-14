@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Quality & Spatial Helpers
-status: executing
-stopped_at: "15-01 complete: spatial docs updated, autodoc surface added"
-last_updated: "2026-06-14T15:53:28.670Z"
-last_activity: 2026-06-14
+status: Awaiting next milestone
+stopped_at: "milestone v0.4.0 complete + archived"
+last_updated: "2026-06-14T17:05:29.517Z"
+last_activity: 2026-06-14 — Milestone v0.4.0 completed and archived
 progress:
   total_phases: 7
   completed_phases: 7
@@ -18,18 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-06)
+See: .planning/PROJECT.md (updated 2026-06-14)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 15 — release-v0-4-0-pypi-rtd
+**Current focus:** Planning next milestone (`/gsd-new-milestone`) — v0.4.0 shipped & archived
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Prev phase: 12 (refactoring) — COMPLETE (4/4 plans, VERIFICATION PASSED, coverage gate 90->92)
-Status: Ready to execute
-Last activity: 2026-06-14
+Phase: Milestone v0.4.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-14 — Milestone v0.4.0 completed and archived
 
 ## Performance Metrics
 
@@ -112,3 +111,7 @@ Resume file: None
 Next action: /gsd-execute-phase 14 (spatial helpers — resolve 4 open design points from Phase 8)
 Note: the old Phase 8 spatial design (`.planning/phases/08-spatial-helpers/08-DESIGN.md`) is realized
   as Phase 14 — its 4 open points (`into=`, geometry input, `unit=`, `where=`) are resolved at that phase start.
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

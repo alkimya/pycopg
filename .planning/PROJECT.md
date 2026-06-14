@@ -2,28 +2,26 @@
 
 ## What This Is
 
-A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. Version 0.3.0 achieved full AsyncDatabase/Database feature parity with 30+ async methods, production resilience (retry/backoff, timeouts), and 72.76% test coverage. Published on PyPI as a standalone library.
+A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.4.0 it offers full sync/async feature parity, PostGIS spatial helpers (`db.spatial.*` / `async_db.spatial.*`), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
 
 ## Core Value
 
 Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-## Current Milestone: v0.4.0 Quality & Spatial Helpers — ✅ SHIPPED 2026-06-14
+## Current State — v0.4.0 SHIPPED 2026-06-14
 
-**Status:** COMPLETE — v0.4.0 published to PyPI (`pip install pycopg==0.4.0` verified) and live on ReadTheDocs. All 7 phases (9–15) verified passed; milestone audit passed (46/46 requirements, 4/4 integration flows). See `.planning/v0.4.0-MILESTONE-AUDIT.md`.
+**Latest shipped:** v0.4.0 "Quality & Spatial Helpers" — published to PyPI (`pip install pycopg==0.4.0` verified in a clean venv) and live on ReadTheDocs. All 7 phases (9–15) verified passed; milestone audit PASSED (46/46 requirements, 7/7 phases, 14/14 integration, 4/4 E2E flows). Archived: `.planning/milestones/v0.4.0-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md`.
 
-**Goal:** Make pycopg cleanly publishable — first sanitize (security, parity, debt, tests, docs), then add spatial helpers on healthy foundations, and ship (PyPI + ReadTheDocs).
+**Delivered in v0.4.0:** uv toolchain (dev + CI + build + lockfile, `pip install pycopg` kept for users); residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods, C1/C2/C3, extended `test_parity`); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` / `async_db.spatial.*` (11 helpers); coverage ratchet 70→80→90→92→94.
 
-**Target features:**
-- uv as the project-management tool (dev + CI + build + lockfile), keeping `pip install pycopg` for end users
-- Close residual SQL-injection / robustness bugs left after the v0.3.1 hotfix (B1/B2/B3/B5)
-- Restore full sync/async parity (10+ divergent methods) with an extended `test_parity`
-- Wire up the already-existing abstractions (`base.py`, `queries.py`) to kill ~48% duplication
-- numpydoc docstrings (shallow, no Examples) measured by `interrogate ≥ 95%`
-- `db.spatial.*` / `async_db.spatial.*` helpers in parity (the realized Phase 8 design)
-- Release v0.4.0 on PyPI with up-to-date Sphinx docs and a green RTD build
+## Next Milestone Goals
 
-**Key context:** Scoped from the 2026-06-06 out-of-GSD audit (`.planning/AUDIT-2026-06-06.md`) + Phase 8 spatial design. Locked conventions: uv tooling, numpydoc docstrings, coverage ratchet 70→80→90→95 (never decreasing, capped at 95). The refactor previously deferred to a "future version" is now in scope. Full plan: `.planning/milestones/v0.4.0-MILESTONE.md`.
+No active milestone. Start the next one with `/gsd-new-milestone`. Candidate scope (from the archived v0.4.0 v2 requirements):
+
+- **ETL layer** built on top of the spatial helpers (the helpers are its building blocks — ETL-01).
+- **API enhancements:** named parameters (API-01), connection health checks (API-02), structured logging (API-03), transaction isolation control (API-04), savepoints (API-05), sync result streaming (API-06).
+- **Architecture:** dynamic pool sizing (ARCH-02).
+- **Carryover debt:** the deferred coverage-95 stretch (currently honestly at 94; remaining ~1pt is DB/IO paths), and `TableNotFound` either gaining a raise site or being documented as user-`except`-only.
 
 ## Requirements
 
@@ -61,14 +59,15 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 - ✓ Full sync/async parity: 13 mirrored methods, C1/C2/C3 fixes, extended `test_parity`, coverage ratchet → 90 — Phase 11 (PAR-*)
 - ✓ Doc API homogène : docstrings numpydoc shallow (sans Examples), interrogate 100% (gate ≥95 en CI), garde Sphinx `-W` avec Google parsing OFF, exceptions domaine (`ExtensionNotAvailable`/`DatabaseExists`), `__version__` via importlib.metadata, mypy non-bloquant — Phase 13 (DOC-06..12)
 - ✓ `db.spatial.*` / `async_db.spatial.*` : 11 helpers (builders SQL purs partagés + accesseurs lazy), garde PostGIS, `into="rows"/"gdf"`, 4 points ouverts tranchés (D-01..D-12 → 08-DESIGN.md), parité test_parity, coverage cliquet 92→94 — Phase 14 (SPAT-01..06)
+- ✓ Refactor: `Database`/`AsyncDatabase` inherit `DatabaseBase`+`QueryMixin`, ~25 inline SQL → `queries.py` constants, pure DB-free builders extracted, dead code cleaned, coverage ratchet → 92 — Phase 12 (REF-01..05)
+- ✓ numpydoc docstrings + `interrogate ≥ 95` (CI gate), real exceptions (V2), `__version__` via importlib.metadata, mypy (non-blocking) — Phase 13 (DOC-06..12)
+- ✓ Release v0.4.0: Sphinx spatial docs + RTD green, CHANGELOG/MIGRATION/version bump, `uv build`, Node 24 CI, tag + PyPI publish, milestone audit — Phase 15 (REL-01..06)
 
 ### Active
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-- [ ] Refactor: wire up `queries.py` + `base.py`, extract pure stateless builders, dead-code cleanup — v0.4.0 (REF-*)
-- [ ] numpydoc docstrings + `interrogate ≥ 95`, real exceptions (V2), `__version__` via importlib, mypy — v0.4.0 (DOC-*)
-- [ ] Release v0.4.0: Sphinx docs, CHANGELOG, `uv build`, PyPI publish, RTD live — v0.4.0 (REL-*)
+_None — v0.4.0 shipped. Next scope is defined when a new milestone starts (`/gsd-new-milestone`); see Next Milestone Goals above._
 
 ### Out of Scope
 
@@ -86,18 +85,23 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 ## Context
 
-Shipped v0.3.0 with 13,648 LOC Python across 15 source files.
-Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx.
-Test coverage: 72.76% with real PostgreSQL (pycopg_test database).
-Breaking change: `from_geodataframe` raises ValueError on unknown CRS instead of silently defaulting to SRID 4326.
+Shipped v0.4.0 (2026-06-14) with 10,528 LOC Python (lib) + 11,228 LOC tests.
+Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend.
+Test coverage: 94.09% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
+Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live.
 
-**Known tech debt (from audit):**
-- Git tag v0.3.0 not yet created (user action)
-- PyPI publication not completed (requires tag push to trigger CI)
-- Database class remains monolithic (~2300 lines) — acceptable for now
+**Known tech debt (from v0.4.0 milestone audit):**
 
-**Now in scope for v0.4.0 (was deferred):**
-- ARCH-01: Refactor Database into shared base/mixins — done by wiring up existing `base.py`/`queries.py` (REF-*)
+- Coverage-95 stretch deferred — gate honest at 94 (measured 94.09%); remaining ~1pt is DB/IO paths (subprocess, engine.dispose) structurally out of scope. REF-01..05 satisfied regardless.
+- `TableNotFound` exported in `__all__` but has no internal raise site (user-`except` only) — benign.
+- `docs/conf.py` sets `release = '0.4.0'` but no explicit `version =` short-version line (cosmetic; RTD green).
+- Nyquist: phases 10 & 12 lack VALIDATION.md; 9/13/15 `nyquist_compliant: false` (release/tooling/doc phases smoke/manual-verified by design).
+- Database class remains monolithic (~2300 lines) — acceptable; duplication killed via base.py/queries.py wiring.
+
+**Resolved this milestone:**
+
+- ARCH-01 (refactor Database into shared base/mixins) — done by wiring up existing `base.py`/`queries.py` (REF-*).
+- v0.3.0 tag + PyPI publication (carried in earlier; v0.3.0, v0.3.1, v0.4.0 all live on PyPI).
 
 **Still deferred to a future milestone (v2 requirements):**
 - API-01: Named parameter support (:name syntax)
@@ -136,12 +140,14 @@ Breaking change: `from_geodataframe` raises ValueError on unknown CRS instead of
 | Track known parity exceptions | Some methods intentionally sync-only or async-only | ✓ Good — documented in parity test |
 | Keep a Changelog 1.1.0 format | Industry standard, structured, parseable | ✓ Good — clean CHANGELOG.md |
 | v0.4.0: security hotfix as isolated v0.3.1 release first | Low-risk mechanical fix, ship before the larger milestone | ✓ Good — shipped to PyPI 2026-06-06 |
-| v0.4.0: uv as project manager, migrated in Phase 9 first | Every later phase runs under the new tooling; lockfile + reproducible CI | — Pending |
-| v0.4.0: keep hatchling build backend (not uv_build) | uv_build too intrusive; hatchling is uv-compatible and already wired to trusted publishing | — Pending |
-| v0.4.0: refactor by wiring existing base.py/queries.py | Abstractions already written but unbranched (~48% dup); wire, don't rewrite | — Pending |
-| v0.4.0: coverage ratchet 70→80→90→95, capped at 95 | Forces steady test growth without blocking on hard-to-mock I/O | — Pending |
-| v0.4.0: numpydoc docstrings, no Examples, interrogate ≥ 95 | Homogeneous measurable API docs; napoleon already active | — Pending |
-| v0.4.0: refactor lifted from Out of Scope | PROJECT.md deferred it to a "future version" — this is that version | — Pending |
+| v0.4.0: uv as project manager, migrated in Phase 9 first | Every later phase runs under the new tooling; lockfile + reproducible CI | ✓ Good — uv.lock + .python-version committed; CI/build run under uv (Phase 9) |
+| v0.4.0: keep hatchling build backend (not uv_build) | uv_build too intrusive; hatchling is uv-compatible and already wired to trusted publishing | ✓ Good — `uv build` delegates to hatchling; OIDC publish unchanged |
+| v0.4.0: refactor by wiring existing base.py/queries.py | Abstractions already written but unbranched (~48% dup); wire, don't rewrite | ✓ Good — both classes inherit base; ~25 SQL strings → queries.py (Phase 12) |
+| v0.4.0: coverage ratchet 70→80→90→95, capped at 95 | Forces steady test growth without blocking on hard-to-mock I/O | ⚠️ Revisit — landed at 94 (measured); 95 stretch deferred (DB/IO paths out of scope, D-07) |
+| v0.4.0: numpydoc docstrings, no Examples, interrogate ≥ 95 | Homogeneous measurable API docs; napoleon already active | ✓ Good — interrogate 100%, Sphinx -W green, Google parsing off (Phase 13) |
+| v0.4.0: refactor lifted from Out of Scope | PROJECT.md deferred it to a "future version" — this is that version | ✓ Good — ARCH-01 delivered via base.py/queries.py wiring |
+| v0.4.0 (P14): geometry resolver enforces exactly-one-of point/wkt/geojson/ref (D-05) | One unambiguous geometry input path per spatial helper | ✓ Good — resolver + 11 builders, spatial.py 100% covered |
+| v0.4.0 (P15): release human-gated (RTD + tag + PyPI publish) | Irreversible supply-chain steps need maintainer confirmation | ✓ Good — clean-venv install verified, RTD green, milestone audit passed |
 | v0.4.0 (P11): async catches up to richer sync signatures, never the reverse (D-07) | Sync is the established core-value API; align by enriching async | ✓ Good — 0 sync breaking changes, signatures match |
 | v0.4.0 (P11): `listen` stays async-only by design (D-06) | A blocking synchronous NOTIFY listener is an anti-pattern | ✓ Good — sole documented async-only method in `test_parity` |
 | v0.4.0 (P11): measure coverage before raising the ratchet gate (D-08) | Never freeze an unmet threshold | ✓ Good — measured 91.61% then flipped 80→90 |
@@ -167,3 +173,5 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-12 — Phase 14 complete (spatial helpers : `db.spatial.*`/`async_db.spatial.*` en parité, 11 helpers, builders purs 100% couverts, garde PostGIS, D-01..D-12 actés dans 08-DESIGN.md, gate coverage 92→94 ; SPAT-01..06 validés, vérification 11/11).*
 
 *Last updated: 2026-06-14 — Phase 15 complete + milestone v0.4.0 SHIPPED. Released to PyPI (wheel+sdist via OIDC trusted publishing, tag `v0.4.0`, clean-venv install verified) and ReadTheDocs (green build, Spatial Helpers page live). REL-01..06 satisfied: Sphinx spatial docs + `docs/spatial.md`, version bump 0.4.0, CHANGELOG/MIGRATION, Node 24 CI actions, RTD green, PyPI publish, milestone audit passed (6/6 plans, verification 6/6).*
+
+*Last updated: 2026-06-14 — milestone v0.4.0 closed via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.4.0; Current State + Next Milestone Goals sections; REF/DOC/REL/SPAT requirements moved to Validated; Active emptied; Context refreshed (10,528 lib LOC + 11,228 test LOC, 94.09% coverage); v0.4.0 Key Decisions outcomes recorded. ROADMAP/REQUIREMENTS archived to `milestones/v0.4.0-*`.*
