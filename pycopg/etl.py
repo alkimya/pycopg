@@ -148,10 +148,20 @@ class Pipeline:
         Raises
         ------
         ValueError
-            If ``load_mode`` is invalid (D-06), ``upsert`` is requested
+            If ``conflict_columns`` is passed as a bare string,
+            ``load_mode`` is invalid (D-06), ``upsert`` is requested
             without ``conflict_columns`` (D-07), or ``extract_limit`` is
-            non-positive (D-11).
+            not a positive integer (D-11).
         """
+        # Reject a bare string before normalization: a str is iterable, so
+        # tuple("user_id") would silently explode into per-character columns
+        # (('u', 's', ...)) and pass the non-empty upsert check (D-07).
+        if isinstance(self.conflict_columns, str):
+            raise ValueError(
+                "conflict_columns must be a sequence of column names, not a "
+                f"single string; got {self.conflict_columns!r} (did you mean "
+                f"[{self.conflict_columns!r}]?)"
+            )
         # Normalize conflict_columns from any iterable to a tuple (D-02).
         # Frozen dataclass requires object.__setattr__ for mutation.
         if not isinstance(self.conflict_columns, tuple):
@@ -164,10 +174,20 @@ class Pipeline:
                 "load_mode='upsert' requires conflict_columns to be non-empty (D-07)"
             )
         # Reject non-positive extract_limit (D-11, Claude's Discretion).
-        if self.extract_limit is not None and self.extract_limit <= 0:
-            raise ValueError(
-                f"extract_limit must be a positive integer, got {self.extract_limit!r}"
-            )
+        # bool is a subclass of int, so guard against it explicitly:
+        # extract_limit=True would otherwise pass and render as LIMIT 1/true.
+        if self.extract_limit is not None:
+            if isinstance(self.extract_limit, bool) or not isinstance(
+                self.extract_limit, int
+            ):
+                raise ValueError(
+                    "extract_limit must be a positive integer or None, got "
+                    f"{self.extract_limit!r}"
+                )
+            if self.extract_limit <= 0:
+                raise ValueError(
+                    f"extract_limit must be a positive integer, got {self.extract_limit!r}"
+                )
 
 
 def _is_sql_source(source: str) -> bool:
@@ -190,11 +210,11 @@ def _is_sql_source(source: str) -> bool:
         ``True`` if the source appears to be a SQL query; ``False`` if
         it appears to be a plain table name.
     """
-    stripped = source.strip().upper()
-    if stripped.startswith(("SELECT", "WITH")):
+    stripped = source.strip()
+    if stripped.upper().startswith(("SELECT", "WITH")):
         return True
     # Presence of whitespace in a non-keyword string indicates SQL.
-    return " " in source.strip()
+    return " " in stripped
 
 
 def build_truncate_sql(table: str, schema: str = "public") -> tuple[str, list]:

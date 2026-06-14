@@ -85,6 +85,17 @@ class TestPipeline:
         assert p.conflict_columns == ("id", "src")
         assert isinstance(p.conflict_columns, tuple)
 
+    def test_conflict_columns_bare_string_raises_valueerror(self):
+        """A bare string conflict_columns raises ValueError, not a per-char tuple."""
+        with pytest.raises(ValueError, match="conflict_columns"):
+            Pipeline(
+                name="x",
+                source="t",
+                target="u",
+                load_mode="upsert",
+                conflict_columns="user_id",
+            )
+
     def test_extract_limit_stored(self):
         """extract_limit is stored and readable (D-11)."""
         p = Pipeline(name="x", source="t", target="u", extract_limit=1000)
@@ -99,6 +110,11 @@ class TestPipeline:
         """Zero extract_limit raises ValueError (D-11, Claude's Discretion)."""
         with pytest.raises(ValueError, match="extract_limit"):
             Pipeline(name="x", source="t", target="u", extract_limit=0)
+
+    def test_extract_limit_bool_raises_valueerror(self):
+        """A bool extract_limit raises ValueError (bool is an int subclass)."""
+        with pytest.raises(ValueError, match="extract_limit"):
+            Pipeline(name="x", source="t", target="u", extract_limit=True)
 
     def test_frozen_dataclass(self):
         """Pipeline is frozen — attribute assignment raises FrozenInstanceError."""
@@ -123,8 +139,12 @@ class TestPipeline:
         p = Pipeline(name="x", source="t", target="u", transform=fns)
         assert p.transform is fns
 
-    def test_all_load_modes_valid(self):
-        """All three public load_mode values construct successfully."""
+    def test_append_and_replace_modes_valid(self):
+        """The two public modes needing no extra fields construct successfully.
+
+        ``upsert`` is the third public mode but requires ``conflict_columns``,
+        so its happy path is covered by ``test_upsert_with_conflict_columns_ok``.
+        """
         for mode in ("append", "replace"):
             p = Pipeline(name="x", source="t", target="u", load_mode=mode)
             assert p.load_mode == mode
