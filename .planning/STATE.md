@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.5.0
 milestone_name: ETL Pipeline Runner
-status: executing
-stopped_at: Phase 16 Plan 02 complete - Pipeline dataclass + pure builders
-last_updated: "2026-06-14T21:12:00Z"
-last_activity: 2026-06-14 -- Phase 16 Plan 02 complete
+status: completed
+stopped_at: Phase 16 Plan 02 complete - Pipeline dataclass + pure builders (2/2 plans)
+last_updated: "2026-06-14T21:15:58.163Z"
+last_activity: 2026-06-14
 progress:
   total_phases: 5
   completed_phases: 1
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-14)
 
 ## Current Position
 
-Phase: 16 (pure-etl-layer) — COMPLETE
-Plan: 2 of 2 — COMPLETE
+Phase: 17
+Plan: Not started
 Status: Phase complete; ready for Phase 17
-Last activity: 2026-06-14 -- Phase 16 Plan 02 complete
+Last activity: 2026-06-14
 
 Progress: [██░░░░░░░░] 20% (Phase 16 complete: 1 of 5 phases)
 
@@ -43,7 +43,7 @@ Progress: [██░░░░░░░░] 20% (Phase 16 complete: 1 of 5 phases
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 16 | TBD | - | - |
+| 16 | 2 | - | - |
 | 17 | TBD | - | - |
 | 18 | TBD | - | - |
 | 19 | TBD | - | - |

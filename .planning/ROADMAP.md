@@ -151,7 +151,7 @@ dependencies. Architecture mirrors `spatial.py`.
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete | 2026-06-12 |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
-| 16. Pure ETL Layer | v0.5.0 | 1/2 | In Progress|  |
+| 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 0/TBD | Not started | - |
 | 18. Load Modes & Extract | v0.5.0 | 0/TBD | Not started | - |
 | 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
