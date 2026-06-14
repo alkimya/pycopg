@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.5.0
 milestone_name: ETL Pipeline Runner
 status: planning
-last_updated: "2026-06-14"
-last_activity: 2026-06-14
+stopped_at: Phase 16 context gathered
+last_updated: "2026-06-14T20:17:30.770Z"
+last_activity: 2026-06-14 — Roadmap created (Phases 16–20, 17 requirements mapped)
 progress:
   total_phases: 5
   completed_phases: 0
@@ -34,6 +35,7 @@ Progress: [░░░░░░░░░░] 0%
 ## Performance Metrics
 
 **Velocity (v0.4.0 reference):**
+
 - Coverage ratchet: 94 (measured 94.09%); gate stays at --cov-fail-under=94
 - interrogate: 100% (gate ≥ 95)
 
@@ -54,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 All v0.4.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
 
 Open design decisions resolved at requirements time (see REQUIREMENTS.md OD section):
+
 - OD-1: `pipeline_runs.watermark` = single nullable JSONB column (always NULL in v0.5.0)
 - OD-2: Load failure = re-raise original exception after recording failed run (no PipelineError wrapper)
 - OD-3: Both lazy auto-create on first `run()` AND explicit `db.etl.init()` available
@@ -68,7 +71,7 @@ None. All three open design decisions (OD-1, OD-2, OD-3) resolved before Phase 1
 
 ## Session Continuity
 
-Last session: 2026-06-14
-Stopped at: Roadmap created — 5 phases (16–20), 17/17 requirements mapped, REQUIREMENTS.md traceability updated, STATE.md initialized.
-Resume file: None
+Last session: 2026-06-14T20:17:30.740Z
+Stopped at: Phase 16 context gathered
+Resume file: .planning/phases/16-pure-etl-layer/16-CONTEXT.md
 Next action: /gsd-plan-phase 16
