@@ -496,14 +496,14 @@ flagged superseded in CONTEXT.md canonical_refs). Use the flow, not the literal 
 
 All other claims in this research are `[VERIFIED]` against live source or empirical psycopg probes.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Builder placement for insert/upsert SQL (Q1 option a).**
+1. **Builder placement for insert/upsert SQL (Q1 option a). — RESOLVED: pure builders in `etl.py` (option a).**
    - What we know: the public `insert_batch`/`upsert_many` cannot be used inside the txn block.
-   - What's unclear: whether the planner adds private `_build_insert_sql`/`_build_upsert_sql`
-     helpers in `etl.py` (recommended) or in `database.py`, or extracts `_build_batch_insert_sql`.
-   - Recommendation: add minimal pure builders in `etl.py` mirroring `build_truncate_sql`, each
-     calling `validate_identifiers` — most consistent with spatial.py and fully unit-testable.
+   - Resolution: add private `_build_insert_sql`/`_build_upsert_sql` helpers in `etl.py`
+     (mirroring `build_truncate_sql`, each calling `validate_identifiers`) — most consistent
+     with spatial.py and fully unit-testable. Adopted by 18-01-PLAN.md and PATTERNS.md; not in
+     `database.py`, not via extracting `_build_batch_insert_sql`.
 
 ## Environment Availability
 
