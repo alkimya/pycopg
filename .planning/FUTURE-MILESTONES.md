@@ -1,8 +1,10 @@
 # pycopg — Vision des milestones futurs
 
-> **Statut : vision / backlog de milestones (discussion).** Carte de route au-delà du milestone
-> courant. Non engageant — l'ordre et le contenu se confirment à chaque `/gsd-new-milestone`.
-> Rédigé le 2026-06-15 après la clôture de v0.5.0.
+> **Statut : vision / backlog de milestones.** Carte de route au-delà du milestone courant.
+> Le contenu de chaque milestone se confirme à son `/gsd-new-milestone`, mais **l'ORDRE est
+> validé** (utilisateur, 2026-06-15) : réorg → ETL incrémental → TimescaleDB avancé → CRUD →
+> spatial v2/1.0. L'arbitrage v0.7.0↔v0.8.0 est tranché : **ETL incrémental AVANT TimescaleDB**
+> (déjà à moitié préparé via la colonne watermark). Rédigé le 2026-06-15 après la clôture de v0.5.0.
 
 ## Principe directeur
 
