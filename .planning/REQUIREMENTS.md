@@ -10,14 +10,14 @@ A declarative ETL pipeline-runner layer (`db.etl.*` / `async_db.etl.*`) that run
 ### Pipeline & Transform
 
 - [x] **ETL-01**: User can define a pipeline with `Pipeline(name=..., source=..., target=..., load_mode=...)`; the object is inspectable (`name`, `source`, `target`, `load_mode`, `conflict_columns`, `schema` are readable attributes).
-- [ ] **ETL-02**: User can set `source="SELECT ..."` (SQL) or `source="table_name"` (table) and both extract a DataFrame on `run()` (same-DB, delegates to `to_dataframe`).
-- [ ] **ETL-03**: User can pass `transform=None` (no-op) or a `Callable[[DataFrame], DataFrame]`; the transform is applied before load. An exception in the transform raises `ETLTransformError` and records a failed run.
+- [x] **ETL-02**: User can set `source="SELECT ..."` (SQL) or `source="table_name"` (table) and both extract a DataFrame on `run()` (same-DB, delegates to `to_dataframe`).
+- [x] **ETL-03**: User can pass `transform=None` (no-op) or a `Callable[[DataFrame], DataFrame]`; the transform is applied before load. An exception in the transform raises `ETLTransformError` and records a failed run.
 
 ### Load Modes & Idempotency
 
-- [ ] **ETL-04**: User can set `load_mode='append'`; running the pipeline twice inserts rows twice. Target must exist; if not, raises `ETLTargetNotFoundError`.
-- [ ] **ETL-05**: User can set `load_mode='replace'` (truncate-load); running twice leaves only the latest extract's rows. If the target does not exist, it is created. TRUNCATE+INSERT is atomic — a mid-load error leaves the target unchanged.
-- [ ] **ETL-06**: User can set `load_mode='upsert'` with `conflict_columns=['id']`; running twice updates existing rows and inserts new ones with no duplicates. Omitting `conflict_columns` with `load_mode='upsert'` raises `ValueError` at pipeline construction time.
+- [x] **ETL-04**: User can set `load_mode='append'`; running the pipeline twice inserts rows twice. Target must exist; if not, raises `ETLTargetNotFoundError`.
+- [x] **ETL-05**: User can set `load_mode='replace'` (truncate-load); running twice leaves only the latest extract's rows. If the target does not exist, it is created. TRUNCATE+INSERT is atomic — a mid-load error leaves the target unchanged.
+- [x] **ETL-06**: User can set `load_mode='upsert'` with `conflict_columns=['id']`; running twice updates existing rows and inserts new ones with no duplicates. Omitting `conflict_columns` with `load_mode='upsert'` raises `ValueError` at pipeline construction time.
 - [x] **ETL-09**: The load runs in its own DB transaction; in `replace` mode an error after TRUNCATE but before INSERT commits leaves the target with its original rows (load transaction rolled back). The run-tracking write is committed independently of the load transaction.
 
 ### Run Tracking & Results
@@ -36,7 +36,7 @@ A declarative ETL pipeline-runner layer (`db.etl.*` / `async_db.etl.*`) that run
 ### Developer Experience
 
 - [ ] **ETL-15**: User can call `run(pipeline, dry_run=True)` to execute extract + transform but skip the load and write no run record; returns a `RunResult` with `status='dry_run'`, `rows_loaded=0`.
-- [ ] **ETL-16**: User can set `transform=[clean, normalize, enrich]` (a list of callables) applied in sequence; an error reports which step failed. A single callable and `None` remain valid.
+- [x] **ETL-16**: User can set `transform=[clean, normalize, enrich]` (a list of callables) applied in sequence; an error reports which step failed. A single callable and `None` remain valid.
 - [ ] **ETL-17**: User can call `db.etl.last_run("my_pipeline")` to fetch the most recent `RunResult` (or `None`) — sugar over `history()`.
 
 ## Future Requirements
@@ -88,11 +88,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | ETL-01 | Phase 16 | Complete |
-| ETL-02 | Phase 18 | Pending |
-| ETL-03 | Phase 18 | Pending |
-| ETL-04 | Phase 18 | Pending |
-| ETL-05 | Phase 18 | Pending |
-| ETL-06 | Phase 18 | Pending |
+| ETL-02 | Phase 18 | Complete |
+| ETL-03 | Phase 18 | Complete |
+| ETL-04 | Phase 18 | Complete |
+| ETL-05 | Phase 18 | Complete |
+| ETL-06 | Phase 18 | Complete |
 | ETL-07 | Phase 17 | Complete |
 | ETL-08 | Phase 17 | Complete |
 | ETL-09 | Phase 17 | Complete |
@@ -102,7 +102,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ETL-13 | Phase 20 | Pending |
 | ETL-14 | Phase 17 | Complete |
 | ETL-15 | Phase 19 | Pending |
-| ETL-16 | Phase 18 | Pending |
+| ETL-16 | Phase 18 | Complete |
 | ETL-17 | Phase 19 | Pending |
 
 **Coverage:**

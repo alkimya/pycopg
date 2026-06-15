@@ -170,6 +170,6 @@ Plans:
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
-| 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
+| 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
 | 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |
