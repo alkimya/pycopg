@@ -641,11 +641,39 @@ class ETLAccessor:
                     ],
                 )
 
-    def run(self, pipeline: Pipeline) -> int:
+    def _fetch_run_result(self, run_id: int) -> RunResult:
+        """Re-SELECT the ``pipeline_runs`` row for *run_id* and return a ``RunResult``.
+
+        Uses a dedicated autocommit connection with the ``dict_row`` factory
+        so the returned snapshot reflects what the DB actually stored (D-11).
+
+        Parameters
+        ----------
+        run_id : int
+            The ``run_id`` of the row to fetch.
+
+        Returns
+        -------
+        RunResult
+            Immutable snapshot of the completed run.
+        """
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(queries.ETL_GET_RUN, [run_id])
+                row = cur.fetchone()
+        return _row_to_result(row)
+
+    def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
         """Execute a full extract → transform → load pipeline run.
 
         Auto-creates ``pipeline_runs`` if absent, inserts a ``'running'``
         row, executes the pipeline, and records the final status.
+
+        When *dry_run* is ``True`` the extract and transform steps are
+        executed but no load is performed and no ``pipeline_runs`` row is
+        written.  The returned :class:`RunResult` has
+        ``status='dry_run'``, ``rows_loaded=0``, and ``run_id=None``
+        (D-08/D-09/ETL-15).
 
         The run-log writes (``init``/``_start_run``/``_end_run``) stay on
         their own dedicated autocommit connections — independent of the load
@@ -683,11 +711,16 @@ class ETLAccessor:
         ----------
         pipeline : Pipeline
             Fully specified pipeline descriptor.
+        dry_run : bool, optional
+            When ``True``, run extract + transform only — skip the load,
+            write no ``pipeline_runs`` row, and return a transient
+            :class:`RunResult` with ``status='dry_run'`` and
+            ``run_id=None``.  By default ``False``.
 
         Returns
         -------
-        int
-            The ``run_id`` of the completed (or failed) run row.
+        RunResult
+            Immutable snapshot of the completed (or dry-run) run.
 
         Raises
         ------
@@ -703,6 +736,76 @@ class ETLAccessor:
             (OD-2).
         """
         name = pipeline.name
+
+        # ------------------------------------------------------------------
+        # DRY-RUN EARLY FORK (D-08/D-09/ETL-15)
+        # Forks before init/start_run — writes no pipeline_runs row.
+        # ------------------------------------------------------------------
+        if dry_run:
+            started_at = datetime.now(UTC)
+            rows_extracted = 0
+
+            # Extract (same as normal path)
+            if _is_sql_source(pipeline.source):
+                if pipeline.extract_limit is not None:
+                    df = self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM ({pipeline.source}) AS _etl_sub"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = self._db.to_dataframe(sql=pipeline.source)
+            else:
+                validate_identifiers(pipeline.source, pipeline.schema)
+                if pipeline.extract_limit is not None:
+                    df = self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = self._db.to_dataframe(
+                        table=pipeline.source,
+                        schema=pipeline.schema,
+                    )
+
+            rows_extracted = len(df)
+
+            # Transform chain (same as normal path)
+            transform = pipeline.transform
+            if transform is None:
+                steps: list = []
+            elif callable(transform):
+                steps = [transform]
+            else:
+                steps = list(transform)
+
+            for i, step in enumerate(steps, start=1):
+                try:
+                    df = step(df)
+                except Exception as exc:
+                    raise ETLTransformError(
+                        f"transform step {i} ('{_step_label(step)}')"
+                        f" raised {type(exc).__name__}: {exc}"
+                    ) from exc
+
+            rows_extracted = len(df)
+            finished_at = datetime.now(UTC)
+            return RunResult(
+                run_id=None,
+                pipeline_name=name,
+                status="dry_run",
+                rows_extracted=rows_extracted,
+                rows_loaded=0,
+                started_at=started_at,
+                finished_at=finished_at,
+                error=None,
+            )
+
         self.init()
         run_id = self._start_run(name)
         rows_extracted = 0
@@ -772,7 +875,7 @@ class ETLAccessor:
             # Empty DataFrame: no load needed; record success with 0 rows_loaded
             if not rows:
                 self._end_run(run_id, "success", rows_extracted, 0)
-                return run_id
+                return self._fetch_run_result(run_id)
 
             columns = list(rows[0].keys())
 
@@ -843,4 +946,4 @@ class ETLAccessor:
             raise
 
         self._end_run(run_id, "success", rows_extracted, rows_loaded)
-        return run_id
+        return self._fetch_run_result(run_id)
