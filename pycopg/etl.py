@@ -24,6 +24,7 @@ Security invariants (v0.3.1, mirrored from spatial.py):
 
 from __future__ import annotations
 
+import asyncio
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -38,6 +39,7 @@ from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError  # noqa:
 from pycopg.utils import validate_identifiers
 
 if TYPE_CHECKING:
+    from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
 
 #: Accepted ``load_mode=`` values (D-06).
@@ -1002,3 +1004,473 @@ class ETLAccessor:
 
         self._end_run(run_id, "success", rows_extracted, rows_loaded)
         return self._fetch_run_result(run_id)
+
+
+class AsyncETLAccessor:
+    """Async ETL helper namespace exposed as ``async_db.etl``.
+
+    Async mirror of :class:`ETLAccessor` — every method is ``async def``
+    and every database call uses ``await``.  All run-log writes
+    (``init``, ``_start_run``, ``_end_run``, ``_fetch_run_result``) use a
+    fresh short-lived **autocommit** connection per write via
+    ``async with self._db.connect(autocommit=True)``.  This isolates the
+    run-log from any load transaction so a ``'failed'`` row is committed
+    even when the load transaction rolls back (D-04/D-05, ETL-08/ETL-09).
+
+    Transform steps are dispatched via :func:`asyncio.to_thread` so that
+    slow sync callables do not block the event loop (SC-2).
+
+    No PostGIS extension guard and no ``schema`` argument (D-08).  The
+    ``pipeline_runs`` table resolves via the connection's ``search_path``.
+
+    Parameters
+    ----------
+    db : AsyncDatabase
+        Parent async database instance.
+    """
+
+    def __init__(self, db: AsyncDatabase) -> None:
+        """Store the parent async database reference (D-02).
+
+        Parameters
+        ----------
+        db : AsyncDatabase
+            Parent async database instance.  Stored as ``self._db``; no
+            extension check is performed (ETL run-tracking is core, not an
+            extension — D-08).
+        """
+        self._db = db
+
+    async def init(self) -> None:
+        """Create the ``pipeline_runs`` table if it does not exist.
+
+        Executes the ``ETL_INIT_PIPELINE_RUNS`` DDL on a **dedicated**
+        autocommit connection opened via
+        ``async with self._db.connect(autocommit=True)`` (D-04).  Safe to
+        call repeatedly — ``CREATE TABLE IF NOT EXISTS`` makes it idempotent
+        (D-10/D-15, ETL-14).
+
+        Returns
+        -------
+        None
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(queries.ETL_INIT_PIPELINE_RUNS)
+
+    async def _start_run(self, name: str) -> int:
+        """Insert a ``'running'`` row into ``pipeline_runs`` and return its id.
+
+        Opens a **dedicated** autocommit connection via
+        ``async with self._db.connect(autocommit=True)`` (D-04).  The
+        INSERT commits on its own connection whether or not a session or
+        load transaction is active (D-05).
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name stored as ``pipeline_name`` in the run row.
+
+        Returns
+        -------
+        int
+            The ``run_id`` of the newly inserted row.
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    queries.ETL_INSERT_RUN,
+                    [name, "running", datetime.now(UTC)],
+                )
+                return (await cur.fetchone())["run_id"]
+
+    async def _end_run(
+        self,
+        run_id: int,
+        status: str,
+        rows_extracted: int,
+        rows_loaded: int,
+        error_message: str | None = None,
+        error_traceback: str | None = None,
+    ) -> None:
+        """Update a ``pipeline_runs`` row with final status and metrics.
+
+        Opens a **dedicated** autocommit connection via
+        ``async with self._db.connect(autocommit=True)`` (D-04), ensuring
+        the UPDATE commits even when the load transaction rolled back
+        (D-05/ETL-08/ETL-09).
+
+        Parameters
+        ----------
+        run_id : int
+            The ``run_id`` returned by :meth:`_start_run`.
+        status : str
+            Final run status: ``'success'`` or ``'failed'``.
+        rows_extracted : int
+            Number of rows read from the source.
+        rows_loaded : int
+            Number of rows written to the target.
+        error_message : str or None, optional
+            Short error description, by default ``None``.
+        error_traceback : str or None, optional
+            Full traceback string, by default ``None``.
+
+        Returns
+        -------
+        None
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    queries.ETL_UPDATE_RUN,
+                    [
+                        status,
+                        datetime.now(UTC),
+                        rows_extracted,
+                        rows_loaded,
+                        error_message,
+                        error_traceback,
+                        run_id,
+                    ],
+                )
+
+    async def _fetch_run_result(self, run_id: int) -> RunResult:
+        """Re-SELECT the ``pipeline_runs`` row for *run_id* and return a ``RunResult``.
+
+        Uses a dedicated autocommit connection with the ``dict_row`` factory
+        so the returned snapshot reflects what the DB actually stored (D-11).
+
+        Parameters
+        ----------
+        run_id : int
+            The ``run_id`` of the row to fetch.
+
+        Returns
+        -------
+        RunResult
+            Immutable snapshot of the completed run.
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(queries.ETL_GET_RUN, [run_id])
+                row = await cur.fetchone()
+        return _row_to_result(row)
+
+    async def history(self, name: str, limit: int = 100) -> list[RunResult]:
+        """Return the run history for a pipeline, newest-first.
+
+        Reads ``pipeline_runs`` via :data:`~pycopg.queries.ETL_LIST_RUNS`
+        on a dedicated autocommit connection.  Results are ordered by
+        ``started_at DESC`` (newest first) and capped at *limit* rows
+        (D-06/ETL-11).
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name to query.
+        limit : int, optional
+            Maximum number of rows to return, by default 100.
+
+        Returns
+        -------
+        list[RunResult]
+            Immutable snapshots of the matching runs, newest-first.
+            Empty list when no runs exist for *name*.
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(queries.ETL_LIST_RUNS, [name, limit])
+                rows = await cur.fetchall()
+        return [_row_to_result(row) for row in rows]
+
+    async def last_run(self, name: str) -> RunResult | None:
+        """Return the most recent run for a pipeline, or ``None``.
+
+        Reads one row from ``pipeline_runs`` via
+        :data:`~pycopg.queries.ETL_GET_LAST_RUN` on a dedicated autocommit
+        connection.  Returns ``None`` when no runs exist for *name*
+        (SC-3/D-07/ETL-17).
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name to query.
+
+        Returns
+        -------
+        RunResult or None
+            Immutable snapshot of the most recent run, or ``None`` when no
+            runs exist for *name*.
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(queries.ETL_GET_LAST_RUN, [name])
+                row = await cur.fetchone()
+        return _row_to_result(row) if row is not None else None
+
+    async def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
+        """Execute a full async extract → transform → load pipeline run.
+
+        Async mirror of :meth:`ETLAccessor.run`.  All DB calls use
+        ``await``; transform steps are dispatched via
+        :func:`asyncio.to_thread` so slow sync callables do not block the
+        event loop (SC-2).
+
+        Auto-creates ``pipeline_runs`` if absent, inserts a ``'running'``
+        row, executes the pipeline, and records the final status.
+
+        When *dry_run* is ``True`` the extract and transform steps are
+        executed but no load is performed and no ``pipeline_runs`` row is
+        written.  The returned :class:`RunResult` has
+        ``status='dry_run'``, ``rows_loaded=0``, and ``run_id=None``
+        (D-08/D-09/ETL-15).
+
+        **Extract:** delegates to
+        :meth:`~pycopg.async_database.AsyncDatabase.to_dataframe`.
+
+        **Transform:** ``transform=None`` is a no-op; a single callable is
+        applied once; a list is applied in sequence.  Each step is
+        dispatched via ``await asyncio.to_thread(step, df)`` (SC-2, Pitfall
+        2 — pass callable + arg separately, not ``step(df)``).  A failing
+        step raises :exc:`~pycopg.exceptions.ETLTransformError`.
+
+        **NaN/NaT coercion:** all ``NaN``/``NaT`` cells are replaced with
+        ``None`` before building the INSERT params (RESEARCH Q2).
+
+        Parameters
+        ----------
+        pipeline : Pipeline
+            Fully specified pipeline descriptor.
+        dry_run : bool, optional
+            When ``True``, run extract + transform only — skip the load,
+            write no ``pipeline_runs`` row, and return a transient
+            :class:`RunResult` with ``status='dry_run'`` and
+            ``run_id=None``.  By default ``False``.
+
+        Returns
+        -------
+        RunResult
+            Immutable snapshot of the completed (or dry-run) run.
+
+        Raises
+        ------
+        ETLTargetNotFoundError
+            If ``load_mode`` is ``'append'`` or ``'upsert'`` and the target
+            table does not exist (D-03).
+        ETLTransformError
+            If a transform step raises — the message includes the 1-based
+            step index and the step label (D-06 / ETL-16).
+        Exception
+            Any other exception from the extract, existence-check, or load
+            steps is re-raised after the failed run row is committed (OD-2).
+        """
+        name = pipeline.name
+
+        # ------------------------------------------------------------------
+        # DRY-RUN EARLY FORK (D-08/D-09/ETL-15)
+        # Forks before init/start_run — writes no pipeline_runs row.
+        # ------------------------------------------------------------------
+        if dry_run:
+            started_at = datetime.now(UTC)
+            rows_extracted = 0
+
+            # Extract (same as normal path)
+            if _is_sql_source(pipeline.source):
+                if pipeline.extract_limit is not None:
+                    df = await self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM ({pipeline.source}) AS _etl_sub"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = await self._db.to_dataframe(sql=pipeline.source)
+            else:
+                validate_identifiers(pipeline.source, pipeline.schema)
+                if pipeline.extract_limit is not None:
+                    df = await self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = await self._db.to_dataframe(
+                        table=pipeline.source,
+                        schema=pipeline.schema,
+                    )
+
+            rows_extracted = len(df)
+
+            # Transform chain (same as normal path, but dispatched via to_thread — SC-2)
+            transform = pipeline.transform
+            if transform is None:
+                steps: list = []
+            elif callable(transform):
+                steps = [transform]
+            else:
+                steps = list(transform)
+
+            for i, step in enumerate(steps, start=1):
+                try:
+                    df = await asyncio.to_thread(step, df)
+                except Exception as exc:
+                    raise ETLTransformError(
+                        f"transform step {i} ('{_step_label(step)}')"
+                        f" raised {type(exc).__name__}: {exc}"
+                    ) from exc
+
+            rows_extracted = len(df)
+            finished_at = datetime.now(UTC)
+            return RunResult(
+                run_id=None,
+                pipeline_name=name,
+                status="dry_run",
+                rows_extracted=rows_extracted,
+                rows_loaded=0,
+                started_at=started_at,
+                finished_at=finished_at,
+                error=None,
+            )
+
+        await self.init()
+        run_id = await self._start_run(name)
+        rows_extracted = 0
+        rows_loaded = 0
+
+        try:
+            # ------------------------------------------------------------------
+            # 1. EXTRACT
+            # ------------------------------------------------------------------
+            if _is_sql_source(pipeline.source):
+                if pipeline.extract_limit is not None:
+                    df = await self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM ({pipeline.source}) AS _etl_sub"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = await self._db.to_dataframe(sql=pipeline.source)
+            else:
+                # table source — validate identifiers before interpolation (T-18-04)
+                validate_identifiers(pipeline.source, pipeline.schema)
+                if pipeline.extract_limit is not None:
+                    df = await self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = await self._db.to_dataframe(
+                        table=pipeline.source,
+                        schema=pipeline.schema,
+                    )
+
+            rows_extracted = len(df)
+
+            # ------------------------------------------------------------------
+            # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
+            #    Each step dispatched via asyncio.to_thread (SC-2).
+            # ------------------------------------------------------------------
+            transform = pipeline.transform
+            if transform is None:
+                steps: list = []
+            elif callable(transform):
+                steps = [transform]
+            else:
+                steps = list(transform)
+
+            for i, step in enumerate(steps, start=1):
+                try:
+                    df = await asyncio.to_thread(step, df)
+                except Exception as exc:
+                    raise ETLTransformError(
+                        f"transform step {i} ('{_step_label(step)}')"
+                        f" raised {type(exc).__name__}: {exc}"
+                    ) from exc
+
+            # ------------------------------------------------------------------
+            # 3. ROWS: NaN/NaT → None (RESEARCH Q2 / D-07)
+            # ------------------------------------------------------------------
+            rows = (
+                df.astype(object).where(pd.notnull(df), None).to_dict(orient="records")
+            )
+
+            # Empty DataFrame: no load needed; record success with 0 rows_loaded
+            if not rows:
+                await self._end_run(run_id, "success", rows_extracted, 0)
+                return await self._fetch_run_result(run_id)
+
+            columns = list(rows[0].keys())
+
+            # ------------------------------------------------------------------
+            # 4. EXISTENCE CHECK (D-03)
+            # ------------------------------------------------------------------
+            exists = await self._db.table_exists(pipeline.target, pipeline.schema)
+
+            if pipeline.load_mode in ("append", "upsert") and not exists:
+                raise ETLTargetNotFoundError(
+                    f"{pipeline.load_mode} target"
+                    f" {pipeline.schema}.{pipeline.target} does not exist"
+                )
+
+            if pipeline.load_mode == "replace" and not exists:
+                # Create empty typed table before the load txn (D-03 / D-03a)
+                await self._db.from_dataframe(
+                    df.head(0),
+                    pipeline.target,
+                    pipeline.schema,
+                    if_exists="replace",
+                )
+
+            # ------------------------------------------------------------------
+            # 5. BUILD LOAD SQL (Plan 01 pure builders — never the public batch methods)
+            # ------------------------------------------------------------------
+            if pipeline.load_mode == "append":
+                insert_sql, insert_params = _build_insert_sql(
+                    pipeline.target, columns, rows, pipeline.schema
+                )
+            elif pipeline.load_mode == "upsert":
+                insert_sql, insert_params = _build_upsert_sql(
+                    pipeline.target,
+                    rows,
+                    list(pipeline.conflict_columns),
+                    schema=pipeline.schema,
+                )
+            else:  # replace
+                truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
+                insert_sql, insert_params = _build_insert_sql(
+                    pipeline.target, columns, rows, pipeline.schema
+                )
+
+            # ------------------------------------------------------------------
+            # 6. ATOMIC LOAD — async seam (RESEARCH §7 / SC-3)
+            #    Execute (sql, params) directly on the txn-yielded conn.
+            # ------------------------------------------------------------------
+            async with self._db.session():
+                async with self._db.transaction() as conn:
+                    async with conn.cursor() as cur:
+                        if pipeline.load_mode == "replace":
+                            await cur.execute(truncate_sql)
+                        await cur.execute(insert_sql, insert_params)
+                        rows_loaded += cur.rowcount
+
+        except Exception as exc:
+            await self._end_run(
+                run_id,
+                "failed",
+                rows_extracted,
+                0,
+                error_message=str(exc),
+                error_traceback=traceback.format_exc(),
+            )
+            raise
+
+        await self._end_run(run_id, "success", rows_extracted, rows_loaded)
+        return await self._fetch_run_result(run_id)
