@@ -50,7 +50,7 @@ dependencies. Architecture mirrors `spatial.py`.
 - [x] **Phase 17: Run-Tracking Foundation** — `pipeline_runs` DDL + status lifecycle + separate-connection run-log writes (completed 2026-06-15)
 - [x] **Phase 18: Load Modes & Extract** — extract (SQL/table), append/replace/upsert with transactional correctness, transform chain (completed 2026-06-15)
 - [x] **Phase 19: Sync Runner & Query Surface** — `run()`, `RunResult`, `history()`, `last_run()`, `dry_run` (completed 2026-06-15)
-- [ ] **Phase 20: Async Parity, Wiring & Release** — `AsyncETLAccessor`, lazy `db.etl` property, `TestEtlParity`, Sphinx docs, coverage gate, v0.5.0 PyPI publish
+- [x] **Phase 20: Async Parity, Wiring & Release** — `AsyncETLAccessor`, lazy `db.etl` property, `TestEtlParity`, Sphinx docs, coverage gate, v0.5.0 PyPI publish (completed 2026-06-15)
 
 ## Phase Details
 
@@ -173,7 +173,7 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1-2)*
 
-- [ ] 20-03-PLAN.md — v0.5.0 release: version bump + CHANGELOG/MIGRATION + coverage/interrogate/sphinx gates + tag/publish (ETL-12, ETL-13)
+- [x] 20-03-PLAN.md — v0.5.0 release: version bump + CHANGELOG/MIGRATION + coverage/interrogate/sphinx gates + tag/publish (ETL-12, ETL-13)
 
 ## Progress
 
@@ -200,4 +200,4 @@ Plans:
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
 | 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
 | 19. Sync Runner & Query Surface | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
-| 20. Async Parity, Wiring & Release | v0.5.0 | 2/3 | In Progress|  |
+| 20. Async Parity, Wiring & Release | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
