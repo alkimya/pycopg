@@ -24,11 +24,13 @@ Security invariants (v0.3.1, mirrored from spatial.py):
 
 from __future__ import annotations
 
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+import pandas as pd
 from psycopg.rows import dict_row
 
 from pycopg import queries
@@ -574,27 +576,206 @@ class ETLAccessor:
                     ],
                 )
 
-    def run(self, name: str = "pipeline") -> int:
-        """Execute the auto-create + start/end seam (thin stub, D-03/D-10).
+    def run(self, pipeline: Pipeline) -> int:
+        """Execute a full extract → transform → load pipeline run.
 
-        Creates ``pipeline_runs`` if absent (auto-create, ETL-14), inserts
-        a ``'running'`` row, and immediately records ``'success'`` with
-        zero row counts.  Extract, transform, and load logic land in
-        Phases 18/19 — this stub establishes the testable seam for SC-1,
-        SC-2, SC-3, and SC-4.
+        Auto-creates ``pipeline_runs`` if absent, inserts a ``'running'``
+        row, executes the pipeline, and records the final status.
+
+        The run-log writes (``init``/``_start_run``/``_end_run``) stay on
+        their own dedicated autocommit connections — independent of the load
+        transaction — so a ``'failed'`` row is committed even when the load
+        transaction rolls back (ETL-09 isolation invariant).
+
+        The load executes the SQL produced by the Plan 01 builders directly
+        on the connection yielded by ``db.transaction()`` (opened inside an
+        internal ``db.session()``), making the replace TRUNCATE+INSERT
+        atomic (SC-3 / RESEARCH Q1 corrected seam).
+
+        **Extract:** delegates to :meth:`~pycopg.database.Database.to_dataframe`
+        for both SQL and table sources.  When ``pipeline.extract_limit`` is
+        set, the LIMIT value is sent as a bound ``:lim`` parameter — never
+        f-string-interpolated (T-18-03).
+
+        **Transform:** ``transform=None`` is a no-op; a single callable is
+        applied once; a list is applied in sequence, each step receiving the
+        prior step's DataFrame.  A failing step raises
+        :exc:`~pycopg.exceptions.ETLTransformError` whose message names the
+        step by its **1-based** index and label (``fn.__name__`` for named
+        functions, ``repr(fn)`` for lambdas/``functools.partial``).
+
+        **NaN/NaT coercion:** all ``NaN``/``NaT`` cells in the
+        post-transform DataFrame are replaced with ``None`` (SQL ``NULL``)
+        before building the INSERT params.  The conversion uses
+        ``df.astype(object).where(pd.notnull(df), None)`` (RESEARCH Q2).
+        Timezone-localization of naive ``datetime64`` columns is **not**
+        performed — that is the caller's responsibility, matching the
+        existing :meth:`~pycopg.database.Database.from_dataframe` behaviour.
+        This conversion only covers scalar-valued columns; list/array cells
+        are out of scope for v0.5.0.
 
         Parameters
         ----------
-        name : str, optional
-            Pipeline name passed to :meth:`_start_run`, by default
-            ``"pipeline"``.
+        pipeline : Pipeline
+            Fully specified pipeline descriptor.
 
         Returns
         -------
         int
-            The ``run_id`` of the completed run row.
+            The ``run_id`` of the completed (or failed) run row.
+
+        Raises
+        ------
+        ETLTargetNotFoundError
+            If ``load_mode`` is ``'append'`` or ``'upsert'`` and the target
+            table does not exist (D-03).
+        ETLTransformError
+            If a transform step raises — the message includes the 1-based
+            step index and the step label (D-06 / ETL-16).
+        Exception
+            Any other exception from the extract, existence-check, or load
+            steps is re-raised after the failed run row is committed
+            (OD-2).
         """
+        name = pipeline.name
         self.init()
         run_id = self._start_run(name)
-        self._end_run(run_id, "success", 0, 0)
+        rows_extracted = 0
+        rows_loaded = 0
+
+        try:
+            # ------------------------------------------------------------------
+            # 1. EXTRACT
+            # ------------------------------------------------------------------
+            if _is_sql_source(pipeline.source):
+                if pipeline.extract_limit is not None:
+                    df = self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM ({pipeline.source}) AS _etl_sub"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = self._db.to_dataframe(sql=pipeline.source)
+            else:
+                # table source — validate identifiers before interpolation (T-18-04)
+                validate_identifiers(pipeline.source, pipeline.schema)
+                if pipeline.extract_limit is not None:
+                    df = self._db.to_dataframe(
+                        sql=(
+                            f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
+                            f" LIMIT :lim"
+                        ),
+                        params={"lim": pipeline.extract_limit},
+                    )
+                else:
+                    df = self._db.to_dataframe(
+                        table=pipeline.source,
+                        schema=pipeline.schema,
+                    )
+
+            rows_extracted = len(df)
+
+            # ------------------------------------------------------------------
+            # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
+            # ------------------------------------------------------------------
+            transform = pipeline.transform
+            if transform is None:
+                steps: list = []
+            elif callable(transform):
+                steps = [transform]
+            else:
+                steps = list(transform)
+
+            for i, step in enumerate(steps, start=1):
+                try:
+                    df = step(df)
+                except Exception as exc:
+                    raise ETLTransformError(
+                        f"transform step {i} ('{_step_label(step)}')"
+                        f" raised {type(exc).__name__}: {exc}"
+                    ) from exc
+
+            # ------------------------------------------------------------------
+            # 3. ROWS: NaN/NaT → None (RESEARCH Q2 / D-07)
+            # ------------------------------------------------------------------
+            rows = (
+                df.astype(object).where(pd.notnull(df), None).to_dict(orient="records")
+            )
+
+            # Empty DataFrame: no load needed; record success with 0 rows_loaded
+            if not rows:
+                self._end_run(run_id, "success", rows_extracted, 0)
+                return run_id
+
+            columns = list(rows[0].keys())
+
+            # ------------------------------------------------------------------
+            # 4. EXISTENCE CHECK (D-03)
+            # ------------------------------------------------------------------
+            exists = self._db.table_exists(pipeline.target, pipeline.schema)
+
+            if pipeline.load_mode in ("append", "upsert") and not exists:
+                raise ETLTargetNotFoundError(
+                    f"{pipeline.load_mode} target"
+                    f" {pipeline.schema}.{pipeline.target} does not exist"
+                )
+
+            if pipeline.load_mode == "replace" and not exists:
+                # Create empty typed table before the load txn (D-03 / D-03a)
+                self._db.from_dataframe(
+                    df.head(0),
+                    pipeline.target,
+                    pipeline.schema,
+                    if_exists="replace",
+                )
+
+            # ------------------------------------------------------------------
+            # 5. BUILD LOAD SQL (Plan 01 pure builders — never the public batch methods)
+            # ------------------------------------------------------------------
+            if pipeline.load_mode == "append":
+                insert_sql, insert_params = _build_insert_sql(
+                    pipeline.target, columns, rows, pipeline.schema
+                )
+            elif pipeline.load_mode == "upsert":
+                insert_sql, insert_params = _build_upsert_sql(
+                    pipeline.target,
+                    rows,
+                    list(pipeline.conflict_columns),
+                    schema=pipeline.schema,
+                )
+            else:  # replace
+                truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
+                insert_sql, insert_params = _build_insert_sql(
+                    pipeline.target, columns, rows, pipeline.schema
+                )
+
+            # ------------------------------------------------------------------
+            # 6. ATOMIC LOAD — the seam (RESEARCH Q1 / SC-3)
+            #    Execute (sql, params) directly on the txn-yielded conn.
+            #    Never call the public batch-write methods inside this block
+            #    (those acquire self.cursor() which commits at exit — crashes
+            #    or breaks atomicity inside an explicit transaction).
+            # ------------------------------------------------------------------
+            with self._db.session():
+                with self._db.transaction() as conn:
+                    with conn.cursor() as cur:
+                        if pipeline.load_mode == "replace":
+                            cur.execute(truncate_sql)
+                        cur.execute(insert_sql, insert_params)
+                        rows_loaded += cur.rowcount
+
+        except Exception as exc:
+            self._end_run(
+                run_id,
+                "failed",
+                rows_extracted,
+                0,
+                error_message=str(exc),
+                error_traceback=traceback.format_exc(),
+            )
+            raise
+
+        self._end_run(run_id, "success", rows_extracted, rows_loaded)
         return run_id

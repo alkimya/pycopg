@@ -208,8 +208,17 @@ class TestETLAccessorIntegration:
         """SC-3: run() auto-creates pipeline_runs even without an explicit init()."""
         # Ensure table is absent
         db.execute("DROP TABLE IF EXISTS pipeline_runs CASCADE", autocommit=True)
-
-        db.etl.run("auto")
+        tbl = f"etl_autocreate_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name="auto",
+            source="SELECT 1 AS id",
+            target=tbl,
+            load_mode="replace",
+        )
+        try:
+            db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         rows = db.execute("""
             SELECT COUNT(*) AS cnt
@@ -221,7 +230,17 @@ class TestETLAccessorIntegration:
 
     def test_run_writes_full_row(self, db, cleanup_pipeline_runs):
         """SC-1: run() writes a complete pipeline_runs row including NULL watermark."""
-        run_id = db.etl.run("demo")
+        tbl = f"etl_fullrow_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name="demo",
+            source="SELECT 1 AS id",
+            target=tbl,
+            load_mode="replace",
+        )
+        try:
+            run_id = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         rows = db.execute(
             "SELECT * FROM pipeline_runs WHERE run_id = %s",
@@ -439,7 +458,9 @@ class TestRunPipelineIntegration:
         run_id = db.etl.run(p)
         assert isinstance(run_id, int)
 
-    def test_run_derives_pipeline_name_from_pipeline(self, db, cleanup_pipeline_runs, etl_table):
+    def test_run_derives_pipeline_name_from_pipeline(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """run() stores pipeline.name in the pipeline_runs row."""
         p = Pipeline(
             name="named_pipeline",
@@ -502,7 +523,9 @@ class TestRunPipelineIntegration:
         rows = db.execute(f'SELECT id FROM public."{etl_table}"')
         assert len(rows) == 3
 
-    def test_rows_extracted_recorded(self, db, cleanup_pipeline_runs, etl_table, etl_src):
+    def test_rows_extracted_recorded(
+        self, db, cleanup_pipeline_runs, etl_table, etl_src
+    ):
         """run() records rows_extracted = len(df) in the pipeline_runs row."""
         db.execute(
             f"INSERT INTO public.\"{etl_src}\" VALUES (1, 'a'), (2, 'b')",
@@ -549,7 +572,9 @@ class TestRunPipelineIntegration:
         rows = db.execute(f'SELECT id FROM public."{etl_table}"')
         assert rows[0]["id"] == 10
 
-    def test_transform_list_applied_in_sequence(self, db, cleanup_pipeline_runs, etl_table):
+    def test_transform_list_applied_in_sequence(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """A list of transforms is applied in sequence, each seeing prior output (D-05/ETL-16)."""
 
         def add_1(df):
@@ -572,7 +597,9 @@ class TestRunPipelineIntegration:
         rows = db.execute(f'SELECT id FROM public."{etl_table}"')
         assert rows[0]["id"] == 9
 
-    def test_transform_error_raises_etl_transform_error(self, db, cleanup_pipeline_runs, etl_table):
+    def test_transform_error_raises_etl_transform_error(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """A failing transform raises ETLTransformError naming the step (D-06/ETL-03)."""
 
         def bad_step(df):
@@ -589,7 +616,9 @@ class TestRunPipelineIntegration:
         assert "bad_step" in str(exc_info.value)
         assert "ValueError" in str(exc_info.value)
 
-    def test_transform_error_step_index_in_message(self, db, cleanup_pipeline_runs, etl_table):
+    def test_transform_error_step_index_in_message(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """ETLTransformError message includes the 1-based step index (D-06/ETL-16)."""
 
         def ok_step(df):
@@ -610,7 +639,9 @@ class TestRunPipelineIntegration:
         assert "step 2" in msg  # 1-based index
         assert "fail_step" in msg
 
-    def test_transform_error_records_failed_run(self, db, cleanup_pipeline_runs, etl_table):
+    def test_transform_error_records_failed_run(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """A failing transform records a failed run row with error_message (ETL-03/ETL-08)."""
 
         def explode(df):
@@ -647,7 +678,9 @@ class TestRunPipelineIntegration:
         rows = db.execute(f'SELECT id FROM public."{etl_table}"')
         assert len(rows) == 1
 
-    def test_append_reruns_doubles_row_count(self, db, cleanup_pipeline_runs, etl_table):
+    def test_append_reruns_doubles_row_count(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """Running append twice doubles the row count (ETL-04 idempotency contract)."""
         p = Pipeline(
             name="append_double",
@@ -673,7 +706,9 @@ class TestRunPipelineIntegration:
 
     # -- load: replace --
 
-    def test_replace_reruns_keeps_latest_only(self, db, cleanup_pipeline_runs, etl_table):
+    def test_replace_reruns_keeps_latest_only(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """Running replace twice keeps only the latest rows (ETL-05)."""
         p1 = Pipeline(
             name="replace_first",
@@ -755,7 +790,9 @@ class TestRunPipelineIntegration:
         )
         try:
             # Insert initial row
-            db.execute(f"INSERT INTO public.\"{tbl}\" VALUES (1, 'old')", autocommit=True)
+            db.execute(
+                f"INSERT INTO public.\"{tbl}\" VALUES (1, 'old')", autocommit=True
+            )
 
             p = Pipeline(
                 name="upsert_test",
@@ -805,7 +842,9 @@ class TestRunPipelineIntegration:
 
     # -- run-log isolation (ETL-09 non-regression) --
 
-    def test_run_log_isolation_on_pipeline_run(self, db, cleanup_pipeline_runs, etl_table):
+    def test_run_log_isolation_on_pipeline_run(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
         """run() records success even when called with a Pipeline object (ETL-09)."""
         p = Pipeline(
             name="isolation_check",
