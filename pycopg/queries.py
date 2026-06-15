@@ -293,3 +293,9 @@ ETL_GET_LAST_RUN = """
     ORDER BY started_at DESC
     LIMIT 1
 """
+
+ETL_GET_RUN = """
+    SELECT *
+    FROM pipeline_runs
+    WHERE run_id = %s
+"""

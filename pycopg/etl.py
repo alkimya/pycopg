@@ -199,6 +199,43 @@ class Pipeline:
                 )
 
 
+@dataclass(frozen=True)
+class RunResult:
+    """Immutable snapshot of a completed (or dry-run) ETL pipeline run.
+
+    Parameters
+    ----------
+    run_id : int or None
+        The ``pipeline_runs.run_id`` for persisted runs; ``None`` for
+        dry runs (no DB row written, D-05/D-08).
+    pipeline_name : str
+        Pipeline identifier, from ``Pipeline.name``.
+    status : str
+        One of ``'success'``, ``'failed'`` (persisted runs), or
+        ``'dry_run'`` (transient, never stored, D-08).
+    rows_extracted : int
+        Rows read from the source (after transform for dry runs).
+    rows_loaded : int
+        Rows written to the target; ``0`` for dry runs and failed runs.
+    started_at : datetime
+        UTC timestamp when the run started.
+    finished_at : datetime
+        UTC timestamp when the run ended.
+    error : str or None
+        Short error message from ``pipeline_runs.error_message``; ``None``
+        on success or dry run (D-03).
+    """
+
+    run_id: int | None
+    pipeline_name: str
+    status: str
+    rows_extracted: int
+    rows_loaded: int
+    started_at: datetime
+    finished_at: datetime
+    error: str | None
+
+
 def _is_sql_source(source: str) -> bool:
     """Heuristically determine whether a source string is a SQL query.
 
@@ -438,6 +475,34 @@ def _step_label(fn: object) -> str:
     if name and name != "<lambda>":
         return name
     return repr(fn)
+
+
+def _row_to_result(row: dict) -> RunResult:
+    """Map a ``dict_row`` from ``pipeline_runs`` to a :class:`RunResult`.
+
+    Pure function — no I/O, no ``self``.  Maps ``error_message -> error``
+    and drops ``error_traceback`` and ``watermark`` (D-10).
+
+    Parameters
+    ----------
+    row : dict
+        A row from ``pipeline_runs`` fetched with the ``dict_row`` factory.
+
+    Returns
+    -------
+    RunResult
+        Immutable snapshot of the run.
+    """
+    return RunResult(
+        run_id=row["run_id"],
+        pipeline_name=row["pipeline_name"],
+        status=row["status"],
+        rows_extracted=row["rows_extracted"],
+        rows_loaded=row["rows_loaded"],
+        started_at=row["started_at"],
+        finished_at=row["finished_at"],
+        error=row["error_message"],
+    )
 
 
 class ETLAccessor:
