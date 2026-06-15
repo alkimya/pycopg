@@ -7,6 +7,7 @@ Simple, powerful, pythonic database operations.
 from pycopg.async_database import AsyncDatabase
 from pycopg.config import Config
 from pycopg.database import Database
+from pycopg.etl import AsyncETLAccessor, ETLAccessor, Pipeline, RunResult
 from pycopg.exceptions import (
     ConfigurationError,
     ConnectionError,
@@ -49,6 +50,11 @@ __all__ = [
     # Spatial
     "SpatialAccessor",
     "AsyncSpatialAccessor",
+    # ETL
+    "ETLAccessor",
+    "AsyncETLAccessor",
+    "RunResult",
+    "Pipeline",
     # Exceptions
     "PycopgError",
     "ConnectionError",

@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     import pandas as pd
     from sqlalchemy.ext.asyncio import AsyncEngine
 
+    from pycopg.etl import AsyncETLAccessor
     from pycopg.spatial import AsyncSpatialAccessor
 
 
@@ -81,6 +82,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self._session_conn: AsyncConnection | None = None
         self._async_engine: AsyncEngine | None = None
         self._spatial: AsyncSpatialAccessor | None = None
+        self._etl: AsyncETLAccessor | None = None
 
     @property
     def async_engine(self) -> AsyncEngine:
@@ -108,6 +110,25 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
             self._spatial = AsyncSpatialAccessor(self)
         return self._spatial
+
+    @property
+    def etl(self) -> AsyncETLAccessor:
+        """Get or create the async ETL run-tracking accessor (lazy initialization).
+
+        The accessor is created on first access and cached for subsequent
+        calls.  No PostGIS or extension guard is applied — ETL run-tracking
+        is core functionality, not an extension (D-08).
+
+        Returns
+        -------
+        AsyncETLAccessor
+            Async ETL helper namespace bound to this database.
+        """
+        if self._etl is None:
+            from pycopg.etl import AsyncETLAccessor
+
+            self._etl = AsyncETLAccessor(self)
+        return self._etl
 
     @classmethod
     async def create(
@@ -1842,9 +1863,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             )
             return result[0]["size"]
         else:
-            result = await self.execute(
-                queries.DATABASE_SIZE, [self.config.database]
-            )
+            result = await self.execute(queries.DATABASE_SIZE, [self.config.database])
             return result[0]["size"]
 
     async def table_size(
@@ -2146,7 +2165,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             return 0
 
         columns = list(rows[0].keys())
-        sql, params = self._build_batch_insert_sql(table, columns, rows, schema, on_conflict)
+        sql, params = self._build_batch_insert_sql(
+            table, columns, rows, schema, on_conflict
+        )
 
         async with self.cursor() as cur:
             await cur.execute(sql, params)
@@ -2825,4 +2846,3 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit the async context manager and close the connection."""
         await self.close()
-
