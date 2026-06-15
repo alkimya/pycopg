@@ -105,13 +105,18 @@ Plans:
   6. Every load SQL builder calls `validate_identifiers` on table names and conflict columns before any string interpolation
 
 **Plans**: 3 plans
-
 Plans:
+**Wave 1**
 
 - [ ] 18-01-PLAN.md — Pure (sql, params) load builders (_build_insert_sql / _build_upsert_sql) + _step_label + DB-free unit & injection tests (Wave 1)
-- [ ] 18-02-PLAN.md — Real run(pipeline) body: extract → transform chain → mode-dispatched atomic load (corrected txn seam) + run-log wiring (Wave 2)
-- [ ] 18-03-PLAN.md — Integration tests (extract, append/replace/upsert, replace_atomic_rollback, transform, NaN→NULL, ETL-09 guard) + Phase 17 caller migration (Wave 3)
 
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 18-02-PLAN.md — Real run(pipeline) body: extract → transform chain → mode-dispatched atomic load (corrected txn seam) + run-log wiring (Wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 18-03-PLAN.md — Integration tests (extract, append/replace/upsert, replace_atomic_rollback, transform, NaN→NULL, ETL-09 guard) + Phase 17 caller migration (Wave 3)
 
 ### Phase 19: Sync Runner & Query Surface
 
