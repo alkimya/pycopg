@@ -4,11 +4,13 @@ import traceback
 import uuid
 from datetime import datetime
 
+import pandas as pd
 import pytest
 from psycopg.rows import dict_row
 
 from pycopg import Database, queries
-from pycopg.etl import ETLAccessor
+from pycopg.etl import ETLAccessor, Pipeline
+from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -290,6 +292,7 @@ class TestETLAccessorIntegration:
 
         # Cleanup scratch table
         db.execute(f'DROP TABLE IF EXISTS "{scratch}" CASCADE', autocommit=True)
+        # end of test_failed_run_commits_despite_load_rollback
 
     def test_failed_run_commits_inside_session(self, db, cleanup_pipeline_runs):
         """SC-4 session path: run-log writes commit immediately on own connection (D-04/D-05).
@@ -390,3 +393,428 @@ class TestETLAccessorIntegration:
 
         # Cleanup scratch table
         db.execute(f'DROP TABLE IF EXISTS "{scratch}" CASCADE', autocommit=True)
+
+
+# ---------------------------------------------------------------------------
+# Phase 18 integration tests — run(pipeline: Pipeline) body
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def etl_table(db):
+    """Create a fresh ETL target table for each test; drop on teardown."""
+    tbl = f"etl_tgt_{uuid.uuid4().hex[:8]}"
+    db.execute(
+        f'CREATE TABLE public."{tbl}" (id INTEGER, val TEXT)',
+        autocommit=True,
+    )
+    yield tbl
+    db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+
+@pytest.fixture
+def etl_src(db):
+    """Create a fresh ETL source table and return its name; drop on teardown."""
+    tbl = f"etl_src_{uuid.uuid4().hex[:8]}"
+    db.execute(
+        f'CREATE TABLE public."{tbl}" (id INTEGER, val TEXT)',
+        autocommit=True,
+    )
+    yield tbl
+    db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+
+class TestRunPipelineIntegration:
+    """Integration tests for the full run(pipeline: Pipeline) body (Phase 18)."""
+
+    # -- signature / return value --
+
+    def test_run_accepts_pipeline_object(self, db, cleanup_pipeline_runs, etl_table):
+        """run() accepts a Pipeline and returns an int run_id."""
+        p = Pipeline(
+            name="sig_test",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+        )
+        run_id = db.etl.run(p)
+        assert isinstance(run_id, int)
+
+    def test_run_derives_pipeline_name_from_pipeline(self, db, cleanup_pipeline_runs, etl_table):
+        """run() stores pipeline.name in the pipeline_runs row."""
+        p = Pipeline(
+            name="named_pipeline",
+            source="SELECT 1 AS id, 'x' AS val",
+            target=etl_table,
+        )
+        run_id = db.etl.run(p)
+        rows = db.execute(
+            "SELECT pipeline_name FROM pipeline_runs WHERE run_id = %s",
+            [run_id],
+        )
+        assert rows[0]["pipeline_name"] == "named_pipeline"
+
+    # -- extract --
+
+    def test_extract_sql_source(self, db, cleanup_pipeline_runs, etl_table):
+        """run() with a SQL source extracts the correct rows into the target."""
+        p = Pipeline(
+            name="sql_extract",
+            source="SELECT 42 AS id, 'hello' AS val",
+            target=etl_table,
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id, val FROM public."{etl_table}"')
+        assert len(rows) == 1
+        assert rows[0]["id"] == 42
+        assert rows[0]["val"] == "hello"
+
+    def test_extract_table_source(self, db, cleanup_pipeline_runs, etl_table, etl_src):
+        """run() with a table source extracts all rows from the source table."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" VALUES (1, 'a'), (2, 'b')",
+            autocommit=True,
+        )
+        p = Pipeline(
+            name="table_extract",
+            source=etl_src,
+            target=etl_table,
+            schema="public",
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}" ORDER BY id')
+        ids = [r["id"] for r in rows]
+        assert ids == [1, 2]
+
+    def test_extract_limit(self, db, cleanup_pipeline_runs, etl_table, etl_src):
+        """run() with extract_limit fetches at most N rows (bound :lim param)."""
+        for i in range(5):
+            db.execute(
+                f"INSERT INTO public.\"{etl_src}\" VALUES ({i}, 'v')",
+                autocommit=True,
+            )
+        p = Pipeline(
+            name="limited",
+            source=etl_src,
+            target=etl_table,
+            extract_limit=3,
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        assert len(rows) == 3
+
+    def test_rows_extracted_recorded(self, db, cleanup_pipeline_runs, etl_table, etl_src):
+        """run() records rows_extracted = len(df) in the pipeline_runs row."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" VALUES (1, 'a'), (2, 'b')",
+            autocommit=True,
+        )
+        p = Pipeline(name="count_test", source=etl_src, target=etl_table)
+        run_id = db.etl.run(p)
+        rows = db.execute(
+            "SELECT rows_extracted, rows_loaded FROM pipeline_runs WHERE run_id = %s",
+            [run_id],
+        )
+        assert rows[0]["rows_extracted"] == 2
+        assert rows[0]["rows_loaded"] == 2
+
+    # -- transform --
+
+    def test_transform_none_is_noop(self, db, cleanup_pipeline_runs, etl_table):
+        """transform=None leaves the DataFrame unchanged (D-05)."""
+        p = Pipeline(
+            name="no_transform",
+            source="SELECT 7 AS id, 'z' AS val",
+            target=etl_table,
+            transform=None,
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        assert rows[0]["id"] == 7
+
+    def test_transform_single_callable(self, db, cleanup_pipeline_runs, etl_table):
+        """A single callable transform is applied once before load (D-05)."""
+
+        def double_id(df):
+            df = df.copy()
+            df["id"] = df["id"] * 2
+            return df
+
+        p = Pipeline(
+            name="single_transform",
+            source="SELECT 5 AS id, 'q' AS val",
+            target=etl_table,
+            transform=double_id,
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        assert rows[0]["id"] == 10
+
+    def test_transform_list_applied_in_sequence(self, db, cleanup_pipeline_runs, etl_table):
+        """A list of transforms is applied in sequence, each seeing prior output (D-05/ETL-16)."""
+
+        def add_1(df):
+            df = df.copy()
+            df["id"] = df["id"] + 1
+            return df
+
+        def mul_3(df):
+            df = df.copy()
+            df["id"] = df["id"] * 3
+            return df
+
+        p = Pipeline(
+            name="chain_transform",
+            source="SELECT 2 AS id, 'q' AS val",
+            target=etl_table,
+            transform=[add_1, mul_3],  # (2+1)*3 = 9
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        assert rows[0]["id"] == 9
+
+    def test_transform_error_raises_etl_transform_error(self, db, cleanup_pipeline_runs, etl_table):
+        """A failing transform raises ETLTransformError naming the step (D-06/ETL-03)."""
+
+        def bad_step(df):
+            raise ValueError("deliberate failure")
+
+        p = Pipeline(
+            name="bad_transform",
+            source="SELECT 1 AS id, 'x' AS val",
+            target=etl_table,
+            transform=bad_step,
+        )
+        with pytest.raises(ETLTransformError) as exc_info:
+            db.etl.run(p)
+        assert "bad_step" in str(exc_info.value)
+        assert "ValueError" in str(exc_info.value)
+
+    def test_transform_error_step_index_in_message(self, db, cleanup_pipeline_runs, etl_table):
+        """ETLTransformError message includes the 1-based step index (D-06/ETL-16)."""
+
+        def ok_step(df):
+            return df
+
+        def fail_step(df):
+            raise RuntimeError("oops")
+
+        p = Pipeline(
+            name="step_index_test",
+            source="SELECT 1 AS id, 'x' AS val",
+            target=etl_table,
+            transform=[ok_step, fail_step],
+        )
+        with pytest.raises(ETLTransformError) as exc_info:
+            db.etl.run(p)
+        msg = str(exc_info.value)
+        assert "step 2" in msg  # 1-based index
+        assert "fail_step" in msg
+
+    def test_transform_error_records_failed_run(self, db, cleanup_pipeline_runs, etl_table):
+        """A failing transform records a failed run row with error_message (ETL-03/ETL-08)."""
+
+        def explode(df):
+            raise TypeError("type mismatch")
+
+        p = Pipeline(
+            name="fail_record",
+            source="SELECT 1 AS id, 'x' AS val",
+            target=etl_table,
+            transform=explode,
+        )
+        try:
+            db.etl.run(p)
+        except ETLTransformError:
+            pass
+
+        rows = db.execute(
+            "SELECT status, error_message FROM pipeline_runs ORDER BY run_id DESC LIMIT 1"
+        )
+        assert rows[0]["status"] == "failed"
+        assert rows[0]["error_message"] is not None
+
+    # -- load: append --
+
+    def test_append_inserts_rows(self, db, cleanup_pipeline_runs, etl_table):
+        """append mode inserts rows into the existing target (D-01/ETL-04)."""
+        p = Pipeline(
+            name="append_test",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+            load_mode="append",
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        assert len(rows) == 1
+
+    def test_append_reruns_doubles_row_count(self, db, cleanup_pipeline_runs, etl_table):
+        """Running append twice doubles the row count (ETL-04 idempotency contract)."""
+        p = Pipeline(
+            name="append_double",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+            load_mode="append",
+        )
+        db.etl.run(p)
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        assert len(rows) == 2
+
+    def test_append_missing_target_raises(self, db, cleanup_pipeline_runs):
+        """append on a missing target raises ETLTargetNotFoundError (D-03/ETL-04)."""
+        p = Pipeline(
+            name="append_missing",
+            source="SELECT 1 AS id, 'a' AS val",
+            target="definitely_not_a_real_table_xyz",
+            load_mode="append",
+        )
+        with pytest.raises(ETLTargetNotFoundError):
+            db.etl.run(p)
+
+    # -- load: replace --
+
+    def test_replace_reruns_keeps_latest_only(self, db, cleanup_pipeline_runs, etl_table):
+        """Running replace twice keeps only the latest rows (ETL-05)."""
+        p1 = Pipeline(
+            name="replace_first",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        p2 = Pipeline(
+            name="replace_second",
+            source="SELECT 2 AS id, 'b' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p1)
+        db.etl.run(p2)
+        rows = db.execute(f'SELECT id FROM public."{etl_table}"')
+        ids = [r["id"] for r in rows]
+        assert ids == [2]  # latest run only
+
+    def test_replace_atomic_rollback(self, db, cleanup_pipeline_runs, etl_table):
+        """replace is atomic: a mid-load error leaves ORIGINAL rows intact (SC-3/ETL-05)."""
+        # Seed the target with a baseline row
+        db.execute(
+            f"INSERT INTO public.\"{etl_table}\" VALUES (1, 'original')",
+            autocommit=True,
+        )
+
+        # Add a NOT NULL constraint so inserting NULL will fail mid-INSERT
+        db.execute(
+            f'ALTER TABLE public."{etl_table}" ALTER COLUMN val SET NOT NULL',
+            autocommit=True,
+        )
+
+        def inject_null(df):
+            """Insert a row with NULL val that will violate the NOT NULL constraint."""
+            bad = pd.DataFrame({"id": [99], "val": [None]})
+            return pd.concat([df, bad], ignore_index=True)
+
+        p = Pipeline(
+            name="atomic_test",
+            source="SELECT 2 AS id, 'new' AS val",
+            target=etl_table,
+            load_mode="replace",
+            transform=inject_null,
+        )
+        with pytest.raises(Exception):
+            db.etl.run(p)
+
+        # The original row must still be present (TRUNCATE + INSERT was atomic)
+        rows = db.execute(f'SELECT id, val FROM public."{etl_table}"')
+        ids = [r["id"] for r in rows]
+        assert 1 in ids, "baseline row must survive the failed replace (SC-3 atomicity)"
+        assert 99 not in ids, "partial insert must be rolled back"
+
+    def test_replace_auto_creates_missing_target(self, db, cleanup_pipeline_runs):
+        """replace auto-creates a missing target table (D-03/ETL-05)."""
+        tbl = f"etl_autocreate_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name="autocreate",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=tbl,
+            load_mode="replace",
+        )
+        try:
+            db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}"')
+            assert len(rows) == 1
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+    # -- load: upsert --
+
+    def test_upsert_inserts_new_no_duplicates(self, db, cleanup_pipeline_runs):
+        """upsert inserts new rows and updates existing ones with no duplicates (ETL-06)."""
+        tbl = f"etl_upsert_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            # Insert initial row
+            db.execute(f"INSERT INTO public.\"{tbl}\" VALUES (1, 'old')", autocommit=True)
+
+            p = Pipeline(
+                name="upsert_test",
+                source="SELECT 1 AS id, 'new' AS val",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+            )
+            db.etl.run(p)
+            rows = db.execute(f'SELECT id, val FROM public."{tbl}"')
+            assert len(rows) == 1  # no duplicates
+            assert rows[0]["val"] == "new"  # updated
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+    def test_upsert_missing_target_raises(self, db, cleanup_pipeline_runs):
+        """upsert on a missing target raises ETLTargetNotFoundError (D-03/ETL-06)."""
+        p = Pipeline(
+            name="upsert_missing",
+            source="SELECT 1 AS id",
+            target="definitely_not_a_real_table_xyz",
+            load_mode="upsert",
+            conflict_columns=["id"],
+        )
+        with pytest.raises(ETLTargetNotFoundError):
+            db.etl.run(p)
+
+    # -- NaN -> NULL --
+
+    def test_nan_becomes_null(self, db, cleanup_pipeline_runs, etl_table):
+        """NaN values in the DataFrame are coerced to SQL NULL before load (D-07/Q2)."""
+
+        def inject_nan(df):
+            df = df.copy()
+            df["val"] = float("nan")
+            return df
+
+        p = Pipeline(
+            name="nan_test",
+            source="SELECT 1 AS id, 'x' AS val",
+            target=etl_table,
+            transform=inject_nan,
+        )
+        db.etl.run(p)
+        rows = db.execute(f'SELECT id, val FROM public."{etl_table}"')
+        assert rows[0]["val"] is None  # NaN -> NULL
+
+    # -- run-log isolation (ETL-09 non-regression) --
+
+    def test_run_log_isolation_on_pipeline_run(self, db, cleanup_pipeline_runs, etl_table):
+        """run() records success even when called with a Pipeline object (ETL-09)."""
+        p = Pipeline(
+            name="isolation_check",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+        )
+        run_id = db.etl.run(p)
+        rows = db.execute(
+            "SELECT status FROM pipeline_runs WHERE run_id = %s",
+            [run_id],
+        )
+        assert rows[0]["status"] == "success"
