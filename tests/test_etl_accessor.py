@@ -1057,3 +1057,251 @@ class TestRunPipelineIntegration:
         assert len(run_rows) == 1, "failed run row must be committed"
         assert run_rows[0]["status"] == "failed"
         assert run_rows[0]["error_message"] is not None
+
+
+class TestRunResultSurface:
+    """SC-1..SC-4: run/history/last_run/dry_run return RunResult objects (ETL-10/11/15/17)."""
+
+    # ------------------------------------------------------------------
+    # SC-1 (ETL-10): run() returns a RunResult whose fields match the DB row
+    # ------------------------------------------------------------------
+
+    def test_run_returns_run_result(self, db, cleanup_pipeline_runs, etl_table):
+        """SC-1: run() returns a RunResult instance (isinstance check)."""
+        p = Pipeline(
+            name="sc1_type",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p)
+        assert isinstance(result, RunResult)
+
+    def test_run_result_fields_match_pipeline_runs_row(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-1: RunResult fields equal the pipeline_runs row re-SELECTed by run_id (D-11)."""
+        p = Pipeline(
+            name="sc1_fields",
+            source="SELECT 1 AS id, 'b' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p)
+        rows = db.execute(
+            "SELECT * FROM pipeline_runs WHERE run_id = %s",
+            [result.run_id],
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert result.pipeline_name == row["pipeline_name"]
+        assert result.status == row["status"]
+        assert result.rows_extracted == row["rows_extracted"]
+        assert result.rows_loaded == row["rows_loaded"]
+        assert result.error == row["error_message"]
+
+    def test_run_result_status_success(self, db, cleanup_pipeline_runs, etl_table):
+        """SC-1: A successful run produces RunResult.status == 'success' (D-11 re-SELECT)."""
+        p = Pipeline(
+            name="sc1_status",
+            source="SELECT 42 AS id, 'v' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p)
+        assert result.status == "success"
+        assert result.run_id is not None
+        assert isinstance(result.run_id, int)
+
+    # ------------------------------------------------------------------
+    # SC-2 (ETL-11): history() returns list[RunResult], newest-first
+    # ------------------------------------------------------------------
+
+    def test_history_returns_list_of_run_results(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-2: history() returns a list; each element is a RunResult."""
+        p = Pipeline(
+            name="sc2_hist",
+            source="SELECT 1 AS id, 'x' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p)
+        hist = db.etl.history("sc2_hist")
+        assert isinstance(hist, list)
+        assert len(hist) == 1
+        assert isinstance(hist[0], RunResult)
+
+    def test_history_two_runs_returns_two_entries_newest_first(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-2: Two runs of the same pipeline -> two entries; newest-first (started_at DESC)."""
+        p = Pipeline(
+            name="sc2_order",
+            source="SELECT 1 AS id, 'y' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result1 = db.etl.run(p)
+        result2 = db.etl.run(p)
+        hist = db.etl.history("sc2_order")
+        assert len(hist) == 2
+        # newest-first: history[0] is the later run
+        assert hist[0].run_id == result2.run_id
+        assert hist[1].run_id == result1.run_id
+        assert hist[0].started_at >= hist[1].started_at
+
+    def test_history_default_limit_returns_up_to_100(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-2: history() with default limit returns at most 100 entries (D-06)."""
+        p = Pipeline(
+            name="sc2_limit",
+            source="SELECT 1 AS id, 'z' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p)
+        hist = db.etl.history("sc2_limit")
+        assert len(hist) <= 100
+
+    def test_history_unknown_pipeline_returns_empty_list(
+        self, db, cleanup_pipeline_runs
+    ):
+        """SC-2: history() for an unknown pipeline name returns an empty list."""
+        db.etl.init()  # ensure pipeline_runs table exists
+        hist = db.etl.history("no_such_pipeline_xyz")
+        assert hist == []
+
+    # ------------------------------------------------------------------
+    # SC-3 (ETL-17): last_run() returns most-recent RunResult or None
+    # ------------------------------------------------------------------
+
+    def test_last_run_returns_most_recent(self, db, cleanup_pipeline_runs, etl_table):
+        """SC-3: last_run(name) returns the most-recent RunResult (equals history[0])."""
+        p = Pipeline(
+            name="sc3_last",
+            source="SELECT 1 AS id, 'r' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p)
+        db.etl.run(p)
+        last = db.etl.last_run("sc3_last")
+        hist = db.etl.history("sc3_last")
+        assert last is not None
+        assert isinstance(last, RunResult)
+        assert last.run_id == hist[0].run_id
+
+    def test_last_run_returns_none_when_no_runs(self, db, cleanup_pipeline_runs):
+        """SC-3: last_run() returns None when no runs exist for the given pipeline name."""
+        db.etl.init()  # ensure pipeline_runs table exists
+        result = db.etl.last_run("no_runs_yet_xyz")
+        assert result is None
+
+    def test_last_run_not_the_older_run_when_two_exist(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-3: last_run() is the newer run, not the older one."""
+        p = Pipeline(
+            name="sc3_newer",
+            source="SELECT 1 AS id, 's' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result1 = db.etl.run(p)
+        result2 = db.etl.run(p)
+        last = db.etl.last_run("sc3_newer")
+        assert last is not None
+        assert last.run_id == result2.run_id
+        assert last.run_id != result1.run_id
+
+    # ------------------------------------------------------------------
+    # SC-4 (ETL-15): dry_run=True skips load and writes no pipeline_runs row
+    # ------------------------------------------------------------------
+
+    def test_dry_run_returns_run_result_with_dry_run_status(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-4: dry_run=True returns RunResult with status='dry_run'."""
+        p = Pipeline(
+            name="sc4_status",
+            source="SELECT 1 AS id, 't' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p, dry_run=True)
+        assert isinstance(result, RunResult)
+        assert result.status == "dry_run"
+
+    def test_dry_run_run_id_is_none(self, db, cleanup_pipeline_runs, etl_table):
+        """SC-4: dry_run=True produces run_id=None (no DB row, no PK assigned, D-05/D-08)."""
+        p = Pipeline(
+            name="sc4_run_id",
+            source="SELECT 1 AS id, 'u' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p, dry_run=True)
+        assert result.run_id is None
+
+    def test_dry_run_rows_loaded_is_zero(self, db, cleanup_pipeline_runs, etl_table):
+        """SC-4: dry_run=True produces rows_loaded==0 (load skipped, D-08)."""
+        p = Pipeline(
+            name="sc4_loaded",
+            source="SELECT 1 AS id, 'v' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p, dry_run=True)
+        assert result.rows_loaded == 0
+
+    def test_dry_run_rows_extracted_reflects_actual_extract(
+        self, db, cleanup_pipeline_runs, etl_table, etl_src
+    ):
+        """SC-4: dry_run rows_extracted reflects rows that would have been loaded (D-08)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+            autocommit=True,
+        )
+        p = Pipeline(
+            name="sc4_extracted",
+            source=etl_src,
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p, dry_run=True)
+        assert result.rows_extracted == 3
+
+    def test_dry_run_writes_no_pipeline_runs_row(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-4: dry_run=True writes NO pipeline_runs row (D-08/D-09/T-19-06)."""
+        db.etl.init()  # ensure pipeline_runs table exists so COUNT(*) can run
+        p = Pipeline(
+            name="sc4_norow",
+            source="SELECT 1 AS id, 'w' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p, dry_run=True)
+        rows = db.execute(
+            "SELECT COUNT(*) AS cnt FROM pipeline_runs WHERE pipeline_name = %s",
+            ["sc4_norow"],
+        )
+        assert rows[0]["cnt"] == 0
+
+    def test_dry_run_target_table_unchanged(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """SC-4: dry_run=True leaves the target table untouched (no rows inserted)."""
+        p = Pipeline(
+            name="sc4_target",
+            source="SELECT 99 AS id, 'x' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p, dry_run=True)
+        rows = db.execute(f'SELECT COUNT(*) AS cnt FROM public."{etl_table}"')
+        assert rows[0]["cnt"] == 0
