@@ -286,6 +286,158 @@ def build_init_sql() -> tuple[str, list]:
     return queries.ETL_INIT_PIPELINE_RUNS, []
 
 
+def _build_insert_sql(
+    table: str,
+    columns: list[str],
+    rows: list[dict],
+    schema: str = "public",
+    on_conflict: str | None = None,
+) -> tuple[str, list]:
+    """Build a parameterized batch INSERT SQL statement.
+
+    Pure builder — no ``self``, no I/O, no DB connection.  Mirrors the
+    shape of :func:`build_truncate_sql`: validates identifiers first,
+    then builds, and returns a ``(sql, params)`` 2-tuple.  User values
+    travel only as ``%s`` placeholders appended to ``params`` — never
+    f-string interpolated (T-18-02, SC-6).
+
+    Parameters
+    ----------
+    table : str
+        Target table name. Must be a valid SQL identifier.
+    columns : list of str
+        Column names. Each must be a valid SQL identifier.
+    rows : list of dict
+        Row dicts keyed by column name. Values are appended to ``params``
+        in ``columns`` order via ``row.get(col)``.
+    schema : str, optional
+        Schema name, by default ``"public"``. Must be a valid SQL
+        identifier.
+    on_conflict : str, optional
+        Raw ON CONFLICT clause body (e.g.
+        ``"(id) DO UPDATE SET v = EXCLUDED.v"``), by default ``None``.
+        When supplied the clause is appended as
+        ``" ON CONFLICT {on_conflict}"`` after the VALUES list.  The
+        caller is responsible for passing a pre-validated conflict
+        clause (``_build_upsert_sql`` does this — T-18-01).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string of the form
+        ``INSERT INTO {schema}.{table} ({cols}) VALUES (%s, …)[, …]``
+        and a flat params list of all row values in column order.
+
+    Raises
+    ------
+    InvalidIdentifier
+        If ``table``, ``schema``, or any element of ``columns`` is not a
+        valid SQL identifier (T-18-01, SC-6).
+    """
+    validate_identifiers(table, schema, *columns)
+
+    cols_str = ", ".join(columns)
+    conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
+
+    placeholders: list[str] = []
+    params: list = []
+    for row in rows:
+        row_placeholders = ", ".join(["%s"] * len(columns))
+        placeholders.append(f"({row_placeholders})")
+        params.extend(row.get(col) for col in columns)
+
+    values_str = ", ".join(placeholders)
+    sql = f"INSERT INTO {schema}.{table} ({cols_str}) VALUES {values_str}{conflict_clause}"
+    return sql, params
+
+
+def _build_upsert_sql(
+    table: str,
+    rows: list[dict],
+    conflict_columns: list[str] | tuple[str, ...],
+    update_columns: list[str] | None = None,
+    schema: str = "public",
+) -> tuple[str, list]:
+    """Build a parameterized INSERT … ON CONFLICT … DO UPDATE SET SQL statement.
+
+    Pure builder — delegates the INSERT body to :func:`_build_insert_sql`
+    so that table/schema/column identifier validation is shared.  Validates
+    ``conflict_columns`` and ``update_columns`` here before any f-string
+    interpolation (T-18-01, SC-6).
+
+    Parameters
+    ----------
+    table : str
+        Target table name. Must be a valid SQL identifier.
+    rows : list of dict
+        Row dicts keyed by column name. Column order is taken from
+        ``rows[0].keys()``.
+    conflict_columns : list or tuple of str
+        Columns that define uniqueness for the conflict target.  Each must
+        be a valid SQL identifier.
+    update_columns : list of str, optional
+        Columns to update on conflict.  Defaults to all columns that are
+        NOT in ``conflict_columns`` (same default as ``upsert_many``).
+    schema : str, optional
+        Schema name, by default ``"public"``.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string of the form
+        ``INSERT INTO … VALUES … ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col``
+        and a flat params list.
+
+    Raises
+    ------
+    InvalidIdentifier
+        If any identifier in ``table``, ``schema``, ``conflict_columns``,
+        ``update_columns``, or the column names derived from ``rows[0]``
+        fails validation (T-18-01, SC-6).
+    """
+    columns = list(rows[0].keys())
+    if update_columns is None:
+        update_columns = [c for c in columns if c not in conflict_columns]
+
+    validate_identifiers(*conflict_columns)
+    validate_identifiers(*update_columns)
+
+    conflict_str = ", ".join(conflict_columns)
+    update_str = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_columns)
+    on_conflict = f"({conflict_str}) DO UPDATE SET {update_str}"
+
+    return _build_insert_sql(table, columns, rows, schema, on_conflict=on_conflict)
+
+
+def _step_label(fn: object) -> str:
+    """Return a human-readable label for a transform step function.
+
+    Used by the ``run()`` transform chain to name the failing step in an
+    :class:`~pycopg.exceptions.ETLTransformError` message (D-06).
+
+    Returns ``fn.__name__`` for named functions.  Falls back to
+    ``repr(fn)`` for lambdas (whose ``__name__`` is the string
+    ``"<lambda>"``, which is truthy but not useful) and for
+    ``functools.partial`` objects (which have no ``__name__`` attribute
+    at all).
+
+    Parameters
+    ----------
+    fn : callable
+        The transform step whose label is needed.
+
+    Returns
+    -------
+    str
+        ``fn.__name__`` when it is a non-empty string other than
+        ``"<lambda>"``; ``repr(fn)`` otherwise.
+    """
+    name = getattr(fn, "__name__", None)
+    if name and name != "<lambda>":
+        return name
+    return repr(fn)
+
+
 class ETLAccessor:
     """Sync ETL helper namespace exposed as ``db.etl``.
 
