@@ -108,7 +108,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 18-01-PLAN.md — Pure (sql, params) load builders (_build_insert_sql / _build_upsert_sql) + _step_label + DB-free unit & injection tests (Wave 1)
+- [x] 18-01-PLAN.md — Pure (sql, params) load builders (_build_insert_sql / _build_upsert_sql) + _step_label + DB-free unit & injection tests (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -170,6 +170,6 @@ Plans:
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
-| 18. Load Modes & Extract | v0.5.0 | 0/3 | Planned | - |
+| 18. Load Modes & Extract | v0.5.0 | 1/3 | In Progress|  |
 | 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |
