@@ -136,7 +136,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 19-01-PLAN.md — RunResult frozen dataclass + _row_to_result mapper + ETL_GET_RUN constant (pure, DB-free)
+- [x] 19-01-PLAN.md — RunResult frozen dataclass + _row_to_result mapper + ETL_GET_RUN constant (pure, DB-free)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -185,5 +185,5 @@ Plans:
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
 | 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
-| 19. Sync Runner & Query Surface | v0.5.0 | 0/3 | Not started | - |
+| 19. Sync Runner & Query Surface | v0.5.0 | 1/3 | In Progress|  |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |

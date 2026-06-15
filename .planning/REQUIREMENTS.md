@@ -24,8 +24,8 @@ A declarative ETL pipeline-runner layer (`db.etl.*` / `async_db.etl.*`) that run
 
 - [x] **ETL-07**: After any `run()`, a row exists in `pipeline_runs` with `run_id`, `pipeline_name`, `started_at`, `finished_at`, `status`, `rows_extracted`, `rows_loaded`. The table reserves a nullable `watermark` column (always NULL in v0.5.0) for forward-compat with v0.6.0 incremental support — no breaking migration required later.
 - [x] **ETL-08**: A run that raises during load records `status='failed'` with non-null `error_message` and `error_traceback`; the `pipeline_runs` record is committed even when the load transaction rolled back.
-- [ ] **ETL-10**: `db.etl.run(pipeline)` returns a `RunResult` carrying `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, and `error`.
-- [ ] **ETL-11**: `db.etl.history("my_pipeline")` returns a list of `RunResult` for that pipeline, newest-first.
+- [x] **ETL-10**: `db.etl.run(pipeline)` returns a `RunResult` carrying `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, and `error`.
+- [x] **ETL-11**: `db.etl.history("my_pipeline")` returns a list of `RunResult` for that pipeline, newest-first.
 - [x] **ETL-14**: The `pipeline_runs` table is auto-created on first `run()` if missing (CREATE TABLE IF NOT EXISTS); an explicit `db.etl.init()` is also available. No user-run migration is required.
 
 ### Accessor & Parity
@@ -35,9 +35,9 @@ A declarative ETL pipeline-runner layer (`db.etl.*` / `async_db.etl.*`) that run
 
 ### Developer Experience
 
-- [ ] **ETL-15**: User can call `run(pipeline, dry_run=True)` to execute extract + transform but skip the load and write no run record; returns a `RunResult` with `status='dry_run'`, `rows_loaded=0`.
+- [x] **ETL-15**: User can call `run(pipeline, dry_run=True)` to execute extract + transform but skip the load and write no run record; returns a `RunResult` with `status='dry_run'`, `rows_loaded=0`.
 - [x] **ETL-16**: User can set `transform=[clean, normalize, enrich]` (a list of callables) applied in sequence; an error reports which step failed. A single callable and `None` remain valid.
-- [ ] **ETL-17**: User can call `db.etl.last_run("my_pipeline")` to fetch the most recent `RunResult` (or `None`) — sugar over `history()`.
+- [x] **ETL-17**: User can call `db.etl.last_run("my_pipeline")` to fetch the most recent `RunResult` (or `None`) — sugar over `history()`.
 
 ## Future Requirements
 
@@ -96,14 +96,14 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ETL-07 | Phase 17 | Complete |
 | ETL-08 | Phase 17 | Complete |
 | ETL-09 | Phase 17 | Complete |
-| ETL-10 | Phase 19 | Pending |
-| ETL-11 | Phase 19 | Pending |
+| ETL-10 | Phase 19 | Complete |
+| ETL-11 | Phase 19 | Complete |
 | ETL-12 | Phase 20 | Pending |
 | ETL-13 | Phase 20 | Pending |
 | ETL-14 | Phase 17 | Complete |
-| ETL-15 | Phase 19 | Pending |
+| ETL-15 | Phase 19 | Complete |
 | ETL-16 | Phase 18 | Complete |
-| ETL-17 | Phase 19 | Pending |
+| ETL-17 | Phase 19 | Complete |
 
 **Coverage:**
 
