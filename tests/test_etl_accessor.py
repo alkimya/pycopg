@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 
 import pytest
+from psycopg.rows import dict_row
 
 from pycopg import Database, queries
 from pycopg.etl import ETLAccessor
@@ -37,15 +38,53 @@ def cleanup_pipeline_runs(db):
 
 
 class _FakeDatabase:
-    """Minimal fake Database that records execute() calls."""
+    """Minimal fake Database that records connect()+cursor.execute() calls."""
 
     def __init__(self):
         self.calls = []  # list of (sql, params, autocommit)
 
-    def execute(self, sql, params=None, autocommit=False):
-        """Record the call and return a fixed RETURNING payload."""
-        self.calls.append((sql, params, autocommit))
-        return [{"run_id": 42}]
+    def connect(self, autocommit=False):
+        """Return a context manager yielding a fake connection."""
+        calls = self.calls
+        autocommit_flag = autocommit
+
+        class _FakeCursor:
+            def __init__(self):
+                self._sql = None
+                self._params = None
+
+            def execute(self, sql, params=None):
+                calls.append((sql, params, autocommit_flag))
+                self._sql = sql
+                self._params = params
+
+            def fetchone(self):
+                return {"run_id": 42}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        class _FakeConn:
+            def cursor(self, row_factory=None):
+                return _FakeCursor()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        class _FakeConnCtx:
+            def __enter__(self_inner):  # noqa: N805
+                return _FakeConn()
+
+            def __exit__(self_inner, *args):  # noqa: N805
+                pass
+
+        return _FakeConnCtx()
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +283,106 @@ class TestETLAccessorIntegration:
         assert run_rows[0]["error_traceback"] is not None
 
         # (b) load mutation (sentinel 999) must have been rolled back
+        scratch_rows = db.execute(f'SELECT val FROM "{scratch}" ORDER BY val')
+        vals = [r["val"] for r in scratch_rows]
+        assert 999 not in vals, "sentinel row from rolled-back load txn must be absent"
+        assert 1 in vals, "baseline row must still be present"
+
+        # Cleanup scratch table
+        db.execute(f'DROP TABLE IF EXISTS "{scratch}" CASCADE', autocommit=True)
+
+    def test_failed_run_commits_inside_session(self, db, cleanup_pipeline_runs):
+        """SC-4 session path: run-log writes commit immediately on own connection (D-04/D-05).
+
+        Proves structural isolation under a db.session(): _start_run and
+        _end_run commit their rows on a dedicated autocommit connection that is
+        INDEPENDENT of the session connection.  A fresh out-of-session read
+        confirms each row is durably committed BEFORE the session closes.
+
+        Gap-catching property: with pre-fix etl.py, _start_run/_end_run write
+        on the session connection via cursor(autocommit=True).  Those rows are
+        PENDING until the session commits — and are lost if the session
+        connection is rolled back.  After Task 1's fix, the rows are committed
+        on their own connections immediately and survive a session rollback,
+        proving ETL-08/ETL-09 holds for the session-active path.
+        """
+        db.etl.init()
+
+        # Create a scratch target table with one known baseline row
+        scratch = f"etl_scratch_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE "{scratch}" (val INTEGER)',
+            autocommit=True,
+        )
+        db.execute(f'INSERT INTO "{scratch}" VALUES (1)', autocommit=True)
+
+        run_id = None
+        with db.session():
+            # _start_run opens its OWN autocommit connection (post-fix) —
+            # NOT the session conn (D-04); the INSERT must be committed
+            # IMMEDIATELY, visible from outside before the session closes.
+            run_id = db.etl._start_run("session_rollback_case")
+
+            # Read the run-log row via a FRESH out-of-band connection to confirm
+            # it is ALREADY committed — not pending in the session transaction.
+            # Pre-fix: the row is pending on _session_conn and NOT visible here.
+            # Post-fix: the row committed on its own conn and IS visible here.
+            with db.connect(autocommit=True) as fresh_conn:
+                with fresh_conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute(
+                        "SELECT status FROM pipeline_runs WHERE run_id = %s",
+                        [run_id],
+                    )
+                    early_rows = cur.fetchall()
+            assert (
+                len(early_rows) == 1
+            ), "_start_run row must be committed before session closes (D-04)"
+            assert early_rows[0]["status"] == "running"
+
+            # Perform a load mutation inside a transaction on the session connection
+            # and force it to roll back (proving session isolation from run-log).
+            try:
+                with db.transaction() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(f'INSERT INTO "{scratch}" VALUES (999)')
+                    raise RuntimeError("forced load failure")
+            except RuntimeError:
+                # _end_run opens its own autocommit connection (post-fix)
+                db.etl._end_run(
+                    run_id,
+                    "failed",
+                    0,
+                    0,
+                    error_message="forced load failure",
+                    error_traceback=traceback.format_exc(),
+                )
+
+            # Confirm _end_run row also committed on its own conn, still inside session
+            with db.connect(autocommit=True) as fresh_conn:
+                with fresh_conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute(
+                        "SELECT status, error_message, error_traceback "
+                        "FROM pipeline_runs WHERE run_id = %s",
+                        [run_id],
+                    )
+                    mid_rows = cur.fetchall()
+            assert (
+                len(mid_rows) == 1
+            ), "_end_run row must be committed before session closes (D-04)"
+            assert mid_rows[0]["status"] == "failed"
+            assert mid_rows[0]["error_message"] is not None
+
+        # (a) After the session closes, pipeline_runs row still has status='failed'
+        run_rows = db.execute(
+            "SELECT status, error_message, error_traceback FROM pipeline_runs WHERE run_id = %s",
+            [run_id],
+        )
+        assert len(run_rows) == 1, "pipeline_runs row must exist after session exits"
+        assert run_rows[0]["status"] == "failed"
+        assert run_rows[0]["error_message"] is not None
+        assert run_rows[0]["error_traceback"] is not None
+
+        # (b) load mutation (sentinel 999) was rolled back by db.transaction()
         scratch_rows = db.execute(f'SELECT val FROM "{scratch}" ORDER BY val')
         vals = [r["val"] for r in scratch_rows]
         assert 999 not in vals, "sentinel row from rolled-back load txn must be absent"
