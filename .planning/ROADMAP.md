@@ -130,7 +130,21 @@ Plans:
   3. `db.etl.last_run("my_pipeline")` returns the most recent `RunResult`; returns `None` when no runs exist for that pipeline name
   4. `db.etl.run(pipeline, dry_run=True)` executes extract and transform but skips load; returns `RunResult(status='dry_run', rows_loaded=0)` and writes no row to `pipeline_runs`
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 19-01-PLAN.md — RunResult frozen dataclass + _row_to_result mapper + ETL_GET_RUN constant (pure, DB-free)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 19-02-PLAN.md — run() -> RunResult upgrade + dry_run early fork + history()/last_run() read methods
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 19-03-PLAN.md — TestRowToResult unit + TestRunResultSurface (SC-1..SC-4) integration + existing run_id assertion migration
 
 ### Phase 20: Async Parity, Wiring & Release
 
@@ -171,5 +185,5 @@ Plans:
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
 | 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
-| 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
+| 19. Sync Runner & Query Surface | v0.5.0 | 0/3 | Not started | - |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |
