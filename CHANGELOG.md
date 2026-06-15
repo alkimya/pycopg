@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-15
+
+### Added
+
+- `db.etl.*` / `async_db.etl.*` namespace: ETL pipeline runner (`run`, `history`, `last_run`,
+  `dry_run`) with full sync/async parity; both accessors live under a lazy-initialised property
+  following the `db.spatial` pattern
+- `Pipeline` frozen dataclass: `source` (SQL string or table name), `target` (table name),
+  `load_mode` (`append` / `replace` / `upsert`), `conflict_columns` (upsert key), `transform`
+  (None / single callable / list of callables), `extract_limit`, `schema`, `pipeline_name`
+- `pipeline_runs` run-tracking table: auto-created on first `db.etl.run()` call; can also be
+  created explicitly with `db.etl.init()`; stores status, row counts, timing, and error details
+- `RunResult` frozen dataclass: `run_id`, `pipeline_name`, `status`, `rows_extracted`,
+  `rows_loaded`, `started_at`, `finished_at`, `error`
+- `ETLAccessor` and `AsyncETLAccessor` lazy accessors (sync and async) with identical public
+  method surfaces (`run`, `history`, `last_run`, `init`)
+- `ETLError`, `ETLTargetNotFoundError`, `ETLTransformError` exception hierarchy for typed
+  ETL error handling
+- `ETLAccessor`, `AsyncETLAccessor`, `RunResult`, `Pipeline` exported from the `pycopg`
+  top-level namespace
+- Async transform dispatch via `asyncio.to_thread` — sync transform callables do not block
+  the event loop when used with `AsyncETLAccessor`
+- Zero new runtime dependencies — the ETL layer is built on top of existing psycopg3 and
+  pandas dependencies
+
 ## [0.4.0] - 2026-06-14
 
 ### Added
@@ -136,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/alkimya/pycopg/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alkimya/pycopg/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/alkimya/pycopg/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/alkimya/pycopg/compare/v0.2.0...v0.3.0

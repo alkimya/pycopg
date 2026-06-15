@@ -343,3 +343,122 @@ If you encounter issues during migration:
 1. Check that you're using a supported Python version (3.11+)
 2. Review the [CHANGELOG.md](CHANGELOG.md) for the full list of changes
 3. Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
+
+---
+
+# Migration Guide: v0.4.x to v0.5.0
+
+This guide covers upgrading from pycopg 0.4.x to 0.5.0. Version 0.5.0 is a purely additive
+release — there are **no breaking changes**. Existing code continues to work without modification.
+
+## Breaking Changes
+
+None. All changes in 0.5.0 are new additive features.
+
+## New Features
+
+### ETL Pipeline Runner (`db.etl.*` / `async_db.etl.*`)
+
+Version 0.5.0 adds a full ETL pipeline runner with run tracking, accessible via the new
+`db.etl` and `async_db.etl` lazy properties.
+
+**Define a pipeline:**
+```python
+from pycopg import Database, Pipeline
+
+db = Database.from_env()
+
+pipeline = Pipeline(
+    source="SELECT id, name, value FROM staging_data",
+    target="analytics_results",
+    load_mode="upsert",
+    conflict_columns=["id"],
+)
+```
+
+**Run the pipeline:**
+```python
+from pycopg import RunResult
+
+result = db.etl.run(pipeline)
+print(result.status)          # "success"
+print(result.rows_extracted)  # rows read from source
+print(result.rows_loaded)     # rows written to target
+```
+
+**Query run history:**
+```python
+# Last 100 runs for a pipeline (newest first)
+runs = db.etl.history("my_pipeline")
+
+# Most recent run only
+last = db.etl.last_run("my_pipeline")
+```
+
+**Dry run (no data written):**
+```python
+result = db.etl.run(pipeline, dry_run=True)
+print(result.status)    # "dry_run"
+print(result.run_id)    # None (not recorded)
+```
+
+**Async usage (full parity):**
+```python
+from pycopg import AsyncDatabase
+
+async_db = AsyncDatabase.from_env()
+result = await async_db.etl.run(pipeline)
+runs   = await async_db.etl.history("my_pipeline")
+last   = await async_db.etl.last_run("my_pipeline")
+```
+
+**Transform callables:**
+```python
+import pandas as pd
+
+def clean(df: pd.DataFrame) -> pd.DataFrame:
+    return df.dropna()
+
+pipeline = Pipeline(
+    source="staging_data",
+    target="clean_data",
+    load_mode="replace",
+    transform=clean,       # single callable, or a list of callables
+)
+```
+
+Async transforms dispatch sync callables via `asyncio.to_thread` — no event-loop blocking.
+
+**New top-level exports:**
+```python
+from pycopg import (
+    ETLAccessor,
+    AsyncETLAccessor,
+    Pipeline,
+    RunResult,
+    ETLError,
+    ETLTargetNotFoundError,
+    ETLTransformError,
+)
+```
+
+**Run-tracking table (`pipeline_runs`):** Created automatically on the first `run()` call.
+You can also create it explicitly before the first run:
+```python
+db.etl.init()
+```
+
+## Upgrade Checklist
+
+- [ ] No breaking changes — no action required for existing code
+- [ ] Optional: explore the new `db.etl.*` / `async_db.etl.*` ETL namespace
+- [ ] Optional: import `Pipeline`, `RunResult` from `pycopg` top-level if using ETL features
+- [ ] Run test suite to verify compatibility: `uv run pytest tests/ -x -q`
+
+## Getting Help
+
+If you encounter issues during migration:
+
+1. Check that you're using a supported Python version (3.11+)
+2. Review the [CHANGELOG.md](CHANGELOG.md) for the full list of changes
+3. Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
