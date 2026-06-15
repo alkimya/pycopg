@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.5.0
 milestone_name: ETL Pipeline Runner
-status: completed
-stopped_at: Phase 17 context gathered
-last_updated: "2026-06-15T09:45:56.637Z"
-last_activity: 2026-06-14
+status: executing
+stopped_at: Phase 17 Plan 01 complete
+last_updated: "2026-06-15T10:55:00.000Z"
+last_activity: 2026-06-15 -- Phase 17 Plan 01 executed (ETLAccessor + db.etl + SC-1..SC-4 tests)
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 20
+  completed_phases: 2
+  total_plans: 3
+  completed_plans: 3
+  percent: 40
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-14)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 16 — pure-etl-layer
+**Current focus:** Phase 17 — run-tracking-foundation
 
 ## Current Position
 
-Phase: 17
-Plan: Not started
-Status: Phase complete; ready for Phase 17
-Last activity: 2026-06-14
+Phase: 17 (run-tracking-foundation) — COMPLETE
+Plan: 1 of 1 — COMPLETE
+Status: Phase 17 done; ready for Phase 18
+Last activity: 2026-06-15 -- Phase 17 Plan 01 executed (ETLAccessor + db.etl + SC-1..SC-4 tests)
 
-Progress: [██░░░░░░░░] 20% (Phase 16 complete: 1 of 5 phases)
+Progress: [████░░░░░░] 40% (Phase 17 complete: 2 of 5 phases)
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [██░░░░░░░░] 20% (Phase 16 complete: 1 of 5 phases
 | 20 | TBD | - | - |
 | Phase 16 P01 | 2 | 3 tasks | 3 files |
 | Phase 16 P02 | 2 | 2 tasks | 2 files |
+| Phase 17 P01 | 2 | 2 tasks | 3 files (1 created, 2 modified) |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ Open design decisions resolved at requirements time (see REQUIREMENTS.md OD sect
 - OD-3: Both lazy auto-create on first `run()` AND explicit `db.etl.init()` available
 - [Phase 16]: ETL exception hierarchy: two-level (ETLError→PycopgError; subclasses→ETLError); no PipelineError wrapper (D-09); pipeline_runs uses TEXT+CHECK not PG ENUM (D-14)
 - [Phase 16 P02]: Pipeline is frozen dataclass with 8 fields; _validate_load_mode rejects non-public values; extract_limit=-1 rejected; _is_sql_source heuristic included; Callable from collections.abc per ruff UP035
+- [Phase 17 P01]: ETLAccessor mirrors SpatialAccessor shape; db.etl lazy property wired; run-log writes on dedicated autocommit connections (D-04/D-05); status literals 'running'/'success'/'failed'; SC-1..SC-4 proven; db.execute() inside db.transaction() doesn't share the txn conn — SC-4 test uses conn.cursor() directly
 
 ### Pending Todos
 
@@ -75,7 +77,7 @@ None. All three open design decisions (OD-1, OD-2, OD-3) resolved before Phase 1
 
 ## Session Continuity
 
-Last session: 2026-06-15T09:45:56.630Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-run-tracking-foundation/17-CONTEXT.md
-Next action: /gsd-plan-phase 17
+Last session: 2026-06-15T10:55:00.000Z
+Stopped at: Phase 17 Plan 01 complete — ETLAccessor + db.etl + SC-1..SC-4 tests (2 tasks, 10 tests pass)
+Resume file: .planning/phases/17-run-tracking-foundation/17-01-SUMMARY.md
+Next action: /gsd-execute-phase 18 (extract + load modes)

@@ -47,7 +47,7 @@ pycopg's existing DataFrame/spatial helpers, at full sync/async parity. Zero new
 dependencies. Architecture mirrors `spatial.py`.
 
 - [x] **Phase 16: Pure ETL Layer** — Pipeline dataclass, SQL constants, pure builders; fully unit-testable with no DB (completed 2026-06-14)
-- [ ] **Phase 17: Run-Tracking Foundation** — `pipeline_runs` DDL + status lifecycle + separate-connection run-log writes
+- [x] **Phase 17: Run-Tracking Foundation** — `pipeline_runs` DDL + status lifecycle + separate-connection run-log writes (completed 2026-06-15)
 - [ ] **Phase 18: Load Modes & Extract** — extract (SQL/table), append/replace/upsert with transactional correctness, transform chain
 - [ ] **Phase 19: Sync Runner & Query Surface** — `run()`, `RunResult`, `history()`, `last_run()`, `dry_run`
 - [ ] **Phase 20: Async Parity, Wiring & Release** — `AsyncETLAccessor`, lazy `db.etl` property, `TestEtlParity`, Sphinx docs, coverage gate, v0.5.0 PyPI publish
@@ -86,7 +86,7 @@ dependencies. Architecture mirrors `spatial.py`.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 17-01-PLAN.md — ETLAccessor (init/_start_run/_end_run/run stub) + lazy db.etl property + run-log tests (SC-1..SC-4)
+- [x] 17-01-PLAN.md — ETLAccessor (init/_start_run/_end_run/run stub) + lazy db.etl property + run-log tests (SC-1..SC-4) — completed 2026-06-15
 
 ### Phase 18: Load Modes & Extract
 
