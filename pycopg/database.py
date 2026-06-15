@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     import geopandas as gpd
     import pandas as pd
 
+    from pycopg.etl import ETLAccessor
     from pycopg.spatial import SpatialAccessor
 
 
@@ -82,6 +83,7 @@ class Database(DatabaseBase, QueryMixin):
         self._engine: Engine | None = None
         self._session_conn: psycopg.Connection | None = None
         self._spatial: SpatialAccessor | None = None
+        self._etl: ETLAccessor | None = None
 
     @classmethod
     def create(
@@ -247,6 +249,26 @@ class Database(DatabaseBase, QueryMixin):
 
             self._spatial = SpatialAccessor(self)
         return self._spatial
+
+    @property
+    def etl(self) -> ETLAccessor:
+        """Get or create the ETL run-tracking accessor (lazy initialization).
+
+        The accessor hosts ``init()``, ``_start_run()``, ``_end_run()``,
+        and ``run()`` — the run-log primitives for the v0.5.0 ETL layer.
+        All run-log writes use a dedicated autocommit connection fully
+        independent of any load transaction (D-01/D-02, ETL-07).
+
+        Returns
+        -------
+        ETLAccessor
+            ETL run-tracking namespace bound to this database.
+        """
+        if self._etl is None:
+            from pycopg.etl import ETLAccessor
+
+            self._etl = ETLAccessor(self)
+        return self._etl
 
     @retry(
         stop=stop_after_attempt(3),
@@ -475,7 +497,9 @@ class Database(DatabaseBase, QueryMixin):
             return 0
 
         columns = list(rows[0].keys())
-        sql, params = self._build_batch_insert_sql(table, columns, rows, schema, on_conflict)
+        sql, params = self._build_batch_insert_sql(
+            table, columns, rows, schema, on_conflict
+        )
 
         with self.cursor() as cur:
             cur.execute(sql, params)
@@ -1879,9 +1903,7 @@ class Database(DatabaseBase, QueryMixin):
             )
             return result[0]["size"]
         else:
-            result = self.execute(
-                queries.DATABASE_SIZE, [self.config.database]
-            )
+            result = self.execute(queries.DATABASE_SIZE, [self.config.database])
             return result[0]["size"]
 
     def table_size(
@@ -2713,4 +2735,3 @@ class Database(DatabaseBase, QueryMixin):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Exit the context manager and close the connection."""
         self.close()
-

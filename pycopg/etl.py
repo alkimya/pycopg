@@ -26,10 +26,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from pycopg import queries
 from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError  # noqa: F401
 from pycopg.utils import validate_identifiers
+
+if TYPE_CHECKING:
+    from pycopg.database import Database
 
 #: Accepted ``load_mode=`` values (D-06).
 #: ``replace`` is the public name for the truncate-load strategy; ``upsert``
@@ -277,3 +282,152 @@ def build_init_sql() -> tuple[str, list]:
         list.
     """
     return queries.ETL_INIT_PIPELINE_RUNS, []
+
+
+class ETLAccessor:
+    """Sync ETL helper namespace exposed as ``db.etl``.
+
+    Hosts the run-tracking I/O primitives: idempotent table creation
+    (``init``), run-log insertion (``_start_run``), and run-log update
+    (``_end_run``). All run-log writes use a fresh short-lived autocommit
+    connection per write — independent of any load transaction — so a
+    failed run row commits even when the load transaction rolls back
+    (D-04/D-05, ETL-08/ETL-09).
+
+    No PostGIS extension guard and no ``schema`` argument (D-08).  The
+    ``pipeline_runs`` table is unqualified and resolves via the
+    connection's ``search_path``.
+
+    Parameters
+    ----------
+    db : Database
+        Parent database instance.
+    """
+
+    def __init__(self, db: Database) -> None:
+        """Store the parent database reference (D-02).
+
+        Parameters
+        ----------
+        db : Database
+            Parent database instance. Stored as ``self._db``; no
+            extension check is performed (ETL run-tracking is core, not
+            an extension — D-08).
+        """
+        self._db = db
+
+    def init(self) -> None:
+        """Create the ``pipeline_runs`` table if it does not exist.
+
+        Executes the ``ETL_INIT_PIPELINE_RUNS`` DDL on a fresh autocommit
+        connection (D-04).  Safe to call repeatedly — ``CREATE TABLE IF
+        NOT EXISTS`` makes it idempotent (D-10/D-15, ETL-14).
+
+        Returns
+        -------
+        None
+        """
+        self._db.execute(queries.ETL_INIT_PIPELINE_RUNS, autocommit=True)
+
+    def _start_run(self, name: str) -> int:
+        """Insert a ``'running'`` row into ``pipeline_runs`` and return its id.
+
+        Uses a fresh autocommit connection per write (D-04) so the INSERT
+        commits independently of any surrounding load transaction.
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name stored as ``pipeline_name`` in the run row.
+
+        Returns
+        -------
+        int
+            The ``run_id`` of the newly inserted row (from
+            ``RETURNING run_id``).
+        """
+        rows = self._db.execute(
+            queries.ETL_INSERT_RUN,
+            [name, "running", datetime.now(UTC)],
+            autocommit=True,
+        )
+        return rows[0]["run_id"]
+
+    def _end_run(
+        self,
+        run_id: int,
+        status: str,
+        rows_extracted: int,
+        rows_loaded: int,
+        error_message: str | None = None,
+        error_traceback: str | None = None,
+    ) -> None:
+        """Update a ``pipeline_runs`` row with final status and metrics.
+
+        Uses a fresh autocommit connection per write (D-04) so the UPDATE
+        commits independently of any surrounding load transaction, ensuring
+        a ``status='failed'`` row is committed even when the load
+        transaction rolled back (ETL-08/ETL-09).
+
+        Use the literal ``'failed'`` status string for failures — the
+        CHECK constraint only accepts ``'running'``, ``'success'``, and
+        ``'failed'`` (D-07).
+
+        Parameters
+        ----------
+        run_id : int
+            The ``run_id`` returned by :meth:`_start_run`.
+        status : str
+            Final run status: ``'success'`` or ``'failed'``.
+        rows_extracted : int
+            Number of rows read from the source.
+        rows_loaded : int
+            Number of rows written to the target.
+        error_message : str or None, optional
+            Short error description, by default ``None``.
+        error_traceback : str or None, optional
+            Full traceback string (e.g. from ``traceback.format_exc()``),
+            by default ``None``.
+
+        Returns
+        -------
+        None
+        """
+        self._db.execute(
+            queries.ETL_UPDATE_RUN,
+            [
+                status,
+                datetime.now(UTC),
+                rows_extracted,
+                rows_loaded,
+                error_message,
+                error_traceback,
+                run_id,
+            ],
+            autocommit=True,
+        )
+
+    def run(self, name: str = "pipeline") -> int:
+        """Execute the auto-create + start/end seam (thin stub, D-03/D-10).
+
+        Creates ``pipeline_runs`` if absent (auto-create, ETL-14), inserts
+        a ``'running'`` row, and immediately records ``'success'`` with
+        zero row counts.  Extract, transform, and load logic land in
+        Phases 18/19 — this stub establishes the testable seam for SC-1,
+        SC-2, SC-3, and SC-4.
+
+        Parameters
+        ----------
+        name : str, optional
+            Pipeline name passed to :meth:`_start_run`, by default
+            ``"pipeline"``.
+
+        Returns
+        -------
+        int
+            The ``run_id`` of the completed run row.
+        """
+        self.init()
+        run_id = self._start_run(name)
+        self._end_run(run_id, "success", 0, 0)
+        return run_id
