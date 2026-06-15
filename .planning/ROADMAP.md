@@ -83,7 +83,10 @@ dependencies. Architecture mirrors `spatial.py`.
   3. If no explicit `init()` is called, the first `run()` auto-creates `pipeline_runs` via `CREATE TABLE IF NOT EXISTS`
   4. A run that fails during load records `status='failed'` with non-null `error_message` and `error_traceback`; the `pipeline_runs` row is committed even when the load transaction rolled back, because run-log writes use a dedicated autocommit connection separate from the load transaction
 
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 17-01-PLAN.md — ETLAccessor (init/_start_run/_end_run/run stub) + lazy db.etl property + run-log tests (SC-1..SC-4)
 
 ### Phase 18: Load Modes & Extract
 
