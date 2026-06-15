@@ -1,15 +1,18 @@
 """Tests for pycopg.etl — DB-free Pipeline + builder tests."""
 
 import functools
+from datetime import UTC, datetime
 
 import pytest
 
 from pycopg import queries
 from pycopg.etl import (
     Pipeline,
+    RunResult,
     _build_insert_sql,
     _build_upsert_sql,
     _is_sql_source,
+    _row_to_result,
     _step_label,
     _validate_load_mode,
     build_init_sql,
@@ -416,3 +419,63 @@ class TestEtlBuilders:
         assert f"transform step {i}" in str(err)
         assert f"'{lbl}'" in str(err)
         assert "ValueError" in str(err)
+
+
+class TestRowToResult:
+    """Unit tests for _row_to_result — pure function, no DB (D-10)."""
+
+    def _sample_row(self, **overrides):
+        """Return a minimal valid pipeline_runs dict_row (all 10 DB columns)."""
+        base = {
+            "run_id": 7,
+            "pipeline_name": "test_pipeline",
+            "status": "success",
+            "rows_extracted": 10,
+            "rows_loaded": 10,
+            "started_at": datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC),
+            "finished_at": datetime(2026, 1, 1, 0, 0, 5, tzinfo=UTC),
+            "error_message": None,
+            "error_traceback": None,
+            "watermark": None,
+        }
+        base.update(overrides)
+        return base
+
+    def test_maps_all_8_fields(self):
+        """_row_to_result maps all 8 RunResult fields from a pipeline_runs row (D-10/SC-1)."""
+        row = self._sample_row()
+        result = _row_to_result(row)
+        assert result.run_id == 7
+        assert result.pipeline_name == "test_pipeline"
+        assert result.status == "success"
+        assert result.rows_extracted == 10
+        assert result.rows_loaded == 10
+        assert result.started_at == datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        assert result.finished_at == datetime(2026, 1, 1, 0, 0, 5, tzinfo=UTC)
+        assert result.error is None
+
+    def test_error_message_renamed_to_error(self):
+        """DB column error_message is exposed on RunResult as 'error' (D-03/D-10)."""
+        row = self._sample_row(error_message="something went wrong")
+        result = _row_to_result(row)
+        assert result.error == "something went wrong"
+
+    def test_error_traceback_dropped(self):
+        """error_traceback is not a field on RunResult — dropped by mapper (D-10)."""
+        row = self._sample_row(error_traceback="Traceback (most recent call last)...")
+        result = _row_to_result(row)
+        assert not hasattr(result, "error_traceback")
+
+    def test_watermark_dropped(self):
+        """watermark is not a field on RunResult — dropped by mapper (D-04/D-10)."""
+        row = self._sample_row(watermark={"cursor": "2026-01-01"})
+        result = _row_to_result(row)
+        assert not hasattr(result, "watermark")
+
+    def test_result_is_frozen(self):
+        """RunResult is a frozen dataclass — attribute assignment raises (D-01)."""
+        row = self._sample_row()
+        result = _row_to_result(row)
+        assert isinstance(result, RunResult)
+        with pytest.raises(Exception):  # dataclasses.FrozenInstanceError (AttributeError subclass)
+            result.status = "failed"  # type: ignore[misc]
