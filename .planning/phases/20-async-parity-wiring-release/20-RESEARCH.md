@@ -678,7 +678,7 @@ No new security concerns in Phase 20. The `AsyncETLAccessor` reuses all SQL from
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `TestEtlParity` need behavioral (real-DB) tests in addition to structural surface enumeration?**
    - What we know: SC-4 says "enumerates `EtlAccessor` vs `AsyncETLAccessor` method surfaces and asserts full parity" — this is a structural check.
