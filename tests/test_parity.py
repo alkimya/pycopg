@@ -8,6 +8,7 @@ import inspect
 import pytest
 
 from pycopg import AsyncDatabase, Database
+from pycopg.etl import AsyncETLAccessor, ETLAccessor
 
 
 class TestAsyncParity:
@@ -460,3 +461,42 @@ class TestBehavioralParity:
         finally:
             admin_sync.drop_database(sdb_target, if_exists=True)
             await admin_async.drop_database(adb_target, if_exists=True)
+
+
+class TestEtlParity:
+    """SC-4: verify full public-surface parity between ETLAccessor and AsyncETLAccessor.
+
+    Uses ``inspect.getmembers`` to enumerate the public surface of both classes
+    and asserts parity in both directions — no missing and no extra members on
+    the async side.
+    """
+
+    def test_etl_accessor_public_methods_match(self):
+        """ETLAccessor and AsyncETLAccessor expose identical public surfaces (SC-4).
+
+        Checks both directions:
+        - nothing in ETLAccessor is absent from AsyncETLAccessor
+        - nothing in AsyncETLAccessor is absent from ETLAccessor
+        """
+        sync_methods = set(
+            name
+            for name, _ in inspect.getmembers(ETLAccessor)
+            if not name.startswith("_")
+        )
+        async_methods = set(
+            name
+            for name, _ in inspect.getmembers(AsyncETLAccessor)
+            if not name.startswith("_")
+        )
+
+        missing_in_async = sync_methods - async_methods
+        assert not missing_in_async, (
+            f"Members present in ETLAccessor but missing in AsyncETLAccessor: "
+            f"{sorted(missing_in_async)}"
+        )
+
+        extra_in_async = async_methods - sync_methods
+        assert not extra_in_async, (
+            f"Members present in AsyncETLAccessor but absent from ETLAccessor: "
+            f"{sorted(extra_in_async)}"
+        )

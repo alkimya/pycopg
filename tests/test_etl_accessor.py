@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from psycopg.rows import dict_row
 
-from pycopg import Database, queries
+from pycopg import AsyncDatabase, Database, queries
 from pycopg.etl import ETLAccessor, Pipeline, RunResult
 from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError
 
@@ -1292,9 +1292,7 @@ class TestRunResultSurface:
         )
         assert rows[0]["cnt"] == 0
 
-    def test_dry_run_target_table_unchanged(
-        self, db, cleanup_pipeline_runs, etl_table
-    ):
+    def test_dry_run_target_table_unchanged(self, db, cleanup_pipeline_runs, etl_table):
         """SC-4: dry_run=True leaves the target table untouched (no rows inserted)."""
         p = Pipeline(
             name="sc4_target",
@@ -1305,3 +1303,192 @@ class TestRunResultSurface:
         db.etl.run(p, dry_run=True)
         rows = db.execute(f'SELECT COUNT(*) AS cnt FROM public."{etl_table}"')
         assert rows[0]["cnt"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def async_db(db_config):
+    """Yield an AsyncDatabase connected to pycopg_test."""
+    database = AsyncDatabase(db_config)
+    yield database
+
+
+@pytest.fixture
+async def async_etl_table(db_config):
+    """Create a fresh ETL target table via async connection; drop on teardown."""
+    tbl = f"etl_atgt_{uuid.uuid4().hex[:8]}"
+    adb = AsyncDatabase(db_config)
+    await adb.execute(
+        f'CREATE TABLE public."{tbl}" (id INTEGER, val TEXT)',
+        autocommit=True,
+    )
+    yield tbl
+    await adb.execute(
+        f'DROP TABLE IF EXISTS public."{tbl}" CASCADE',
+        autocommit=True,
+    )
+
+
+@pytest.fixture
+async def cleanup_async_pipeline_runs(db_config):
+    """Drop pipeline_runs after each async integration test."""
+    yield
+    try:
+        adb = AsyncDatabase(db_config)
+        await adb.execute("DROP TABLE IF EXISTS pipeline_runs CASCADE", autocommit=True)
+    except Exception:
+        pass
+
+
+class TestAsyncRunResultSurface:
+    """Behavioral async parity tests for async_db.etl (ETL-12/ETL-13, SC-1..SC-4).
+
+    Exercises ``await async_db.etl.run/history/last_run/run(dry_run=True)``
+    against the real ``pycopg_test`` DB so the async code path is covered by
+    the coverage gate — not just structurally enumerated by ``TestEtlParity``.
+
+    ``asyncio_mode = "auto"`` in ``pyproject.toml`` means no
+    ``@pytest.mark.asyncio`` marker is needed.
+    """
+
+    # ------------------------------------------------------------------
+    # SC-1: run() returns a RunResult with expected fields
+    # ------------------------------------------------------------------
+
+    async def test_async_run_returns_run_result(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() returns a RunResult with status='success' and a valid run_id."""
+        p = Pipeline(
+            name="asc1_run",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        r = await async_db.etl.run(p)
+        assert isinstance(r, RunResult)
+        assert r.status == "success"
+        assert r.run_id is not None
+        assert isinstance(r.run_id, int)
+
+    async def test_async_run_rows_extracted_and_loaded(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() records correct rows_extracted and rows_loaded counts."""
+        p = Pipeline(
+            name="asc1_counts",
+            source="SELECT 1 AS id, 'x' AS val UNION ALL SELECT 2, 'y'",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        r = await async_db.etl.run(p)
+        assert r.rows_extracted == 2
+        assert r.rows_loaded == 2
+
+    # ------------------------------------------------------------------
+    # SC-2: history() returns list[RunResult], newest-first
+    # ------------------------------------------------------------------
+
+    async def test_async_history_two_runs_newest_first(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async history() returns two entries newest-first after two runs."""
+        p = Pipeline(
+            name="asc2_hist",
+            source="SELECT 1 AS id, 'h' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        await async_db.etl.run(p)
+        await async_db.etl.run(p)
+        h = await async_db.etl.history("asc2_hist")
+        assert len(h) == 2
+        assert all(isinstance(item, RunResult) for item in h)
+        assert h[0].started_at >= h[1].started_at
+
+    # ------------------------------------------------------------------
+    # SC-3: last_run() returns most-recent or None
+    # ------------------------------------------------------------------
+
+    async def test_async_last_run_returns_most_recent(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async last_run() returns the most recent RunResult after a run."""
+        p = Pipeline(
+            name="asc3_last",
+            source="SELECT 7 AS id, 'l' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        r = await async_db.etl.run(p)
+        last = await async_db.etl.last_run("asc3_last")
+        assert last is not None
+        assert isinstance(last, RunResult)
+        assert last.run_id == r.run_id
+
+    async def test_async_last_run_returns_none_for_unknown(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """async last_run() returns None when no runs exist for the pipeline name."""
+        await async_db.etl.init()
+        result = await async_db.etl.last_run("nonexistent_pipeline_xyz")
+        assert result is None
+
+    # ------------------------------------------------------------------
+    # SC-4: dry_run=True skips load and writes no pipeline_runs row
+    # ------------------------------------------------------------------
+
+    async def test_async_dry_run_status_and_no_row(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run(dry_run=True) returns status='dry_run', run_id=None, rows_loaded=0.
+
+        Also asserts that no pipeline_runs row is written for the dry run.
+        """
+        await async_db.etl.init()  # ensure pipeline_runs exists for the COUNT query
+        p = Pipeline(
+            name="asc4_dry",
+            source="SELECT 5 AS id, 'd' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        r = await async_db.etl.run(p, dry_run=True)
+        assert r.status == "dry_run"
+        assert r.run_id is None
+        assert r.rows_loaded == 0
+
+        # No pipeline_runs row written
+        rows = await async_db.execute(
+            "SELECT COUNT(*) AS cnt FROM pipeline_runs WHERE pipeline_name = %s",
+            ["asc4_dry"],
+        )
+        assert rows[0]["cnt"] == 0
+
+    # ------------------------------------------------------------------
+    # SC-2 bonus: transform via asyncio.to_thread is dispatched correctly
+    # ------------------------------------------------------------------
+
+    async def test_async_run_transform_applied_via_to_thread(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() dispatches transform via asyncio.to_thread (SC-2 behavioral proof)."""
+
+        def double_id(df):
+            df = df.copy()
+            df["id"] = df["id"] * 10
+            return df
+
+        p = Pipeline(
+            name="asc2_transform",
+            source="SELECT 3 AS id, 't' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+            transform=double_id,
+        )
+        await async_db.etl.run(p)
+        rows = await async_db.execute(f'SELECT id FROM public."{async_etl_table}"')
+        assert rows[0]["id"] == 30
