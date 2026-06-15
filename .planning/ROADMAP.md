@@ -165,7 +165,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 20-01-PLAN.md — AsyncETLAccessor async mirror + lazy async_db.etl property + 4 top-level exports (ETL-12, ETL-13)
+- [x] 20-01-PLAN.md — AsyncETLAccessor async mirror + lazy async_db.etl property + 4 top-level exports (ETL-12, ETL-13)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -200,4 +200,4 @@ Plans:
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
 | 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
 | 19. Sync Runner & Query Surface | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
-| 20. Async Parity, Wiring & Release | v0.5.0 | 0/3 | Planned | - |
+| 20. Async Parity, Wiring & Release | v0.5.0 | 1/3 | In Progress|  |

@@ -4,14 +4,14 @@ milestone: v0.5.0
 milestone_name: ETL Pipeline Runner
 status: executing
 stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-06-15T19:44:39.186Z"
-last_activity: 2026-06-15 -- Phase 19 marked complete
+last_updated: "2026-06-15T21:39:37.423Z"
+last_activity: 2026-06-15 -- Phase 20 execution started
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 10
+  total_plans: 13
   completed_plans: 10
-  percent: 80
+  percent: 77
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-14)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 19 — sync-runner-query-surface
+**Current focus:** Phase 20 — Async Parity, Wiring & Release
 
 ## Current Position
 
-Phase: 19 — COMPLETE
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-06-15 -- Phase 19 marked complete
+Phase: 20 (Async Parity, Wiring & Release) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 20
+Last activity: 2026-06-15 -- Phase 20 execution started
 
 Progress: [████████░░] 80% (Phase 19 complete: 4 of 5 phases)
 
