@@ -9,7 +9,7 @@ import pytest
 from psycopg.rows import dict_row
 
 from pycopg import Database, queries
-from pycopg.etl import ETLAccessor, Pipeline
+from pycopg.etl import ETLAccessor, Pipeline, RunResult
 from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError
 
 # ---------------------------------------------------------------------------
@@ -238,13 +238,13 @@ class TestETLAccessorIntegration:
             load_mode="replace",
         )
         try:
-            run_id = db.etl.run(p)
+            result = db.etl.run(p)
         finally:
             db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         rows = db.execute(
             "SELECT * FROM pipeline_runs WHERE run_id = %s",
-            [run_id],
+            [result.run_id],
         )
         assert len(rows) == 1
         row = rows[0]
@@ -449,14 +449,14 @@ class TestRunPipelineIntegration:
     # -- signature / return value --
 
     def test_run_accepts_pipeline_object(self, db, cleanup_pipeline_runs, etl_table):
-        """run() accepts a Pipeline and returns an int run_id."""
+        """run() accepts a Pipeline and returns a RunResult."""
         p = Pipeline(
             name="sig_test",
             source="SELECT 1 AS id, 'a' AS val",
             target=etl_table,
         )
-        run_id = db.etl.run(p)
-        assert isinstance(run_id, int)
+        result = db.etl.run(p)
+        assert isinstance(result, RunResult)
 
     def test_run_derives_pipeline_name_from_pipeline(
         self, db, cleanup_pipeline_runs, etl_table
@@ -467,10 +467,10 @@ class TestRunPipelineIntegration:
             source="SELECT 1 AS id, 'x' AS val",
             target=etl_table,
         )
-        run_id = db.etl.run(p)
+        result = db.etl.run(p)
         rows = db.execute(
             "SELECT pipeline_name FROM pipeline_runs WHERE run_id = %s",
-            [run_id],
+            [result.run_id],
         )
         assert rows[0]["pipeline_name"] == "named_pipeline"
 
@@ -532,10 +532,10 @@ class TestRunPipelineIntegration:
             autocommit=True,
         )
         p = Pipeline(name="count_test", source=etl_src, target=etl_table)
-        run_id = db.etl.run(p)
+        result = db.etl.run(p)
         rows = db.execute(
             "SELECT rows_extracted, rows_loaded FROM pipeline_runs WHERE run_id = %s",
-            [run_id],
+            [result.run_id],
         )
         assert rows[0]["rows_extracted"] == 2
         assert rows[0]["rows_loaded"] == 2
@@ -851,10 +851,10 @@ class TestRunPipelineIntegration:
             source="SELECT 1 AS id, 'a' AS val",
             target=etl_table,
         )
-        run_id = db.etl.run(p)
+        result = db.etl.run(p)
         rows = db.execute(
             "SELECT status FROM pipeline_runs WHERE run_id = %s",
-            [run_id],
+            [result.run_id],
         )
         assert rows[0]["status"] == "success"
 
@@ -875,12 +875,12 @@ class TestRunPipelineIntegration:
             target=etl_table,
             extract_limit=2,
         )
-        run_id = db.etl.run(p)
+        result = db.etl.run(p)
         target_rows = db.execute(f'SELECT id FROM public."{etl_table}"')
         assert len(target_rows) == 2
         run_rows = db.execute(
             "SELECT rows_extracted FROM pipeline_runs WHERE run_id = %s",
-            [run_id],
+            [result.run_id],
         )
         assert run_rows[0]["rows_extracted"] == 2
 
