@@ -1304,6 +1304,75 @@ class TestRunResultSurface:
         rows = db.execute(f'SELECT COUNT(*) AS cnt FROM public."{etl_table}"')
         assert rows[0]["cnt"] == 0
 
+    def test_dry_run_with_extract_limit_sql_source(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """dry_run + SQL source + extract_limit covers line 808 (sync dry-run extract_limit)."""
+        p = Pipeline(
+            name="sc4_extlim_sql",
+            source="SELECT generate_series(1,10) AS id, 'v' AS val",
+            target=etl_table,
+            load_mode="replace",
+            extract_limit=3,
+        )
+        r = db.etl.run(p, dry_run=True)
+        assert r.status == "dry_run"
+        assert r.rows_extracted == 3
+
+    def test_dry_run_with_transform_list(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """dry_run + transform as list covers lines 839-842, 844-847 (sync dry-run transform list)."""
+
+        def add_one(df):
+            df = df.copy()
+            df["id"] = df["id"] + 1
+            return df
+
+        def add_ten(df):
+            df = df.copy()
+            df["id"] = df["id"] + 10
+            return df
+
+        p = Pipeline(
+            name="sc4_transform_list",
+            source="SELECT 0 AS id, 'v' AS val",
+            target=etl_table,
+            load_mode="replace",
+            transform=[add_one, add_ten],
+        )
+        r = db.etl.run(p, dry_run=True)
+        assert r.status == "dry_run"
+        assert r.rows_extracted == 1
+
+    def test_sync_run_with_extract_limit_sql(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """run() + SQL source + extract_limit covers line 877 (sync normal extract_limit)."""
+        p = Pipeline(
+            name="sc_extlim_normal",
+            source="SELECT generate_series(1,10) AS id, 'v' AS val",
+            target=etl_table,
+            load_mode="replace",
+            extract_limit=4,
+        )
+        r = db.etl.run(p)
+        assert r.status == "success"
+        assert r.rows_extracted == 4
+
+    def test_sync_run_empty_dataframe(self, db, cleanup_pipeline_runs, etl_table):
+        """run() with zero-row source covers lines 934-935 (empty DF early return)."""
+        p = Pipeline(
+            name="sc_empty_df",
+            source="SELECT 1 AS id, 'e' AS val WHERE FALSE",
+            target=etl_table,
+            load_mode="replace",
+        )
+        r = db.etl.run(p)
+        assert r.status == "success"
+        assert r.rows_extracted == 0
+        assert r.rows_loaded == 0
+
 
 # ---------------------------------------------------------------------------
 # Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run
@@ -1492,3 +1561,203 @@ class TestAsyncRunResultSurface:
         await async_db.etl.run(p)
         rows = await async_db.execute(f'SELECT id FROM public."{async_etl_table}"')
         assert rows[0]["id"] == 30
+
+    async def test_async_run_table_source(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() with a table-name source (non-SQL) reads from the table."""
+        # Seed source data into async_etl_table then copy to a new table
+        await async_db.execute(
+            f'INSERT INTO public."{async_etl_table}" (id, val) VALUES (99, \'src\')',
+            autocommit=True,
+        )
+        tgt_tbl = f"etl_atgt_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tgt_tbl}" (id INTEGER, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="asc_tbl_src",
+                source=async_etl_table,
+                target=tgt_tbl,
+                load_mode="replace",
+            )
+            r = await async_db.etl.run(p)
+            assert r.status == "success"
+            assert r.rows_extracted >= 1
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tgt_tbl}" CASCADE', autocommit=True
+            )
+
+    async def test_async_run_extract_limit(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() respects extract_limit in both SQL-source and dry-run paths."""
+        # SQL source with extract_limit
+        p = Pipeline(
+            name="asc_extlim",
+            source="SELECT generate_series(1,10) AS id, 'v' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+            extract_limit=3,
+        )
+        r = await async_db.etl.run(p)
+        assert r.rows_extracted == 3
+        assert r.rows_loaded == 3
+
+    async def test_async_dry_run_extract_limit_table_source(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run(dry_run=True) with a table source and extract_limit (covers async dry-run
+        table branch + extract_limit branch)."""
+        # Seed some rows
+        for i in range(5):
+            await async_db.execute(
+                f'INSERT INTO public."{async_etl_table}" (id, val) VALUES ({i}, \'x\')',
+                autocommit=True,
+            )
+        p = Pipeline(
+            name="asc_dry_tbl",
+            source=async_etl_table,
+            target=async_etl_table,
+            load_mode="replace",
+            extract_limit=2,
+        )
+        r = await async_db.etl.run(p, dry_run=True)
+        assert r.status == "dry_run"
+        assert r.rows_extracted == 2
+
+    async def test_async_run_transform_list(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() with transform as a list of callables covers the list branch."""
+
+        def add_one(df):
+            df = df.copy()
+            df["id"] = df["id"] + 1
+            return df
+
+        def add_ten(df):
+            df = df.copy()
+            df["id"] = df["id"] + 10
+            return df
+
+        p = Pipeline(
+            name="asc_transform_list",
+            source="SELECT 0 AS id, 'list' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+            transform=[add_one, add_ten],
+        )
+        await async_db.etl.run(p)
+        rows = await async_db.execute(f'SELECT id FROM public."{async_etl_table}"')
+        assert rows[0]["id"] == 11  # 0 + 1 + 10
+
+    async def test_async_run_empty_dataframe(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() with a zero-row source records success with 0 rows_loaded."""
+        p = Pipeline(
+            name="asc_empty",
+            source="SELECT 1 AS id, 'e' AS val WHERE FALSE",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        r = await async_db.etl.run(p)
+        assert r.status == "success"
+        assert r.rows_extracted == 0
+        assert r.rows_loaded == 0
+
+    async def test_async_run_upsert_mode(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """async run() with load_mode='upsert' inserts/updates via conflict columns."""
+        upsert_tbl = f"etl_upsert_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{upsert_tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            # Seed a row
+            await async_db.execute(
+                f'INSERT INTO public."{upsert_tbl}" (id, val) VALUES (1, \'old\')',
+                autocommit=True,
+            )
+            p = Pipeline(
+                name="asc_upsert",
+                source="SELECT 1 AS id, 'new' AS val",
+                target=upsert_tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+            )
+            r = await async_db.etl.run(p)
+            assert r.status == "success"
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{upsert_tbl}" CASCADE', autocommit=True
+            )
+
+    async def test_async_run_append_mode(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() with load_mode='append' adds rows without truncating."""
+        await async_db.execute(
+            f'INSERT INTO public."{async_etl_table}" (id, val) VALUES (1, \'existing\')',
+            autocommit=True,
+        )
+        p = Pipeline(
+            name="asc_append",
+            source="SELECT 2 AS id, 'new' AS val",
+            target=async_etl_table,
+            load_mode="append",
+        )
+        r = await async_db.etl.run(p)
+        assert r.status == "success"
+        rows = await async_db.execute(
+            f'SELECT COUNT(*) AS cnt FROM public."{async_etl_table}"'
+        )
+        assert rows[0]["cnt"] == 2
+
+    async def test_async_run_target_not_found_upsert(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """async run() raises ETLTargetNotFoundError when upsert target doesn't exist."""
+        from pycopg.exceptions import ETLTargetNotFoundError
+
+        p = Pipeline(
+            name="asc_no_target",
+            source="SELECT 1 AS id, 'v' AS val",
+            target="nonexistent_table_xyz_99",
+            load_mode="upsert",
+            conflict_columns=["id"],
+        )
+        with pytest.raises(ETLTargetNotFoundError):
+            await async_db.etl.run(p)
+
+    async def test_async_run_exception_records_failed_status(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """async run() records status='failed' in pipeline_runs when an error occurs."""
+        from pycopg.exceptions import ETLTransformError
+
+        def bad_transform(df):
+            raise ValueError("deliberate transform error")
+
+        p = Pipeline(
+            name="asc_exc",
+            source="SELECT 1 AS id, 'e' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+            transform=bad_transform,
+        )
+        with pytest.raises(ETLTransformError):
+            await async_db.etl.run(p)
+
+        # The run should be recorded as 'failed' in pipeline_runs
+        rows = await async_db.execute(
+            "SELECT status FROM pipeline_runs WHERE pipeline_name = %s ORDER BY run_id DESC LIMIT 1",
+            ["asc_exc"],
+        )
+        assert rows[0]["status"] == "failed"
