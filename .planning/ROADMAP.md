@@ -48,7 +48,7 @@ dependencies. Architecture mirrors `spatial.py`.
 
 - [x] **Phase 16: Pure ETL Layer** — Pipeline dataclass, SQL constants, pure builders; fully unit-testable with no DB (completed 2026-06-14)
 - [x] **Phase 17: Run-Tracking Foundation** — `pipeline_runs` DDL + status lifecycle + separate-connection run-log writes (completed 2026-06-15)
-- [ ] **Phase 18: Load Modes & Extract** — extract (SQL/table), append/replace/upsert with transactional correctness, transform chain
+- [x] **Phase 18: Load Modes & Extract** — extract (SQL/table), append/replace/upsert with transactional correctness, transform chain (completed 2026-06-15)
 - [ ] **Phase 19: Sync Runner & Query Surface** — `run()`, `RunResult`, `history()`, `last_run()`, `dry_run`
 - [ ] **Phase 20: Async Parity, Wiring & Release** — `AsyncETLAccessor`, lazy `db.etl` property, `TestEtlParity`, Sphinx docs, coverage gate, v0.5.0 PyPI publish
 
@@ -116,7 +116,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 18-03-PLAN.md — Integration tests (extract, append/replace/upsert, replace_atomic_rollback, transform, NaN→NULL, ETL-09 guard) + Phase 17 caller migration (Wave 3)
+- [x] 18-03-PLAN.md — Integration tests (extract, append/replace/upsert, replace_atomic_rollback, transform, NaN→NULL, ETL-09 guard) + Phase 17 caller migration (Wave 3)
 
 ### Phase 19: Sync Runner & Query Surface
 
@@ -170,6 +170,6 @@ Plans:
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
-| 18. Load Modes & Extract | v0.5.0 | 2/3 | In Progress|  |
+| 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
 | 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |
