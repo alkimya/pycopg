@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from psycopg.rows import dict_row
+
 from pycopg import queries
 from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError  # noqa: F401
 from pycopg.utils import validate_identifiers
@@ -319,21 +321,30 @@ class ETLAccessor:
     def init(self) -> None:
         """Create the ``pipeline_runs`` table if it does not exist.
 
-        Executes the ``ETL_INIT_PIPELINE_RUNS`` DDL on a fresh autocommit
-        connection (D-04).  Safe to call repeatedly — ``CREATE TABLE IF
-        NOT EXISTS`` makes it idempotent (D-10/D-15, ETL-14).
+        Executes the ``ETL_INIT_PIPELINE_RUNS`` DDL on a **dedicated**
+        autocommit connection opened directly via
+        ``db.connect(autocommit=True)`` (D-04).  This bypasses the
+        session-aware ``Database.cursor()`` entirely — the DDL commits on
+        its own connection whether or not a ``db.session()`` is active.
+        Safe to call repeatedly — ``CREATE TABLE IF NOT EXISTS`` makes it
+        idempotent (D-10/D-15, ETL-14).
 
         Returns
         -------
         None
         """
-        self._db.execute(queries.ETL_INIT_PIPELINE_RUNS, autocommit=True)
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(queries.ETL_INIT_PIPELINE_RUNS)
 
     def _start_run(self, name: str) -> int:
         """Insert a ``'running'`` row into ``pipeline_runs`` and return its id.
 
-        Uses a fresh autocommit connection per write (D-04) so the INSERT
-        commits independently of any surrounding load transaction.
+        Opens a **dedicated** autocommit connection directly via
+        ``db.connect(autocommit=True)`` (D-04), bypassing the
+        session-aware ``Database.cursor()``.  The INSERT commits on its own
+        connection whether or not a ``db.session()`` is active, so the
+        run-log write is independent of the load transaction (D-05).
 
         Parameters
         ----------
@@ -346,12 +357,13 @@ class ETLAccessor:
             The ``run_id`` of the newly inserted row (from
             ``RETURNING run_id``).
         """
-        rows = self._db.execute(
-            queries.ETL_INSERT_RUN,
-            [name, "running", datetime.now(UTC)],
-            autocommit=True,
-        )
-        return rows[0]["run_id"]
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    queries.ETL_INSERT_RUN,
+                    [name, "running", datetime.now(UTC)],
+                )
+                return cur.fetchone()["run_id"]
 
     def _end_run(
         self,
@@ -364,10 +376,12 @@ class ETLAccessor:
     ) -> None:
         """Update a ``pipeline_runs`` row with final status and metrics.
 
-        Uses a fresh autocommit connection per write (D-04) so the UPDATE
-        commits independently of any surrounding load transaction, ensuring
-        a ``status='failed'`` row is committed even when the load
-        transaction rolled back (ETL-08/ETL-09).
+        Opens a **dedicated** autocommit connection directly via
+        ``db.connect(autocommit=True)`` (D-04), bypassing the
+        session-aware ``Database.cursor()``.  The UPDATE commits on its
+        own connection whether or not a ``db.session()`` is active,
+        ensuring a ``status='failed'`` row is committed even when the
+        load transaction rolled back (D-05/ETL-08/ETL-09).
 
         Use the literal ``'failed'`` status string for failures — the
         CHECK constraint only accepts ``'running'``, ``'success'``, and
@@ -393,19 +407,20 @@ class ETLAccessor:
         -------
         None
         """
-        self._db.execute(
-            queries.ETL_UPDATE_RUN,
-            [
-                status,
-                datetime.now(UTC),
-                rows_extracted,
-                rows_loaded,
-                error_message,
-                error_traceback,
-                run_id,
-            ],
-            autocommit=True,
-        )
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    queries.ETL_UPDATE_RUN,
+                    [
+                        status,
+                        datetime.now(UTC),
+                        rows_extracted,
+                        rows_loaded,
+                        error_message,
+                        error_traceback,
+                        run_id,
+                    ],
+                )
 
     def run(self, name: str = "pipeline") -> int:
         """Execute the auto-create + start/end seam (thin stub, D-03/D-10).
