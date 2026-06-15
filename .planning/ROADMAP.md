@@ -49,7 +49,7 @@ dependencies. Architecture mirrors `spatial.py`.
 - [x] **Phase 16: Pure ETL Layer** — Pipeline dataclass, SQL constants, pure builders; fully unit-testable with no DB (completed 2026-06-14)
 - [x] **Phase 17: Run-Tracking Foundation** — `pipeline_runs` DDL + status lifecycle + separate-connection run-log writes (completed 2026-06-15)
 - [x] **Phase 18: Load Modes & Extract** — extract (SQL/table), append/replace/upsert with transactional correctness, transform chain (completed 2026-06-15)
-- [ ] **Phase 19: Sync Runner & Query Surface** — `run()`, `RunResult`, `history()`, `last_run()`, `dry_run`
+- [x] **Phase 19: Sync Runner & Query Surface** — `run()`, `RunResult`, `history()`, `last_run()`, `dry_run` (completed 2026-06-15)
 - [ ] **Phase 20: Async Parity, Wiring & Release** — `AsyncETLAccessor`, lazy `db.etl` property, `TestEtlParity`, Sphinx docs, coverage gate, v0.5.0 PyPI publish
 
 ## Phase Details
@@ -140,11 +140,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 19-02-PLAN.md — run() -> RunResult upgrade + dry_run early fork + history()/last_run() read methods
+- [x] 19-02-PLAN.md — run() -> RunResult upgrade + dry_run early fork + history()/last_run() read methods
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 19-03-PLAN.md — TestRowToResult unit + TestRunResultSurface (SC-1..SC-4) integration + existing run_id assertion migration
+- [x] 19-03-PLAN.md — TestRowToResult unit + TestRunResultSurface (SC-1..SC-4) integration + existing run_id assertion migration
 
 ### Phase 20: Async Parity, Wiring & Release
 
@@ -185,5 +185,5 @@ Plans:
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
 | 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
-| 19. Sync Runner & Query Surface | v0.5.0 | 1/3 | In Progress|  |
+| 19. Sync Runner & Query Surface | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |
