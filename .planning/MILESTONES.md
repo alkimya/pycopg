@@ -1,5 +1,30 @@
 # Milestones
 
+## v0.5.0 ETL Pipeline Runner (Shipped: 2026-06-15)
+
+**Phases completed:** 5 phases (16–20), 13 plans, 18 tasks
+
+**Delivered:** A high-level ETL pipeline runner under `db.etl.*` / `async_db.etl.*` — inspectable `Pipeline` dataclass, run-tracking via `pipeline_runs`, three load modes, transform chains, a `RunResult` query surface, and full sync/async parity — shipped to PyPI under the held ≥94% coverage ratchet.
+
+**Key accomplishments:**
+
+- **Pure ETL layer (Phase 16):** `Pipeline` frozen dataclass with construction-time validation (D-01..D-11) + DB-free pure SQL builders (`build_init_sql`/`build_truncate_sql`) gated by `validate_identifiers`, mirroring `spatial.py`; ETL exception hierarchy (`ETLError`/`ETLTransformError`/`ETLTargetNotFoundError`) + 5 SQL constants; 31 DB-free tests.
+- **Run-tracking foundation (Phase 17):** `ETLAccessor` (`init`/`run`/run-log helpers) wired as the lazy `db.etl` property; structural run-log isolation via a dedicated `db.connect(autocommit=True)` per write — run rows commit independently of the load transaction on every path, including an active `db.session()`.
+- **Load modes & extract (Phase 18):** `append`/`replace`/`upsert` load modes with atomic loads, SQL-string and table-name sources, and single/list/None transform chains; failed transforms raise `ETLTransformError` and record a failed run.
+- **Query surface (Phase 19):** `run()` returns an 8-field `RunResult` (via re-SELECT); `dry_run=True` runs extract+transform but writes no `pipeline_runs` row; `history()` and `last_run()` added as autocommit dict_row reads.
+- **Async parity & release (Phase 20):** `AsyncETLAccessor` async mirror with transforms dispatched via `asyncio.to_thread`; lazy `async_db.etl` property; `TestEtlParity` enumerates the sync/async surface via `inspect.getmembers`; `docs/etl.md`; v0.5.0 tagged + published to PyPI via OIDC.
+
+**Stats:**
+
+- Lines changed: 15,458 insertions, 82 deletions across 69 files
+- Timeline: 2026-06-14 → 2026-06-15 (~1.2 days), 22 feat/test commits
+- Gates at ship: coverage 94.26% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean
+- Git range: feat(16-01) → tag v0.5.0
+
+**Known deferred items:** 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter` — `UndefinedTable` fixture-isolation in the spatial/integration suites, not ETL code; see STATE.md). Did not affect the coverage threshold.
+
+---
+
 ## v0.4.0 Quality & Spatial Helpers (Shipped: 2026-06-14)
 
 **Phases completed:** 7 phases (9–15), 36 plans, 62 tasks

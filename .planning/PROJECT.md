@@ -2,38 +2,27 @@
 
 ## What This Is
 
-A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.4.0 it offers full sync/async feature parity, PostGIS spatial helpers (`db.spatial.*` / `async_db.spatial.*`), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
+A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.5.0 it offers full sync/async feature parity, PostGIS spatial helpers (`db.spatial.*` / `async_db.spatial.*`), a declarative ETL pipeline runner (`db.etl.*` / `async_db.etl.*`) with run tracking and idempotent loads, numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
 
 ## Core Value
 
 Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-## Current State — v0.4.0 SHIPPED 2026-06-14 · v0.5.0 in progress (Phase 18 complete)
+## Current State — v0.5.0 SHIPPED 2026-06-15
 
-**Latest shipped:** v0.4.0 "Quality & Spatial Helpers" — published to PyPI (`pip install pycopg==0.4.0` verified in a clean venv) and live on ReadTheDocs. All 7 phases (9–15) verified passed; milestone audit PASSED (46/46 requirements, 7/7 phases, 14/14 integration, 4/4 E2E flows). Archived: `.planning/milestones/v0.4.0-{ROADMAP,REQUIREMENTS,MILESTONE-AUDIT}.md`.
+**Latest shipped:** v0.5.0 "ETL Pipeline Runner" — published to PyPI (`pip install pycopg==0.5.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.5.0`). All 5 phases (16–20) verified passed; Phase 20 VERIFICATION PASSED 5/5; all 17 ETL requirements validated. Gates at ship: coverage 94.26% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean. Archived: `.planning/milestones/v0.5.0-{ROADMAP,REQUIREMENTS}.md`.
 
-**In progress (v0.5.0):** Phases 16–18 of 5 complete. Phase 18 "Load Modes & Extract" verified passed (6/6 must-haves): the real `db.etl.run(pipeline: Pipeline) -> int` body now does extract → transform chain → mode-dispatched load (append/replace/upsert) with replace's TRUNCATE+INSERT atomic on one transactional connection, run-log isolated on autocommit connections, and `validate_identifiers`-first SQL builders. ETL-02..06 + ETL-16 validated. Next: Phase 19 (Sync Runner & Query Surface — `RunResult`, `history()`, `last_run()`, `dry_run`).
+**Delivered in v0.5.0:** a declarative ETL pipeline runner under `db.etl.*` / `async_db.etl.*` — inspectable `Pipeline` frozen dataclass with construction-time validation; run-tracking via `pipeline_runs` with structural autocommit isolation (run rows commit independently of the load transaction, even under `db.session()`); three load modes (append/replace/upsert) with atomic loads; SQL/table extract and single/list/None transform chains; an 8-field `RunResult` plus `history()`/`last_run()`/`dry_run`; full sync/async parity (`AsyncETLAccessor`, lazy `async_db.etl`, `asyncio.to_thread` transforms) enforced by `TestEtlParity`. Zero new runtime dependencies.
 
-**Delivered in v0.4.0:** uv toolchain (dev + CI + build + lockfile, `pip install pycopg` kept for users); residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods, C1/C2/C3, extended `test_parity`); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` / `async_db.spatial.*` (11 helpers); coverage ratchet 70→80→90→92→94.
+**Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Current Milestone: v0.5.0 ETL Pipeline Runner
+## Next Milestone Goals — v0.6.0 (planning)
 
-**Goal:** Add a declarative ETL pipeline layer (`db.etl.*` / `async_db.etl.*`) that runs extract → transform → load flows with run tracking and safe, idempotent re-runs — built on pycopg's existing DataFrame/spatial helpers, at full sync/async parity.
+No milestone started yet (run `/gsd-new-milestone`). Strongest candidate from the deferred backlog:
 
-**Target features:**
-- Declarative pipeline definition: extract (source query/table) → transform (Python callable over DataFrame/rows) → load (target table)
-- Pipeline runner that executes a pipeline end-to-end, same-DB only (source + target in one Database)
-- Idempotent loads: safe re-runs via truncate-load and/or upsert-by-key
-- Run tracking: a `pipeline_runs` table recording status, row counts, timing, and errors per run
-- Full sync/async parity: `db.etl.*` and `async_db.etl.*`, verified by the existing `test_parity` harness
-
-**Key context:**
-- Transform = Python callable (leans on existing pandas/geopandas integration), not SQL-only.
-- Endpoints = same-DB only for v0.5.0 (cross-DB and DataFrame/file sinks deferred).
-- Incremental watermarks deferred to v0.6.0 — tracked as a Future Requirement; the `pipeline_runs` table is designed so watermarks slot on additively (nothing wasted).
-- Continues phase numbering from Phase 16 (v0.4.0 ended at Phase 15).
-- Coverage ratchet stays at 94% baseline; new ETL code expected to hold or raise it.
-- Honors Core Value: every sync ETL method has a tested async equivalent.
+- **ETL incremental / CDC watermarks** — the v0.5.0 `pipeline_runs` table already reserves a nullable `watermark JSONB` column so incremental support slots on additively with no breaking migration. This is the natural v0.6.0 headline.
+- **Other deferred API work** (independent of ETL): named parameters (`:name`), connection health checks, structured logging, transaction isolation control, savepoints, sync result streaming, dynamic pool sizing.
+- **ETL cross-DB transfer and DataFrame/CSV/parquet source/sink** — v0.5.0 is same-DB only; multi-endpoint ETL is a possible larger v0.6.0+ direction.
 
 ## Requirements
 
@@ -74,18 +63,17 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 - ✓ Refactor: `Database`/`AsyncDatabase` inherit `DatabaseBase`+`QueryMixin`, ~25 inline SQL → `queries.py` constants, pure DB-free builders extracted, dead code cleaned, coverage ratchet → 92 — Phase 12 (REF-01..05)
 - ✓ numpydoc docstrings + `interrogate ≥ 95` (CI gate), real exceptions (V2), `__version__` via importlib.metadata, mypy (non-blocking) — Phase 13 (DOC-06..12)
 - ✓ Release v0.4.0: Sphinx spatial docs + RTD green, CHANGELOG/MIGRATION/version bump, `uv build`, Node 24 CI, tag + PyPI publish, milestone audit — Phase 15 (REL-01..06)
+- ✓ Declarative `Pipeline` dataclass (extract → transform → load), inspectable + construction-time validated — v0.5.0 (ETL-01)
+- ✓ Pipeline runner, same-DB end-to-end (`db.etl.run`), append/replace/upsert with atomic loads + SQL/table extract + transform chains — v0.5.0 (ETL-02..06, ETL-16)
+- ✓ Run tracking via `pipeline_runs` (status/counts/timing/errors), autocommit-isolated from the load transaction, auto-created or explicit `init()` — v0.5.0 (ETL-07..09, ETL-14)
+- ✓ `RunResult` query surface: `run()` returns `RunResult`, `history()`, `last_run()`, `dry_run=True` — v0.5.0 (ETL-10, ETL-11, ETL-15, ETL-17)
+- ✓ Full sync/async ETL parity (`AsyncETLAccessor`, lazy `db.etl`/`async_db.etl`, `asyncio.to_thread` transforms, `TestEtlParity`) — v0.5.0 (ETL-12, ETL-13)
 
 ### Active
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-v0.5.0 ETL Pipeline Runner — see Current Milestone above. Full REQ-ID list (ETL-*) in REQUIREMENTS.md.
-
-- [ ] Declarative pipeline definition (extract → transform → load)
-- [ ] Pipeline runner (same-DB, end-to-end execution)
-- [ ] Idempotent loads (truncate-load / upsert-by-key)
-- [ ] Run tracking via `pipeline_runs` table
-- [ ] Full sync/async parity for the ETL surface
+None — v0.5.0 shipped. Start the next milestone with `/gsd-new-milestone` (see Next Milestone Goals above; ETL incremental watermarks for v0.6.0 is the leading candidate).
 
 ### Out of Scope
 
@@ -103,27 +91,24 @@ v0.5.0 ETL Pipeline Runner — see Current Milestone above. Full REQ-ID list (ET
 
 ## Context
 
-Shipped v0.4.0 (2026-06-14) with 10,528 LOC Python (lib) + 11,228 LOC tests.
-Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend.
-Test coverage: 94.09% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
-Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live.
+Shipped v0.5.0 (2026-06-15). ETL added `pycopg/etl.py` (~+800 LOC lib over v0.4.0) plus tests; milestone diff was +15,458 / −82 across 69 files.
+Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend. Zero new runtime deps in v0.5.0.
+Test coverage: 94.26% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
+Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live (incl. `docs/etl.md`).
 
-**Known tech debt (from v0.4.0 milestone audit):**
+**Known tech debt:**
 
-- Coverage-95 stretch deferred — gate honest at 94 (measured 94.09%); remaining ~1pt is DB/IO paths (subprocess, engine.dispose) structurally out of scope. REF-01..05 satisfied regardless.
+- **2 pre-existing flaky full-suite DB tests** (`TestAsyncIntegration::test_async_transaction_fix`, `TestPostGISErrorHandling::test_create_spatial_index_name_parameter`) — `UndefinedTable` fixture-isolation bug in the spatial/integration suites, NOT ETL code; fail identically in isolation; did not affect the coverage threshold. Worth a fixture-isolation fix in a future cleanup. (See STATE.md Deferred Items.)
+- Coverage-95 stretch still deferred — gate honest at 94 (measured 94.26%); remaining ~1pt is DB/IO paths structurally out of scope.
 - `TableNotFound` exported in `__all__` but has no internal raise site (user-`except` only) — benign.
-- `docs/conf.py` sets `release = '0.4.0'` but no explicit `version =` short-version line (cosmetic; RTD green).
-- Nyquist: phases 10 & 12 lack VALIDATION.md; 9/13/15 `nyquist_compliant: false` (release/tooling/doc phases smoke/manual-verified by design).
-- Database class remains monolithic (~2300 lines) — acceptable; duplication killed via base.py/queries.py wiring.
+- `CLAUDE.md` "Version" line still reads v0.3.1 (stale) — actual shipped is v0.5.0; cosmetic doc lag.
+- Nyquist: some release/tooling/doc phases `nyquist_compliant: false` by design (smoke/manual-verified).
+- Database class remains monolithic — acceptable; duplication killed via base.py/queries.py wiring.
 
-**Resolved this milestone:**
+**Resolved in v0.5.0:**
 
-- ARCH-01 (refactor Database into shared base/mixins) — done by wiring up existing `base.py`/`queries.py` (REF-*).
-- v0.3.0 tag + PyPI publication (carried in earlier; v0.3.0, v0.3.1, v0.4.0 all live on PyPI).
-
-**Now in scope (v0.5.0):**
-
-- ETL pipeline runner (the spatial/DataFrame helpers are its building blocks) — see Current Milestone.
+- ETL pipeline runner delivered end-to-end (ETL-01..17) on top of the spatial/DataFrame helpers; `pipeline_runs` watermark column reserved for v0.6.0 incremental support.
+- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0 live on PyPI.
 
 **Still deferred to a future milestone:**
 - API-01: Named parameter support (:name syntax)
@@ -174,6 +159,12 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.4.0 (P11): async catches up to richer sync signatures, never the reverse (D-07) | Sync is the established core-value API; align by enriching async | ✓ Good — 0 sync breaking changes, signatures match |
 | v0.4.0 (P11): `listen` stays async-only by design (D-06) | A blocking synchronous NOTIFY listener is an anti-pattern | ✓ Good — sole documented async-only method in `test_parity` |
 | v0.4.0 (P11): measure coverage before raising the ratchet gate (D-08) | Never freeze an unmet threshold | ✓ Good — measured 91.61% then flipped 80→90 |
+| v0.5.0: ETL architecture mirrors `spatial.py` (lazy accessor + pure builders) | Proven pattern; keeps monolith from growing; testable builders | ✓ Good — `ETLAccessor`/`AsyncETLAccessor` lazy under `db.etl`/`async_db.etl` |
+| v0.5.0: run-log writes on a dedicated `connect(autocommit=True)`, isolated from the load txn | A failed/rolled-back load must still record a `failed` run row | ✓ Good — run rows commit on every path, incl. active `db.session()` (ETL-08/09) |
+| v0.5.0: reserve a nullable `watermark JSONB` column, always NULL | Lets v0.6.0 incremental support slot on with no breaking migration | — Pending — validated additively in v0.6.0 |
+| v0.5.0: same-DB only; Python-callable transforms (not SQL-only) | Scope control; leans on existing pandas/geopandas integration | ✓ Good — cross-DB/file sinks cleanly deferred |
+| v0.5.0: async transforms via `asyncio.to_thread` (D-/SC-2) | Sync transform callables must not block the event loop | ✓ Good — behavioral test proves non-blocking dispatch |
+| v0.5.0: PyPI publish human-gated at the irreversible step | Supply-chain publish needs maintainer sign-off | ✓ Good — executor stopped at the boundary; published after explicit approval |
 
 ## Evolution
 
@@ -204,3 +195,5 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-14 — Phase 16 "Pure ETL Layer" complete (2/2 plans, verification 4/4). Pure, DB-free foundation shipped: `pycopg/etl.py` with the public `@dataclass(frozen=True) Pipeline` (8 fields, construction-time validation — upsert-needs-conflict_columns, load_mode set, bare-string/bool guards) plus `build_init_sql()`/`build_truncate_sql()` builders mirroring `spatial.py` (validate_identifiers-first, `(sql, params)` tuples); ETL exception hierarchy (`ETLError`/`ETLTransformError`/`ETLTargetNotFoundError`, D-08) in `exceptions.py` + top-level exports; 5 `ETL_*` SQL constants (idempotent `pipeline_runs` DDL, TEXT+CHECK status, nullable `watermark JSONB`, `%s`-only) in `queries.py`; 33 DB-free tests. ETL-01 validated. Code review: 0 critical, fixes applied (WR-01/02/03, IN-04). `Pipeline`/accessor wiring deferred to Phase 20.*
 
 *Last updated: 2026-06-15 — Phase 18 "Load Modes & Extract" complete (3/3 plans, verification 6/6). The real `ETLAccessor.run(pipeline: Pipeline) -> int` body replaces the Phase 17 stub: extract (SQL/table via `to_dataframe`) → transform chain (`None`/single/list, `ETLTransformError` names the failing step via `_step_label`) → mode-dispatched load. New pure builders `_build_insert_sql` (append/replace) and `_build_upsert_sql` (ON CONFLICT DO UPDATE) join `build_truncate_sql`, all `validate_identifiers`-first with user values as `%s` only. Atomicity seam (RESEARCH Q1): load runs on the `db.transaction()` connection inside an internal `db.session()` so replace's TRUNCATE+INSERT is atomic (`replace_atomic_rollback` proven), while run-log writes stay isolated on dedicated autocommit connections. ETL-02..06 + ETL-16 validated; 186 ETL tests pass. Code review (advisory, not blocking): CR-01 latent upsert edge case (all-columns-are-conflict-columns → empty SET; untested, no in-contract impact), CR-02 `rows_loaded` from `cur.rowcount` deferred to Phase 19's `RunResult`. Next: Phase 19 (Sync Runner & Query Surface).*
+
+*Last updated: 2026-06-15 — Phase 20 complete + milestone v0.5.0 "ETL Pipeline Runner" SHIPPED via `/gsd-complete-milestone`. Phase 20 delivered `AsyncETLAccessor` (async mirror, `asyncio.to_thread` transforms), lazy `async_db.etl`, `TestEtlParity`, `docs/etl.md`, and the v0.5.0 release (tag + PyPI via OIDC, human-gated publish); VERIFICATION PASSED 5/5. Full PROJECT.md evolution review: "What This Is" → v0.5.0; Current State + Next Milestone Goals (v0.6.0 ETL watermarks candidate); all 17 ETL requirements moved to Validated; Active emptied; Context refreshed (94.26% coverage, 2 known-flaky tests as tech debt); v0.5.0 Key Decisions outcomes recorded. ROADMAP collapsed + REQUIREMENTS archived to `milestones/v0.5.0-*`.*

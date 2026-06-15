@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.5.0
 milestone_name: ETL Pipeline Runner
-status: completed
+status: Awaiting next milestone
 stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-06-15T22:20:30.939Z"
-last_activity: 2026-06-15 -- Phase 20 marked complete
+last_updated: "2026-06-15T22:50:40.387Z"
+last_activity: 2026-06-15 — Milestone v0.5.0 completed and archived
 progress:
   total_phases: 5
   completed_phases: 5
@@ -25,12 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-14)
 
 ## Current Position
 
-Phase: 20 — COMPLETE
-Plan: 1 of 3
-Status: Phase 20 complete
-Last activity: 2026-06-15 -- Phase 20 marked complete
-
-Progress: [████████░░] 80% (Phase 19 complete: 4 of 5 phases)
+Phase: Milestone v0.5.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-15 — Milestone v0.5.0 completed and archived
 
 ## Performance Metrics
 
@@ -83,3 +81,7 @@ Last session: 2026-06-15T18:50:09.343Z
 Stopped at: Completed 19-03-PLAN.md
 Resume file: None
 Next action: /gsd-execute-phase 18 (extract + load modes)
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
