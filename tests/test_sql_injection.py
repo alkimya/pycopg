@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from pycopg import AsyncDatabase, Database
+from pycopg.etl import _build_insert_sql, _build_upsert_sql
 from pycopg.exceptions import InvalidIdentifier
 
 # A representative set of injection payloads for identifier-typed arguments.
@@ -120,7 +121,9 @@ class TestSyncValueInjection:
 
     def test_compression_interval(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.add_compression_policy("events", compress_after="1 day'); DROP TABLE x; --")
+            sync_db.add_compression_policy(
+                "events", compress_after="1 day'); DROP TABLE x; --"
+            )
 
     def test_retention_interval(self, sync_db):
         with pytest.raises(InvalidIdentifier):
@@ -222,3 +225,43 @@ class TestAsyncValueInjection:
         rows = [{"id": 1, "v": 2}]
         with pytest.raises(InvalidIdentifier):
             await async_db.upsert_many("t", rows, conflict_columns=["id; DROP TABLE x"])
+
+
+class TestEtlIdentifierInjection:
+    """ETL pure builders must reject every EVIL_IDENTIFIERS payload (ETL-16 / SC-6).
+
+    These tests call the builders directly — no DB, no mock needed.  A
+    builder that passes ``evil`` to an f-string without ``validate_identifiers``
+    would silently return a string; the fact that ``InvalidIdentifier`` is
+    raised before any SQL is returned is the regression guard.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_insert_sql_evil_table(self, evil):
+        """_build_insert_sql with a malicious table name raises InvalidIdentifier."""
+        with pytest.raises(InvalidIdentifier):
+            _build_insert_sql(evil, ["a"], [{"a": 1}])
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_insert_sql_evil_schema(self, evil):
+        """_build_insert_sql with a malicious schema name raises InvalidIdentifier."""
+        with pytest.raises(InvalidIdentifier):
+            _build_insert_sql("t", ["a"], [{"a": 1}], schema=evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_insert_sql_evil_column(self, evil):
+        """_build_insert_sql with a malicious column name raises InvalidIdentifier."""
+        with pytest.raises(InvalidIdentifier):
+            _build_insert_sql("t", [evil], [{evil: 1}])
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_upsert_sql_evil_conflict_column(self, evil):
+        """_build_upsert_sql with a malicious conflict_column raises InvalidIdentifier."""
+        with pytest.raises(InvalidIdentifier):
+            _build_upsert_sql("t", [{"id": 1, "v": 2}], conflict_columns=[evil])
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_upsert_sql_evil_table(self, evil):
+        """_build_upsert_sql with a malicious table name raises InvalidIdentifier."""
+        with pytest.raises(InvalidIdentifier):
+            _build_upsert_sql(evil, [{"id": 1, "v": 2}], conflict_columns=["id"])

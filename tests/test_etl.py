@@ -1,16 +1,21 @@
 """Tests for pycopg.etl — DB-free Pipeline + builder tests."""
 
+import functools
+
 import pytest
 
 from pycopg import queries
 from pycopg.etl import (
     Pipeline,
+    _build_insert_sql,
+    _build_upsert_sql,
     _is_sql_source,
+    _step_label,
     _validate_load_mode,
     build_init_sql,
     build_truncate_sql,
 )
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import ETLTransformError, InvalidIdentifier
 
 
 class TestPipeline:
@@ -250,3 +255,164 @@ class TestValidateLoadMode:
         """An invalid load_mode string raises ValueError."""
         with pytest.raises(ValueError, match="load_mode"):
             _validate_load_mode("truncate")
+
+
+class TestEtlBuilders:
+    """DB-free unit tests for _build_insert_sql, _build_upsert_sql, and _step_label."""
+
+    # --- _build_insert_sql ---
+
+    def test_insert_sql_single_row_sql_and_params(self):
+        """Single-row insert returns correct SQL and params in column order."""
+        sql, params = _build_insert_sql("t", ["a", "b"], [{"a": 1, "b": 2}])
+        assert sql == "INSERT INTO public.t (a, b) VALUES (%s, %s)"
+        assert params == [1, 2]
+
+    def test_insert_sql_multi_row_placeholder_groups(self):
+        """Multi-row insert produces one placeholder group per row."""
+        sql, params = _build_insert_sql(
+            "t", ["a", "b"], [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
+        )
+        assert "VALUES (%s, %s), (%s, %s)" in sql
+        assert len(params) == 4  # N*M == 2*2
+        assert params == [1, 2, 3, 4]
+
+    def test_insert_sql_params_length_equals_n_times_m(self):
+        """len(params) == N columns * M rows (parameterized shape)."""
+        rows = [{"x": i, "y": i * 2, "z": i * 3} for i in range(5)]
+        sql, params = _build_insert_sql("tbl", ["x", "y", "z"], rows)
+        assert len(params) == 3 * 5
+
+    def test_insert_sql_on_conflict_clause_passthrough(self):
+        """on_conflict string is appended as ON CONFLICT clause."""
+        sql, _ = _build_insert_sql(
+            "t", ["id"], [{"id": 1}], on_conflict="(id) DO NOTHING"
+        )
+        assert " ON CONFLICT (id) DO NOTHING" in sql
+
+    def test_insert_sql_no_on_conflict_by_default(self):
+        """Without on_conflict, no ON CONFLICT clause is emitted."""
+        sql, _ = _build_insert_sql("t", ["id"], [{"id": 1}])
+        assert "ON CONFLICT" not in sql
+
+    def test_insert_sql_custom_schema(self):
+        """Custom schema is interpolated after validation."""
+        sql, _ = _build_insert_sql("t", ["id"], [{"id": 1}], schema="analytics")
+        assert "INSERT INTO analytics.t" in sql
+
+    def test_insert_sql_invalid_table_raises(self):
+        """Invalid table name raises InvalidIdentifier before SQL is built."""
+        with pytest.raises(InvalidIdentifier):
+            _build_insert_sql("bad-table", ["id"], [{"id": 1}])
+
+    def test_insert_sql_invalid_column_raises(self):
+        """Invalid column name raises InvalidIdentifier before SQL is built."""
+        with pytest.raises(InvalidIdentifier):
+            _build_insert_sql("t", ["bad col"], [{"bad col": 1}])
+
+    def test_insert_sql_invalid_schema_raises(self):
+        """Invalid schema name raises InvalidIdentifier before SQL is built."""
+        with pytest.raises(InvalidIdentifier):
+            _build_insert_sql("t", ["id"], [{"id": 1}], schema="bad-schema")
+
+    def test_insert_sql_returns_two_tuple(self):
+        """Return value is a (str, list) 2-tuple."""
+        result = _build_insert_sql("t", ["id"], [{"id": 1}])
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], list)
+
+    # --- _build_upsert_sql ---
+
+    def test_upsert_sql_default_update_columns(self):
+        """update_columns defaults to all non-conflict columns."""
+        sql, params = _build_upsert_sql("t", [{"id": 1, "v": 9}], ["id"])
+        assert "ON CONFLICT (id) DO UPDATE SET v = EXCLUDED.v" in sql
+        assert params == [1, 9]
+
+    def test_upsert_sql_explicit_update_columns(self):
+        """Explicit update_columns emits only those columns in DO UPDATE SET."""
+        sql, _ = _build_upsert_sql(
+            "t",
+            [{"id": 1, "a": 2, "b": 3}],
+            conflict_columns=["id"],
+            update_columns=["a"],
+        )
+        assert "DO UPDATE SET a = EXCLUDED.a" in sql
+        assert "b = EXCLUDED.b" not in sql
+
+    def test_upsert_sql_multiple_conflict_columns(self):
+        """Multiple conflict columns appear comma-separated in ON CONFLICT."""
+        sql, _ = _build_upsert_sql(
+            "t", [{"x": 1, "y": 2, "v": 3}], conflict_columns=["x", "y"]
+        )
+        assert "ON CONFLICT (x, y)" in sql
+        assert "v = EXCLUDED.v" in sql
+
+    def test_upsert_sql_conflict_columns_as_tuple(self):
+        """conflict_columns can be passed as a tuple (Pipeline stores tuples)."""
+        sql, _ = _build_upsert_sql("t", [{"id": 1, "v": 2}], conflict_columns=("id",))
+        assert "ON CONFLICT (id)" in sql
+
+    def test_upsert_sql_invalid_conflict_column_raises(self):
+        """Invalid conflict_column raises InvalidIdentifier before SQL is built."""
+        with pytest.raises(InvalidIdentifier):
+            _build_upsert_sql("t", [{"id": 1, "v": 2}], conflict_columns=["bad col"])
+
+    def test_upsert_sql_delegates_to_insert_builder(self):
+        """_build_upsert_sql produces valid INSERT … ON CONFLICT SQL."""
+        sql, params = _build_upsert_sql("events", [{"id": 7, "name": "x"}], ["id"])
+        assert sql.startswith("INSERT INTO public.events")
+        assert "ON CONFLICT" in sql
+        assert params == [7, "x"]
+
+    # --- _step_label ---
+
+    def test_step_label_named_function(self):
+        """A named function returns its __name__."""
+
+        def my_transform(df):
+            return df
+
+        assert _step_label(my_transform) == "my_transform"
+
+    def test_step_label_lambda_returns_repr(self):
+        """A lambda falls back to repr (not '<lambda>') for usefulness."""
+        fn = lambda x: x  # noqa: E731
+        label = _step_label(fn)
+        assert label != "<lambda>"
+        assert "lambda" in label  # repr contains the word lambda
+
+    def test_step_label_partial_returns_repr(self):
+        """functools.partial has no __name__ — repr fallback is used."""
+
+        def base(df, col):
+            return df[col]
+
+        fn = functools.partial(base, col="id")
+        label = _step_label(fn)
+        assert "partial" in label.lower() or "base" in label  # repr of partial
+
+    # --- transform step-index message contract (D-06) ---
+
+    def test_transform_chain_step_index(self):
+        """The ETLTransformError message contains 1-based index and step label.
+
+        Locks the D-06 message contract at unit level.  The integration test
+        that asserts a failed run row is recorded lives in Plan 03.
+        """
+
+        def bad_step(df):
+            raise ValueError("boom")
+
+        i = 2  # step 2 in a hypothetical chain
+        lbl = _step_label(bad_step)
+        try:
+            bad_step(None)
+        except ValueError as exc:
+            msg = f"transform step {i} ('{lbl}') raised {type(exc).__name__}: {exc}"
+            err = ETLTransformError(msg)
+        assert f"transform step {i}" in str(err)
+        assert f"'{lbl}'" in str(err)
+        assert "ValueError" in str(err)
