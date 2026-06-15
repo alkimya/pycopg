@@ -18,15 +18,15 @@ A declarative ETL pipeline-runner layer (`db.etl.*` / `async_db.etl.*`) that run
 - [ ] **ETL-04**: User can set `load_mode='append'`; running the pipeline twice inserts rows twice. Target must exist; if not, raises `ETLTargetNotFoundError`.
 - [ ] **ETL-05**: User can set `load_mode='replace'` (truncate-load); running twice leaves only the latest extract's rows. If the target does not exist, it is created. TRUNCATE+INSERT is atomic — a mid-load error leaves the target unchanged.
 - [ ] **ETL-06**: User can set `load_mode='upsert'` with `conflict_columns=['id']`; running twice updates existing rows and inserts new ones with no duplicates. Omitting `conflict_columns` with `load_mode='upsert'` raises `ValueError` at pipeline construction time.
-- [ ] **ETL-09**: The load runs in its own DB transaction; in `replace` mode an error after TRUNCATE but before INSERT commits leaves the target with its original rows (load transaction rolled back). The run-tracking write is committed independently of the load transaction.
+- [x] **ETL-09**: The load runs in its own DB transaction; in `replace` mode an error after TRUNCATE but before INSERT commits leaves the target with its original rows (load transaction rolled back). The run-tracking write is committed independently of the load transaction.
 
 ### Run Tracking & Results
 
-- [ ] **ETL-07**: After any `run()`, a row exists in `pipeline_runs` with `run_id`, `pipeline_name`, `started_at`, `finished_at`, `status`, `rows_extracted`, `rows_loaded`. The table reserves a nullable `watermark` column (always NULL in v0.5.0) for forward-compat with v0.6.0 incremental support — no breaking migration required later.
-- [ ] **ETL-08**: A run that raises during load records `status='failed'` with non-null `error_message` and `error_traceback`; the `pipeline_runs` record is committed even when the load transaction rolled back.
+- [x] **ETL-07**: After any `run()`, a row exists in `pipeline_runs` with `run_id`, `pipeline_name`, `started_at`, `finished_at`, `status`, `rows_extracted`, `rows_loaded`. The table reserves a nullable `watermark` column (always NULL in v0.5.0) for forward-compat with v0.6.0 incremental support — no breaking migration required later.
+- [x] **ETL-08**: A run that raises during load records `status='failed'` with non-null `error_message` and `error_traceback`; the `pipeline_runs` record is committed even when the load transaction rolled back.
 - [ ] **ETL-10**: `db.etl.run(pipeline)` returns a `RunResult` carrying `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, and `error`.
 - [ ] **ETL-11**: `db.etl.history("my_pipeline")` returns a list of `RunResult` for that pipeline, newest-first.
-- [ ] **ETL-14**: The `pipeline_runs` table is auto-created on first `run()` if missing (CREATE TABLE IF NOT EXISTS); an explicit `db.etl.init()` is also available. No user-run migration is required.
+- [x] **ETL-14**: The `pipeline_runs` table is auto-created on first `run()` if missing (CREATE TABLE IF NOT EXISTS); an explicit `db.etl.init()` is also available. No user-run migration is required.
 
 ### Accessor & Parity
 
@@ -93,14 +93,14 @@ Which phases cover which requirements. Populated during roadmap creation.
 | ETL-04 | Phase 18 | Pending |
 | ETL-05 | Phase 18 | Pending |
 | ETL-06 | Phase 18 | Pending |
-| ETL-07 | Phase 17 | Pending |
-| ETL-08 | Phase 17 | Pending |
-| ETL-09 | Phase 17 | Pending |
+| ETL-07 | Phase 17 | Complete |
+| ETL-08 | Phase 17 | Complete |
+| ETL-09 | Phase 17 | Complete |
 | ETL-10 | Phase 19 | Pending |
 | ETL-11 | Phase 19 | Pending |
 | ETL-12 | Phase 20 | Pending |
 | ETL-13 | Phase 20 | Pending |
-| ETL-14 | Phase 17 | Pending |
+| ETL-14 | Phase 17 | Complete |
 | ETL-15 | Phase 19 | Pending |
 | ETL-16 | Phase 18 | Pending |
 | ETL-17 | Phase 19 | Pending |

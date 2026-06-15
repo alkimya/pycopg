@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.5.0
 milestone_name: ETL Pipeline Runner
 status: executing
-stopped_at: Phase 17 Plan 01 complete
-last_updated: "2026-06-15T10:55:00.000Z"
-last_activity: 2026-06-15 -- Phase 17 Plan 01 executed (ETLAccessor + db.etl + SC-1..SC-4 tests)
+stopped_at: Phase 17 complete — session-path run-log isolation gap closed (17-02); verification passed 5/5
+last_updated: "2026-06-15T11:59:38.426Z"
+last_activity: 2026-06-15
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 4
+  completed_plans: 4
   percent: 40
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-14)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 17 — run-tracking-foundation
+**Current focus:** Phase 18 — load-modes-&-extract (next)
 
 ## Current Position
 
-Phase: 17 (run-tracking-foundation) — COMPLETE
-Plan: 1 of 1 — COMPLETE
-Status: Phase 17 done; ready for Phase 18
-Last activity: 2026-06-15 -- Phase 17 Plan 01 executed (ETLAccessor + db.etl + SC-1..SC-4 tests)
+Phase: 18
+Plan: Not started
+Status: Phase 17 complete — ready for Phase 18
+Last activity: 2026-06-15
 
 Progress: [████░░░░░░] 40% (Phase 17 complete: 2 of 5 phases)
 
@@ -44,7 +44,7 @@ Progress: [████░░░░░░] 40% (Phase 17 complete: 2 of 5 phases
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 16 | 2 | - | - |
-| 17 | TBD | - | - |
+| 17 | 2 | - | - |
 | 18 | TBD | - | - |
 | 19 | TBD | - | - |
 | 20 | TBD | - | - |
