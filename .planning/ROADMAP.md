@@ -112,7 +112,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 18-02-PLAN.md — Real run(pipeline) body: extract → transform chain → mode-dispatched atomic load (corrected txn seam) + run-log wiring (Wave 2)
+- [x] 18-02-PLAN.md — Real run(pipeline) body: extract → transform chain → mode-dispatched atomic load (corrected txn seam) + run-log wiring (Wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -170,6 +170,6 @@ Plans:
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
 | 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
 | 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
-| 18. Load Modes & Extract | v0.5.0 | 1/3 | In Progress|  |
+| 18. Load Modes & Extract | v0.5.0 | 2/3 | In Progress|  |
 | 19. Sync Runner & Query Surface | v0.5.0 | 0/TBD | Not started | - |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 0/TBD | Not started | - |
