@@ -663,6 +663,61 @@ class ETLAccessor:
                 row = cur.fetchone()
         return _row_to_result(row)
 
+    def history(self, name: str, limit: int = 100) -> list[RunResult]:
+        """Return the run history for a pipeline, newest-first.
+
+        Reads ``pipeline_runs`` via :data:`~pycopg.queries.ETL_LIST_RUNS`
+        on a dedicated autocommit connection (Pitfall 6 — read-only, not
+        inside a session transaction).  Results are ordered by
+        ``started_at DESC`` (newest first) and capped at *limit* rows
+        (D-06/ETL-11).
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name to query (bound as a ``%s`` parameter — no
+            identifier interpolation).
+        limit : int, optional
+            Maximum number of rows to return, by default 100.
+
+        Returns
+        -------
+        list[RunResult]
+            Immutable snapshots of the matching runs, newest-first.
+            Empty list when no runs exist for *name*.
+        """
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(queries.ETL_LIST_RUNS, [name, limit])
+                rows = cur.fetchall()
+        return [_row_to_result(row) for row in rows]
+
+    def last_run(self, name: str) -> RunResult | None:
+        """Return the most recent run for a pipeline, or ``None``.
+
+        Reads one row from ``pipeline_runs`` via
+        :data:`~pycopg.queries.ETL_GET_LAST_RUN` on a dedicated autocommit
+        connection (Pitfall 6).  Returns ``None`` when no runs exist for
+        *name* (SC-3/D-07/ETL-17).
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name to query (bound as a ``%s`` parameter — no
+            identifier interpolation).
+
+        Returns
+        -------
+        RunResult or None
+            Immutable snapshot of the most recent run, or ``None`` when no
+            runs exist for *name*.
+        """
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(queries.ETL_GET_LAST_RUN, [name])
+                row = cur.fetchone()
+        return _row_to_result(row) if row is not None else None
+
     def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
         """Execute a full extract → transform → load pipeline run.
 
