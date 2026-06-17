@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
-stopped_at: Phase 23 context gathered
-last_updated: "2026-06-17T21:37:11.185Z"
-last_activity: 2026-06-17 -- Phase 23 planning complete
+stopped_at: Phase 23 Plan 01 complete
+last_updated: "2026-06-17T21:44:00Z"
+last_activity: 2026-06-17 -- Phase 23 Plan 01 executed (schema.py created)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 50
+  total_plans: 10
+  completed_plans: 7
+  percent: 55
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 22 — admin-maint-backup-accessors
+**Current focus:** Phase 23 — schema-accessor-spatial-relocation
 
 ## Current Position
 
-Phase: 23
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-17 -- Phase 23 planning complete
+Phase: 23 (schema-accessor-spatial-relocation) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 23 (Plan 01 complete)
+Last activity: 2026-06-17 -- Phase 23 Plan 01 executed (schema.py created)
 
-Progress: 0/4 phases complete [░░░░░░░░░░] 0%
+Progress: 0/4 phases complete [░░░░░░░░░░] 0% (7/10 plans complete)
 
 ## Performance Metrics
 
@@ -45,7 +45,7 @@ Progress: 0/4 phases complete [░░░░░░░░░░] 0%
 |-------|-------|----------|--------|
 | 21. Infrastructure & Timescale Accessor | TBD | 0 | Not started |
 | 22. Admin, Maint & Backup Accessors | TBD | 0 | Not started |
-| 23. Schema Accessor & Spatial Relocation | TBD | 0 | Not started |
+| 23. Schema Accessor & Spatial Relocation | 4 | 1 | Executing (Plan 01 done) |
 | 24. Exports, Docs & Release v0.6.0 | TBD | 0 | Not started |
 
 ## Accumulated Context
@@ -80,11 +80,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17T18:09:45.652Z
-Stopped at: Phase 23 context gathered
-Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-CONTEXT.md
-Next action: `/gsd-plan-phase 21`
+Last session: 2026-06-17T21:44:00Z
+Stopped at: Phase 23 Plan 01 complete
+Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-01-SUMMARY.md
+Next action: Execute Phase 23 Plan 02
 
 ## Operator Next Steps
 
-- Run `/gsd-plan-phase 21` to plan Phase 21 (Infrastructure & Timescale Accessor).
+- Run `/gsd-execute-phase 23` Plan 02 to wire the schema accessor (lazy property, deprecated aliases, __init__.py export).
