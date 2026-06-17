@@ -4,7 +4,7 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: planning
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-17T11:24:32.736Z"
+last_updated: "2026-06-17T12:01:43.536Z"
 last_activity: 2026-06-17 — Roadmap created (Phases 21-24)
 progress:
   total_phases: 4

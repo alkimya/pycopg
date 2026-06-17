@@ -1,8 +1,8 @@
 ---
 phase: 21
 slug: infrastructure-timescale-accessor
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-17
 ---
@@ -82,6 +82,6 @@ created: 2026-06-17
 - [ ] Wave 0 covers all MISSING references (`aliases.py`, `timescale.py`, new test file)
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-06-17 (plan-checker VERIFICATION PASSED, all 12 dimensions)

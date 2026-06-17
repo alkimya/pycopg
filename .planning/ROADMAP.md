@@ -66,51 +66,70 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 ## Phase Details
 
 ### Phase 21: Infrastructure & Timescale Accessor
+
 **Goal**: Users calling `db.timescale.*` get a working timescale accessor, and callers still using the old flat `db.create_hypertable(...)` etc. get a `DeprecationWarning` naming the new path — the full alias + accessor pattern is established and all future phases replicate it mechanically
 **Depends on**: Phase 20 (v0.5.0 shipped)
 **Requirements**: REORG-01, REORG-02, REORG-03, REORG-04, TS-01
 **Success Criteria** (what must be TRUE):
+
   1. Calling `db.timescale.create_hypertable(...)` (and all 5 other timescale methods) returns the same result as before
   2. Calling the old flat `db.create_hypertable(...)` still works AND emits a `DeprecationWarning` with a message pointing to `db.timescale.create_hypertable`
   3. `test_parity` passes with the timescale accessor registered for both sync and async surfaces
-  4. A dedicated test asserts each alias both warns (with the correct message) and delegates correctly; the existing test suite runs without DeprecationWarning noise breaking any `-W error` gate; coverage stays ≥94%
-**Plans**: 3 plans (3 waves)
+  4. A dedicated test asserts each alias both warns (with the correct message) and delegates correctly; the existing test suite runs without DeprecationWarning noise breaking any `-W error` gate; coverage stays ≥94%**Plans**: 3 plans (3 waves)
+
+**Wave 1**
+
 - [ ] 21-01-PLAN.md — `aliases.py` decorator + `timescale.py` accessors (wave 1) — REORG-01, TS-01
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 21-02-PLAN.md — lazy properties + deprecated stubs + exports (wave 2) — REORG-02, TS-01
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 21-03-PLAN.md — alias/parity tests + 27-call-site migration + gates (wave 3) — REORG-02/03/04, TS-01
 
 ### Phase 22: Admin, Maint & Backup Accessors
+
 **Goal**: Users can access `db.admin.*`, `db.maint.*`, and `db.backup.*` with all methods working, and the 22 legacy flat names on `db.*` all warn and delegate — three accessors delivered in one phase using the pattern already validated in Phase 21
 **Depends on**: Phase 21
 **Requirements**: ADM-01, MNT-01, BKP-01
 **Success Criteria** (what must be TRUE):
+
   1. Calling `db.admin.create_role(...)`, `db.maint.vacuum(...)`, `db.backup.pg_dump(...)` (and all remaining methods in those 3 accessors) returns the same results as the old flat calls
   2. Each of the 22 legacy flat names (`db.create_role`, `db.vacuum`, `db.pg_dump`, etc.) still works and emits a `DeprecationWarning` naming the new accessor path
   3. `test_parity` passes with all three new accessors registered (sync and async)
   4. Coverage stays ≥94% with alias warn+delegate tests in place
+
 **Plans**: TBD
 
 ### Phase 23: Schema Accessor & Spatial Relocation
+
 **Goal**: Users can access all ~26 DDL/introspection methods under `db.schema.*`, and the 2 spatial-index methods (`create_spatial_index`, `list_geometry_columns`) land under `db.spatial.*` — the largest accessor block is migrated and the PostGIS surface is made thematically complete
 **Depends on**: Phase 22
 **Requirements**: SCH-01, SCH-02
 **Success Criteria** (what must be TRUE):
+
   1. Calling `db.schema.create_database(...)`, `db.schema.list_tables()`, `db.schema.create_index(...)` (and all ~26 schema methods) returns the same results as before
   2. Calling `db.spatial.create_spatial_index(...)` and `db.spatial.list_geometry_columns()` works; the old flat `db.create_spatial_index(...)` and `db.list_geometry_columns()` still work and emit `DeprecationWarning` pointing to `db.spatial.*`
   3. All ~28 legacy flat schema+spatial-relocation names warn and delegate; no existing caller is silently broken
   4. `test_parity` passes with the schema accessor registered (sync and async); coverage stays ≥94%
+
 **Plans**: TBD
 **UI hint**: no
 
 ### Phase 24: Exports, Docs & Release v0.6.0
+
 **Goal**: The 5 new accessor classes are publicly importable from `pycopg`, fully documented in README and Sphinx, with a CHANGELOG entry and MIGRATION note for the deprecation cycle, and v0.6.0 is tagged and published to PyPI
 **Depends on**: Phase 23
 **Requirements**: REORG-05
 **Success Criteria** (what must be TRUE):
+
   1. `from pycopg import TimescaleAccessor, AdminAccessor, SchemaAccessor, MaintAccessor, BackupAccessor` (and async variants) succeeds — all are in `__all__`
   2. The README lists the `db.X.*` accessor surfaces with their method names; Sphinx/RTD builds cleanly (`-W` green) with each accessor documented
   3. CHANGELOG has an `[Unreleased]` / `[0.6.0]` entry noting the new accessor paths and the deprecation cycle (removal in v0.7.0); MIGRATION.md instructs callers how to update from flat names
   4. `pip install pycopg==0.6.0` installs the release; `python -c "from pycopg import Database; db = Database.from_env(); print(db.timescale)"` works in a clean venv
+
 **Plans**: TBD
 
 ## Progress
