@@ -1045,7 +1045,7 @@ class SpatialAccessor:
             If the PostGIS extension is not installed.
         """
         self._db = db
-        if not db.has_extension("postgis"):
+        if not db.schema.has_extension("postgis"):
             raise ExtensionNotAvailable(_POSTGIS_GUARD_MSG)
 
     def _run(
@@ -1935,7 +1935,7 @@ class AsyncSpatialAccessor:
             If the PostGIS extension is not installed.
         """
         if not self._postgis_ok:
-            if not await self._db.has_extension("postgis"):
+            if not await self._db.schema.has_extension("postgis"):
                 raise ExtensionNotAvailable(_POSTGIS_GUARD_MSG)
             self._postgis_ok = True
 

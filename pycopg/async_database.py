@@ -1025,7 +1025,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             )
 
         if primary_key and if_exists != "append":
-            await self.add_primary_key(table, primary_key, schema)
+            await self.schema.add_primary_key(table, primary_key, schema)
 
     async def to_geodataframe(
         self,
@@ -1114,7 +1114,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             If PostGIS extension is not installed.
         """
         # Ensure PostGIS is available
-        if not await self.has_extension("postgis"):
+        if not await self.schema.has_extension("postgis"):
             raise ExtensionNotAvailable(
                 "PostGIS extension not installed. Run db.create_extension('postgis')"
             )
@@ -1153,10 +1153,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             )
 
         if primary_key and if_exists != "append":
-            await self.add_primary_key(table, primary_key, schema)
+            await self.schema.add_primary_key(table, primary_key, schema)
 
         if spatial_index and if_exists != "append":
-            await self.create_spatial_index(table, geometry_column, schema)
+            await self.spatial.create_spatial_index(table, geometry_column, schema)
 
     # =========================================================================
     # BATCH OPERATIONS

@@ -1023,7 +1023,7 @@ class Database(DatabaseBase, QueryMixin):
         )
 
         if primary_key and if_exists != "append":
-            self.add_primary_key(table, primary_key, schema)
+            self.schema.add_primary_key(table, primary_key, schema)
 
     def to_dataframe(
         self,
@@ -1103,7 +1103,7 @@ class Database(DatabaseBase, QueryMixin):
             If PostGIS extension is not installed.
         """
         # Ensure PostGIS is available
-        if not self.has_extension("postgis"):
+        if not self.schema.has_extension("postgis"):
             raise ExtensionNotAvailable(
                 "PostGIS extension not installed. Run db.create_extension('postgis')"
             )
@@ -1139,10 +1139,10 @@ class Database(DatabaseBase, QueryMixin):
         )
 
         if primary_key and if_exists != "append":
-            self.add_primary_key(table, primary_key, schema)
+            self.schema.add_primary_key(table, primary_key, schema)
 
         if spatial_index and if_exists != "append":
-            self.create_spatial_index(table, geometry_column, schema)
+            self.spatial.create_spatial_index(table, geometry_column, schema)
 
     def to_geodataframe(
         self,

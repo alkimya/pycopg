@@ -732,29 +732,37 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
+        from pycopg.schema import AsyncSchemaAccessor
+
         gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="PostGIS extension not installed"
         ):
             await db.from_geodataframe(gdf, "parcels")
 
-        db.has_extension.assert_called_once_with("postgis")
+        mock_schema.has_extension.assert_called_once_with("postgis")
 
     async def test_from_geodataframe_no_crs_raises(self, config):
         """Test from_geodataframe raises ValueError when GeoDataFrame has no CRS."""
         import geopandas as gpd
         from shapely.geometry import Point
 
+        from pycopg.schema import AsyncSchemaAccessor
+
         gdf = gpd.GeoDataFrame(
             {"id": [1], "geometry": [Point(0, 0)]}, crs=None  # No CRS
         )
 
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
 
         with pytest.raises(ValueError, match="GeoDataFrame has no CRS defined"):
             await db.from_geodataframe(gdf, "parcels")
@@ -764,6 +772,8 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
+        from pycopg.schema import AsyncSchemaAccessor
+
         gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
         # Mock CRS.to_epsg() returning None (unknown EPSG)
         with patch.object(type(gdf), "crs", new_callable=PropertyMock) as mock_crs_prop:
@@ -772,7 +782,9 @@ class TestAsyncDatabaseGeoDataFrame:
             mock_crs_prop.return_value = mock_crs
 
             db = AsyncDatabase(config)
-            db.has_extension = AsyncMock(return_value=True)
+            mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+            mock_schema.has_extension = AsyncMock(return_value=True)
+            db._schema = mock_schema
 
             with pytest.raises(ValueError, match="Cannot determine EPSG code"):
                 await db.from_geodataframe(gdf, "parcels")
@@ -782,6 +794,9 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
+        from pycopg.schema import AsyncSchemaAccessor
+        from pycopg.spatial import AsyncSpatialAccessor
+
         mock_engine, mock_sync_conn = create_async_engine_mock()
         gdf = gpd.GeoDataFrame(
             {"id": [1], "geometry": [Point(0, 0)]},
@@ -790,8 +805,12 @@ class TestAsyncDatabaseGeoDataFrame:
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
-        db.has_extension = AsyncMock(return_value=True)
-        db.create_spatial_index = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        mock_spatial = MagicMock(spec=AsyncSpatialAccessor)
+        mock_spatial.create_spatial_index = AsyncMock()
+        db._spatial = mock_spatial
 
         with patch.object(gdf, "to_postgis") as mock_to_postgis:
             await db.from_geodataframe(gdf, "parcels", srid=4326)
@@ -803,13 +822,20 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
+        from pycopg.schema import AsyncSchemaAccessor
+        from pycopg.spatial import AsyncSpatialAccessor
+
         mock_engine, mock_sync_conn = create_async_engine_mock()
         gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
-        db.has_extension = AsyncMock(return_value=True)
-        db.create_spatial_index = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        mock_spatial = MagicMock(spec=AsyncSpatialAccessor)
+        mock_spatial.create_spatial_index = AsyncMock()
+        db._spatial = mock_spatial
 
         with patch.object(gdf, "to_postgis") as mock_to_postgis:
             await db.from_geodataframe(gdf, "parcels")
@@ -824,20 +850,27 @@ class TestAsyncDatabaseGeoDataFrame:
         import geopandas as gpd
         from shapely.geometry import Point
 
+        from pycopg.schema import AsyncSchemaAccessor
+        from pycopg.spatial import AsyncSpatialAccessor
+
         mock_engine, mock_sync_conn = create_async_engine_mock()
         gdf = gpd.GeoDataFrame({"id": [1], "geometry": [Point(0, 0)]}, crs="EPSG:4326")
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
-        db.has_extension = AsyncMock(return_value=True)
-        db.create_spatial_index = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        mock_spatial = MagicMock(spec=AsyncSpatialAccessor)
+        mock_spatial.create_spatial_index = AsyncMock()
+        db._spatial = mock_spatial
 
         with patch.object(gdf, "to_postgis") as mock_to_postgis:
             await db.from_geodataframe(gdf, "parcels", spatial_index=True)
 
             mock_to_postgis.assert_called_once()
-            # Verify create_spatial_index was called
-            db.create_spatial_index.assert_called_once_with(
+            # Verify create_spatial_index was called via the spatial accessor
+            mock_spatial.create_spatial_index.assert_awaited_once_with(
                 "parcels", "geometry", "public"
             )
 
@@ -2690,36 +2723,44 @@ class TestAsyncDatabaseCorrectnessFixes:
     """Plan 05: C1 (primary_key applied), C2 (close disposes engine), PAR-07 signatures."""
 
     async def test_from_dataframe_applies_primary_key(self, config):
-        """C1: from_dataframe with primary_key calls add_primary_key (not a warning)."""
+        """C1: from_dataframe with primary_key calls schema.add_primary_key (not a warning)."""
         import pandas as pd
+
+        from pycopg.schema import AsyncSchemaAccessor
 
         mock_engine, _ = create_async_engine_mock()
         df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
-        db.add_primary_key = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.add_primary_key = AsyncMock()
+        db._schema = mock_schema
 
         with patch.object(df, "to_sql"):
             await db.from_dataframe(df, "users", primary_key="id")
 
-        db.add_primary_key.assert_awaited_once_with("users", "id", "public")
+        mock_schema.add_primary_key.assert_awaited_once_with("users", "id", "public")
 
     async def test_from_dataframe_append_skips_primary_key(self, config):
         """C1: with if_exists='append', primary_key is NOT applied (matches sync guard)."""
         import pandas as pd
+
+        from pycopg.schema import AsyncSchemaAccessor
 
         mock_engine, _ = create_async_engine_mock()
         df = pd.DataFrame({"id": [3]})
 
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
-        db.add_primary_key = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.add_primary_key = AsyncMock()
+        db._schema = mock_schema
 
         with patch.object(df, "to_sql"):
             await db.from_dataframe(df, "users", primary_key="id", if_exists="append")
 
-        db.add_primary_key.assert_not_called()
+        mock_schema.add_primary_key.assert_not_called()
 
     async def test_from_dataframe_real_db_applies_pk(self, db_config):
         """C1 integration: real from_dataframe with primary_key produces a PK constraint."""
