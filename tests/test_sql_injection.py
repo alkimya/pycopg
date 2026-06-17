@@ -79,12 +79,12 @@ class TestSyncIdentifierInjection:
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_vacuum_table(self, sync_db, evil):
         with pytest.raises(InvalidIdentifier):
-            sync_db.vacuum(evil)
+            sync_db.maint.vacuum(evil)
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_analyze_table(self, sync_db, evil):
         with pytest.raises(InvalidIdentifier):
-            sync_db.analyze(evil)
+            sync_db.maint.analyze(evil)
 
     def test_create_extension_injection(self, sync_db):
         with pytest.raises(InvalidIdentifier):
@@ -113,11 +113,11 @@ class TestSyncValueInjection:
 
     def test_valid_until_create_role(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.create_role("appuser", valid_until="2025-01-01'; DROP TABLE x; --")
+            sync_db.admin.create_role("appuser", valid_until="2025-01-01'; DROP TABLE x; --")
 
     def test_valid_until_alter_role(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.alter_role("appuser", valid_until="bad'; DROP")
+            sync_db.admin.alter_role("appuser", valid_until="bad'; DROP")
 
     def test_compression_interval(self, sync_db):
         with pytest.raises(InvalidIdentifier):
@@ -131,19 +131,19 @@ class TestSyncValueInjection:
 
     def test_grant_privileges(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.grant("SELECT; DROP TABLE users; --", "users", "readonly")
+            sync_db.admin.grant("SELECT; DROP TABLE users; --", "users", "readonly")
 
     def test_grant_object_type(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.grant("SELECT", "users", "readonly", object_type="TABLE; DROP")
+            sync_db.admin.grant("SELECT", "users", "readonly", object_type="TABLE; DROP")
 
     def test_revoke_privileges(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.revoke("ALL; GRANT SUPERUSER", "users", "readonly")
+            sync_db.admin.revoke("ALL; GRANT SUPERUSER", "users", "readonly")
 
     def test_csv_delimiter(self, sync_db, tmp_path):
         with pytest.raises(InvalidIdentifier):
-            sync_db.copy_to_csv(
+            sync_db.backup.copy_to_csv(
                 "users", tmp_path / "u.csv", delimiter="','; DROP TABLE x; --"
             )
 
@@ -167,13 +167,13 @@ class TestAsyncIdentifierInjection:
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_vacuum(self, async_db, evil):
         with pytest.raises(InvalidIdentifier):
-            await async_db.vacuum(evil)
+            await async_db.maint.vacuum(evil)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_analyze(self, async_db, evil):
         with pytest.raises(InvalidIdentifier):
-            await async_db.analyze(evil)
+            await async_db.maint.analyze(evil)
 
     @pytest.mark.asyncio
     async def test_create_extension(self, async_db):
@@ -192,7 +192,7 @@ class TestAsyncValueInjection:
     @pytest.mark.asyncio
     async def test_valid_until_create_role(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.create_role("u", valid_until="2025'; DROP")
+            await async_db.admin.create_role("u", valid_until="2025'; DROP")
 
     @pytest.mark.asyncio
     async def test_compression_interval(self, async_db):
@@ -209,12 +209,12 @@ class TestAsyncValueInjection:
     @pytest.mark.asyncio
     async def test_grant_privileges(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.grant("SELECT; DROP", "users", "readonly")
+            await async_db.admin.grant("SELECT; DROP", "users", "readonly")
 
     @pytest.mark.asyncio
     async def test_revoke_object_type(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.revoke("SELECT", "users", "readonly", object_type="X; DROP")
+            await async_db.admin.revoke("SELECT", "users", "readonly", object_type="X; DROP")
 
     @pytest.mark.asyncio
     async def test_insert_many_column_injection(self, async_db):

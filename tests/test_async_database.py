@@ -1001,7 +1001,7 @@ class TestAsyncDatabaseDDL:
             ]
         )
 
-        sizes = await db.table_sizes("public", limit=10)
+        sizes = await db.maint.table_sizes("public", limit=10)
 
         assert len(sizes) == 2
         assert sizes[0]["table_name"] == "users"
@@ -1138,7 +1138,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.vacuum()
+        await db.maint.vacuum()
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1151,7 +1151,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.vacuum("users", full=True)
+        await db.maint.vacuum("users", full=True)
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1165,7 +1165,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.vacuum(analyze=False)
+        await db.maint.vacuum(analyze=False)
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1179,7 +1179,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.analyze()
+        await db.maint.analyze()
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1192,7 +1192,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.analyze("users", schema="public")
+        await db.maint.analyze("users", schema="public")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1205,7 +1205,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock(return_value=[{"QUERY PLAN": "Seq Scan on users"}])
 
-        result = await db.explain("SELECT * FROM users")
+        result = await db.maint.explain("SELECT * FROM users")
 
         assert result == ["Seq Scan on users"]
         db.execute.assert_called_once()
@@ -1228,7 +1228,7 @@ class TestAsyncDatabaseMaintenance:
             ]
         )
 
-        result = await db.explain("SELECT * FROM users", analyze=True)
+        result = await db.maint.explain("SELECT * FROM users", analyze=True)
 
         assert len(result) == 3
         assert "Seq Scan on users" in result[0]
@@ -1242,7 +1242,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock(return_value=[{"QUERY PLAN": '{"Plan": {...}}'}])
 
-        result = await db.explain("SELECT * FROM users", format="json")
+        result = await db.maint.explain("SELECT * FROM users", format="json")
 
         assert len(result) == 1
         db.execute.assert_called_once()
@@ -1264,7 +1264,7 @@ class TestAsyncDatabaseBackup:
         mock_subprocess.return_value = mock_proc
 
         db = AsyncDatabase(config)
-        await db.pg_dump("/tmp/backup.dump")
+        await db.backup.pg_dump("/tmp/backup.dump")
 
         # Verify command
         call_args = mock_subprocess.call_args
@@ -1293,7 +1293,7 @@ class TestAsyncDatabaseBackup:
         mock_subprocess.return_value = mock_proc
 
         db = AsyncDatabase(config)
-        await db.pg_dump("/tmp/backup.sql", format="plain", schema_only=True)
+        await db.backup.pg_dump("/tmp/backup.sql", format="plain", schema_only=True)
 
         call_args = mock_subprocess.call_args
         cmd = call_args[0]
@@ -1315,7 +1315,7 @@ class TestAsyncDatabaseBackup:
         db = AsyncDatabase(config)
 
         with pytest.raises(RuntimeError, match="pg_dump failed"):
-            await db.pg_dump("/tmp/backup.dump")
+            await db.backup.pg_dump("/tmp/backup.dump")
 
     @patch("asyncio.create_subprocess_exec")
     async def test_pg_dump_with_tables(self, mock_subprocess, config):
@@ -1326,7 +1326,7 @@ class TestAsyncDatabaseBackup:
         mock_subprocess.return_value = mock_proc
 
         db = AsyncDatabase(config)
-        await db.pg_dump("/tmp/backup.dump", tables=["users", "orders"])
+        await db.backup.pg_dump("/tmp/backup.dump", tables=["users", "orders"])
 
         call_args = mock_subprocess.call_args
         cmd = call_args[0]
@@ -1348,7 +1348,7 @@ class TestAsyncDatabaseBackup:
             with patch(
                 "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
             ):
-                await db.pg_restore("/tmp/backup.dump")
+                await db.backup.pg_restore("/tmp/backup.dump")
 
         call_args = mock_subprocess.call_args
         cmd = call_args[0]
@@ -1370,7 +1370,7 @@ class TestAsyncDatabaseBackup:
             with patch(
                 "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
             ):
-                await db.pg_restore("/tmp/backup.dump", clean=True, if_exists=True)
+                await db.backup.pg_restore("/tmp/backup.dump", clean=True, if_exists=True)
 
         call_args = mock_subprocess.call_args
         cmd = call_args[0]
@@ -1380,12 +1380,12 @@ class TestAsyncDatabaseBackup:
     async def test_pg_restore_sql_file(self, config):
         """Test pg_restore delegates to _psql_restore for .sql files."""
         db = AsyncDatabase(config)
-        db._psql_restore = AsyncMock()
+        db.backup._psql_restore = AsyncMock()
 
         # File with .sql suffix
-        await db.pg_restore("/tmp/backup.sql")
+        await db.backup.pg_restore("/tmp/backup.sql")
 
-        db._psql_restore.assert_called_once()
+        db.backup._psql_restore.assert_called_once()
 
     @patch("asyncio.create_subprocess_exec")
     async def test_pg_restore_failure(self, mock_subprocess, config):
@@ -1403,7 +1403,7 @@ class TestAsyncDatabaseBackup:
                 "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
             ):
                 with pytest.raises(RuntimeError, match="pg_restore failed"):
-                    await db.pg_restore("/tmp/backup.dump")
+                    await db.backup.pg_restore("/tmp/backup.dump")
 
     @patch("asyncio.create_subprocess_exec")
     async def test_psql_restore(self, mock_subprocess, config):
@@ -1416,7 +1416,7 @@ class TestAsyncDatabaseBackup:
         db = AsyncDatabase(config)
         from pathlib import Path
 
-        await db._psql_restore(Path("/tmp/backup.sql"))
+        await db.backup._psql_restore(Path("/tmp/backup.sql"))
 
         call_args = mock_subprocess.call_args
         cmd = call_args[0]
@@ -1462,7 +1462,7 @@ class TestAsyncDatabaseCSV:
 
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.open", MagicMock()):
-                    count = await db.copy_to_csv("users", "/tmp/users.csv")
+                    count = await db.backup.copy_to_csv("users", "/tmp/users.csv")
 
         assert count == 2
         # Verify COPY TO STDOUT SQL
@@ -1497,7 +1497,7 @@ class TestAsyncDatabaseCSV:
             mock_to_thread.side_effect = lambda f, *args, **kwargs: f(*args, **kwargs)
             with patch("pathlib.Path.mkdir"):
                 with patch("builtins.open", MagicMock()):
-                    await db.copy_to_csv(
+                    await db.backup.copy_to_csv(
                         "users", "/tmp/users.csv", columns=["id", "name"]
                     )
 
@@ -1510,7 +1510,7 @@ class TestAsyncDatabaseCSV:
         db = AsyncDatabase(config)
 
         with pytest.raises(InvalidIdentifier):
-            await db.copy_to_csv("DROP TABLE", "/tmp/out.csv")
+            await db.backup.copy_to_csv("DROP TABLE", "/tmp/out.csv")
 
     async def test_copy_from_csv_basic(self, config):
         """Test basic copy_from_csv."""
@@ -1558,7 +1558,7 @@ class TestAsyncDatabaseCSV:
 
             mock_to_thread.side_effect = to_thread_side_effect
 
-            count = await db.copy_from_csv("users", "/tmp/users.csv")
+            count = await db.backup.copy_from_csv("users", "/tmp/users.csv")
 
         assert count == 2
         copy_call = mock_cursor.copy.call_args
@@ -1606,7 +1606,7 @@ class TestAsyncDatabaseCSV:
 
             mock_to_thread.side_effect = to_thread_side_effect
 
-            await db.copy_from_csv("users", "/tmp/users.csv", columns=["id", "name"])
+            await db.backup.copy_from_csv("users", "/tmp/users.csv", columns=["id", "name"])
 
         copy_call = mock_cursor.copy.call_args
         sql = copy_call[0][0]
@@ -1617,7 +1617,7 @@ class TestAsyncDatabaseCSV:
         db = AsyncDatabase(config)
 
         with pytest.raises(InvalidIdentifier):
-            await db.copy_from_csv("DROP TABLE", "/tmp/in.csv")
+            await db.backup.copy_from_csv("DROP TABLE", "/tmp/in.csv")
 
 
 @pytest.mark.asyncio
@@ -1627,10 +1627,10 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_basic(self, config):
         """Test create_role with basic login user."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
         db.execute = AsyncMock()
 
-        await db.create_role("appuser")
+        await db.admin.create_role("appuser")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1642,7 +1642,7 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_with_password(self, config):
         """Test create_role with password uses parameterized query."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
 
         # Mock cursor context manager
         mock_cursor = MagicMock()
@@ -1654,7 +1654,7 @@ class TestAsyncDatabaseRoles:
 
         db.cursor = MagicMock(side_effect=cursor_cm)
 
-        await db.create_role("appuser", password="secret123")
+        await db.admin.create_role("appuser", password="secret123")
 
         # Verify cursor was called with autocommit=True
         db.cursor.assert_called_once_with(autocommit=True)
@@ -1671,10 +1671,10 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_if_not_exists_returns_early(self, config):
         """Test create_role returns early if role exists and if_not_exists=True."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=True)
+        db.admin.role_exists = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.create_role("appuser")
+        await db.admin.create_role("appuser")
 
         # execute should NOT be called
         db.execute.assert_not_called()
@@ -1682,10 +1682,10 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_with_options(self, config):
         """Test create_role with various role options."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
         db.execute = AsyncMock()
 
-        await db.create_role(
+        await db.admin.create_role(
             "admin",
             superuser=True,
             createdb=True,
@@ -1706,24 +1706,24 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_with_in_roles(self, config):
         """Test create_role grants membership to specified roles."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
         db.execute = AsyncMock()
-        db.grant_role = AsyncMock()
+        db.admin.grant_role = AsyncMock()
 
-        await db.create_role("analyst", in_roles=["readonly", "reporting"])
+        await db.admin.create_role("analyst", in_roles=["readonly", "reporting"])
 
         # Verify grant_role was called for each role
-        assert db.grant_role.call_count == 2
-        db.grant_role.assert_any_call("readonly", "analyst")
-        db.grant_role.assert_any_call("reporting", "analyst")
+        assert db.admin.grant_role.call_count == 2
+        db.admin.grant_role.assert_any_call("readonly", "analyst")
+        db.admin.grant_role.assert_any_call("reporting", "analyst")
 
     async def test_create_role_nologin(self, config):
         """Test create_role with login=False creates group role."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
         db.execute = AsyncMock()
 
-        await db.create_role("readonly", login=False)
+        await db.admin.create_role("readonly", login=False)
 
         call_args = db.execute.call_args
         sql = call_args[0][0]
@@ -1732,10 +1732,10 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_noinherit(self, config):
         """Test create_role with inherit=False."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
         db.execute = AsyncMock()
 
-        await db.create_role("noinherit_role", inherit=False)
+        await db.admin.create_role("noinherit_role", inherit=False)
 
         call_args = db.execute.call_args
         sql = call_args[0][0]
@@ -1744,10 +1744,10 @@ class TestAsyncDatabaseRoles:
     async def test_create_role_with_valid_until(self, config):
         """Test create_role with password expiration."""
         db = AsyncDatabase(config)
-        db.role_exists = AsyncMock(return_value=False)
+        db.admin.role_exists = AsyncMock(return_value=False)
         db.execute = AsyncMock()
 
-        await db.create_role("tempuser", valid_until="2025-12-31")
+        await db.admin.create_role("tempuser", valid_until="2025-12-31")
 
         call_args = db.execute.call_args
         sql = call_args[0][0]
@@ -1758,7 +1758,7 @@ class TestAsyncDatabaseRoles:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_role("olduser")
+        await db.admin.drop_role("olduser")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1771,7 +1771,7 @@ class TestAsyncDatabaseRoles:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_role("olduser", if_exists=False)
+        await db.admin.drop_role("olduser", if_exists=False)
 
         call_args = db.execute.call_args
         sql = call_args[0][0]
@@ -1783,7 +1783,7 @@ class TestAsyncDatabaseRoles:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.alter_role("oldname", rename_to="newname")
+        await db.admin.alter_role("oldname", rename_to="newname")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1804,7 +1804,7 @@ class TestAsyncDatabaseRoles:
 
         db.cursor = MagicMock(side_effect=cursor_cm)
 
-        await db.alter_role("appuser", password="newpassword")
+        await db.admin.alter_role("appuser", password="newpassword")
 
         db.cursor.assert_called_once_with(autocommit=True)
         mock_cursor.execute.assert_called_once()
@@ -1828,7 +1828,7 @@ class TestAsyncDatabaseRoles:
 
         db.cursor = MagicMock(side_effect=cursor_cm)
 
-        await db.alter_role("appuser", login=False, createdb=True, superuser=False)
+        await db.admin.alter_role("appuser", login=False, createdb=True, superuser=False)
 
         mock_cursor.execute.assert_called_once()
         call_args = mock_cursor.execute.call_args
@@ -1850,7 +1850,7 @@ class TestAsyncDatabaseRoles:
 
         db.cursor = MagicMock(side_effect=cursor_cm)
 
-        await db.alter_role("appuser", connection_limit=5)
+        await db.admin.alter_role("appuser", connection_limit=5)
 
         mock_cursor.execute.assert_called_once()
         call_args = mock_cursor.execute.call_args
@@ -1870,7 +1870,7 @@ class TestAsyncDatabaseRoles:
 
         db.cursor = MagicMock(side_effect=cursor_cm)
 
-        await db.alter_role("appuser", valid_until="2026-12-31")
+        await db.admin.alter_role("appuser", valid_until="2026-12-31")
 
         mock_cursor.execute.assert_called_once()
         call_args = mock_cursor.execute.call_args
@@ -1887,7 +1887,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("SELECT", "users", "readonly")
+        await db.admin.grant("SELECT", "users", "readonly")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1900,7 +1900,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
+        await db.admin.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1912,7 +1912,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
+        await db.admin.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1924,7 +1924,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
+        await db.admin.grant("SELECT", "ALL TABLES", "readonly", schema="public")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1936,7 +1936,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("USAGE", "ALL SEQUENCES", "appuser", schema="myschema")
+        await db.admin.grant("USAGE", "ALL SEQUENCES", "appuser", schema="myschema")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1948,7 +1948,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("EXECUTE", "ALL FUNCTIONS", "appuser", schema="public")
+        await db.admin.grant("EXECUTE", "ALL FUNCTIONS", "appuser", schema="public")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1960,7 +1960,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant("SELECT", "users", "admin", with_grant_option=True)
+        await db.admin.grant("SELECT", "users", "admin", with_grant_option=True)
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1972,7 +1972,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant(["SELECT", "INSERT", "UPDATE"], "users", "appuser")
+        await db.admin.grant(["SELECT", "INSERT", "UPDATE"], "users", "appuser")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1984,7 +1984,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.revoke("INSERT", "users", "readonly")
+        await db.admin.revoke("INSERT", "users", "readonly")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1997,7 +1997,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.revoke("USAGE", "myschema", "olduser", object_type="SCHEMA")
+        await db.admin.revoke("USAGE", "myschema", "olduser", object_type="SCHEMA")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2009,7 +2009,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.revoke("ALL", "orders", "former_user", cascade=True)
+        await db.admin.revoke("ALL", "orders", "former_user", cascade=True)
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2021,7 +2021,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.revoke("DELETE", "ALL TABLES", "readonly", schema="public")
+        await db.admin.revoke("DELETE", "ALL TABLES", "readonly", schema="public")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2033,7 +2033,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.revoke(["INSERT", "UPDATE", "DELETE"], "users", "readonly")
+        await db.admin.revoke(["INSERT", "UPDATE", "DELETE"], "users", "readonly")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2045,7 +2045,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant_role("readonly", "analyst")
+        await db.admin.grant_role("readonly", "analyst")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2058,7 +2058,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.grant_role("admin", "lead_dev", with_admin=True)
+        await db.admin.grant_role("admin", "lead_dev", with_admin=True)
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2070,7 +2070,7 @@ class TestAsyncDatabasePrivileges:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.revoke_role("admin", "former_admin")
+        await db.admin.revoke_role("admin", "former_admin")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -2090,7 +2090,7 @@ class TestAsyncDatabaseRoleInspection:
             return_value=[{"member": "analyst"}, {"member": "viewer"}]
         )
 
-        result = await db.list_role_members("readonly")
+        result = await db.admin.list_role_members("readonly")
 
         assert result == ["analyst", "viewer"]
         db.execute.assert_called_once()
@@ -2105,7 +2105,7 @@ class TestAsyncDatabaseRoleInspection:
         db = AsyncDatabase(config)
         db.execute = AsyncMock(return_value=[])
 
-        result = await db.list_role_members("emptyrole")
+        result = await db.admin.list_role_members("emptyrole")
 
         assert result == []
 
@@ -2119,7 +2119,7 @@ class TestAsyncDatabaseRoleInspection:
             ]
         )
 
-        result = await db.list_role_grants("appuser")
+        result = await db.admin.list_role_grants("appuser")
 
         assert len(result) == 2
         assert result[0]["schema"] == "public"
@@ -2137,7 +2137,7 @@ class TestAsyncDatabaseRoleInspection:
         db = AsyncDatabase(config)
         db.execute = AsyncMock(return_value=[])
 
-        result = await db.list_role_grants("nogrants")
+        result = await db.admin.list_role_grants("nogrants")
 
         assert result == []
 
@@ -2773,8 +2773,8 @@ class TestAsyncDatabaseCorrectnessFixes:
 
         adb = AsyncDatabase(db_config)
         sdb = Database(db_config)
-        a_roles = await adb.list_roles()
-        s_roles = sdb.list_roles()
+        a_roles = await adb.admin.list_roles()
+        s_roles = sdb.admin.list_roles()
         if a_roles and s_roles:
             assert {*a_roles[0].keys()} == {*s_roles[0].keys()}
 
@@ -2812,9 +2812,9 @@ class TestAsyncDatabaseCoverageFill:
         try:
             await db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
             await db.insert_many(t, [{"id": i} for i in range(3)])
-            assert isinstance(await db.size(pretty=True), str)
-            assert isinstance(await db.size(pretty=False), int)
-            assert await db.table_size(t) is not None
+            assert isinstance(await db.maint.size(pretty=True), str)
+            assert isinstance(await db.maint.size(pretty=False), int)
+            assert await db.maint.table_size(t) is not None
             assert isinstance(await db.row_count(t), int)
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
@@ -2830,13 +2830,13 @@ class TestAsyncDatabaseCoverageFill:
             )
             await db.insert_many(src, [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}])
             csv_path = tmp_path / "async_out.csv"
-            exported = await db.copy_to_csv(src, str(csv_path))
+            exported = await db.backup.copy_to_csv(src, str(csv_path))
             assert exported == 2
             assert csv_path.exists()
             await db.execute(
                 f'CREATE TABLE "{dst}" (id INTEGER, name TEXT)', autocommit=True
             )
-            await db.copy_from_csv(dst, str(csv_path))
+            await db.backup.copy_from_csv(dst, str(csv_path))
             rows = await db.execute(f'SELECT id, name FROM "{dst}" ORDER BY id')
             assert rows == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
         finally:

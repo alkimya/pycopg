@@ -443,7 +443,7 @@ class TestDatabaseAdmin:
 
     def test_size(self, db):
         """Test getting database size."""
-        size = db.size()
+        size = db.maint.size()
         # Should return a string like "8 MB" or "123 kB"
         assert isinstance(size, str)
         assert any(unit in size for unit in ["bytes", "kB", "MB", "GB"])
@@ -460,7 +460,7 @@ class TestDatabaseAdmin:
         db.insert_batch(temp_table_name, [{"data": "x" * 1000} for _ in range(10)])
 
         # Get table sizes
-        sizes = db.table_sizes()
+        sizes = db.maint.table_sizes()
 
         # Should return a list of dicts
         assert isinstance(sizes, list)
@@ -481,7 +481,7 @@ class TestDatabaseAdmin:
         )
 
         # Run vacuum (just verify no error)
-        db.vacuum(temp_table_name)
+        db.maint.vacuum(temp_table_name)
 
     def test_analyze(self, db, temp_table_name, cleanup_table):
         """Test running ANALYZE on a table."""
@@ -494,7 +494,7 @@ class TestDatabaseAdmin:
         )
 
         # Run analyze (just verify no error)
-        db.analyze(temp_table_name)
+        db.maint.analyze(temp_table_name)
 
     def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
         """create(if_not_exists=False) on an existing DB raises DatabaseExists."""
@@ -767,12 +767,12 @@ class TestDatabaseCsvCoverage:
         db.insert_many(src, [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}])
 
         csv_path = tmp_path / "out.csv"
-        exported = db.copy_to_csv(src, str(csv_path))
+        exported = db.backup.copy_to_csv(src, str(csv_path))
         assert exported == 2
         assert csv_path.exists()
 
         db.execute(f'CREATE TABLE "{dst}" (id INTEGER, name TEXT)', autocommit=True)
-        db.copy_from_csv(dst, str(csv_path))
+        db.backup.copy_from_csv(dst, str(csv_path))
         rows = db.execute(f'SELECT id, name FROM "{dst}" ORDER BY id')
         assert rows == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
 
@@ -793,8 +793,8 @@ class TestDatabaseBulkAndSizeCoverage:
 
     def test_size_pretty_and_raw(self, db):
         """size returns a human string when pretty, an int otherwise."""
-        pretty = db.size(pretty=True)
-        raw = db.size(pretty=False)
+        pretty = db.maint.size(pretty=True)
+        raw = db.maint.size(pretty=False)
         assert isinstance(pretty, str)
         assert isinstance(raw, int)
 
@@ -804,7 +804,7 @@ class TestDatabaseBulkAndSizeCoverage:
         cleanup_table(t)
         db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
         db.insert_many(t, [{"id": i} for i in range(5)])
-        size = db.table_size(t)
+        size = db.maint.table_size(t)
         assert size is not None
         assert isinstance(db.row_count(t), int)
 

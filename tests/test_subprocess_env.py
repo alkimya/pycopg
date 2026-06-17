@@ -81,7 +81,7 @@ class TestPgDumpEnv:
         """The env passed to subprocess.run must contain keys from os.environ."""
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db.pg_dump("/tmp/backup.dump")
+            db.backup.pg_dump("/tmp/backup.dump")
 
         env = mock_run.call_args.kwargs["env"]
         assert "PATH" in env, "env must contain PATH (inherited from os.environ)"
@@ -90,7 +90,7 @@ class TestPgDumpEnv:
         """PGPASSWORD from config must be merged into the subprocess env."""
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db.pg_dump("/tmp/backup.dump")
+            db.backup.pg_dump("/tmp/backup.dump")
 
         env = mock_run.call_args.kwargs["env"]
         assert env.get("PGPASSWORD") == "s3cr3t"
@@ -99,7 +99,7 @@ class TestPgDumpEnv:
         """When config.password is falsy, our code must not inject empty PGPASSWORD."""
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_no_password)
-            db.pg_dump("/tmp/backup.dump")
+            db.backup.pg_dump("/tmp/backup.dump")
 
         env = mock_run.call_args.kwargs["env"]
         # Must still inherit process env (PATH check)
@@ -126,7 +126,7 @@ class TestPgDumpEnv:
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
             # Must NOT raise AttributeError (would fail on buggy code)
-            db.pg_dump("/tmp/backup.dump")
+            db.backup.pg_dump("/tmp/backup.dump")
 
         mock_run.assert_called_once()
 
@@ -147,7 +147,7 @@ class TestPgRestoreEnv:
 
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db.pg_restore(str(dump_file))
+            db.backup.pg_restore(str(dump_file))
 
         env = mock_run.call_args.kwargs["env"]
         assert "PATH" in env
@@ -159,7 +159,7 @@ class TestPgRestoreEnv:
 
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db.pg_restore(str(dump_file))
+            db.backup.pg_restore(str(dump_file))
 
         env = mock_run.call_args.kwargs["env"]
         assert env.get("PGPASSWORD") == "s3cr3t"
@@ -178,7 +178,7 @@ class TestPgRestoreEnv:
 
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db.pg_restore(str(dump_file))
+            db.backup.pg_restore(str(dump_file))
 
         mock_run.assert_called_once()
 
@@ -198,7 +198,7 @@ class TestPsqlRestoreEnv:
 
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db._psql_restore(sql_file)
+            db.backup._psql_restore(sql_file)
 
         env = mock_run.call_args.kwargs["env"]
         assert "PATH" in env
@@ -210,7 +210,7 @@ class TestPsqlRestoreEnv:
 
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db._psql_restore(sql_file)
+            db.backup._psql_restore(sql_file)
 
         env = mock_run.call_args.kwargs["env"]
         assert env.get("PGPASSWORD") == "s3cr3t"
@@ -229,6 +229,6 @@ class TestPsqlRestoreEnv:
 
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_with_password)
-            db._psql_restore(sql_file)
+            db.backup._psql_restore(sql_file)
 
         mock_run.assert_called_once()
