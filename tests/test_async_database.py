@@ -2,13 +2,13 @@
 
 import inspect
 from contextlib import asynccontextmanager
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
 from pycopg import AsyncDatabase, Config
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable, InvalidIdentifier
 from pycopg.utils import validate_identifier
-from pycopg.exceptions import InvalidIdentifier, ExtensionNotAvailable, DatabaseExists
 
 
 def create_async_cursor_mock(
@@ -737,7 +737,9 @@ class TestAsyncDatabaseGeoDataFrame:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="PostGIS extension not installed"):
+        with pytest.raises(
+            ExtensionNotAvailable, match="PostGIS extension not installed"
+        ):
             await db.from_geodataframe(gdf, "parcels")
 
         db.has_extension.assert_called_once_with("postgis")
@@ -2231,7 +2233,7 @@ class TestAsyncDatabaseTimescaleDB:
         db.has_extension = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.create_hypertable("events", "timestamp")
+        await db.timescale.create_hypertable("events", "timestamp")
 
         db.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
@@ -2245,8 +2247,10 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            await db.create_hypertable("events", "timestamp")
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.create_hypertable("events", "timestamp")
 
         db.has_extension.assert_called_once_with("timescaledb")
 
@@ -2256,7 +2260,9 @@ class TestAsyncDatabaseTimescaleDB:
         db.has_extension = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
+        await db.timescale.create_hypertable(
+            "events", "timestamp", chunk_time_interval="1 week"
+        )
 
         sql = db.execute.call_args[0][0]
         assert "INTERVAL '1 week'" in sql
@@ -2267,7 +2273,7 @@ class TestAsyncDatabaseTimescaleDB:
         db.has_extension = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.enable_compression("events", segment_by="device_id")
+        await db.timescale.enable_compression("events", segment_by="device_id")
 
         db.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
@@ -2282,7 +2288,7 @@ class TestAsyncDatabaseTimescaleDB:
         db.has_extension = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.enable_compression("events", order_by=["timestamp DESC"])
+        await db.timescale.enable_compression("events", order_by=["timestamp DESC"])
 
         sql = db.execute.call_args[0][0]
         assert "timescaledb.compress_orderby" in sql
@@ -2292,8 +2298,10 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            await db.enable_compression("events")
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.enable_compression("events")
 
     async def test_add_compression_policy_basic(self, config):
         """Test add_compression_policy with default interval."""
@@ -2301,7 +2309,7 @@ class TestAsyncDatabaseTimescaleDB:
         db.has_extension = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.add_compression_policy("events", compress_after="7 days")
+        await db.timescale.add_compression_policy("events", compress_after="7 days")
 
         db.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
@@ -2314,8 +2322,10 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            await db.add_compression_policy("events")
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.add_compression_policy("events")
 
     async def test_add_retention_policy_basic(self, config):
         """Test add_retention_policy."""
@@ -2323,7 +2333,7 @@ class TestAsyncDatabaseTimescaleDB:
         db.has_extension = AsyncMock(return_value=True)
         db.execute = AsyncMock()
 
-        await db.add_retention_policy("events", drop_after="90 days")
+        await db.timescale.add_retention_policy("events", drop_after="90 days")
 
         db.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
@@ -2336,8 +2346,10 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            await db.add_retention_policy("events", drop_after="90 days")
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.add_retention_policy("events", drop_after="90 days")
 
     async def test_list_hypertables_basic(self, config):
         """Test list_hypertables returns hypertable info."""
@@ -2355,7 +2367,7 @@ class TestAsyncDatabaseTimescaleDB:
             ]
         )
 
-        result = await db.list_hypertables()
+        result = await db.timescale.list_hypertables()
 
         assert len(result) == 1
         assert result[0]["table_name"] == "events"
@@ -2369,8 +2381,10 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            await db.list_hypertables()
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.list_hypertables()
 
     async def test_hypertable_info_basic(self, config):
         """Test hypertable_info returns size info."""
@@ -2380,7 +2394,7 @@ class TestAsyncDatabaseTimescaleDB:
             return_value=[{"total_size": "100 MB", "detailed_size": "detailed info"}]
         )
 
-        result = await db.hypertable_info("events")
+        result = await db.timescale.hypertable_info("events")
 
         assert result["total_size"] == "100 MB"
         db.has_extension.assert_called_once_with("timescaledb")
@@ -2393,8 +2407,10 @@ class TestAsyncDatabaseTimescaleDB:
         db = AsyncDatabase(config)
         db.has_extension = AsyncMock(return_value=False)
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            await db.hypertable_info("events")
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.hypertable_info("events")
 
 
 class TestAsyncDatabaseConstraintsIntegration:
@@ -2844,10 +2860,10 @@ class TestAsyncDatabaseCoverageFill:
                 f'CREATE TABLE "{t}" (ts TIMESTAMPTZ NOT NULL, v DOUBLE PRECISION)',
                 autocommit=True,
             )
-            await db.create_hypertable(t, "ts", chunk_time_interval="1 day")
-            info = await db.hypertable_info(t)
+            await db.timescale.create_hypertable(t, "ts", chunk_time_interval="1 day")
+            info = await db.timescale.hypertable_info(t)
             assert "total_size" in info
-            hts = await db.list_hypertables()
+            hts = await db.timescale.list_hypertables()
             assert any(h["table_name"] == t for h in hts)
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)

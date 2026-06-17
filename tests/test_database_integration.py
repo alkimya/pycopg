@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from pycopg import Config, Database
+from pycopg import Database
 from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 
 
@@ -855,12 +855,12 @@ class TestDatabaseTimescaleCoverage:
             f'CREATE TABLE "{t}" (ts TIMESTAMPTZ NOT NULL, device TEXT, val DOUBLE PRECISION)',
             autocommit=True,
         )
-        ts_db.create_hypertable(t, "ts", chunk_time_interval="1 day")
+        ts_db.timescale.create_hypertable(t, "ts", chunk_time_interval="1 day")
 
-        info = ts_db.hypertable_info(t)
+        info = ts_db.timescale.hypertable_info(t)
         assert "total_size" in info
 
-        hypertables = ts_db.list_hypertables()
+        hypertables = ts_db.timescale.list_hypertables()
         assert any(h["table_name"] == t for h in hypertables)
 
         # Compression/retention are TimescaleDB-licensed features. On the Apache
@@ -869,9 +869,11 @@ class TestDatabaseTimescaleCoverage:
         from psycopg.errors import FeatureNotSupported
 
         try:
-            ts_db.enable_compression(t, segment_by="device", order_by="ts DESC")
-            ts_db.add_compression_policy(t, compress_after="7 days")
-            ts_db.add_retention_policy(t, drop_after="365 days")
+            ts_db.timescale.enable_compression(
+                t, segment_by="device", order_by="ts DESC"
+            )
+            ts_db.timescale.add_compression_policy(t, compress_after="7 days")
+            ts_db.timescale.add_retention_policy(t, drop_after="365 days")
         except FeatureNotSupported:
             pass
 
@@ -879,5 +881,7 @@ class TestDatabaseTimescaleCoverage:
         """create_hypertable raises RuntimeError when timescaledb is absent."""
         t = f"test_ht_err_{uuid.uuid4().hex[:8]}"
         monkeypatch.setattr(db, "has_extension", lambda name: False)
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
-            db.create_hypertable(t, "ts")
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.create_hypertable(t, "ts")

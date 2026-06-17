@@ -121,13 +121,13 @@ class TestSyncValueInjection:
 
     def test_compression_interval(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.add_compression_policy(
+            sync_db.timescale.add_compression_policy(
                 "events", compress_after="1 day'); DROP TABLE x; --"
             )
 
     def test_retention_interval(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.add_retention_policy("logs", drop_after="evil")
+            sync_db.timescale.add_retention_policy("logs", drop_after="evil")
 
     def test_grant_privileges(self, sync_db):
         with pytest.raises(InvalidIdentifier):
@@ -197,12 +197,14 @@ class TestAsyncValueInjection:
     @pytest.mark.asyncio
     async def test_compression_interval(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.add_compression_policy("events", compress_after="evil")
+            await async_db.timescale.add_compression_policy(
+                "events", compress_after="evil"
+            )
 
     @pytest.mark.asyncio
     async def test_retention_interval(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.add_retention_policy("logs", drop_after="evil")
+            await async_db.timescale.add_retention_policy("logs", drop_after="evil")
 
     @pytest.mark.asyncio
     async def test_grant_privileges(self, async_db):
