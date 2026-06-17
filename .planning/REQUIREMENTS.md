@@ -31,7 +31,7 @@ pattern, les phases suivantes le répliquent).
 
 ### Admin accessor (ADM)
 
-- [ ] **ADM-01**: `db.admin.*` / `async_db.admin.*` exposes the 12 role & permission methods (`create_role`, `drop_role`, `role_exists`, `list_roles`, `alter_role`, `grant_role`, `revoke_role`, `grant`, `revoke`, `list_role_members`, `list_role_grants`); the flat `db.*` names remain as deprecated aliases.
+- [x] **ADM-01**: `db.admin.*` / `async_db.admin.*` exposes the 12 role & permission methods (`create_role`, `drop_role`, `role_exists`, `list_roles`, `alter_role`, `grant_role`, `revoke_role`, `grant`, `revoke`, `list_role_members`, `list_role_grants`); the flat `db.*` names remain as deprecated aliases.
 
 ### Schema accessor (SCH)
 
@@ -40,11 +40,11 @@ pattern, les phases suivantes le répliquent).
 
 ### Maint accessor (MNT)
 
-- [ ] **MNT-01**: `db.maint.*` / `async_db.maint.*` exposes the 6 maintenance/size methods (`size`, `table_size`, `table_sizes`, `vacuum`, `analyze`, `explain`); the flat `db.*` names remain as deprecated aliases.
+- [x] **MNT-01**: `db.maint.*` / `async_db.maint.*` exposes the 6 maintenance/size methods (`size`, `table_size`, `table_sizes`, `vacuum`, `analyze`, `explain`); the flat `db.*` names remain as deprecated aliases.
 
 ### Backup accessor (BKP)
 
-- [ ] **BKP-01**: `db.backup.*` / `async_db.backup.*` exposes the 4 dump/restore/CSV methods (`pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv`); the flat `db.*` names remain as deprecated aliases.
+- [x] **BKP-01**: `db.backup.*` / `async_db.backup.*` exposes the 4 dump/restore/CSV methods (`pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv`); the flat `db.*` names remain as deprecated aliases.
 
 ## v2 Requirements
 
@@ -90,9 +90,9 @@ Which phases cover which requirements. Populated during roadmap creation.
 | REORG-03 | Phase 21 | Complete |
 | REORG-04 | Phase 21 | Complete |
 | TS-01 | Phase 21 | Complete |
-| ADM-01 | Phase 22 | Pending |
-| MNT-01 | Phase 22 | Pending |
-| BKP-01 | Phase 22 | Pending |
+| ADM-01 | Phase 22 | Complete |
+| MNT-01 | Phase 22 | Complete |
+| BKP-01 | Phase 22 | Complete |
 | SCH-01 | Phase 23 | Pending |
 | SCH-02 | Phase 23 | Pending |
 | REORG-05 | Phase 24 | Pending |

@@ -16,7 +16,7 @@
   - [x] 21-01-PLAN.md — Create `pycopg/aliases.py` (`@deprecated_alias`) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 methods moved verbatim)
   - [x] 21-02-PLAN.md — Wire `db.timescale`/`async_db.timescale` lazy properties + replace the 6 flat methods with deprecated stubs + `__init__.py` exports
   - [x] 21-03-PLAN.md — Alias warn+delegate tests (D-09), `ACCESSOR_PAIRS` parity registry (D-10), migrate 27 call-sites (D-08), no-noise + coverage gate
-- [ ] **Phase 22: Admin, Maint & Backup Accessors** - Replicate the proven pattern across the three smaller accessors (12 + 6 + 4 methods)
+- [x] **Phase 22: Admin, Maint & Backup Accessors** - Replicate the proven pattern across the three smaller accessors (12 + 6 + 4 methods) (completed 2026-06-17)
 - [ ] **Phase 23: Schema Accessor & Spatial Relocation** - Migrate the largest block (~26 DDL/introspection methods) and relocate the 2 spatial-index methods to `db.spatial.*`
 - [ ] **Phase 24: Exports, Docs & Release v0.6.0** - Wire `__init__.py` exports, README/Sphinx/CHANGELOG/MIGRATION, version bump, tag + PyPI publish
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete   | 2026-06-17 |
+| 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/? | Not started | - |
 | 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |

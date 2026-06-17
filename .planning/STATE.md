@@ -4,14 +4,14 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
 stopped_at: Phase 22 context gathered
-last_updated: "2026-06-17T16:39:07.512Z"
-last_activity: 2026-06-17 -- Phase 22 execution started
+last_updated: "2026-06-17T17:57:32.519Z"
+last_activity: 2026-06-17
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 3
-  percent: 25
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 ## Current Position
 
-Phase: 22 (admin-maint-backup-accessors) — EXECUTING
-Plan: 1 of 3
+Phase: 23
+Plan: Not started
 Status: Executing Phase 22
-Last activity: 2026-06-17 -- Phase 22 execution started
+Last activity: 2026-06-17
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0%
 
