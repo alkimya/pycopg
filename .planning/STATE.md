@@ -1,10 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.6.0
-milestone_name: Réorganisation en accessors
-status: in_progress
-last_updated: "2026-06-17T00:00:00.000Z"
-last_activity: 2026-06-17
+milestone_name: — Réorganisation en accessors
+status: planning
+stopped_at: Phase 21 context gathered
+last_updated: "2026-06-17T11:24:32.736Z"
+last_activity: 2026-06-17 — Roadmap created (Phases 21-24)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -79,9 +80,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17 — milestone v0.6.0 started + roadmap created via /gsd-new-milestone (roadmapper agent)
-Stopped at: ROADMAP.md written (Phases 21-24); REQUIREMENTS.md traceability filled; STATE.md updated
-Resume file: None
+Last session: 2026-06-17T11:24:32.729Z
+Stopped at: Phase 21 context gathered
+Resume file: .planning/phases/21-infrastructure-timescale-accessor/21-CONTEXT.md
 Next action: `/gsd-plan-phase 21`
 
 ## Operator Next Steps
