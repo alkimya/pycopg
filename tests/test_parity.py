@@ -12,6 +12,7 @@ from pycopg.admin import AdminAccessor, AsyncAdminAccessor
 from pycopg.backup import AsyncBackupAccessor, BackupAccessor
 from pycopg.etl import AsyncETLAccessor, ETLAccessor
 from pycopg.maint import AsyncMaintAccessor, MaintAccessor
+from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
 from pycopg.spatial import AsyncSpatialAccessor, SpatialAccessor
 from pycopg.timescale import AsyncTimescaleAccessor, TimescaleAccessor
 
@@ -27,6 +28,7 @@ ACCESSOR_PAIRS = [
     (MaintAccessor, AsyncMaintAccessor),
     (BackupAccessor, AsyncBackupAccessor),
     (SpatialAccessor, AsyncSpatialAccessor),
+    (SchemaAccessor, AsyncSchemaAccessor),
 ]
 
 
