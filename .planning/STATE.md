@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
-status: executing
+status: verifying
 stopped_at: Phase 23 Plan 03 complete
-last_updated: "2026-06-17T23:50:00Z"
-last_activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites)
+last_updated: "2026-06-17T22:33:56.906Z"
+last_activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites + -W error gate)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 70
+  completed_plans: 10
+  percent: 75
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 Phase: 23 (schema-accessor-spatial-relocation) — EXECUTING
 Plan: 4 of 4
-Status: Executing Phase 23 (Plans 01-03 complete)
+Status: Phase complete — ready for verification
 Last activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites + -W error gate)
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
@@ -47,6 +47,7 @@ Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans co
 | 22. Admin, Maint & Backup Accessors | TBD | 0 | Not started |
 | 23. Schema Accessor & Spatial Relocation | 4 | 3 | Executing (Plans 01-03 done) |
 | 24. Exports, Docs & Release v0.6.0 | TBD | 0 | Not started |
+| Phase 23 P04 | 45m | 4 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,9 @@ v0.6.0 locked decisions (D-SCOPE-1..4, see `.planning/v0.6.0-SCOPE.md`):
 - D-SCOPE-4: parité sync/async obligatoire; `test_parity` enregistre les 5 nouveaux accessors.
 
 Open questions tranchées au cadrage (2026-06-17): `db.schema.*` reste un seul bloc (DDL + introspection); DataFrame reste à plat sur `db.*`; `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`.
+
+- [Phase ?]: D-01 confirmed: 27 schema methods exactly in SchemaAccessor/AsyncSchemaAccessor
+- [Phase ?]: Rule 1 auto-fix: etl.py + timescale.py internal deprecated flat calls rewritten to accessor paths
 
 ### Roadmap phase mapping (v0.6.0)
 
@@ -88,7 +92,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17T23:50:00Z
+Last session: 2026-06-17T22:33:52.064Z
 Stopped at: Phase 23 Plan 03 complete
 Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-03-SUMMARY.md
 Next action: Execute Phase 23 Plan 04
