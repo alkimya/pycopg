@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
-stopped_at: Phase 23 Plan 02 complete
-last_updated: "2026-06-17T22:30:00Z"
-last_activity: 2026-06-17 -- Phase 23 Plan 02 executed (SchemaAccessor wired into Database/AsyncDatabase)
+stopped_at: Phase 23 Plan 03 complete
+last_updated: "2026-06-17T23:50:00Z"
+last_activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
-  percent: 60
+  completed_plans: 9
+  percent: 70
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 ## Current Position
 
 Phase: 23 (schema-accessor-spatial-relocation) — EXECUTING
-Plan: 3 of 4
-Status: Executing Phase 23 (Plans 01-02 complete)
-Last activity: 2026-06-17 -- Phase 23 Plan 02 executed (SchemaAccessor wired into Database/AsyncDatabase)
+Plan: 4 of 4
+Status: Executing Phase 23 (Plans 01-03 complete)
+Last activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites + -W error gate)
 
-Progress: 0/4 phases complete [░░░░░░░░░░] 0% (8/10 plans complete)
+Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
 
 ## Performance Metrics
 
@@ -45,7 +45,7 @@ Progress: 0/4 phases complete [░░░░░░░░░░] 0% (8/10 plans co
 |-------|-------|----------|--------|
 | 21. Infrastructure & Timescale Accessor | TBD | 0 | Not started |
 | 22. Admin, Maint & Backup Accessors | TBD | 0 | Not started |
-| 23. Schema Accessor & Spatial Relocation | 4 | 2 | Executing (Plans 01-02 done) |
+| 23. Schema Accessor & Spatial Relocation | 4 | 3 | Executing (Plans 01-03 done) |
 | 24. Exports, Docs & Release v0.6.0 | TBD | 0 | Not started |
 
 ## Accumulated Context
@@ -70,6 +70,14 @@ Open questions tranchées au cadrage (2026-06-17): `db.schema.*` reste un seul b
 - Phase 23: SCH-01, SCH-02 — schema (~26 methods) + spatial relocation
 - Phase 24: REORG-05 — exports + docs + release v0.6.0
 
+### Decisions
+
+- D-07 honoured: create_spatial_index + list_geometry_columns moved verbatim into SpatialAccessor/AsyncSpatialAccessor (no builder/run conformance)
+- D-05 executed atomically: all 8 call-sites in from_dataframe/from_geodataframe rewritten to accessor paths
+- D-06 accepted: SpatialAccessor PostGIS guard now applies to deprecated flat path (cleaner failure mode)
+- (SpatialAccessor, AsyncSpatialAccessor) added to ACCESSOR_PAIRS (was absent — CONTEXT.md correction)
+- Internal deprecated calls in spatial.py fixed: SpatialAccessor.__init__ + AsyncSpatialAccessor._check_postgis now use db.schema.has_extension (Rule 1 auto-fix)
+
 ### Pending Todos
 
 None.
@@ -80,11 +88,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17T22:30:00Z
-Stopped at: Phase 23 Plan 02 complete
-Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-02-SUMMARY.md
-Next action: Execute Phase 23 Plan 03
+Last session: 2026-06-17T23:50:00Z
+Stopped at: Phase 23 Plan 03 complete
+Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-03-SUMMARY.md
+Next action: Execute Phase 23 Plan 04
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 23` Plan 03 to add schema alias tests, migrate call-sites (D-05), and complete the schema track.
+- Run `/gsd-execute-phase 23` Plan 04 to add schema alias tests, update test_parity with SchemaAccessor pair, and finalize the schema track.
