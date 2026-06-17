@@ -8,7 +8,10 @@ import inspect
 import pytest
 
 from pycopg import AsyncDatabase, Database
+from pycopg.admin import AdminAccessor, AsyncAdminAccessor
+from pycopg.backup import AsyncBackupAccessor, BackupAccessor
 from pycopg.etl import AsyncETLAccessor, ETLAccessor
+from pycopg.maint import AsyncMaintAccessor, MaintAccessor
 from pycopg.timescale import AsyncTimescaleAccessor, TimescaleAccessor
 
 # ---------------------------------------------------------------------------
@@ -19,6 +22,9 @@ from pycopg.timescale import AsyncTimescaleAccessor, TimescaleAccessor
 ACCESSOR_PAIRS = [
     (TimescaleAccessor, AsyncTimescaleAccessor),
     (ETLAccessor, AsyncETLAccessor),
+    (AdminAccessor, AsyncAdminAccessor),
+    (MaintAccessor, AsyncMaintAccessor),
+    (BackupAccessor, AsyncBackupAccessor),
 ]
 
 
