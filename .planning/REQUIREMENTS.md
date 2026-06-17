@@ -19,15 +19,15 @@ Requirements for the v0.6.0 release. Each maps to exactly one roadmap phase.
 Mécanisme transverse partagé par tous les accessors. À livrer en premier (la phase 1 valide le
 pattern, les phases suivantes le répliquent).
 
-- [ ] **REORG-01**: A `@deprecated_alias("db.<accessor>.<method>")` decorator emits a uniform `DeprecationWarning` (message pointing to the new path, correct `stacklevel`) and delegates to the accessor; sync and async variants exist.
-- [ ] **REORG-02**: Each migrated method keeps a working flat alias on `db.*` / `async_db.*` that warns and delegates — zero breaking change for existing callers (D-SCOPE-1/D-SCOPE-2).
-- [ ] **REORG-03**: `test_parity` registers the 5 new accessors and verifies sync ↔ async surface parity for every moved method (D-SCOPE-4).
-- [ ] **REORG-04**: Coverage ratchet held at ≥94% — every alias has a test asserting it both warns and delegates correctly; existing tests' `DeprecationWarning` noise is filtered (no `-W error` breakage).
+- [x] **REORG-01**: A `@deprecated_alias("db.<accessor>.<method>")` decorator emits a uniform `DeprecationWarning` (message pointing to the new path, correct `stacklevel`) and delegates to the accessor; sync and async variants exist.
+- [x] **REORG-02**: Each migrated method keeps a working flat alias on `db.*` / `async_db.*` that warns and delegates — zero breaking change for existing callers (D-SCOPE-1/D-SCOPE-2).
+- [x] **REORG-03**: `test_parity` registers the 5 new accessors and verifies sync ↔ async surface parity for every moved method (D-SCOPE-4).
+- [x] **REORG-04**: Coverage ratchet held at ≥94% — every alias has a test asserting it both warns and delegates correctly; existing tests' `DeprecationWarning` noise is filtered (no `-W error` breakage).
 - [ ] **REORG-05**: New accessor classes are exported in `__init__.py` `__all__` (mirroring `SpatialAccessor`/`ETLAccessor`); README + Sphinx document the `db.X.*` surface; CHANGELOG + MIGRATION note the deprecation cycle (removal in v0.7.0).
 
 ### Timescale accessor (TS)
 
-- [ ] **TS-01**: `db.timescale.*` / `async_db.timescale.*` exposes the 6 TimescaleDB methods (`create_hypertable`, `enable_compression`, `add_compression_policy`, `add_retention_policy`, `list_hypertables`, `hypertable_info`); the flat `db.*` names remain as deprecated aliases.
+- [x] **TS-01**: `db.timescale.*` / `async_db.timescale.*` exposes the 6 TimescaleDB methods (`create_hypertable`, `enable_compression`, `add_compression_policy`, `add_retention_policy`, `list_hypertables`, `hypertable_info`); the flat `db.*` names remain as deprecated aliases.
 
 ### Admin accessor (ADM)
 
@@ -85,11 +85,11 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REORG-01 | Phase 21 | Pending |
-| REORG-02 | Phase 21 | Pending |
-| REORG-03 | Phase 21 | Pending |
-| REORG-04 | Phase 21 | Pending |
-| TS-01 | Phase 21 | Pending |
+| REORG-01 | Phase 21 | Complete |
+| REORG-02 | Phase 21 | Complete |
+| REORG-03 | Phase 21 | Complete |
+| REORG-04 | Phase 21 | Complete |
+| TS-01 | Phase 21 | Complete |
 | ADM-01 | Phase 22 | Pending |
 | MNT-01 | Phase 22 | Pending |
 | BKP-01 | Phase 22 | Pending |
@@ -98,6 +98,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | REORG-05 | Phase 24 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 11 total
 - Mapped to phases: 11
 - Unmapped: 0 ✓

@@ -4,14 +4,14 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-17T12:10:32.087Z"
-last_activity: 2026-06-17 -- Phase 21 execution started
+last_updated: "2026-06-17T13:30:47.367Z"
+last_activity: 2026-06-17
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 0
-  percent: 0
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 ## Current Position
 
-Phase: 21 (infrastructure-timescale-accessor) — EXECUTING
-Plan: 1 of 3
+Phase: 22
+Plan: Not started
 Status: Executing Phase 21
-Last activity: 2026-06-17 -- Phase 21 execution started
+Last activity: 2026-06-17
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0%
 
