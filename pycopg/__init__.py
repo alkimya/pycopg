@@ -24,6 +24,7 @@ from pycopg.exceptions import (
 from pycopg.migrations import Migrator
 from pycopg.pool import AsyncPooledDatabase, PooledDatabase
 from pycopg.spatial import AsyncSpatialAccessor, SpatialAccessor
+from pycopg.timescale import AsyncTimescaleAccessor, TimescaleAccessor
 from pycopg.utils import (
     validate_identifier,
     validate_identifiers,
@@ -55,6 +56,9 @@ __all__ = [
     "AsyncETLAccessor",
     "RunResult",
     "Pipeline",
+    # TimescaleDB
+    "TimescaleAccessor",
+    "AsyncTimescaleAccessor",
     # Exceptions
     "PycopgError",
     "ConnectionError",
