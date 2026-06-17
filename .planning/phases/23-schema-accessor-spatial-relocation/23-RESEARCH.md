@@ -561,17 +561,22 @@ def list_geometry_columns(self, *args, **kwargs):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Both questions below were resolved during planning (2026-06-17). Resolutions are encoded in the
+> Phase 23 plans; the recommendations were adopted as-is. Kept here for provenance — NOT open.
 
 1. **Should `(SpatialAccessor, AsyncSpatialAccessor)` be added to `ACCESSOR_PAIRS` in Phase 23?**
    - What we know: It is NOT currently there (CONTEXT.md wrong). The spatial relocation plan adds 2 methods to both classes.
    - What's unclear: Is adding the pair in scope for Phase 23's spatial-relocation plan or deferred to Phase 24?
    - Recommendation: Add it in the spatial-relocation plan (it is low-cost, already-existing classes, and the pair would then be tested via `test_accessor_parity` like all others). The planner should include one task for it.
+   - **RESOLVED:** Adopted — see **plan 23-03 task 3** (adds the import + `(SpatialAccessor, AsyncSpatialAccessor)` tuple to `ACCESSOR_PAIRS`). In scope for Phase 23, not deferred.
 
 2. **Should async `create_spatial_index`/`list_geometry_columns` in `AsyncSpatialAccessor` call `await self._check_postgis()`?**
    - What we know: All other async spatial methods call `_check_postgis()`. D-06 says "accept the changed failure mode." The sync path guards at `__init__`, the async path guards per-method.
    - What's unclear: Is this a "move verbatim" (skip `_check_postgis()`) or "move to be consistent with the class" (add it)?
    - Recommendation: Add `await self._check_postgis()` for consistency with all other async spatial methods. D-06's "accept the changed failure mode" refers to the behavior vs the OLD flat path (no guard at all), not an instruction to skip the class's own consistency. This is a one-line addition per async method body.
+   - **RESOLVED:** Adopted — see **plan 23-03 task 1** (mandates `await self._check_postgis()` as the first awaitable line of both relocated async methods; sync versions inherit the constructor guard per D-06).
 
 ---
 
