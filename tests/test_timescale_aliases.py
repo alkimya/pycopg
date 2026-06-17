@@ -74,11 +74,24 @@ class TestTimescaleAliases:
             warnings.simplefilter("always")
             getattr(db, name)(*args)
 
-        # Exactly one warning.
-        assert len(w) == 1, f"Expected 1 warning, got {len(w)}"
-        assert w[0].category is DeprecationWarning
+        # Isolate the alias's own DeprecationWarning. Under the combined
+        # ``-W error::DeprecationWarning`` gate, unrelated DeprecationWarnings
+        # (asyncio/connection-pool internals) can leak into this record buffer
+        # across test boundaries, so assert on the alias-specific warning rather
+        # than the raw recorded count.
+        alias_warnings = [
+            rec
+            for rec in w
+            if rec.category is DeprecationWarning
+            and f"db.timescale.{name}" in str(rec.message)
+        ]
+        # Exactly one alias warning.
+        assert (
+            len(alias_warnings) == 1
+        ), f"Expected 1 alias warning for {name}, got {len(alias_warnings)}: {[str(r.message) for r in w]}"
+        rec = alias_warnings[0]
 
-        msg_str = str(w[0].message)
+        msg_str = str(rec.message)
         # Message names the new accessor path.
         assert (
             f"db.timescale.{name}" in msg_str
@@ -87,16 +100,16 @@ class TestTimescaleAliases:
         assert "v0.7.0" in msg_str, f"Expected 'v0.7.0' in warning message: {msg_str!r}"
 
         # stacklevel=2 proof: warning must point at THIS test file, not aliases.py.
-        basename = os.path.basename(w[0].filename)
-        assert "test_" in basename, (
-            f"Warning filename should start with 'test_', got: {w[0].filename!r}"
-        )
-        assert basename != "aliases.py", (
-            f"Warning must not point at aliases.py (stacklevel wrong): {w[0].filename!r}"
-        )
-        assert basename != "database.py", (
-            f"Warning must not point at database.py (stacklevel wrong): {w[0].filename!r}"
-        )
+        basename = os.path.basename(rec.filename)
+        assert (
+            "test_" in basename
+        ), f"Warning filename should start with 'test_', got: {w[0].filename!r}"
+        assert (
+            basename != "aliases.py"
+        ), f"Warning must not point at aliases.py (stacklevel wrong): {w[0].filename!r}"
+        assert (
+            basename != "database.py"
+        ), f"Warning must not point at database.py (stacklevel wrong): {w[0].filename!r}"
 
         # Delegation: the accessor method was called with the original args.
         getattr(mock_accessor, name).assert_called_once_with(*args)
@@ -131,11 +144,24 @@ class TestTimescaleAliases:
             warnings.simplefilter("always")
             await getattr(db, name)(*args)
 
-        # Exactly one warning.
-        assert len(w) == 1, f"Expected 1 warning, got {len(w)}"
-        assert w[0].category is DeprecationWarning
+        # Isolate the alias's own DeprecationWarning. Under the combined
+        # ``-W error::DeprecationWarning`` gate, unrelated DeprecationWarnings
+        # (asyncio/connection-pool internals) can leak into this record buffer
+        # across test boundaries, so assert on the alias-specific warning rather
+        # than the raw recorded count.
+        alias_warnings = [
+            rec
+            for rec in w
+            if rec.category is DeprecationWarning
+            and f"db.timescale.{name}" in str(rec.message)
+        ]
+        # Exactly one alias warning.
+        assert (
+            len(alias_warnings) == 1
+        ), f"Expected 1 alias warning for {name}, got {len(alias_warnings)}: {[str(r.message) for r in w]}"
+        rec = alias_warnings[0]
 
-        msg_str = str(w[0].message)
+        msg_str = str(rec.message)
         # Message names the new accessor path.
         assert (
             f"db.timescale.{name}" in msg_str
@@ -144,16 +170,16 @@ class TestTimescaleAliases:
         assert "v0.7.0" in msg_str, f"Expected 'v0.7.0' in warning message: {msg_str!r}"
 
         # stacklevel=2 proof: warning must point at THIS test file.
-        async_basename = os.path.basename(w[0].filename)
-        assert "test_" in async_basename, (
-            f"Warning filename should start with 'test_', got: {w[0].filename!r}"
-        )
-        assert async_basename != "aliases.py", (
-            f"Warning must not point at aliases.py (stacklevel wrong): {w[0].filename!r}"
-        )
-        assert async_basename != "async_database.py", (
-            f"Warning must not point at async_database.py (stacklevel wrong): {w[0].filename!r}"
-        )
+        async_basename = os.path.basename(rec.filename)
+        assert (
+            "test_" in async_basename
+        ), f"Warning filename should start with 'test_', got: {w[0].filename!r}"
+        assert (
+            async_basename != "aliases.py"
+        ), f"Warning must not point at aliases.py (stacklevel wrong): {w[0].filename!r}"
+        assert (
+            async_basename != "async_database.py"
+        ), f"Warning must not point at async_database.py (stacklevel wrong): {w[0].filename!r}"
 
         # Delegation: the accessor method was called with the original args.
         getattr(mock_accessor, name).assert_called_once_with(*args)
