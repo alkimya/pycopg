@@ -55,7 +55,10 @@ if TYPE_CHECKING:
     import geopandas as gpd
     import pandas as pd
 
+    from pycopg.admin import AdminAccessor
+    from pycopg.backup import BackupAccessor
     from pycopg.etl import ETLAccessor
+    from pycopg.maint import MaintAccessor
     from pycopg.spatial import SpatialAccessor
     from pycopg.timescale import TimescaleAccessor
 
@@ -86,6 +89,9 @@ class Database(DatabaseBase, QueryMixin):
         self._spatial: SpatialAccessor | None = None
         self._etl: ETLAccessor | None = None
         self._timescale: TimescaleAccessor | None = None
+        self._admin: AdminAccessor | None = None
+        self._maint: MaintAccessor | None = None
+        self._backup: BackupAccessor | None = None
 
     @classmethod
     def create(
@@ -290,6 +296,63 @@ class Database(DatabaseBase, QueryMixin):
 
             self._timescale = TimescaleAccessor(self)
         return self._timescale
+
+    @property
+    def admin(self) -> AdminAccessor:
+        """Get or create the admin accessor (lazy initialization).
+
+        Provides access to role and permission management operations.
+        The accessor is created on first access and cached for subsequent
+        calls.
+
+        Returns
+        -------
+        AdminAccessor
+            Admin helper namespace bound to this database.
+        """
+        if self._admin is None:
+            from pycopg.admin import AdminAccessor
+
+            self._admin = AdminAccessor(self)
+        return self._admin
+
+    @property
+    def maint(self) -> MaintAccessor:
+        """Get or create the maintenance accessor (lazy initialization).
+
+        Provides access to size, vacuum, analyze, and explain operations.
+        The accessor is created on first access and cached for subsequent
+        calls.
+
+        Returns
+        -------
+        MaintAccessor
+            Maintenance helper namespace bound to this database.
+        """
+        if self._maint is None:
+            from pycopg.maint import MaintAccessor
+
+            self._maint = MaintAccessor(self)
+        return self._maint
+
+    @property
+    def backup(self) -> BackupAccessor:
+        """Get or create the backup accessor (lazy initialization).
+
+        Provides access to pg_dump, pg_restore, and CSV copy operations.
+        The accessor is created on first access and cached for subsequent
+        calls.
+
+        Returns
+        -------
+        BackupAccessor
+            Backup helper namespace bound to this database.
+        """
+        if self._backup is None:
+            from pycopg.backup import BackupAccessor
+
+            self._backup = BackupAccessor(self)
+        return self._backup
 
     @retry(
         stop=stop_after_attempt(3),
@@ -1694,844 +1757,101 @@ class Database(DatabaseBase, QueryMixin):
     # SIZE & STATS
     # =========================================================================
 
-    def size(self, pretty: bool = True) -> str | int:
-        """Get database size.
+    @deprecated_alias("maint.size")
+    def size(self, *args, **kwargs):
+        """Deprecated: use ``db.maint.size`` instead."""
 
-        Parameters
-        ----------
-        pretty : bool, optional
-            Return human-readable size (e.g., '1.2 GB'), by default True.
+    @deprecated_alias("maint.table_size")
+    def table_size(self, *args, **kwargs):
+        """Deprecated: use ``db.maint.table_size`` instead."""
 
-        Returns
-        -------
-        str or int
-            Database size.
-        """
-        if pretty:
-            result = self.execute(
-                queries.DATABASE_SIZE_PRETTY,
-                [self.config.database],
-            )
-            return result[0]["size"]
-        else:
-            result = self.execute(queries.DATABASE_SIZE, [self.config.database])
-            return result[0]["size"]
-
-    def table_size(
-        self, table: str, schema: str = "public", pretty: bool = True
-    ) -> str | int:
-        """Get table size including indexes.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-        pretty : bool, optional
-            Return human-readable size, by default True.
-
-        Returns
-        -------
-        str or int
-            Table size.
-        """
-        full_name = f"{schema}.{table}"
-        if pretty:
-            result = self.execute(queries.TABLE_SIZE_PRETTY, [full_name])
-            return result[0]["size"]
-        else:
-            result = self.execute(queries.TABLE_SIZE, [full_name])
-            return result[0]["size"]
-
-    def table_sizes(self, schema: str = "public", limit: int = 20) -> list[dict]:
-        """Get sizes of all tables in schema, sorted by size.
-
-        Parameters
-        ----------
-        schema : str, optional
-            Schema name, by default "public".
-        limit : int, optional
-            Max tables to return, by default 20.
-
-        Returns
-        -------
-        list of dict
-            List of table size info.
-        """
-        # queries.TABLE_SIZES uses %%I (psycopg-escaped) so PostgreSQL format() sees %I
-        return self.execute(queries.TABLE_SIZES, [schema, limit])
+    @deprecated_alias("maint.table_sizes")
+    def table_sizes(self, *args, **kwargs):
+        """Deprecated: use ``db.maint.table_sizes`` instead."""
 
     # =========================================================================
     # UTILITY
     # =========================================================================
 
-    def vacuum(
-        self,
-        table: str | None = None,
-        schema: str = "public",
-        analyze: bool = True,
-        full: bool = False,
-    ) -> None:
-        """Vacuum database or table.
+    @deprecated_alias("maint.vacuum")
+    def vacuum(self, *args, **kwargs):
+        """Deprecated: use ``db.maint.vacuum`` instead."""
 
-        Parameters
-        ----------
-        table : str, optional
-            Table name (None for whole database).
-        schema : str, optional
-            Schema name, by default "public".
-        analyze : bool, optional
-            Update statistics, by default True.
-        full : bool, optional
-            Full vacuum (reclaims more space but locks table), by default False.
-        """
-        options = []
-        if full:
-            options.append("FULL")
-        if analyze:
-            options.append("ANALYZE")
+    @deprecated_alias("maint.analyze")
+    def analyze(self, *args, **kwargs):
+        """Deprecated: use ``db.maint.analyze`` instead."""
 
-        if table:
-            validate_identifiers(table, schema)
-
-        options_str = f"({', '.join(options)})" if options else ""
-        table_str = f" {schema}.{table}" if table else ""
-
-        self.execute(f"VACUUM{options_str}{table_str}", autocommit=True)
-
-    def analyze(self, table: str | None = None, schema: str = "public") -> None:
-        """Update table statistics for query planner.
-
-        Parameters
-        ----------
-        table : str, optional
-            Table name (None for whole database).
-        schema : str, optional
-            Schema name, by default "public".
-        """
-        if table:
-            validate_identifiers(table, schema)
-        table_str = f" {schema}.{table}" if table else ""
-        self.execute(f"ANALYZE{table_str}", autocommit=True)
-
-    def explain(
-        self,
-        sql: str,
-        params: Sequence | None = None,
-        analyze: bool = False,
-        format: str = "text",
-    ) -> list[str]:
-        """Get query execution plan.
-
-        Parameters
-        ----------
-        sql : str
-            SQL query.
-        params : Sequence, optional
-            Query parameters.
-        analyze : bool, optional
-            Actually run the query for real stats, by default False.
-        format : str, optional
-            Output format (text, json, xml, yaml), by default "text".
-
-        Returns
-        -------
-        list of str
-            Query plan lines.
-        """
-        options = [f"FORMAT {format.upper()}"]
-        if analyze:
-            options.append("ANALYZE")
-
-        result = self.execute(f"EXPLAIN ({', '.join(options)}) {sql}", params)
-        return [r["QUERY PLAN"] for r in result]
+    @deprecated_alias("maint.explain")
+    def explain(self, *args, **kwargs):
+        """Deprecated: use ``db.maint.explain`` instead."""
 
     # =========================================================================
     # ROLES & USERS
     # =========================================================================
 
-    def create_role(
-        self,
-        name: str,
-        password: str | None = None,
-        login: bool = True,
-        superuser: bool = False,
-        createdb: bool = False,
-        createrole: bool = False,
-        inherit: bool = True,
-        replication: bool = False,
-        connection_limit: int = -1,
-        valid_until: str | None = None,
-        in_roles: list[str] | None = None,
-        if_not_exists: bool = True,
-    ) -> None:
-        """Create a database role/user.
+    @deprecated_alias("admin.create_role")
+    def create_role(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.create_role`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Role name.
-        password : str, optional
-            Role password (for login roles).
-        login : bool, optional
-            Can log in (True = user, False = group role), by default True.
-        superuser : bool, optional
-            Is superuser, by default False.
-        createdb : bool, optional
-            Can create databases, by default False.
-        createrole : bool, optional
-            Can create other roles, by default False.
-        inherit : bool, optional
-            Inherits privileges from member roles, by default True.
-        replication : bool, optional
-            Can initiate streaming replication, by default False.
-        connection_limit : int, optional
-            Max concurrent connections (-1 = unlimited), by default -1.
-        valid_until : str, optional
-            Password expiration (e.g., '2025-12-31').
-        in_roles : list of str, optional
-            List of roles to be a member of.
-        if_not_exists : bool, optional
-            Don't error if role exists, by default True.
-        """
-        validate_identifier(name)
+    @deprecated_alias("admin.drop_role")
+    def drop_role(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.drop_role`` instead."""
 
-        # Check if exists
-        if if_not_exists and self.role_exists(name):
-            return
+    @deprecated_alias("admin.role_exists")
+    def role_exists(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.role_exists`` instead."""
 
-        options = build_role_options(
-            login=login,
-            superuser=superuser,
-            createdb=createdb,
-            createrole=createrole,
-            inherit=inherit,
-            replication=replication,
-            connection_limit=connection_limit,
-            password=password,
-            valid_until=valid_until,
-        )
-        options_str = " ".join(options)
+    @deprecated_alias("admin.list_roles")
+    def list_roles(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.list_roles`` instead."""
 
-        if password:
-            with self.cursor(autocommit=True) as cur:
-                cur.execute(f"CREATE ROLE {name} WITH {options_str}", [password])
-        else:
-            self.execute(f"CREATE ROLE {name} WITH {options_str}", autocommit=True)
+    @deprecated_alias("admin.alter_role")
+    def alter_role(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.alter_role`` instead."""
 
-        # Add to roles
-        if in_roles:
-            for role in in_roles:
-                self.grant_role(role, name)
+    @deprecated_alias("admin.grant_role")
+    def grant_role(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.grant_role`` instead."""
 
-    def drop_role(self, name: str, if_exists: bool = True) -> None:
-        """Drop a role.
+    @deprecated_alias("admin.revoke_role")
+    def revoke_role(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.revoke_role`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Role name.
-        if_exists : bool, optional
-            Don't error if role doesn't exist, by default True.
-        """
-        validate_identifier(name)
-        if_clause = "IF EXISTS " if if_exists else ""
-        self.execute(f"DROP ROLE {if_clause}{name}", autocommit=True)
+    @deprecated_alias("admin.grant")
+    def grant(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.grant`` instead."""
 
-    def role_exists(self, name: str) -> bool:
-        """Check if a role exists.
+    @deprecated_alias("admin.revoke")
+    def revoke(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.revoke`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Role name.
+    @deprecated_alias("admin.list_role_members")
+    def list_role_members(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.list_role_members`` instead."""
 
-        Returns
-        -------
-        bool
-            True if role exists.
-        """
-        result = self.execute(queries.ROLE_EXISTS, [name])
-        return len(result) > 0
-
-    def list_roles(self, include_system: bool = False) -> list[dict]:
-        """List all roles.
-
-        Parameters
-        ----------
-        include_system : bool, optional
-            Include system roles (pg_*), by default False.
-
-        Returns
-        -------
-        list of dict
-            List of role info dicts.
-        """
-        where_clause = "" if include_system else "WHERE rolname NOT LIKE 'pg_%'"
-        return self.execute(queries.LIST_ROLES.format(where_clause=where_clause))
-
-    def alter_role(
-        self,
-        name: str,
-        password: str | None = None,
-        login: bool | None = None,
-        superuser: bool | None = None,
-        createdb: bool | None = None,
-        createrole: bool | None = None,
-        connection_limit: int | None = None,
-        valid_until: str | None = None,
-        rename_to: str | None = None,
-    ) -> None:
-        """Alter a role's attributes.
-
-        Parameters
-        ----------
-        name : str
-            Role name.
-        password : str, optional
-            New password.
-        login : bool, optional
-            Enable/disable login.
-        superuser : bool, optional
-            Enable/disable superuser.
-        createdb : bool, optional
-            Enable/disable createdb.
-        createrole : bool, optional
-            Enable/disable createrole.
-        connection_limit : int, optional
-            New connection limit.
-        valid_until : str, optional
-            New password expiration.
-        rename_to : str, optional
-            Rename the role.
-        """
-        validate_identifier(name)
-
-        if rename_to:
-            validate_identifier(rename_to)
-            self.execute(f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True)
-            return
-
-        options = []
-        params = []
-
-        if password is not None:
-            options.append("PASSWORD %s")
-            params.append(password)
-        if login is not None:
-            options.append("LOGIN" if login else "NOLOGIN")
-        if superuser is not None:
-            options.append("SUPERUSER" if superuser else "NOSUPERUSER")
-        if createdb is not None:
-            options.append("CREATEDB" if createdb else "NOCREATEDB")
-        if createrole is not None:
-            options.append("CREATEROLE" if createrole else "NOCREATEROLE")
-        if connection_limit is not None:
-            options.append(f"CONNECTION LIMIT {connection_limit}")
-        if valid_until is not None:
-            validate_timestamp(valid_until)
-            options.append(f"VALID UNTIL '{valid_until}'")
-
-        if options:
-            options_str = " ".join(options)
-            with self.cursor(autocommit=True) as cur:
-                cur.execute(
-                    f"ALTER ROLE {name} WITH {options_str}", params if params else None
-                )
-
-    def grant_role(self, role: str, member: str, with_admin: bool = False) -> None:
-        """Grant role membership to another role.
-
-        Parameters
-        ----------
-        role : str
-            Role to grant.
-        member : str
-            Role receiving membership.
-        with_admin : bool, optional
-            Allow member to grant role to others, by default False.
-        """
-        validate_identifiers(role, member)
-        admin_clause = " WITH ADMIN OPTION" if with_admin else ""
-        self.execute(f"GRANT {role} TO {member}{admin_clause}", autocommit=True)
-
-    def revoke_role(self, role: str, member: str) -> None:
-        """Revoke role membership from a role.
-
-        Parameters
-        ----------
-        role : str
-            Role to revoke.
-        member : str
-            Role losing membership.
-        """
-        validate_identifiers(role, member)
-        self.execute(f"REVOKE {role} FROM {member}", autocommit=True)
-
-    def grant(
-        self,
-        privileges: str | list[str],
-        on: str,
-        to: str,
-        object_type: str = "TABLE",
-        schema: str = "public",
-        with_grant_option: bool = False,
-    ) -> None:
-        """Grant privileges on database objects.
-
-        Parameters
-        ----------
-        privileges : str or list of str
-            Privilege(s) to grant (SELECT, INSERT, UPDATE, DELETE, ALL, etc.).
-        on : str
-            Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
-        to : str
-            Role receiving privileges.
-        object_type : str, optional
-            Type of object (TABLE, SEQUENCE, FUNCTION, SCHEMA, DATABASE),
-            by default "TABLE".
-        schema : str, optional
-            Schema name (for tables/sequences), by default "public".
-        with_grant_option : bool, optional
-            Allow grantee to grant to others, by default False.
-        """
-        validate_identifier(to)
-        validate_object_type(object_type)
-
-        if isinstance(privileges, list):
-            privileges = ", ".join(privileges)
-        validate_privileges(privileges)
-
-        grant_clause = " WITH GRANT OPTION" if with_grant_option else ""
-
-        if object_type.upper() == "SCHEMA":
-            validate_identifier(on)
-            self.execute(
-                f"GRANT {privileges} ON SCHEMA {on} TO {to}{grant_clause}",
-                autocommit=True,
-            )
-        elif object_type.upper() == "DATABASE":
-            validate_identifier(on)
-            self.execute(
-                f"GRANT {privileges} ON DATABASE {on} TO {to}{grant_clause}",
-                autocommit=True,
-            )
-        elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
-            validate_identifier(schema)
-            self.execute(
-                f"GRANT {privileges} ON {on} IN SCHEMA {schema} TO {to}{grant_clause}",
-                autocommit=True,
-            )
-        else:
-            validate_identifiers(on, schema)
-            self.execute(
-                f"GRANT {privileges} ON {object_type} {schema}.{on} TO {to}{grant_clause}",
-                autocommit=True,
-            )
-
-    def revoke(
-        self,
-        privileges: str | list[str],
-        on: str,
-        from_role: str,
-        object_type: str = "TABLE",
-        schema: str = "public",
-        cascade: bool = False,
-    ) -> None:
-        """Revoke privileges on database objects.
-
-        Parameters
-        ----------
-        privileges : str or list of str
-            Privilege(s) to revoke.
-        on : str
-            Object name or ALL TABLES/SEQUENCES/FUNCTIONS.
-        from_role : str
-            Role losing privileges.
-        object_type : str, optional
-            Type of object, by default "TABLE".
-        schema : str, optional
-            Schema name, by default "public".
-        cascade : bool, optional
-            Revoke from dependent privileges, by default False.
-        """
-        validate_identifier(from_role)
-        validate_object_type(object_type)
-
-        if isinstance(privileges, list):
-            privileges = ", ".join(privileges)
-        validate_privileges(privileges)
-
-        cascade_clause = " CASCADE" if cascade else ""
-
-        if object_type.upper() == "SCHEMA":
-            validate_identifier(on)
-            self.execute(
-                f"REVOKE {privileges} ON SCHEMA {on} FROM {from_role}{cascade_clause}",
-                autocommit=True,
-            )
-        elif object_type.upper() == "DATABASE":
-            validate_identifier(on)
-            self.execute(
-                f"REVOKE {privileges} ON DATABASE {on} FROM {from_role}{cascade_clause}",
-                autocommit=True,
-            )
-        elif on.upper() in ("ALL TABLES", "ALL SEQUENCES", "ALL FUNCTIONS"):
-            validate_identifier(schema)
-            self.execute(
-                f"REVOKE {privileges} ON {on} IN SCHEMA {schema} FROM {from_role}{cascade_clause}",
-                autocommit=True,
-            )
-        else:
-            validate_identifiers(on, schema)
-            self.execute(
-                f"REVOKE {privileges} ON {object_type} {schema}.{on} FROM {from_role}{cascade_clause}",
-                autocommit=True,
-            )
-
-    def list_role_members(self, role: str) -> list[str]:
-        """List members of a role.
-
-        Parameters
-        ----------
-        role : str
-            Role name.
-
-        Returns
-        -------
-        list of str
-            List of member role names.
-        """
-        result = self.execute(queries.LIST_ROLE_MEMBERS, [role])
-        return [r["member"] for r in result]
-
-    def list_role_grants(self, role: str) -> list[dict]:
-        """List privileges granted to a role.
-
-        Parameters
-        ----------
-        role : str
-            Role name.
-
-        Returns
-        -------
-        list of dict
-            List of privilege info dicts.
-        """
-        return self.execute(queries.LIST_ROLE_GRANTS, [role])
+    @deprecated_alias("admin.list_role_grants")
+    def list_role_grants(self, *args, **kwargs):
+        """Deprecated: use ``db.admin.list_role_grants`` instead."""
 
     # =========================================================================
     # BACKUP & RESTORE
     # =========================================================================
 
-    def pg_dump(
-        self,
-        output_file: str | Path,
-        format: Literal["plain", "custom", "directory", "tar"] = "custom",
-        schema_only: bool = False,
-        data_only: bool = False,
-        tables: list[str] | None = None,
-        exclude_tables: list[str] | None = None,
-        schemas: list[str] | None = None,
-        compress: int = 6,
-        jobs: int = 1,
-    ) -> None:
-        """Backup database using pg_dump.
+    @deprecated_alias("backup.pg_dump")
+    def pg_dump(self, *args, **kwargs):
+        """Deprecated: use ``db.backup.pg_dump`` instead."""
 
-        Parameters
-        ----------
-        output_file : str or Path
-            Output file path.
-        format : {'plain', 'custom', 'directory', 'tar'}, optional
-            Dump format (plain=SQL, custom=compressed, directory=parallel, tar),
-            by default "custom".
-        schema_only : bool, optional
-            Dump only schema, no data, by default False.
-        data_only : bool, optional
-            Dump only data, no schema, by default False.
-        tables : list of str, optional
-            Only dump these tables.
-        exclude_tables : list of str, optional
-            Exclude these tables.
-        schemas : list of str, optional
-            Only dump these schemas.
-        compress : int, optional
-            Compression level (0-9, for custom format), by default 6.
-        jobs : int, optional
-            Parallel jobs (for directory format), by default 1.
-        """
-        import subprocess
+    @deprecated_alias("backup.pg_restore")
+    def pg_restore(self, *args, **kwargs):
+        """Deprecated: use ``db.backup.pg_restore`` instead."""
 
-        cmd = build_pg_dump_cmd(
-            host=self.config.host,
-            port=self.config.port,
-            user=self.config.user,
-            database=self.config.database,
-            output_file=output_file,
-            format=format,
-            schema_only=schema_only,
-            data_only=data_only,
-            tables=tables,
-            exclude_tables=exclude_tables,
-            schemas=schemas,
-            compress=compress,
-            jobs=jobs,
-        )
+    @deprecated_alias("backup.copy_to_csv")
+    def copy_to_csv(self, *args, **kwargs):
+        """Deprecated: use ``db.backup.copy_to_csv`` instead."""
 
-        # Run with password in environment
-        env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(
-            cmd, env={**os.environ, **env}, capture_output=True, text=True
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(f"pg_dump failed: {result.stderr}")
-
-    def pg_restore(
-        self,
-        input_file: str | Path,
-        clean: bool = False,
-        if_exists: bool = True,
-        create: bool = False,
-        data_only: bool = False,
-        schema_only: bool = False,
-        tables: list[str] | None = None,
-        schemas: list[str] | None = None,
-        jobs: int = 1,
-        no_owner: bool = False,
-        no_privileges: bool = False,
-    ) -> None:
-        """Restore database from pg_dump backup.
-
-        Parameters
-        ----------
-        input_file : str or Path
-            Backup file path.
-        clean : bool, optional
-            Drop objects before recreating, by default False.
-        if_exists : bool, optional
-            Use IF EXISTS with clean (prevents errors), by default True.
-        create : bool, optional
-            Create database before restoring, by default False.
-        data_only : bool, optional
-            Restore only data, by default False.
-        schema_only : bool, optional
-            Restore only schema, by default False.
-        tables : list of str, optional
-            Only restore these tables.
-        schemas : list of str, optional
-            Only restore these schemas.
-        jobs : int, optional
-            Parallel jobs, by default 1.
-        no_owner : bool, optional
-            Don't restore ownership, by default False.
-        no_privileges : bool, optional
-            Don't restore privileges, by default False.
-        """
-        import subprocess
-
-        input_file = Path(input_file)
-
-        # Check if it's a plain SQL file
-        if input_file.suffix == ".sql" or not input_file.exists():
-            # Use psql for plain format
-            self._psql_restore(input_file)
-            return
-
-        cmd = build_pg_restore_cmd(
-            host=self.config.host,
-            port=self.config.port,
-            user=self.config.user,
-            database=self.config.database,
-            input_file=input_file,
-            clean=clean,
-            if_exists=if_exists,
-            create=create,
-            data_only=data_only,
-            schema_only=schema_only,
-            tables=tables,
-            schemas=schemas,
-            jobs=jobs,
-            no_owner=no_owner,
-            no_privileges=no_privileges,
-        )
-
-        # Run with password in environment
-        env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(
-            cmd, env={**os.environ, **env}, capture_output=True, text=True
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(f"pg_restore failed: {result.stderr}")
-
-    def _psql_restore(self, sql_file: Path) -> None:
-        """Restore from plain SQL file using psql."""
-        import subprocess
-
-        cmd = [
-            "psql",
-            "-h",
-            self.config.host,
-            "-p",
-            str(self.config.port),
-            "-U",
-            self.config.user,
-            "-d",
-            self.config.database,
-            "-f",
-            str(sql_file),
-        ]
-
-        env = {"PGPASSWORD": self.config.password} if self.config.password else {}
-        result = subprocess.run(
-            cmd, env={**os.environ, **env}, capture_output=True, text=True
-        )
-
-        if result.returncode != 0:
-            raise RuntimeError(f"psql restore failed: {result.stderr}")
-
-    def copy_to_csv(
-        self,
-        table: str,
-        output_file: str | Path,
-        schema: str = "public",
-        columns: list[str] | None = None,
-        delimiter: str = ",",
-        header: bool = True,
-        null_string: str = "",
-        encoding: str = "UTF8",
-    ) -> int:
-        """Export table to CSV file.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        output_file : str or Path
-            Output CSV file path.
-        schema : str, optional
-            Schema name, by default "public".
-        columns : list of str, optional
-            Specific columns to export.
-        delimiter : str, optional
-            Field delimiter, by default ",".
-        header : bool, optional
-            Include header row, by default True.
-        null_string : str, optional
-            String for NULL values, by default "".
-        encoding : str, optional
-            File encoding, by default "UTF8".
-
-        Returns
-        -------
-        int
-            Number of rows exported.
-        """
-        output_file = Path(output_file)
-        validate_identifiers(table, schema)
-        if columns:
-            validate_identifiers(*columns)
-
-        validate_csv_option(delimiter, "delimiter")
-        validate_csv_option(null_string, "null_string")
-        validate_csv_option(encoding, "encoding")
-
-        cols = f"({', '.join(columns)})" if columns else ""
-
-        options = [
-            "FORMAT CSV",
-            f"DELIMITER '{delimiter}'",
-            f"NULL '{null_string}'",
-            f"ENCODING '{encoding}'",
-        ]
-        if header:
-            options.append("HEADER")
-
-        with self.cursor() as cur:
-            with open(output_file, "w", encoding=encoding) as f:
-                with cur.copy(
-                    f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
-                ) as copy:
-                    for data in copy:
-                        # psycopg yields memoryview chunks; bytes(...) handles
-                        # both memoryview and bytes before decoding to text.
-                        if isinstance(data, str):
-                            f.write(data)
-                        else:
-                            f.write(bytes(data).decode(encoding))
-
-            # Get row count
-            cur.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
-            return cur.fetchone()["count"]
-
-    def copy_from_csv(
-        self,
-        table: str,
-        input_file: str | Path,
-        schema: str = "public",
-        columns: list[str] | None = None,
-        delimiter: str = ",",
-        header: bool = True,
-        null_string: str = "",
-        encoding: str = "UTF8",
-    ) -> int:
-        """Import CSV file into table.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        input_file : str or Path
-            Input CSV file path.
-        schema : str, optional
-            Schema name, by default "public".
-        columns : list of str, optional
-            Specific columns to import.
-        delimiter : str, optional
-            Field delimiter, by default ",".
-        header : bool, optional
-            First row is header, by default True.
-        null_string : str, optional
-            String representing NULL, by default "".
-        encoding : str, optional
-            File encoding, by default "UTF8".
-
-        Returns
-        -------
-        int
-            Number of rows imported.
-        """
-        input_file = Path(input_file)
-        validate_identifiers(table, schema)
-        if columns:
-            validate_identifiers(*columns)
-
-        validate_csv_option(delimiter, "delimiter")
-        validate_csv_option(null_string, "null_string")
-        validate_csv_option(encoding, "encoding")
-
-        cols = f"({', '.join(columns)})" if columns else ""
-
-        options = [
-            "FORMAT CSV",
-            f"DELIMITER '{delimiter}'",
-            f"NULL '{null_string}'",
-            f"ENCODING '{encoding}'",
-        ]
-        if header:
-            options.append("HEADER")
-
-        with self.cursor() as cur:
-            with open(input_file, encoding=encoding) as f:
-                with cur.copy(
-                    f"COPY {schema}.{table}{cols} FROM STDIN WITH ({', '.join(options)})"
-                ) as copy:
-                    while data := f.read(8192):
-                        copy.write(data.encode(encoding))
-
-            return cur.rowcount
+    @deprecated_alias("backup.copy_from_csv")
+    def copy_from_csv(self, *args, **kwargs):
+        """Deprecated: use ``db.backup.copy_from_csv`` instead."""
 
     def close(self) -> None:
         """Close database connections."""
