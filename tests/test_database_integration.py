@@ -880,7 +880,9 @@ class TestDatabaseTimescaleCoverage:
     def test_create_hypertable_requires_extension(self, db, cleanup_table, monkeypatch):
         """create_hypertable raises RuntimeError when timescaledb is absent."""
         t = f"test_ht_err_{uuid.uuid4().hex[:8]}"
-        monkeypatch.setattr(db, "has_extension", lambda name: False)
+        # create_hypertable now checks db.schema.has_extension (Phase 23 accessor
+        # relocation), so the extension guard must be patched on the accessor.
+        monkeypatch.setattr(db.schema, "has_extension", lambda name: False)
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
         ):
