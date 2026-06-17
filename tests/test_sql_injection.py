@@ -16,6 +16,7 @@ import pytest
 from pycopg import AsyncDatabase, Database
 from pycopg.etl import _build_insert_sql, _build_upsert_sql
 from pycopg.exceptions import InvalidIdentifier
+from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
 
 # A representative set of injection payloads for identifier-typed arguments.
 EVIL_IDENTIFIERS = [
@@ -29,7 +30,14 @@ EVIL_IDENTIFIERS = [
 
 @pytest.fixture
 def sync_db(config):
-    """A sync Database with a mocked psycopg layer."""
+    """A sync Database with a mocked psycopg layer.
+
+    The schema accessor's ``has_extension`` is patched to return True so that
+    SpatialAccessor.__init__ passes without a real PostGIS connection. All other
+    schema methods retain real validation behaviour.
+    This is necessary because the deprecated flat spatial aliases now route through
+    the PostGIS-guarded SpatialAccessor (D-06).
+    """
     with patch("pycopg.database.psycopg") as mock_psycopg:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
@@ -39,7 +47,13 @@ def sync_db(config):
         mock_conn.__enter__ = MagicMock(return_value=mock_conn)
         mock_conn.__exit__ = MagicMock(return_value=False)
         mock_psycopg.connect.return_value = mock_conn
-        yield Database(config)
+        db = Database(config)
+        # Create a real schema accessor (no DB connection needed — __init__ only stores _db).
+        real_schema = SchemaAccessor(db)
+        # Patch only has_extension so SpatialAccessor.__init__ passes without PostGIS.
+        real_schema.has_extension = MagicMock(return_value=True)
+        db._schema = real_schema
+        yield db
 
 
 @pytest.fixture
@@ -49,12 +63,21 @@ def async_db(config):
     Some methods run a pre-check (e.g. ``role_exists``, ``has_extension``)
     before reaching the argument being tested. We stub those so the test
     exercises the validation guard rather than a live connection.
+
+    The schema accessor's ``has_extension`` is patched to return True so that
+    AsyncSpatialAccessor._check_postgis() passes without a real connection.
+    All other schema methods retain real validation behaviour.
     """
     db = AsyncDatabase(config)
     db.role_exists = AsyncMock(return_value=False)
     db.has_extension = AsyncMock(return_value=True)
     db.execute = AsyncMock(return_value=[])
     db.execute_many = AsyncMock(return_value=0)
+    # Create a real schema accessor (no DB connection needed — __init__ only stores _db).
+    real_schema = AsyncSchemaAccessor(db)
+    # Patch only has_extension so _check_postgis passes without executing SQL.
+    real_schema.has_extension = AsyncMock(return_value=True)
+    db._schema = real_schema
     return db
 
 
