@@ -35,10 +35,8 @@ from pycopg.base import (
 from pycopg.config import Config
 from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 from pycopg.utils import (
-    validate_extension_name,
     validate_identifier,
     validate_identifiers,
-    validate_index_method,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,6 +49,7 @@ if TYPE_CHECKING:
     from pycopg.backup import BackupAccessor
     from pycopg.etl import ETLAccessor
     from pycopg.maint import MaintAccessor
+    from pycopg.schema import SchemaAccessor
     from pycopg.spatial import SpatialAccessor
     from pycopg.timescale import TimescaleAccessor
 
@@ -84,6 +83,7 @@ class Database(DatabaseBase, QueryMixin):
         self._admin: AdminAccessor | None = None
         self._maint: MaintAccessor | None = None
         self._backup: BackupAccessor | None = None
+        self._schema: SchemaAccessor | None = None
 
     @classmethod
     def create(
@@ -345,6 +345,26 @@ class Database(DatabaseBase, QueryMixin):
 
             self._backup = BackupAccessor(self)
         return self._backup
+
+    @property
+    def schema(self) -> SchemaAccessor:
+        """Get or create the schema accessor (lazy initialization).
+
+        Provides access to DDL and introspection operations such as
+        database, extension, schema, table, column, constraint, and index
+        management.  The accessor is created on first access and cached for
+        subsequent calls.
+
+        Returns
+        -------
+        SchemaAccessor
+            Schema helper namespace bound to this database.
+        """
+        if self._schema is None:
+            from pycopg.schema import SchemaAccessor
+
+            self._schema = SchemaAccessor(self)
+        return self._schema
 
     @retry(
         stop=stop_after_attempt(3),
@@ -837,625 +857,129 @@ class Database(DatabaseBase, QueryMixin):
     # DATABASE ADMINISTRATION
     # =========================================================================
 
-    def create_database(
-        self, name: str, owner: str | None = None, template: str = "template1"
-    ) -> None:
-        """Create a new database.
+    @deprecated_alias("schema.create_database")
+    def create_database(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.create_database`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Database name.
-        owner : str, optional
-            Owner role.
-        template : str, optional
-            Template database, by default "template1".
-        """
-        validate_identifier(name)
-        if owner:
-            validate_identifier(owner)
-        validate_identifier(template)
-        owner_clause = f" OWNER {owner}" if owner else ""
-        # Connect to postgres for database creation
-        admin_config = self.config.with_database("postgres")
-        with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}")
+    @deprecated_alias("schema.drop_database")
+    def drop_database(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.drop_database`` instead."""
 
-    def drop_database(self, name: str, if_exists: bool = True) -> None:
-        """Drop a database.
+    @deprecated_alias("schema.database_exists")
+    def database_exists(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.database_exists`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Database name.
-        if_exists : bool, optional
-            Don't error if database doesn't exist, by default True.
-        """
-        validate_identifier(name)
-        if_clause = "IF EXISTS " if if_exists else ""
-        admin_config = self.config.with_database("postgres")
-        with psycopg.connect(**admin_config.connect_params(), autocommit=True) as conn:
-            with conn.cursor() as cur:
-                # Terminate existing connections
-                cur.execute(
-                    """
-                    SELECT pg_terminate_backend(pg_stat_activity.pid)
-                    FROM pg_stat_activity
-                    WHERE pg_stat_activity.datname = %s
-                    AND pid <> pg_backend_pid()
-                """,
-                    [name],
-                )
-                cur.execute(f"DROP DATABASE {if_clause}{name}")
-
-    def database_exists(self, name: str) -> bool:
-        """Check if a database exists.
-
-        Parameters
-        ----------
-        name : str
-            Database name.
-
-        Returns
-        -------
-        bool
-            True if database exists.
-        """
-        admin_config = self.config.with_database("postgres")
-        with psycopg.connect(**admin_config.connect_params()) as conn:
-            with conn.cursor() as cur:
-                cur.execute(queries.DATABASE_EXISTS, [name])
-                return cur.fetchone() is not None
-
-    def list_databases(self) -> list[str]:
-        """List all databases.
-
-        Returns
-        -------
-        list of str
-            List of database names.
-        """
-        result = self.execute(queries.LIST_DATABASES)
-        return [r["datname"] for r in result]
+    @deprecated_alias("schema.list_databases")
+    def list_databases(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_databases`` instead."""
 
     # =========================================================================
     # EXTENSIONS
     # =========================================================================
 
-    def create_extension(
-        self, name: str, schema: str | None = None, if_not_exists: bool = True
-    ) -> None:
-        """Create a PostgreSQL extension.
+    @deprecated_alias("schema.create_extension")
+    def create_extension(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.create_extension`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Extension name (e.g., 'postgis', 'timescaledb', 'uuid-ossp').
-        schema : str, optional
-            Schema to install extension in.
-        if_not_exists : bool, optional
-            Don't error if extension exists, by default True.
-        """
-        validate_extension_name(name)
-        if schema:
-            validate_identifier(schema)
-        if_clause = "IF NOT EXISTS " if if_not_exists else ""
-        schema_clause = f" SCHEMA {schema}" if schema else ""
-        self.execute(
-            f'CREATE EXTENSION {if_clause}"{name}"{schema_clause}', autocommit=True
-        )
+    @deprecated_alias("schema.drop_extension")
+    def drop_extension(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.drop_extension`` instead."""
 
-    def drop_extension(
-        self, name: str, if_exists: bool = True, cascade: bool = False
-    ) -> None:
-        """Drop a PostgreSQL extension.
+    @deprecated_alias("schema.list_extensions")
+    def list_extensions(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_extensions`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Extension name.
-        if_exists : bool, optional
-            Don't error if extension doesn't exist, by default True.
-        cascade : bool, optional
-            Drop dependent objects, by default False.
-        """
-        validate_extension_name(name)
-        if_clause = "IF EXISTS " if if_exists else ""
-        cascade_clause = " CASCADE" if cascade else ""
-        self.execute(
-            f'DROP EXTENSION {if_clause}"{name}"{cascade_clause}', autocommit=True
-        )
-
-    def list_extensions(self) -> list[dict]:
-        """List installed extensions.
-
-        Returns
-        -------
-        list of dict
-            List of dicts with extname, extversion, nspname (schema).
-        """
-        return self.execute(queries.LIST_EXTENSIONS)
-
-    def has_extension(self, name: str) -> bool:
-        """Check if an extension is installed.
-
-        Parameters
-        ----------
-        name : str
-            Extension name.
-
-        Returns
-        -------
-        bool
-            True if extension is installed.
-        """
-        result = self.execute(queries.EXTENSION_EXISTS, [name])
-        return len(result) > 0
+    @deprecated_alias("schema.has_extension")
+    def has_extension(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.has_extension`` instead."""
 
     # =========================================================================
     # SCHEMAS
     # =========================================================================
 
-    def create_schema(
-        self, name: str, if_not_exists: bool = True, owner: str | None = None
-    ) -> None:
-        """Create a schema.
+    @deprecated_alias("schema.create_schema")
+    def create_schema(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.create_schema`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Schema name.
-        if_not_exists : bool, optional
-            Don't error if schema exists, by default True.
-        owner : str, optional
-            Owner role.
-        """
-        validate_identifier(name)
-        if owner:
-            validate_identifier(owner)
-        if_clause = "IF NOT EXISTS " if if_not_exists else ""
-        owner_clause = f" AUTHORIZATION {owner}" if owner else ""
-        self.execute(f"CREATE SCHEMA {if_clause}{name}{owner_clause}")
+    @deprecated_alias("schema.drop_schema")
+    def drop_schema(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.drop_schema`` instead."""
 
-    def drop_schema(
-        self, name: str, if_exists: bool = True, cascade: bool = False
-    ) -> None:
-        """Drop a schema.
+    @deprecated_alias("schema.list_schemas")
+    def list_schemas(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_schemas`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Schema name.
-        if_exists : bool, optional
-            Don't error if schema doesn't exist, by default True.
-        cascade : bool, optional
-            Drop all objects in schema, by default False.
-        """
-        validate_identifier(name)
-        if_clause = "IF EXISTS " if if_exists else ""
-        cascade_clause = " CASCADE" if cascade else ""
-        self.execute(f"DROP SCHEMA {if_clause}{name}{cascade_clause}")
-
-    def list_schemas(self) -> list[str]:
-        """List all schemas.
-
-        Returns
-        -------
-        list of str
-            List of schema names.
-        """
-        result = self.execute(queries.LIST_SCHEMAS)
-        return [r["schema_name"] for r in result]
-
-    def schema_exists(self, name: str) -> bool:
-        """Check if a schema exists.
-
-        Parameters
-        ----------
-        name : str
-            Schema name.
-
-        Returns
-        -------
-        bool
-            True if schema exists.
-        """
-        result = self.execute(queries.SCHEMA_EXISTS, [name])
-        return len(result) > 0
+    @deprecated_alias("schema.schema_exists")
+    def schema_exists(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.schema_exists`` instead."""
 
     # =========================================================================
     # TABLES
     # =========================================================================
 
-    def list_tables(self, schema: str = "public") -> list[str]:
-        """List tables in a schema.
+    @deprecated_alias("schema.list_tables")
+    def list_tables(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_tables`` instead."""
 
-        Parameters
-        ----------
-        schema : str, optional
-            Schema name, by default "public".
+    @deprecated_alias("schema.table_exists")
+    def table_exists(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.table_exists`` instead."""
 
-        Returns
-        -------
-        list of str
-            List of table names.
-        """
-        result = self.execute(queries.LIST_TABLES, [schema])
-        return [r["table_name"] for r in result]
+    @deprecated_alias("schema.list_columns")
+    def list_columns(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_columns`` instead."""
 
-    def table_exists(self, name: str, schema: str = "public") -> bool:
-        """Check if a table exists.
+    @deprecated_alias("schema.columns_with_types")
+    def columns_with_types(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.columns_with_types`` instead."""
 
-        Parameters
-        ----------
-        name : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
+    @deprecated_alias("schema.drop_table")
+    def drop_table(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.drop_table`` instead."""
 
-        Returns
-        -------
-        bool
-            True if table exists.
-        """
-        result = self.execute(queries.TABLE_EXISTS, [schema, name])
-        return len(result) > 0
+    @deprecated_alias("schema.truncate_table")
+    def truncate_table(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.truncate_table`` instead."""
 
-    def list_columns(self, table: str, schema: str = "public") -> list[str]:
-        """Get list of column names for a table.
+    @deprecated_alias("schema.table_info")
+    def table_info(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.table_info`` instead."""
 
-        Parameters
-        ----------
-        table : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        list of str
-            List of column names in ordinal order.
-        """
-        result = self.execute(queries.GET_COLUMNS, [schema, table])
-        return [row["column_name"] for row in result]
-
-    def columns_with_types(
-        self, table: str, schema: str = "public"
-    ) -> list[tuple[str, str]]:
-        """Get list of (column_name, data_type) tuples for a table.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        list of tuple of (str, str)
-            List of (name, type) tuples in ordinal order.
-        """
-        result = self.execute(queries.GET_COLUMNS, [schema, table])
-        return [(row["column_name"], row["data_type"]) for row in result]
-
-    def drop_table(
-        self,
-        name: str,
-        schema: str = "public",
-        if_exists: bool = True,
-        cascade: bool = False,
-    ) -> None:
-        """Drop a table.
-
-        Parameters
-        ----------
-        name : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-        if_exists : bool, optional
-            Don't error if table doesn't exist, by default True.
-        cascade : bool, optional
-            Drop dependent objects, by default False.
-        """
-        validate_identifiers(name, schema)
-        if_clause = "IF EXISTS " if if_exists else ""
-        cascade_clause = " CASCADE" if cascade else ""
-        self.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
-
-    def truncate_table(
-        self, name: str, schema: str = "public", cascade: bool = False
-    ) -> None:
-        """Truncate a table (delete all rows).
-
-        Parameters
-        ----------
-        name : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-        cascade : bool, optional
-            Truncate dependent tables, by default False.
-        """
-        validate_identifiers(name, schema)
-        cascade_clause = " CASCADE" if cascade else ""
-        self.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
-
-    def table_info(self, name: str, schema: str = "public") -> list[dict]:
-        """Get column information for a table.
-
-        Parameters
-        ----------
-        name : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        list of dict
-            List of column info dicts with column_name, data_type, is_nullable,
-            column_default, ordinal_position.
-        """
-        return self.execute(queries.TABLE_INFO, [schema, name])
-
-    def row_count(self, name: str, schema: str = "public") -> int:
-        """Get approximate row count for a table.
-
-        Uses pg_stat for speed. For exact count, use execute("SELECT COUNT(*)...").
-
-        Parameters
-        ----------
-        name : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        int
-            Approximate row count.
-        """
-        result = self.execute(queries.ROW_COUNT, [schema, name])
-        return result[0]["count"] if result else 0
+    @deprecated_alias("schema.row_count")
+    def row_count(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.row_count`` instead."""
 
     # =========================================================================
     # CONSTRAINTS & INDEXES
     # =========================================================================
 
-    def add_primary_key(
-        self,
-        table: str,
-        columns: str | list[str],
-        schema: str = "public",
-        name: str | None = None,
-    ) -> None:
-        """Add primary key constraint to a table.
+    @deprecated_alias("schema.add_primary_key")
+    def add_primary_key(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.add_primary_key`` instead."""
 
-        Parameters
-        ----------
-        table : str
-            Table name.
-        columns : str or list of str
-            Column name or list of column names.
-        schema : str, optional
-            Schema name, by default "public".
-        name : str, optional
-            Constraint name.
-        """
-        if isinstance(columns, str):
-            columns = [columns]
-        validate_identifiers(table, schema, *columns)
-        if name:
-            validate_identifier(name)
+    @deprecated_alias("schema.add_foreign_key")
+    def add_foreign_key(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.add_foreign_key`` instead."""
 
-        cols_str = ", ".join(columns)
-        constraint_name = name or f"{table}_pkey"
-        self.execute(
-            f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({cols_str})"
-        )
+    @deprecated_alias("schema.add_unique_constraint")
+    def add_unique_constraint(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.add_unique_constraint`` instead."""
 
-    def add_foreign_key(
-        self,
-        table: str,
-        columns: str | list[str],
-        ref_table: str,
-        ref_columns: str | list[str],
-        schema: str = "public",
-        ref_schema: str = "public",
-        name: str | None = None,
-        on_delete: str = "NO ACTION",
-        on_update: str = "NO ACTION",
-    ) -> None:
-        """Add foreign key constraint.
+    @deprecated_alias("schema.create_index")
+    def create_index(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.create_index`` instead."""
 
-        Parameters
-        ----------
-        table : str
-            Source table name.
-        columns : str or list of str
-            Source column(s).
-        ref_table : str
-            Referenced table name.
-        ref_columns : str or list of str
-            Referenced column(s).
-        schema : str, optional
-            Source table schema, by default "public".
-        ref_schema : str, optional
-            Referenced table schema, by default "public".
-        name : str, optional
-            Constraint name.
-        on_delete : str, optional
-            ON DELETE action (CASCADE, SET NULL, NO ACTION, etc.), by default "NO ACTION".
-        on_update : str, optional
-            ON UPDATE action, by default "NO ACTION".
-        """
-        if isinstance(columns, str):
-            columns = [columns]
-        if isinstance(ref_columns, str):
-            ref_columns = [ref_columns]
+    @deprecated_alias("schema.drop_index")
+    def drop_index(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.drop_index`` instead."""
 
-        # Validate all identifiers
-        validate_identifiers(
-            table, schema, ref_table, ref_schema, *columns, *ref_columns
-        )
-        if name:
-            validate_identifier(name)
+    @deprecated_alias("schema.list_indexes")
+    def list_indexes(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_indexes`` instead."""
 
-        # Validate ON DELETE/UPDATE actions
-        valid_actions = {"NO ACTION", "RESTRICT", "CASCADE", "SET NULL", "SET DEFAULT"}
-        if on_delete.upper() not in valid_actions:
-            raise ValueError(
-                f"Invalid ON DELETE action: {on_delete}. Must be one of: {valid_actions}"
-            )
-        if on_update.upper() not in valid_actions:
-            raise ValueError(
-                f"Invalid ON UPDATE action: {on_update}. Must be one of: {valid_actions}"
-            )
-
-        cols_str = ", ".join(columns)
-        ref_cols_str = ", ".join(ref_columns)
-        constraint_name = name or f"{table}_{columns[0]}_fkey"
-
-        self.execute(f"""
-            ALTER TABLE {schema}.{table}
-            ADD CONSTRAINT {constraint_name}
-            FOREIGN KEY ({cols_str})
-            REFERENCES {ref_schema}.{ref_table} ({ref_cols_str})
-            ON DELETE {on_delete}
-            ON UPDATE {on_update}
-        """)
-
-    def add_unique_constraint(
-        self,
-        table: str,
-        columns: str | list[str],
-        schema: str = "public",
-        name: str | None = None,
-    ) -> None:
-        """Add unique constraint.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        columns : str or list of str
-            Column(s) to make unique.
-        schema : str, optional
-            Schema name, by default "public".
-        name : str, optional
-            Constraint name.
-        """
-        if isinstance(columns, str):
-            columns = [columns]
-        validate_identifiers(table, schema, *columns)
-        if name:
-            validate_identifier(name)
-        cols_str = ", ".join(columns)
-        constraint_name = name or f"{table}_{'_'.join(columns)}_key"
-        self.execute(
-            f"ALTER TABLE {schema}.{table} ADD CONSTRAINT {constraint_name} UNIQUE ({cols_str})"
-        )
-
-    def create_index(
-        self,
-        table: str,
-        columns: str | list[str],
-        schema: str = "public",
-        name: str | None = None,
-        unique: bool = False,
-        method: str = "btree",
-        if_not_exists: bool = True,
-    ) -> None:
-        """Create an index.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        columns : str or list of str
-            Column(s) to index.
-        schema : str, optional
-            Schema name, by default "public".
-        name : str, optional
-            Index name (auto-generated if not provided).
-        unique : bool, optional
-            Create unique index, by default False.
-        method : str, optional
-            Index method (btree, hash, gist, gin, etc.), by default "btree".
-        if_not_exists : bool, optional
-            Don't error if index exists, by default True.
-        """
-        if isinstance(columns, str):
-            columns = [columns]
-        validate_identifiers(table, schema, *columns)
-        if name:
-            validate_identifier(name)
-        validate_index_method(method)
-
-        cols_str = ", ".join(columns)
-        index_name = name or f"idx_{table}_{'_'.join(columns)}"
-        unique_clause = "UNIQUE " if unique else ""
-        if_clause = "IF NOT EXISTS " if if_not_exists else ""
-
-        self.execute(f"""
-            CREATE {unique_clause}INDEX {if_clause}{index_name}
-            ON {schema}.{table} USING {method} ({cols_str})
-        """)
-
-    def drop_index(
-        self, name: str, schema: str = "public", if_exists: bool = True
-    ) -> None:
-        """Drop an index.
-
-        Parameters
-        ----------
-        name : str
-            Index name.
-        schema : str, optional
-            Schema name, by default "public".
-        if_exists : bool, optional
-            Don't error if index doesn't exist, by default True.
-        """
-        validate_identifiers(schema, name)
-        if_clause = "IF EXISTS " if if_exists else ""
-        self.execute(f"DROP INDEX {if_clause}{schema}.{name}")
-
-    def list_indexes(self, table: str, schema: str = "public") -> list[dict]:
-        """List indexes on a table.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        list of dict
-            List of index info dicts.
-        """
-        return self.execute(queries.LIST_INDEXES, [schema, table])
-
-    def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
-        """List constraints on a table.
-
-        Parameters
-        ----------
-        table : str
-            Table name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        list of dict
-            List of constraint info dicts.
-        """
-        return self.execute(queries.LIST_CONSTRAINTS, [schema, table])
+    @deprecated_alias("schema.list_constraints")
+    def list_constraints(self, *args, **kwargs):
+        """Deprecated: use ``db.schema.list_constraints`` instead."""
 
     # =========================================================================
     # DATAFRAME OPERATIONS
