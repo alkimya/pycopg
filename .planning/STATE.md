@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
-stopped_at: Phase 23 Plan 01 complete
-last_updated: "2026-06-17T21:44:00Z"
-last_activity: 2026-06-17 -- Phase 23 Plan 01 executed (schema.py created)
+stopped_at: Phase 23 Plan 02 complete
+last_updated: "2026-06-17T22:30:00Z"
+last_activity: 2026-06-17 -- Phase 23 Plan 02 executed (SchemaAccessor wired into Database/AsyncDatabase)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 7
-  percent: 55
+  completed_plans: 8
+  percent: 60
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 ## Current Position
 
 Phase: 23 (schema-accessor-spatial-relocation) — EXECUTING
-Plan: 2 of 4
-Status: Executing Phase 23 (Plan 01 complete)
-Last activity: 2026-06-17 -- Phase 23 Plan 01 executed (schema.py created)
+Plan: 3 of 4
+Status: Executing Phase 23 (Plans 01-02 complete)
+Last activity: 2026-06-17 -- Phase 23 Plan 02 executed (SchemaAccessor wired into Database/AsyncDatabase)
 
-Progress: 0/4 phases complete [░░░░░░░░░░] 0% (7/10 plans complete)
+Progress: 0/4 phases complete [░░░░░░░░░░] 0% (8/10 plans complete)
 
 ## Performance Metrics
 
@@ -45,7 +45,7 @@ Progress: 0/4 phases complete [░░░░░░░░░░] 0% (7/10 plans co
 |-------|-------|----------|--------|
 | 21. Infrastructure & Timescale Accessor | TBD | 0 | Not started |
 | 22. Admin, Maint & Backup Accessors | TBD | 0 | Not started |
-| 23. Schema Accessor & Spatial Relocation | 4 | 1 | Executing (Plan 01 done) |
+| 23. Schema Accessor & Spatial Relocation | 4 | 2 | Executing (Plans 01-02 done) |
 | 24. Exports, Docs & Release v0.6.0 | TBD | 0 | Not started |
 
 ## Accumulated Context
@@ -80,11 +80,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17T21:44:00Z
-Stopped at: Phase 23 Plan 01 complete
-Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-01-SUMMARY.md
-Next action: Execute Phase 23 Plan 02
+Last session: 2026-06-17T22:30:00Z
+Stopped at: Phase 23 Plan 02 complete
+Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-02-SUMMARY.md
+Next action: Execute Phase 23 Plan 03
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 23` Plan 02 to wire the schema accessor (lazy property, deprecated aliases, __init__.py export).
+- Run `/gsd-execute-phase 23` Plan 03 to add schema alias tests, migrate call-sites (D-05), and complete the schema track.
