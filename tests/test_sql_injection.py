@@ -87,17 +87,17 @@ class TestSyncIdentifierInjection:
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_drop_index(self, sync_db, evil):
         with pytest.raises(InvalidIdentifier):
-            sync_db.drop_index(evil)
+            sync_db.schema.drop_index(evil)
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_create_spatial_index_table(self, sync_db, evil):
         with pytest.raises(InvalidIdentifier):
-            sync_db.create_spatial_index(evil, "geom")
+            sync_db.spatial.create_spatial_index(evil, "geom")
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_create_spatial_index_column(self, sync_db, evil):
         with pytest.raises(InvalidIdentifier):
-            sync_db.create_spatial_index("parcels", evil)
+            sync_db.spatial.create_spatial_index("parcels", evil)
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_vacuum_table(self, sync_db, evil):
@@ -111,24 +111,24 @@ class TestSyncIdentifierInjection:
 
     def test_create_extension_injection(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.create_extension('postgis"; DROP DATABASE x; --')
+            sync_db.schema.create_extension('postgis"; DROP DATABASE x; --')
 
     def test_create_extension_schema_injection(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.create_extension("postgis", schema="public; DROP SCHEMA public")
+            sync_db.schema.create_extension("postgis", schema="public; DROP SCHEMA public")
 
     def test_create_extension_hyphen_ok(self, sync_db):
         """Legitimate hyphenated extension must NOT be rejected."""
         # Reaches execute() (mocked) without raising InvalidIdentifier.
-        sync_db.create_extension("uuid-ossp")
+        sync_db.schema.create_extension("uuid-ossp")
 
     def test_drop_extension_injection(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.drop_extension('postgis"; DROP DATABASE x; --')
+            sync_db.schema.drop_extension('postgis"; DROP DATABASE x; --')
 
     def test_drop_extension_hyphen_ok(self, sync_db):
         """Legitimate hyphenated extension must NOT be rejected on drop."""
-        sync_db.drop_extension("uuid-ossp")
+        sync_db.schema.drop_extension("uuid-ossp")
 
 
 class TestSyncValueInjection:
@@ -182,13 +182,13 @@ class TestAsyncIdentifierInjection:
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_drop_index(self, async_db, evil):
         with pytest.raises(InvalidIdentifier):
-            await async_db.drop_index(evil)
+            await async_db.schema.drop_index(evil)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_create_spatial_index(self, async_db, evil):
         with pytest.raises(InvalidIdentifier):
-            await async_db.create_spatial_index(evil, "geom")
+            await async_db.spatial.create_spatial_index(evil, "geom")
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
@@ -205,12 +205,12 @@ class TestAsyncIdentifierInjection:
     @pytest.mark.asyncio
     async def test_create_extension(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.create_extension('postgis"; DROP DATABASE x; --')
+            await async_db.schema.create_extension('postgis"; DROP DATABASE x; --')
 
     @pytest.mark.asyncio
     async def test_drop_extension(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.drop_extension('postgis"; DROP DATABASE x; --')
+            await async_db.schema.drop_extension('postgis"; DROP DATABASE x; --')
 
 
 class TestAsyncValueInjection:

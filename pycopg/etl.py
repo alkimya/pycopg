@@ -939,7 +939,7 @@ class ETLAccessor:
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
             # ------------------------------------------------------------------
-            exists = self._db.table_exists(pipeline.target, pipeline.schema)
+            exists = self._db.schema.table_exists(pipeline.target, pipeline.schema)
 
             if pipeline.load_mode in ("append", "upsert") and not exists:
                 raise ETLTargetNotFoundError(
@@ -1412,7 +1412,7 @@ class AsyncETLAccessor:
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
             # ------------------------------------------------------------------
-            exists = await self._db.table_exists(pipeline.target, pipeline.schema)
+            exists = await self._db.schema.table_exists(pipeline.target, pipeline.schema)
 
             if pipeline.load_mode in ("append", "upsert") and not exists:
                 raise ETLTargetNotFoundError(

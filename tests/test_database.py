@@ -267,7 +267,7 @@ class TestDatabaseSchemas:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        schemas = db.list_schemas()
+        schemas = db.schema.list_schemas()
 
         assert schemas == ["public", "app"]
 
@@ -284,7 +284,7 @@ class TestDatabaseSchemas:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        exists = db.schema_exists("public")
+        exists = db.schema.schema_exists("public")
 
         assert exists is True
 
@@ -301,7 +301,7 @@ class TestDatabaseSchemas:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        exists = db.schema_exists("nonexistent")
+        exists = db.schema.schema_exists("nonexistent")
 
         assert exists is False
 
@@ -325,7 +325,7 @@ class TestDatabaseTables:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        tables = db.list_tables("public")
+        tables = db.schema.list_tables("public")
 
         assert tables == ["users", "orders"]
 
@@ -342,7 +342,7 @@ class TestDatabaseTables:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        exists = db.table_exists("users")
+        exists = db.schema.table_exists("users")
 
         assert exists is True
 
@@ -654,7 +654,7 @@ class TestDatabaseTableInfo:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        info = db.table_info("users")
+        info = db.schema.table_info("users")
 
         assert len(info) == 2
         assert info[0]["column_name"] == "id"
@@ -672,7 +672,7 @@ class TestDatabaseTableInfo:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        count = db.row_count("users")
+        count = db.schema.row_count("users")
 
         assert count == 42
 
@@ -693,7 +693,7 @@ class TestDatabaseExtensions:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        assert db.has_extension("postgis") is True
+        assert db.schema.has_extension("postgis") is True
 
     @patch("pycopg.database.psycopg")
     def test_has_extension_false(self, mock_psycopg, config):
@@ -708,7 +708,7 @@ class TestDatabaseExtensions:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        assert db.has_extension("unknown_ext") is False
+        assert db.schema.has_extension("unknown_ext") is False
 
     @patch("pycopg.database.psycopg")
     def test_list_extensions(self, mock_psycopg, config):
@@ -726,7 +726,7 @@ class TestDatabaseExtensions:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        extensions = db.list_extensions()
+        extensions = db.schema.list_extensions()
 
         assert len(extensions) == 2
         assert extensions[0]["extname"] == "plpgsql"
@@ -1032,7 +1032,7 @@ class TestDatabaseTruncate:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        db.truncate_table("users")
+        db.schema.truncate_table("users")
 
         mock_cursor.execute.assert_called()
 
@@ -1056,7 +1056,7 @@ class TestDatabaseIndexes:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        indexes = db.list_indexes("users")
+        indexes = db.schema.list_indexes("users")
 
         assert len(indexes) == 2
         assert indexes[0]["index_name"] == "users_pkey"
@@ -1081,7 +1081,7 @@ class TestDatabaseConstraints:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        constraints = db.list_constraints("users")
+        constraints = db.schema.list_constraints("users")
 
         assert len(constraints) == 2
 
@@ -1102,7 +1102,7 @@ class TestDatabaseDropTable:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        db.drop_table("users")
+        db.schema.drop_table("users")
 
         mock_cursor.execute.assert_called()
         call_args = mock_cursor.execute.call_args[0][0]
@@ -1121,7 +1121,7 @@ class TestDatabaseDropTable:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        db.drop_table("users", if_exists=True)
+        db.schema.drop_table("users", if_exists=True)
 
         call_args = mock_cursor.execute.call_args[0][0]
         assert "IF EXISTS" in call_args
@@ -1143,7 +1143,7 @@ class TestDatabaseCreateDropSchema:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        db.create_schema("myschema")
+        db.schema.create_schema("myschema")
 
         mock_cursor.execute.assert_called()
         call_args = mock_cursor.execute.call_args[0][0]
@@ -1162,7 +1162,7 @@ class TestDatabaseCreateDropSchema:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        db.drop_schema("myschema")
+        db.schema.drop_schema("myschema")
 
         mock_cursor.execute.assert_called()
         call_args = mock_cursor.execute.call_args[0][0]
@@ -1182,7 +1182,7 @@ class TestDatabaseInspection:
             ]
         )
 
-        cols = db.list_columns("users")
+        cols = db.schema.list_columns("users")
 
         assert cols == ["id", "name"]
 
@@ -1201,7 +1201,7 @@ class TestDatabaseInspection:
             ]
         )
 
-        cols = db.columns_with_types("users")
+        cols = db.schema.columns_with_types("users")
 
         assert cols == [("id", "integer"), ("name", "text")]
 
@@ -1398,7 +1398,7 @@ class TestDatabaseGrantRevoke:
         db.execute = MagicMock(
             return_value=[{"datname": "mydb"}, {"datname": "testdb"}]
         )
-        dbs = db.list_databases()
+        dbs = db.schema.list_databases()
         assert dbs == ["mydb", "testdb"]
 
 

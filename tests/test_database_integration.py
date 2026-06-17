@@ -70,7 +70,7 @@ class TestDatabaseCoreOperations:
             autocommit=True,
         )
         # Verify table exists
-        assert db.table_exists(temp_table_name)
+        assert db.schema.table_exists(temp_table_name)
 
     def test_cursor_context(self, db):
         """Test using cursor() context manager."""
@@ -161,7 +161,7 @@ class TestDatabaseSchema:
 
     def test_list_schemas(self, db):
         """Test listing database schemas."""
-        schemas = db.list_schemas()
+        schemas = db.schema.list_schemas()
         assert "public" in schemas
 
     def test_list_tables(self, db, temp_table_name, cleanup_table):
@@ -175,7 +175,7 @@ class TestDatabaseSchema:
         )
 
         # List tables
-        tables = db.list_tables("public")
+        tables = db.schema.list_tables("public")
         assert temp_table_name in tables
 
     def test_table_exists(self, db, temp_table_name, cleanup_table):
@@ -183,7 +183,7 @@ class TestDatabaseSchema:
         cleanup_table(temp_table_name)
 
         # Should not exist initially
-        assert not db.table_exists(temp_table_name)
+        assert not db.schema.table_exists(temp_table_name)
 
         # Create table
         db.execute(
@@ -192,7 +192,7 @@ class TestDatabaseSchema:
         )
 
         # Should exist now
-        assert db.table_exists(temp_table_name)
+        assert db.schema.table_exists(temp_table_name)
 
     def test_table_info(self, db, temp_table_name, cleanup_table):
         """Test getting table information."""
@@ -205,7 +205,7 @@ class TestDatabaseSchema:
         )
 
         # Get table info
-        info = db.table_info(temp_table_name)
+        info = db.schema.table_info(temp_table_name)
 
         # Verify columns are present
         column_names = [col["column_name"] for col in info]
@@ -215,8 +215,8 @@ class TestDatabaseSchema:
 
     def test_schema_exists(self, db):
         """Test schema_exists for known and unknown schemas."""
-        assert db.schema_exists("public")
-        assert not db.schema_exists("nonexistent_schema_xyz")
+        assert db.schema.schema_exists("public")
+        assert not db.schema.schema_exists("nonexistent_schema_xyz")
 
 
 class TestDatabaseSession:
@@ -273,7 +273,7 @@ class TestDatabaseSession:
             session.execute(f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)')
 
         # Verify table exists outside session
-        assert db.table_exists(temp_table_name)
+        assert db.schema.table_exists(temp_table_name)
 
 
 class TestDatabaseEngine:
@@ -346,13 +346,13 @@ class TestDatabaseDDL:
             f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
             autocommit=True,
         )
-        assert db.table_exists(temp_table_name)
+        assert db.schema.table_exists(temp_table_name)
 
         # Drop table
-        db.drop_table(temp_table_name)
+        db.schema.drop_table(temp_table_name)
 
         # Verify gone
-        assert not db.table_exists(temp_table_name)
+        assert not db.schema.table_exists(temp_table_name)
 
     def test_create_index(self, db, temp_table_name, cleanup_table):
         """Test creating an index."""
@@ -366,10 +366,10 @@ class TestDatabaseDDL:
 
         # Create index (signature: table, columns, schema, name...)
         index_name = f"{temp_table_name}_email_idx"
-        db.create_index(temp_table_name, "email", name=index_name)
+        db.schema.create_index(temp_table_name, "email", name=index_name)
 
         # Verify index exists
-        indexes = db.list_indexes(temp_table_name)
+        indexes = db.schema.list_indexes(temp_table_name)
         index_names = [idx["index_name"] for idx in indexes]
         assert index_name in index_names
 
@@ -383,17 +383,17 @@ class TestDatabaseDDL:
             autocommit=True,
         )
         index_name = f"{temp_table_name}_idx"
-        db.create_index(temp_table_name, "value", name=index_name)
+        db.schema.create_index(temp_table_name, "value", name=index_name)
 
-        indexes = db.list_indexes(temp_table_name)
+        indexes = db.schema.list_indexes(temp_table_name)
         index_names = [idx["index_name"] for idx in indexes]
         assert index_name in index_names
 
         # Drop index
-        db.drop_index(index_name)
+        db.schema.drop_index(index_name)
 
         # Verify gone
-        indexes_after = db.list_indexes(temp_table_name)
+        indexes_after = db.schema.list_indexes(temp_table_name)
         index_names_after = [idx["index_name"] for idx in indexes_after]
         assert index_name not in index_names_after
 
@@ -403,10 +403,10 @@ class TestDatabaseDDL:
 
         try:
             # Create schema
-            db.create_schema(schema_name, if_not_exists=True)
+            db.schema.create_schema(schema_name, if_not_exists=True)
 
             # Verify exists
-            assert db.schema_exists(schema_name)
+            assert db.schema.schema_exists(schema_name)
 
         finally:
             # Cleanup
@@ -422,13 +422,13 @@ class TestDatabaseDDL:
         try:
             # Create schema
             db.execute(f'CREATE SCHEMA "{schema_name}"')
-            assert db.schema_exists(schema_name)
+            assert db.schema.schema_exists(schema_name)
 
             # Drop schema
-            db.drop_schema(schema_name)
+            db.schema.drop_schema(schema_name)
 
             # Verify gone
-            assert not db.schema_exists(schema_name)
+            assert not db.schema.schema_exists(schema_name)
 
         finally:
             # Cleanup (in case drop failed)
@@ -529,7 +529,7 @@ class TestDatabaseConnection:
 
     def test_list_extensions(self, db):
         """Test listing installed extensions."""
-        extensions = db.list_extensions()
+        extensions = db.schema.list_extensions()
 
         # Should return a list
         assert isinstance(extensions, list)
@@ -542,10 +542,10 @@ class TestDatabaseConnection:
         """Test creating an extension (if not exists)."""
         # Try to create a commonly available extension
         # Use if_not_exists to avoid errors if already installed
-        db.create_extension("pg_trgm", if_not_exists=True)
+        db.schema.create_extension("pg_trgm", if_not_exists=True)
 
         # Verify it's listed (should not error)
-        extensions = db.list_extensions()
+        extensions = db.schema.list_extensions()
         assert isinstance(extensions, list)
 
 
@@ -680,7 +680,7 @@ class TestDatabaseConstraintsAdminCoverage:
             f'CREATE TABLE "{child}" (id INTEGER PRIMARY KEY, parent_id INTEGER)',
             autocommit=True,
         )
-        db.add_foreign_key(child, "parent_id", parent, "id", on_delete="CASCADE")
+        db.schema.add_foreign_key(child, "parent_id", parent, "id", on_delete="CASCADE")
         db.execute(f'INSERT INTO "{parent}" VALUES (1)', autocommit=True)
         db.execute(f'INSERT INTO "{child}" VALUES (10, 1)', autocommit=True)
         db.execute(f'DELETE FROM "{parent}" WHERE id = 1', autocommit=True)
@@ -689,16 +689,16 @@ class TestDatabaseConstraintsAdminCoverage:
     def test_add_foreign_key_invalid_action_raises(self, db):
         """add_foreign_key with a bad on_delete raises ValueError before SQL."""
         with pytest.raises(ValueError, match="Invalid ON DELETE"):
-            db.add_foreign_key("a", "x", "b", "y", on_delete="BOGUS")
+            db.schema.add_foreign_key("a", "x", "b", "y", on_delete="BOGUS")
         with pytest.raises(ValueError, match="Invalid ON UPDATE"):
-            db.add_foreign_key("a", "x", "b", "y", on_update="BOGUS")
+            db.schema.add_foreign_key("a", "x", "b", "y", on_update="BOGUS")
 
     def test_add_unique_constraint_rejects_duplicate(self, db, cleanup_table):
         """add_unique_constraint enforces uniqueness."""
         t = f"test_uq_{uuid.uuid4().hex[:8]}"
         cleanup_table(t)
         db.execute(f'CREATE TABLE "{t}" (id INTEGER, email TEXT)', autocommit=True)
-        db.add_unique_constraint(t, "email")
+        db.schema.add_unique_constraint(t, "email")
         db.execute(f'INSERT INTO "{t}" VALUES (1, %s)', ["a@x"], autocommit=True)
         with pytest.raises(Exception):
             db.execute(f'INSERT INTO "{t}" VALUES (2, %s)', ["a@x"], autocommit=True)
@@ -716,42 +716,42 @@ class TestDatabaseConstraintsAdminCoverage:
         )
         db.execute(f'INSERT INTO "{parent}" VALUES (1)', autocommit=True)
         db.execute(f'INSERT INTO "{child}" VALUES (1, 1)', autocommit=True)
-        db.truncate_table(parent, cascade=True)
+        db.schema.truncate_table(parent, cascade=True)
         assert db.execute(f'SELECT COUNT(*) AS n FROM "{parent}"')[0]["n"] == 0
         assert db.execute(f'SELECT COUNT(*) AS n FROM "{child}"')[0]["n"] == 0
 
     def test_database_exists_and_list(self, db):
         """database_exists / list_databases against the real instance."""
-        assert db.database_exists("pycopg_test") is True
-        assert db.database_exists("definitely_absent_xyz") is False
-        names = db.list_databases()
+        assert db.schema.database_exists("pycopg_test") is True
+        assert db.schema.database_exists("definitely_absent_xyz") is False
+        names = db.schema.list_databases()
         assert "pycopg_test" in names
 
     def test_drop_extension_if_exists(self, db):
         """drop_extension(if_exists=True) is idempotent."""
-        db.create_extension("pg_trgm", if_not_exists=True)
-        db.drop_extension("pg_trgm", if_exists=True)
-        db.drop_extension("pg_trgm", if_exists=True)  # no error second time
-        db.create_extension("pg_trgm", if_not_exists=True)  # restore
+        db.schema.create_extension("pg_trgm", if_not_exists=True)
+        db.schema.drop_extension("pg_trgm", if_exists=True)
+        db.schema.drop_extension("pg_trgm", if_exists=True)  # no error second time
+        db.schema.create_extension("pg_trgm", if_not_exists=True)  # restore
 
     def test_drop_table_if_exists_and_cascade(self, db, cleanup_table):
         """drop_table covers if_exists and cascade branches."""
         t = f"test_dt_{uuid.uuid4().hex[:8]}"
         cleanup_table(t)
         db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
-        db.drop_table(t, cascade=True)
-        assert not db.table_exists(t)
+        db.schema.drop_table(t, cascade=True)
+        assert not db.schema.table_exists(t)
         # if_exists=True when already gone must not raise
-        db.drop_table(t, if_exists=True)
+        db.schema.drop_table(t, if_exists=True)
 
     def test_drop_schema_cascade(self, db):
         """create_schema then drop_schema(cascade=True) round-trip."""
         s = f"test_sc_{uuid.uuid4().hex[:8]}"
-        db.create_schema(s)
-        assert db.schema_exists(s)
+        db.schema.create_schema(s)
+        assert db.schema.schema_exists(s)
         db.execute(f'CREATE TABLE "{s}".t (id INTEGER)', autocommit=True)
-        db.drop_schema(s, cascade=True)
-        assert not db.schema_exists(s)
+        db.schema.drop_schema(s, cascade=True)
+        assert not db.schema.schema_exists(s)
 
 
 class TestDatabaseCsvCoverage:
@@ -806,7 +806,7 @@ class TestDatabaseBulkAndSizeCoverage:
         db.insert_many(t, [{"id": i} for i in range(5)])
         size = db.maint.table_size(t)
         assert size is not None
-        assert isinstance(db.row_count(t), int)
+        assert isinstance(db.schema.row_count(t), int)
 
 
 class TestDatabaseGeoCoverage:
@@ -817,7 +817,7 @@ class TestDatabaseGeoCoverage:
         gpd = pytest.importorskip("geopandas")
         from shapely.geometry import Point
 
-        if not db.has_extension("postgis"):
+        if not db.schema.has_extension("postgis"):
             pytest.skip("PostGIS not installed")
 
         t = f"test_geo_{uuid.uuid4().hex[:8]}"
@@ -838,12 +838,12 @@ class TestDatabaseTimescaleCoverage:
 
     @pytest.fixture
     def ts_db(self, db):
-        if not db.has_extension("timescaledb"):
+        if not db.schema.has_extension("timescaledb"):
             try:
-                db.create_extension("timescaledb", if_not_exists=True)
+                db.schema.create_extension("timescaledb", if_not_exists=True)
             except Exception:
                 pytest.skip("TimescaleDB extension not available")
-        if not db.has_extension("timescaledb"):
+        if not db.schema.has_extension("timescaledb"):
             pytest.skip("TimescaleDB extension not available")
         return db
 

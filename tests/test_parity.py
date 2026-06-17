@@ -351,8 +351,8 @@ class TestBehavioralParity:
         try:
             sdb.execute(f'CREATE TABLE "{st}" (id INT, v TEXT)', autocommit=True)
             await adb.execute(f'CREATE TABLE "{at}" (id INT, v TEXT)', autocommit=True)
-            sdb.add_primary_key(st, "id")
-            await adb.add_primary_key(at, "id")
+            sdb.schema.add_primary_key(st, "id")
+            await adb.schema.add_primary_key(at, "id")
             sync_pk = has_pk_sync(st)
             async_pk = has_pk_sync(at)
             assert sync_pk == async_pk is True
@@ -371,13 +371,13 @@ class TestBehavioralParity:
                 if t == st:
                     sdb.execute(f'CREATE TABLE "{t}" (id INT)', autocommit=True)
                     sdb.execute(f'INSERT INTO "{t}" VALUES (1), (2)', autocommit=True)
-                    sdb.truncate_table(t)
+                    sdb.schema.truncate_table(t)
                 else:
                     await adb.execute(f'CREATE TABLE "{t}" (id INT)', autocommit=True)
                     await adb.execute(
                         f'INSERT INTO "{t}" VALUES (1), (2)', autocommit=True
                     )
-                    await adb.truncate_table(t)
+                    await adb.schema.truncate_table(t)
             sync_n = sdb.execute(f'SELECT COUNT(*) AS n FROM "{st}"')[0]["n"]
             async_n = (await adb.execute(f'SELECT COUNT(*) AS n FROM "{at}"'))[0]["n"]
             assert sync_n == async_n == 0
@@ -389,16 +389,16 @@ class TestBehavioralParity:
         """database_exists returns the same truth value on both sides."""
         sdb = Database(db_config)
         adb = AsyncDatabase(db_config)
-        assert sdb.database_exists("pycopg_test") == await adb.database_exists(
+        assert sdb.schema.database_exists("pycopg_test") == await adb.schema.database_exists(
             "pycopg_test"
         )
-        assert sdb.database_exists("nope_xyz") == await adb.database_exists("nope_xyz")
+        assert sdb.schema.database_exists("nope_xyz") == await adb.schema.database_exists("nope_xyz")
 
     async def test_list_databases_parity(self, db_config):
         """list_databases returns the same set of names on both sides."""
         sdb = Database(db_config)
         adb = AsyncDatabase(db_config)
-        assert set(sdb.list_databases()) == set(await adb.list_databases())
+        assert set(sdb.schema.list_databases()) == set(await adb.schema.list_databases())
 
     # --- C1 (PAR-04): from_dataframe applies primary_key on both sides ------
 
@@ -441,8 +441,8 @@ class TestBehavioralParity:
                 f'CREATE TABLE "{t}" (id INT, name TEXT, created TIMESTAMP)',
                 autocommit=True,
             )
-            sync_info = sdb.table_info(t)
-            async_info = await adb.table_info(t)
+            sync_info = sdb.schema.table_info(t)
+            async_info = await adb.schema.table_info(t)
             assert [r["column_name"] for r in sync_info] == [
                 r["column_name"] for r in async_info
             ]
@@ -467,10 +467,10 @@ class TestBehavioralParity:
         ss = _uniq("par_cs_sync")
         as_ = _uniq("par_cs_async")
         try:
-            sdb.create_schema(ss, owner=db_config.user)
-            await adb.create_schema(as_, owner=db_config.user)
-            assert sdb.schema_exists(ss) is True
-            assert sdb.schema_exists(as_) is True
+            sdb.schema.create_schema(ss, owner=db_config.user)
+            await adb.schema.create_schema(as_, owner=db_config.user)
+            assert sdb.schema.schema_exists(ss) is True
+            assert sdb.schema.schema_exists(as_) is True
         finally:
             sdb.execute(f'DROP SCHEMA IF EXISTS "{ss}" CASCADE', autocommit=True)
             sdb.execute(f'DROP SCHEMA IF EXISTS "{as_}" CASCADE', autocommit=True)
@@ -509,8 +509,8 @@ class TestBehavioralParity:
             assert sync_cur == sdb_target
             assert async_cur == adb_target
         finally:
-            admin_sync.drop_database(sdb_target, if_exists=True)
-            await admin_async.drop_database(adb_target, if_exists=True)
+            admin_sync.schema.drop_database(sdb_target, if_exists=True)
+            await admin_async.schema.drop_database(adb_target, if_exists=True)
 
 
 # TestEtlParity removed — ETL parity is now covered by test_accessor_parity

@@ -75,7 +75,7 @@ class TimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not self._db.has_extension("timescaledb"):
+        if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
             )
@@ -118,7 +118,7 @@ class TimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not self._db.has_extension("timescaledb"):
+        if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -171,7 +171,7 @@ class TimescaleAccessor:
         """
         validate_identifiers(table, schema)
         validate_interval(compress_after)
-        if not self._db.has_extension("timescaledb"):
+        if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -208,7 +208,7 @@ class TimescaleAccessor:
         """
         validate_identifiers(table, schema)
         validate_interval(drop_after)
-        if not self._db.has_extension("timescaledb"):
+        if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -234,7 +234,7 @@ class TimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not self._db.has_extension("timescaledb"):
+        if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -262,7 +262,7 @@ class TimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not self._db.has_extension("timescaledb"):
+        if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -327,7 +327,7 @@ class AsyncTimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not await self._db.has_extension("timescaledb"):
+        if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
             )
@@ -370,7 +370,7 @@ class AsyncTimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not await self._db.has_extension("timescaledb"):
+        if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -425,7 +425,7 @@ class AsyncTimescaleAccessor:
         """
         validate_identifiers(table, schema)
         validate_interval(compress_after)
-        if not await self._db.has_extension("timescaledb"):
+        if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -462,7 +462,7 @@ class AsyncTimescaleAccessor:
         """
         validate_identifiers(table, schema)
         validate_interval(drop_after)
-        if not await self._db.has_extension("timescaledb"):
+        if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -488,7 +488,7 @@ class AsyncTimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not await self._db.has_extension("timescaledb"):
+        if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"
@@ -516,7 +516,7 @@ class AsyncTimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         """
-        if not await self._db.has_extension("timescaledb"):
+        if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailable(
                 "TimescaleDB extension not installed. "
                 "Run db.create_extension('timescaledb')"

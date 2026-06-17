@@ -277,7 +277,7 @@ class TestAsyncDatabaseSchemas:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            schemas = await db.list_schemas()
+            schemas = await db.schema.list_schemas()
 
             assert schemas == ["public", "app"]
 
@@ -292,7 +292,7 @@ class TestAsyncDatabaseSchemas:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            exists = await db.schema_exists("public")
+            exists = await db.schema.schema_exists("public")
 
             assert exists is True
 
@@ -307,7 +307,7 @@ class TestAsyncDatabaseSchemas:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            exists = await db.schema_exists("nonexistent")
+            exists = await db.schema.schema_exists("nonexistent")
 
             assert exists is False
 
@@ -331,7 +331,7 @@ class TestAsyncDatabaseTables:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            tables = await db.list_tables("public")
+            tables = await db.schema.list_tables("public")
 
             assert tables == ["users", "orders"]
 
@@ -346,7 +346,7 @@ class TestAsyncDatabaseTables:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            exists = await db.table_exists("users")
+            exists = await db.schema.table_exists("users")
 
             assert exists is True
 
@@ -431,7 +431,7 @@ class TestAsyncDatabaseInspection:
             ]
         )
 
-        cols = await db.list_columns("users")
+        cols = await db.schema.list_columns("users")
 
         assert cols == ["id", "name"]
 
@@ -450,7 +450,7 @@ class TestAsyncDatabaseInspection:
             ]
         )
 
-        cols = await db.columns_with_types("users")
+        cols = await db.schema.columns_with_types("users")
 
         assert cols == [("id", "integer"), ("name", "text")]
 
@@ -884,7 +884,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_table("users")
+        await db.schema.drop_table("users")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -895,7 +895,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_table("users", cascade=True)
+        await db.schema.drop_table("users", cascade=True)
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -906,7 +906,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.create_index("users", "email")
+        await db.schema.create_index("users", "email")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -918,7 +918,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.create_index("users", ["first_name", "last_name"], unique=True)
+        await db.schema.create_index("users", ["first_name", "last_name"], unique=True)
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -930,7 +930,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_index("idx_users_email")
+        await db.schema.drop_index("idx_users_email")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -954,7 +954,7 @@ class TestAsyncDatabaseDDL:
             ]
         )
 
-        indexes = await db.list_indexes("users")
+        indexes = await db.schema.list_indexes("users")
 
         assert len(indexes) == 2
         assert indexes[0]["index_name"] == "idx_users_email"
@@ -982,7 +982,7 @@ class TestAsyncDatabaseDDL:
             ]
         )
 
-        constraints = await db.list_constraints("users")
+        constraints = await db.schema.list_constraints("users")
 
         assert len(constraints) == 2
         assert constraints[0]["constraint_name"] == "users_pkey"
@@ -997,7 +997,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_schema("analytics")
+        await db.schema.drop_schema("analytics")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -1008,7 +1008,7 @@ class TestAsyncDatabaseDDL:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.drop_schema("analytics", cascade=True)
+        await db.schema.drop_schema("analytics", cascade=True)
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -1069,7 +1069,7 @@ class TestAsyncDatabaseAdmin:
         db = AsyncDatabase(config)
 
         with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
-            await db.create_database("testdb")
+            await db.schema.create_database("testdb")
 
         # Verify CREATE DATABASE was called
         mock_cursor.execute.assert_called_once()
@@ -1096,7 +1096,7 @@ class TestAsyncDatabaseAdmin:
         db = AsyncDatabase(config)
 
         with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
-            await db.create_database("testdb", owner="appuser")
+            await db.schema.create_database("testdb", owner="appuser")
 
         sql = mock_cursor.execute.call_args[0][0]
         assert "OWNER appuser" in sql
@@ -1120,7 +1120,7 @@ class TestAsyncDatabaseAdmin:
         db = AsyncDatabase(config)
 
         with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
-            await db.drop_database("testdb")
+            await db.schema.drop_database("testdb")
 
         # Verify pg_terminate_backend was called first, then DROP DATABASE
         assert mock_cursor.execute.call_count == 2
@@ -1153,7 +1153,7 @@ class TestAsyncDatabaseAdmin:
         db = AsyncDatabase(config)
 
         with patch("psycopg.AsyncConnection.connect", return_value=connect_cm()):
-            await db.drop_database("testdb", if_exists=False)
+            await db.schema.drop_database("testdb", if_exists=False)
 
         # Check DROP DATABASE doesn't have IF EXISTS
         second_call = mock_cursor.execute.call_args_list[1]
@@ -2227,10 +2227,15 @@ class TestAsyncDatabasePostGIS:
 
     async def test_create_spatial_index_basic(self, config):
         """Test create_spatial_index with default parameters."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
 
-        await db.create_spatial_index("parcels", "geom")
+        await db.spatial.create_spatial_index("parcels", "geom")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2239,10 +2244,15 @@ class TestAsyncDatabasePostGIS:
 
     async def test_create_spatial_index_custom_name(self, config):
         """Test create_spatial_index with custom index name."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
 
-        await db.create_spatial_index("parcels", "geom", name="custom_idx")
+        await db.spatial.create_spatial_index("parcels", "geom", name="custom_idx")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2250,10 +2260,15 @@ class TestAsyncDatabasePostGIS:
 
     async def test_create_spatial_index_custom_schema(self, config):
         """Test create_spatial_index with custom schema."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
 
-        await db.create_spatial_index("parcels", "geom", schema="geo")
+        await db.spatial.create_spatial_index("parcels", "geom", schema="geo")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2261,6 +2276,8 @@ class TestAsyncDatabasePostGIS:
 
     async def test_list_geometry_columns_all(self, config):
         """Test list_geometry_columns without schema filter."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
         db.execute = AsyncMock(
             return_value=[
@@ -2274,8 +2291,11 @@ class TestAsyncDatabasePostGIS:
                 }
             ]
         )
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
 
-        result = await db.list_geometry_columns()
+        result = await db.spatial.list_geometry_columns()
 
         assert len(result) == 1
         assert result[0]["table_name"] == "parcels"
@@ -2290,10 +2310,15 @@ class TestAsyncDatabasePostGIS:
 
     async def test_list_geometry_columns_with_schema(self, config):
         """Test list_geometry_columns with schema filter."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
         db.execute = AsyncMock(return_value=[])
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
 
-        await db.list_geometry_columns(schema="geo")
+        await db.spatial.list_geometry_columns(schema="geo")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2308,13 +2333,17 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_create_hypertable_basic(self, config):
         """Test create_hypertable with extension check."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock()
 
         await db.timescale.create_hypertable("events", "timestamp")
 
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
         assert "create_hypertable" in sql
@@ -2323,20 +2352,28 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_create_hypertable_no_extension_raises(self, config):
         """Test create_hypertable raises RuntimeError when extension missing."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
         ):
             await db.timescale.create_hypertable("events", "timestamp")
 
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
 
     async def test_create_hypertable_custom_interval(self, config):
         """Test create_hypertable with custom chunk interval."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock()
 
         await db.timescale.create_hypertable(
@@ -2348,13 +2385,17 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_enable_compression_basic(self, config):
         """Test enable_compression with segment_by."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock()
 
         await db.timescale.enable_compression("events", segment_by="device_id")
 
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
         assert "ALTER TABLE" in sql
@@ -2363,8 +2404,12 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_enable_compression_with_order_by(self, config):
         """Test enable_compression with order_by."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock()
 
         await db.timescale.enable_compression("events", order_by=["timestamp DESC"])
@@ -2374,8 +2419,12 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_enable_compression_no_extension_raises(self, config):
         """Test enable_compression raises RuntimeError when extension missing."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
@@ -2384,13 +2433,17 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_add_compression_policy_basic(self, config):
         """Test add_compression_policy with default interval."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock()
 
         await db.timescale.add_compression_policy("events", compress_after="7 days")
 
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
         assert "add_compression_policy" in sql
@@ -2398,8 +2451,12 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_add_compression_policy_no_extension_raises(self, config):
         """Test add_compression_policy raises RuntimeError when extension missing."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
@@ -2408,13 +2465,17 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_add_retention_policy_basic(self, config):
         """Test add_retention_policy."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock()
 
         await db.timescale.add_retention_policy("events", drop_after="90 days")
 
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
         assert "add_retention_policy" in sql
@@ -2422,8 +2483,12 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_add_retention_policy_no_extension_raises(self, config):
         """Test add_retention_policy raises RuntimeError when extension missing."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
@@ -2432,8 +2497,12 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_list_hypertables_basic(self, config):
         """Test list_hypertables returns hypertable info."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock(
             return_value=[
                 {
@@ -2450,15 +2519,19 @@ class TestAsyncDatabaseTimescaleDB:
 
         assert len(result) == 1
         assert result[0]["table_name"] == "events"
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
         assert "timescaledb_information.hypertables" in sql
 
     async def test_list_hypertables_no_extension_raises(self, config):
         """Test list_hypertables raises RuntimeError when extension missing."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
@@ -2467,8 +2540,12 @@ class TestAsyncDatabaseTimescaleDB:
 
     async def test_hypertable_info_basic(self, config):
         """Test hypertable_info returns size info."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=True)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
         db.execute = AsyncMock(
             return_value=[{"total_size": "100 MB", "detailed_size": "detailed info"}]
         )
@@ -2476,15 +2553,19 @@ class TestAsyncDatabaseTimescaleDB:
         result = await db.timescale.hypertable_info("events")
 
         assert result["total_size"] == "100 MB"
-        db.has_extension.assert_called_once_with("timescaledb")
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
         assert "hypertable_size" in sql
 
     async def test_hypertable_info_no_extension_raises(self, config):
         """Test hypertable_info raises RuntimeError when extension missing."""
+        from pycopg.schema import AsyncSchemaAccessor
+
         db = AsyncDatabase(config)
-        db.has_extension = AsyncMock(return_value=False)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
 
         with pytest.raises(
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
@@ -2509,7 +2590,7 @@ class TestAsyncDatabaseConstraintsIntegration:
             await db.execute(
                 f'CREATE TABLE "{t}" (id INTEGER, name TEXT)', autocommit=True
             )
-            await db.add_primary_key(t, "id")
+            await db.schema.add_primary_key(t, "id")
             rows = await db.execute(
                 "SELECT 1 FROM information_schema.table_constraints "
                 "WHERE table_name = %s AND constraint_type = 'PRIMARY KEY'",
@@ -2523,10 +2604,12 @@ class TestAsyncDatabaseConstraintsIntegration:
         """add_primary_key signature params match the sync twin."""
         import inspect
 
-        from pycopg import Database
+        from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
 
-        async_params = list(inspect.signature(AsyncDatabase.add_primary_key).parameters)
-        sync_params = list(inspect.signature(Database.add_primary_key).parameters)
+        async_params = list(
+            inspect.signature(AsyncSchemaAccessor.add_primary_key).parameters
+        )
+        sync_params = list(inspect.signature(SchemaAccessor.add_primary_key).parameters)
         assert (
             async_params
             == sync_params
@@ -2541,7 +2624,7 @@ class TestAsyncDatabaseConstraintsIntegration:
             await db.execute(
                 f'CREATE TABLE "{t}" (id INTEGER, email TEXT)', autocommit=True
             )
-            await db.add_unique_constraint(t, "email")
+            await db.schema.add_unique_constraint(t, "email")
             await db.execute(
                 f'INSERT INTO "{t}" VALUES (1, %s)', ["a@x.com"], autocommit=True
             )
@@ -2565,7 +2648,7 @@ class TestAsyncDatabaseConstraintsIntegration:
                 f'CREATE TABLE "{child}" (id INTEGER PRIMARY KEY, parent_id INTEGER)',
                 autocommit=True,
             )
-            await db.add_foreign_key(
+            await db.schema.add_foreign_key(
                 child, "parent_id", parent, "id", on_delete="CASCADE"
             )
             await db.execute(f'INSERT INTO "{parent}" VALUES (1)', autocommit=True)
@@ -2583,7 +2666,7 @@ class TestAsyncDatabaseConstraintsIntegration:
         """add_foreign_key with a bad on_delete raises ValueError and runs no SQL."""
         db = AsyncDatabase(db_config)
         with pytest.raises(ValueError, match="Invalid ON DELETE"):
-            await db.add_foreign_key(
+            await db.schema.add_foreign_key(
                 "orders", "user_id", "users", "id", on_delete="BOGUS"
             )
 
@@ -2594,7 +2677,7 @@ class TestAsyncDatabaseConstraintsIntegration:
         try:
             await db.execute(f'CREATE TABLE "{t}" (id INTEGER)', autocommit=True)
             await db.execute(f'INSERT INTO "{t}" VALUES (1), (2), (3)', autocommit=True)
-            await db.truncate_table(t)
+            await db.schema.truncate_table(t)
             rows = await db.execute(f'SELECT COUNT(*) AS n FROM "{t}"')
             assert rows[0]["n"] == 0
         finally:
@@ -2607,13 +2690,13 @@ class TestAsyncDatabaseAdminIntegration:
     async def test_database_exists_true_and_false(self, db_config):
         """database_exists returns True for an existing DB and False otherwise."""
         db = AsyncDatabase(db_config)
-        assert await db.database_exists("pycopg_test") is True
-        assert await db.database_exists("definitely_absent_xyz") is False
+        assert await db.schema.database_exists("pycopg_test") is True
+        assert await db.schema.database_exists("definitely_absent_xyz") is False
 
     async def test_list_databases_includes_test_db(self, db_config):
         """list_databases returns non-template database names including pycopg_test."""
         db = AsyncDatabase(db_config)
-        names = await db.list_databases()
+        names = await db.schema.list_databases()
         assert isinstance(names, list)
         assert "pycopg_test" in names
 
@@ -2621,12 +2704,12 @@ class TestAsyncDatabaseAdminIntegration:
         """drop_extension with if_exists=True does not raise when absent."""
         db = AsyncDatabase(db_config)
         # pg_trgm is a commonly available, droppable extension; ensure idempotent path
-        await db.create_extension("pg_trgm", if_not_exists=True)
-        await db.drop_extension("pg_trgm", if_exists=True)
+        await db.schema.create_extension("pg_trgm", if_not_exists=True)
+        await db.schema.drop_extension("pg_trgm", if_exists=True)
         # Dropping again with if_exists=True must not raise
-        await db.drop_extension("pg_trgm", if_exists=True)
+        await db.schema.drop_extension("pg_trgm", if_exists=True)
         # Restore for other tests that may assume it
-        await db.create_extension("pg_trgm", if_not_exists=True)
+        await db.schema.create_extension("pg_trgm", if_not_exists=True)
 
     def test_create_is_classmethod(self):
         """create / create_from_env are classmethods (D-02)."""
@@ -2680,7 +2763,7 @@ class TestAsyncDatabaseAdminIntegration:
         target = "pycopg_tmp_create_xyz"
         admin = AsyncDatabase(db_config)
         # Ensure clean slate
-        await admin.drop_database(target, if_exists=True)
+        await admin.schema.drop_database(target, if_exists=True)
         try:
             new_db = await AsyncDatabase.create(
                 target,
@@ -2704,7 +2787,7 @@ class TestAsyncDatabaseAdminIntegration:
                 if_not_exists=True,
             )
         finally:
-            await admin.drop_database(target, if_exists=True)
+            await admin.schema.drop_database(target, if_exists=True)
 
     async def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
         """create(if_not_exists=False) on an existing DB raises ValueError."""
@@ -2807,7 +2890,7 @@ class TestAsyncDatabaseCorrectnessFixes:
         """PAR-07: create_extension(schema=...) emits a SCHEMA clause."""
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
-        await db.create_extension("pg_trgm", schema="public")
+        await db.schema.create_extension("pg_trgm", schema="public")
         sql = db.execute.call_args[0][0]
         assert "SCHEMA public" in sql
 
@@ -2815,24 +2898,24 @@ class TestAsyncDatabaseCorrectnessFixes:
         """PAR-07: create_schema(owner=...) emits an AUTHORIZATION clause."""
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
-        await db.create_schema("app", owner="appuser")
+        await db.schema.create_schema("app", owner="appuser")
         sql = db.execute.call_args[0][0]
         assert "AUTHORIZATION appuser" in sql
 
     def test_create_extension_signature_matches_sync(self):
         """PAR-07/D-07: async create_extension signature matches the richer sync one."""
-        from pycopg import Database
+        from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
 
-        a = list(inspect.signature(AsyncDatabase.create_extension).parameters)
-        s = list(inspect.signature(Database.create_extension).parameters)
+        a = list(inspect.signature(AsyncSchemaAccessor.create_extension).parameters)
+        s = list(inspect.signature(SchemaAccessor.create_extension).parameters)
         assert a == s == ["self", "name", "schema", "if_not_exists"]
 
     def test_create_schema_signature_matches_sync(self):
         """PAR-07/D-07: async create_schema signature matches the richer sync one."""
-        from pycopg import Database
+        from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
 
-        a = list(inspect.signature(AsyncDatabase.create_schema).parameters)
-        s = list(inspect.signature(Database.create_schema).parameters)
+        a = list(inspect.signature(AsyncSchemaAccessor.create_schema).parameters)
+        s = list(inspect.signature(SchemaAccessor.create_schema).parameters)
         assert a == s == ["self", "name", "if_not_exists", "owner"]
 
     async def test_table_info_fields_match_sync(self, db_config):
@@ -2848,8 +2931,8 @@ class TestAsyncDatabaseCorrectnessFixes:
             await adb.execute(
                 f'CREATE TABLE "{t}" (id INTEGER, name TEXT)', autocommit=True
             )
-            a_info = await adb.table_info(t)
-            s_info = sdb.table_info(t)
+            a_info = await adb.schema.table_info(t)
+            s_info = sdb.schema.table_info(t)
             assert {*a_info[0].keys()} == {*s_info[0].keys()}
         finally:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
@@ -2902,7 +2985,7 @@ class TestAsyncDatabaseCoverageFill:
             assert isinstance(await db.maint.size(pretty=True), str)
             assert isinstance(await db.maint.size(pretty=False), int)
             assert await db.maint.table_size(t) is not None
-            assert isinstance(await db.row_count(t), int)
+            assert isinstance(await db.schema.row_count(t), int)
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
@@ -2933,12 +3016,12 @@ class TestAsyncDatabaseCoverageFill:
     async def test_hypertable_lifecycle(self, db_config):
         """async create_hypertable -> hypertable_info -> list_hypertables."""
         db = AsyncDatabase(db_config)
-        if not await db.has_extension("timescaledb"):
+        if not await db.schema.has_extension("timescaledb"):
             try:
-                await db.create_extension("timescaledb", if_not_exists=True)
+                await db.schema.create_extension("timescaledb", if_not_exists=True)
             except Exception:
                 pytest.skip("TimescaleDB not available")
-        if not await db.has_extension("timescaledb"):
+        if not await db.schema.has_extension("timescaledb"):
             pytest.skip("TimescaleDB not available")
 
         t = self._t()

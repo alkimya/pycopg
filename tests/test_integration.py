@@ -41,7 +41,7 @@ class TestIntegration:
     def test_list_columns(self, db_config):
         """Test list_columns on real table."""
         db = Database(db_config)
-        cols = db.list_columns("authors", schema="test_schema")
+        cols = db.schema.list_columns("authors", schema="test_schema")
         assert "id" in cols
         assert "name" in cols
         assert "email" in cols
@@ -50,7 +50,7 @@ class TestIntegration:
     def test_columns_with_types(self, db_config):
         """Test columns_with_types on real table."""
         db = Database(db_config)
-        cols = db.columns_with_types("authors", schema="test_schema")
+        cols = db.schema.columns_with_types("authors", schema="test_schema")
         # id is smallint, name/email text
         # psycopg mapping might return 'smallint' or 'int2' depending on driver/backend,
         # usually information_schema returns standard SQL types 'smallint', 'text'
@@ -114,6 +114,6 @@ class TestAsyncIntegration:
 
     async def test_async_list_columns(self, db_config):
         db = AsyncDatabase(db_config)
-        cols = await db.list_columns("articles", schema="test_schema")
+        cols = await db.schema.list_columns("articles", schema="test_schema")
         assert "id" in cols
         assert "author_id" in cols

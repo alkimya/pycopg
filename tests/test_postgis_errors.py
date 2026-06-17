@@ -35,7 +35,7 @@ class TestPostGISErrorHandling:
 
             # Try to create spatial index on text column - should fail
             with pytest.raises(Exception) as exc_info:
-                db.create_spatial_index(table_name, "name")
+                db.spatial.create_spatial_index(table_name, "name")
 
             # Error should be related to the column type or operator class
             error_msg = str(exc_info.value).lower()
@@ -56,7 +56,7 @@ class TestPostGISErrorHandling:
 
         # Try to create spatial index on table that doesn't exist
         with pytest.raises(Exception) as exc_info:
-            db.create_spatial_index("nonexistent_table_xyz123", "geometry")
+            db.spatial.create_spatial_index("nonexistent_table_xyz123", "geometry")
 
         # Error should mention the table doesn't exist
         error_msg = str(exc_info.value).lower()
@@ -81,7 +81,7 @@ class TestPostGISErrorHandling:
         db = Database(db_config)
 
         # Should return list (may be empty if no geometry columns)
-        result = db.list_geometry_columns()
+        result = db.spatial.list_geometry_columns()
         assert isinstance(result, list)
 
         # If result is not empty, verify structure
@@ -99,7 +99,7 @@ class TestPostGISErrorHandling:
 
         # Without PostGIS, geometry_columns view doesn't exist
         with pytest.raises(Exception) as exc_info:
-            db.list_geometry_columns()
+            db.spatial.list_geometry_columns()
 
         # Error should mention geometry_columns doesn't exist
         error_msg = str(exc_info.value).lower()
@@ -125,7 +125,7 @@ class TestPostGISErrorHandling:
             db.execute(f"CREATE TEMP TABLE {table_name} (id INTEGER, geom GEOMETRY)")
 
             # Create spatial index with custom name
-            db.create_spatial_index(table_name, "geom", name=custom_index_name)
+            db.spatial.create_spatial_index(table_name, "geom", name=custom_index_name)
 
             # Verify index was created with custom name
             result = db.execute(
@@ -157,7 +157,7 @@ class TestPostGISErrorHandling:
 
             # Try spatial index - error should be clear
             with pytest.raises(Exception) as exc_info:
-                db.create_spatial_index(table_name, "nonexistent_column")
+                db.spatial.create_spatial_index(table_name, "nonexistent_column")
 
             error_msg = str(exc_info.value)
             # Error should mention something useful (column, table, or SQL context)

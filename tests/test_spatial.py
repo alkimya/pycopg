@@ -465,11 +465,32 @@ class TestBuilders:
             build_transform_sql("bad-name", to_srid=4326)
 
 
+class _FakeSyncSchema:
+    """Minimal schema stub for _FakeSyncDb."""
+
+    def __init__(self, has_postgis):
+        self._has_postgis = has_postgis
+
+    def has_extension(self, name):
+        return self._has_postgis
+
+
+class _FakeAsyncSchema:
+    """Minimal async schema stub for _FakeAsyncDb."""
+
+    def __init__(self, has_postgis):
+        self._has_postgis = has_postgis
+
+    async def has_extension(self, name):
+        return self._has_postgis
+
+
 class _FakeSyncDb:
     """Minimal stand-in for Database in DB-free guard tests."""
 
     def __init__(self, has_postgis):
         self._has_postgis = has_postgis
+        self.schema = _FakeSyncSchema(has_postgis)
 
     def has_extension(self, name):
         return self._has_postgis
@@ -480,6 +501,7 @@ class _FakeAsyncDb:
 
     def __init__(self, has_postgis):
         self._has_postgis = has_postgis
+        self.schema = _FakeAsyncSchema(has_postgis)
 
     async def has_extension(self, name):
         return self._has_postgis
@@ -539,7 +561,7 @@ class TestIntegration:
 
         db = Database(db_config)
         try:
-            if not db.has_extension("postgis"):
+            if not db.schema.has_extension("postgis"):
                 pytest.skip("PostGIS not available on test database")
         except Exception as exc:  # pragma: no cover - environment guard
             pytest.skip(f"test database unavailable: {exc}")
@@ -674,11 +696,26 @@ class TestIntegration:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
 
+class _SyncSchemaStub:
+    """Minimal schema stub so SpatialAccessor.__init__ passes without a real DB."""
+
+    def has_extension(self, name):
+        return True
+
+
+class _AsyncSchemaStub:
+    """Minimal async schema stub so _check_postgis() passes without a real DB."""
+
+    async def has_extension(self, name):
+        return True
+
+
 class _RecordingSyncDb:
     """Recording stand-in for Database covering accessor routing DB-free."""
 
     def __init__(self):
         self.calls = []
+        self.schema = _SyncSchemaStub()
 
     def has_extension(self, name):
         return True
@@ -697,6 +734,7 @@ class _RecordingAsyncDb:
 
     def __init__(self):
         self.calls = []
+        self.schema = _AsyncSchemaStub()
 
     async def has_extension(self, name):
         return True
