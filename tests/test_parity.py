@@ -450,8 +450,8 @@ class TestBehavioralParity:
         """list_roles returns identical dict keys on sync and async."""
         sdb = Database(db_config)
         adb = AsyncDatabase(db_config)
-        sync_roles = sdb.list_roles()
-        async_roles = await adb.list_roles()
+        sync_roles = sdb.admin.list_roles()
+        async_roles = await adb.admin.list_roles()
         assert {r["name"] for r in sync_roles} == {r["name"] for r in async_roles}
         if sync_roles and async_roles:
             assert set(sync_roles[0].keys()) == set(async_roles[0].keys())

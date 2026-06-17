@@ -1,14 +1,13 @@
 """Tests for pycopg.database module."""
 
-from unittest.mock import MagicMock, patch, mock_open
-from pathlib import Path
 import tempfile
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pycopg import Database, Config
-from pycopg.utils import validate_identifier
+from pycopg import Config, Database
 from pycopg.exceptions import InvalidIdentifier
+from pycopg.utils import validate_identifier
 
 
 class TestDatabaseInit:
@@ -553,6 +552,23 @@ class TestDatabaseBackup:
         cmd = mock_run.call_args[0][0]
         assert "--clean" in cmd
 
+    @patch("pycopg.database.psycopg")
+    @patch("subprocess.run")
+    def test_pg_restore_sql_file_delegates_to_psql(
+        self, mock_run, mock_psycopg, config
+    ):
+        """Test pg_restore delegates to _psql_restore for .sql files."""
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+        db = Database(config)
+
+        with tempfile.NamedTemporaryFile(suffix=".sql") as f:
+            db.backup.pg_restore(f.name)
+
+        # psql should have been called (not pg_restore)
+        cmd = mock_run.call_args[0][0]
+        assert "psql" in cmd
+
 
 class TestDatabaseSession:
     """Tests for session mode."""
@@ -786,6 +802,50 @@ class TestDatabaseSize:
         size = db.maint.table_size("users", pretty=False)
 
         assert size == 524288
+
+
+class TestDatabaseMaintenance:
+    """Coverage tests for sync MaintAccessor branches not hit by alias tests."""
+
+    def _make_db(self, config):
+        """Return a Database with db.execute mocked (no live psycopg connection)."""
+        db = Database.__new__(Database)
+        db._config = config
+        db._schema = "public"
+        db._maint = None
+        db.execute = MagicMock(return_value=[{"QUERY PLAN": "Seq Scan on t"}])
+        return db
+
+    def test_vacuum_full_option(self, config):
+        """MaintAccessor.vacuum with full=True emits VACUUM(FULL, ANALYZE)."""
+        db = self._make_db(config)
+        db.execute = MagicMock()
+
+        db.maint.vacuum("users", full=True)
+
+        call_sql = db.execute.call_args[0][0]
+        assert "VACUUM(FULL, ANALYZE)" in call_sql
+
+    def test_explain_returns_plan_lines(self, config):
+        """MaintAccessor.explain returns a list of QUERY PLAN strings."""
+        db = self._make_db(config)
+
+        result = db.maint.explain("SELECT 1")
+
+        assert result == ["Seq Scan on t"]
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "EXPLAIN" in sql
+        assert "FORMAT TEXT" in sql
+
+    def test_explain_with_analyze_option(self, config):
+        """MaintAccessor.explain with analyze=True adds ANALYZE to options."""
+        db = self._make_db(config)
+
+        db.maint.explain("SELECT 1", analyze=True)
+
+        sql = db.execute.call_args[0][0]
+        assert "ANALYZE" in sql
 
 
 class TestDatabaseInsertBatch:
@@ -1323,6 +1383,15 @@ class TestDatabaseGrantRevoke:
         members = db.admin.list_role_members("admin")
         assert members == ["alice", "bob"]
 
+    def test_list_role_grants_returns_rows(self, config):
+        """Test list_role_grants() returns raw execute result rows."""
+        db = self._make_db_with_execute_mock(config)
+        db.execute = MagicMock(
+            return_value=[{"object_name": "users", "privilege": "SELECT"}]
+        )
+        grants = db.admin.list_role_grants("appuser")
+        assert grants == [{"object_name": "users", "privilege": "SELECT"}]
+
     def test_list_databases_returns_names(self, config):
         """Test list_databases() returns list of database name strings."""
         db = self._make_db_with_execute_mock(config)
@@ -1495,6 +1564,28 @@ class TestDatabaseRoleAdminBranches:
 
         call_sql = db.execute.call_args[0][0]
         assert "REVOKE readonly FROM analyst" in call_sql
+
+    def test_create_role_with_in_roles_calls_grant_role(self, config):
+        """Test create_role() with in_roles calls grant_role for each role."""
+        db = self._make_db_with_execute_mock(config)
+        db.admin.role_exists = MagicMock(return_value=False)
+        db.admin.grant_role = MagicMock()
+
+        db.admin.create_role("analyst", in_roles=["readonly", "reporting"])
+
+        assert db.admin.grant_role.call_count == 2
+        db.admin.grant_role.assert_any_call("readonly", "analyst")
+        db.admin.grant_role.assert_any_call("reporting", "analyst")
+
+    def test_alter_role_valid_until_option(self, config):
+        """Test alter_role() with valid_until appends VALID UNTIL clause."""
+        db, mock_cursor = self._make_db_with_cursor_mock(config)
+
+        db.admin.alter_role("appuser", valid_until="2026-12-31")
+
+        mock_cursor.execute.assert_called_once()
+        call_sql = mock_cursor.execute.call_args[0][0]
+        assert "VALID UNTIL '2026-12-31'" in call_sql
 
 
 class TestDatabaseCursorTransactionSessionPaths:

@@ -6,12 +6,12 @@ Provides sync and async connection pools using psycopg_pool.
 
 from __future__ import annotations
 
-import re
-from contextlib import contextmanager, asynccontextmanager
-from typing import TYPE_CHECKING, Any, Callable, Iterator, AsyncIterator, Optional, Sequence
+from collections.abc import AsyncIterator, Callable, Iterator, Sequence
+from contextlib import asynccontextmanager, contextmanager
+from typing import TYPE_CHECKING, Any
 
 from psycopg.rows import dict_row
-from psycopg_pool import ConnectionPool, AsyncConnectionPool
+from psycopg_pool import AsyncConnectionPool, ConnectionPool
 
 from pycopg.config import Config
 
@@ -36,8 +36,8 @@ class PooledDatabase:
         timeout: float = 30.0,
         num_workers: int = 3,
         reconnect_timeout: float = 300.0,
-        reconnect_failed: Optional[Callable] = None,
-        check: Optional[Callable] = None,
+        reconnect_failed: Callable | None = None,
+        check: Callable | None = None,
     ):
         """Initialize connection pool.
 
@@ -82,11 +82,11 @@ class PooledDatabase:
     @classmethod
     def from_env(
         cls,
-        dotenv_path: Optional[str] = None,
+        dotenv_path: str | None = None,
         min_size: int = 2,
         max_size: int = 10,
         **kwargs,
-    ) -> "PooledDatabase":
+    ) -> PooledDatabase:
         """Create PooledDatabase from environment variables.
 
         Parameters
@@ -105,7 +105,9 @@ class PooledDatabase:
         PooledDatabase
             PooledDatabase instance.
         """
-        return cls(Config.from_env(dotenv_path), min_size=min_size, max_size=max_size, **kwargs)
+        return cls(
+            Config.from_env(dotenv_path), min_size=min_size, max_size=max_size, **kwargs
+        )
 
     @classmethod
     def from_url(
@@ -114,7 +116,7 @@ class PooledDatabase:
         min_size: int = 2,
         max_size: int = 10,
         **kwargs,
-    ) -> "PooledDatabase":
+    ) -> PooledDatabase:
         """Create PooledDatabase from connection URL.
 
         Parameters
@@ -136,7 +138,7 @@ class PooledDatabase:
         return cls(Config.from_url(url), min_size=min_size, max_size=max_size, **kwargs)
 
     @contextmanager
-    def connection(self) -> Iterator["psycopg.Connection"]:
+    def connection(self) -> Iterator[psycopg.Connection]:
         """Get a connection from the pool.
 
         Yields
@@ -147,7 +149,7 @@ class PooledDatabase:
         with self._pool.connection() as conn:
             yield conn
 
-    def execute(self, sql: str, params: Optional[Sequence] = None) -> list[dict]:
+    def execute(self, sql: str, params: Sequence | None = None) -> list[dict]:
         """Execute SQL and return results.
 
         Parameters
@@ -241,7 +243,7 @@ class PooledDatabase:
         """Close the pool and all connections."""
         self._pool.close()
 
-    def __enter__(self) -> "PooledDatabase":
+    def __enter__(self) -> PooledDatabase:
         """Enter the context manager, returning self."""
         return self
 
@@ -274,8 +276,8 @@ class AsyncPooledDatabase:
         timeout: float = 30.0,
         num_workers: int = 3,
         reconnect_timeout: float = 300.0,
-        reconnect_failed: Optional[Callable] = None,
-        check: Optional[Callable] = None,
+        reconnect_failed: Callable | None = None,
+        check: Callable | None = None,
     ):
         """Initialize async connection pool.
 
@@ -321,13 +323,15 @@ class AsyncPooledDatabase:
     @classmethod
     def from_env(
         cls,
-        dotenv_path: Optional[str] = None,
+        dotenv_path: str | None = None,
         min_size: int = 2,
         max_size: int = 10,
         **kwargs,
-    ) -> "AsyncPooledDatabase":
+    ) -> AsyncPooledDatabase:
         """Create AsyncPooledDatabase from environment variables."""
-        return cls(Config.from_env(dotenv_path), min_size=min_size, max_size=max_size, **kwargs)
+        return cls(
+            Config.from_env(dotenv_path), min_size=min_size, max_size=max_size, **kwargs
+        )
 
     @classmethod
     def from_url(
@@ -336,7 +340,7 @@ class AsyncPooledDatabase:
         min_size: int = 2,
         max_size: int = 10,
         **kwargs,
-    ) -> "AsyncPooledDatabase":
+    ) -> AsyncPooledDatabase:
         """Create AsyncPooledDatabase from connection URL."""
         return cls(Config.from_url(url), min_size=min_size, max_size=max_size, **kwargs)
 
@@ -346,7 +350,7 @@ class AsyncPooledDatabase:
         await self._pool.wait()
 
     @asynccontextmanager
-    async def connection(self) -> AsyncIterator["psycopg.AsyncConnection"]:
+    async def connection(self) -> AsyncIterator[psycopg.AsyncConnection]:
         """Get a connection from the pool.
 
         Yields
@@ -357,7 +361,7 @@ class AsyncPooledDatabase:
         async with self._pool.connection() as conn:
             yield conn
 
-    async def execute(self, sql: str, params: Optional[Sequence] = None) -> list[dict]:
+    async def execute(self, sql: str, params: Sequence | None = None) -> list[dict]:
         """Execute SQL and return results.
 
         Parameters
@@ -390,14 +394,14 @@ class AsyncPooledDatabase:
                 await conn.commit()
         return total
 
-    async def fetch_one(self, sql: str, params: Optional[Sequence] = None) -> Optional[dict]:
+    async def fetch_one(self, sql: str, params: Sequence | None = None) -> dict | None:
         """Fetch single row."""
         async with self.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(sql, params)
                 return await cur.fetchone()
 
-    async def fetch_val(self, sql: str, params: Optional[Sequence] = None) -> Any:
+    async def fetch_val(self, sql: str, params: Sequence | None = None) -> Any:
         """Fetch single value."""
         row = await self.fetch_one(sql, params)
         if row:
@@ -405,7 +409,7 @@ class AsyncPooledDatabase:
         return None
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncIterator["psycopg.AsyncConnection"]:
+    async def transaction(self) -> AsyncIterator[psycopg.AsyncConnection]:
         """Context manager for transactions.
 
         Commits on success, rolls back on exception.
@@ -437,7 +441,7 @@ class AsyncPooledDatabase:
         """Close the pool."""
         await self._pool.close()
 
-    async def __aenter__(self) -> "AsyncPooledDatabase":
+    async def __aenter__(self) -> AsyncPooledDatabase:
         """Enter the async context manager, opening the pool and returning self."""
         await self.open()
         return self

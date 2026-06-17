@@ -95,7 +95,9 @@ class TestPgDumpEnv:
         env = mock_run.call_args.kwargs["env"]
         assert env.get("PGPASSWORD") == "s3cr3t"
 
-    def test_env_no_pgpassword_empty_value_when_no_config_password(self, config_no_password):
+    def test_env_no_pgpassword_empty_value_when_no_config_password(
+        self, config_no_password
+    ):
         """When config.password is falsy, our code must not inject empty PGPASSWORD."""
         with patch("subprocess.run", return_value=_mock_result()) as mock_run:
             db = Database(config_no_password)
@@ -164,7 +166,9 @@ class TestPgRestoreEnv:
         env = mock_run.call_args.kwargs["env"]
         assert env.get("PGPASSWORD") == "s3cr3t"
 
-    def test_subprocess_os_independence(self, monkeypatch, tmp_path, config_with_password):
+    def test_subprocess_os_independence(
+        self, monkeypatch, tmp_path, config_with_password
+    ):
         """
         RED->GREEN proof for B5 (pg_restore path).
 
@@ -215,7 +219,9 @@ class TestPsqlRestoreEnv:
         env = mock_run.call_args.kwargs["env"]
         assert env.get("PGPASSWORD") == "s3cr3t"
 
-    def test_subprocess_os_independence(self, monkeypatch, tmp_path, config_with_password):
+    def test_subprocess_os_independence(
+        self, monkeypatch, tmp_path, config_with_password
+    ):
         """
         RED->GREEN proof for B5 (_psql_restore path).
 

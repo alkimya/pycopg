@@ -5,43 +5,74 @@ Contains validation functions and common helpers used across modules.
 """
 
 import re
-from typing import Union
 
 from pycopg.exceptions import InvalidIdentifier
 
-
 # Valid SQL identifier pattern: starts with letter or underscore,
 # followed by letters, digits, or underscores
-_IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 # Valid interval pattern for TimescaleDB (e.g., "1 day", "7 days", "1 week")
-_INTERVAL_PATTERN = re.compile(r'^\d+\s+(second|minute|hour|day|week|month|year)s?$', re.IGNORECASE)
+_INTERVAL_PATTERN = re.compile(
+    r"^\d+\s+(second|minute|hour|day|week|month|year)s?$", re.IGNORECASE
+)
 
 # Valid timestamp pattern for VALID UNTIL (date or date+time, optional tz offset).
 # e.g. "2025-12-31", "2025-12-31 23:59:59", "2025-12-31T23:59:59+02:00", "infinity".
 _TIMESTAMP_PATTERN = re.compile(
-    r'^(infinity|-infinity|\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?'
-    r'(\s*[+-]\d{2}(:?\d{2})?)?)?)$',
+    r"^(infinity|-infinity|\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?"
+    r"(\s*[+-]\d{2}(:?\d{2})?)?)?)$",
     re.IGNORECASE,
 )
 
 # Extension names may contain hyphens (e.g. "uuid-ossp"); they are emitted
 # inside double quotes, so allow letters, digits, underscore and hyphen only.
-_EXTENSION_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_-]*$')
+_EXTENSION_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_-]*$")
 
 # Whitelisted SQL privileges for GRANT/REVOKE.
-_VALID_PRIVILEGES = frozenset({
-    "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER",
-    "USAGE", "CREATE", "CONNECT", "TEMPORARY", "TEMP", "EXECUTE", "ALL",
-    "ALL PRIVILEGES", "MAINTAIN", "SET", "ALTER SYSTEM",
-})
+_VALID_PRIVILEGES = frozenset(
+    {
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "TRUNCATE",
+        "REFERENCES",
+        "TRIGGER",
+        "USAGE",
+        "CREATE",
+        "CONNECT",
+        "TEMPORARY",
+        "TEMP",
+        "EXECUTE",
+        "ALL",
+        "ALL PRIVILEGES",
+        "MAINTAIN",
+        "SET",
+        "ALTER SYSTEM",
+    }
+)
 
 # Whitelisted object types for GRANT/REVOKE.
-_VALID_OBJECT_TYPES = frozenset({
-    "TABLE", "SEQUENCE", "FUNCTION", "PROCEDURE", "ROUTINE", "SCHEMA",
-    "DATABASE", "TABLESPACE", "TYPE", "DOMAIN", "LANGUAGE", "FOREIGN DATA WRAPPER",
-    "FOREIGN SERVER", "LARGE OBJECT", "PARAMETER",
-})
+_VALID_OBJECT_TYPES = frozenset(
+    {
+        "TABLE",
+        "SEQUENCE",
+        "FUNCTION",
+        "PROCEDURE",
+        "ROUTINE",
+        "SCHEMA",
+        "DATABASE",
+        "TABLESPACE",
+        "TYPE",
+        "DOMAIN",
+        "LANGUAGE",
+        "FOREIGN DATA WRAPPER",
+        "FOREIGN SERVER",
+        "LARGE OBJECT",
+        "PARAMETER",
+    }
+)
 
 
 def validate_identifier(name: str) -> None:

@@ -122,9 +122,7 @@ class TestPooledDatabaseCommit:
         assert len(rows) == 5, "INSERT ... RETURNING should return 5 rows"
 
         # Separate checkout: count persisted rows
-        count_result = pool_db.execute(
-            f"SELECT COUNT(*) AS cnt FROM {unique_table}"
-        )
-        assert count_result[0]["cnt"] == 5, (
-            "All 5 inserted rows must persist after pool connection return."
-        )
+        count_result = pool_db.execute(f"SELECT COUNT(*) AS cnt FROM {unique_table}")
+        assert (
+            count_result[0]["cnt"] == 5
+        ), "All 5 inserted rows must persist after pool connection return."

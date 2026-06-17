@@ -1250,6 +1250,16 @@ class TestAsyncDatabaseMaintenance:
         sql = call_args[0][0]
         assert "FORMAT JSON" in sql
 
+    async def test_table_size_bytes(self, config):
+        """AsyncMaintAccessor.table_size with pretty=False returns raw byte count."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[{"size": 524288}])
+
+        result = await db.maint.table_size("users", pretty=False)
+
+        assert result == 524288
+        db.execute.assert_called_once()
+
 
 @pytest.mark.asyncio
 class TestAsyncDatabaseBackup:
@@ -1370,7 +1380,9 @@ class TestAsyncDatabaseBackup:
             with patch(
                 "pathlib.Path.suffix", new_callable=PropertyMock, return_value=".dump"
             ):
-                await db.backup.pg_restore("/tmp/backup.dump", clean=True, if_exists=True)
+                await db.backup.pg_restore(
+                    "/tmp/backup.dump", clean=True, if_exists=True
+                )
 
         call_args = mock_subprocess.call_args
         cmd = call_args[0]
@@ -1606,7 +1618,9 @@ class TestAsyncDatabaseCSV:
 
             mock_to_thread.side_effect = to_thread_side_effect
 
-            await db.backup.copy_from_csv("users", "/tmp/users.csv", columns=["id", "name"])
+            await db.backup.copy_from_csv(
+                "users", "/tmp/users.csv", columns=["id", "name"]
+            )
 
         copy_call = mock_cursor.copy.call_args
         sql = copy_call[0][0]
@@ -1828,7 +1842,9 @@ class TestAsyncDatabaseRoles:
 
         db.cursor = MagicMock(side_effect=cursor_cm)
 
-        await db.admin.alter_role("appuser", login=False, createdb=True, superuser=False)
+        await db.admin.alter_role(
+            "appuser", login=False, createdb=True, superuser=False
+        )
 
         mock_cursor.execute.assert_called_once()
         call_args = mock_cursor.execute.call_args
@@ -1876,6 +1892,25 @@ class TestAsyncDatabaseRoles:
         call_args = mock_cursor.execute.call_args
         sql = call_args[0][0]
         assert "VALID UNTIL '2026-12-31'" in sql
+
+    async def test_alter_role_createrole_option(self, config):
+        """Test alter_role with createrole option covers CREATEROLE/NOCREATEROLE branch."""
+        db = AsyncDatabase(config)
+
+        mock_cursor = MagicMock()
+        mock_cursor.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def cursor_cm(autocommit=False):
+            yield mock_cursor
+
+        db.cursor = MagicMock(side_effect=cursor_cm)
+
+        await db.admin.alter_role("appuser", createrole=True)
+
+        mock_cursor.execute.assert_called_once()
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "CREATEROLE" in sql
 
 
 @pytest.mark.asyncio
@@ -2077,6 +2112,17 @@ class TestAsyncDatabasePrivileges:
         sql = call_args[0][0]
         assert "REVOKE admin FROM former_admin" in sql
         assert call_args[1]["autocommit"] is True
+
+    async def test_revoke_database_branch(self, config):
+        """Test async revoke() with DATABASE object_type emits ON DATABASE clause."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock()
+
+        await db.admin.revoke("CONNECT", "mydb", "olduser", object_type="DATABASE")
+
+        db.execute.assert_called_once()
+        sql = db.execute.call_args[0][0]
+        assert "ON DATABASE mydb" in sql
 
 
 @pytest.mark.asyncio

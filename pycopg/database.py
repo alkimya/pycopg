@@ -7,7 +7,6 @@ Provides high-level operations for PostgreSQL/PostGIS/TimescaleDB.
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
@@ -32,21 +31,14 @@ from pycopg.aliases import deprecated_alias
 from pycopg.base import (
     DatabaseBase,
     QueryMixin,
-    build_pg_dump_cmd,
-    build_pg_restore_cmd,
-    build_role_options,
 )
 from pycopg.config import Config
 from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
 from pycopg.utils import (
-    validate_csv_option,
     validate_extension_name,
     validate_identifier,
     validate_identifiers,
     validate_index_method,
-    validate_object_type,
-    validate_privileges,
-    validate_timestamp,
 )
 
 logger = logging.getLogger(__name__)

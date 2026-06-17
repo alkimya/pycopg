@@ -1319,9 +1319,7 @@ class TestRunResultSurface:
         assert r.status == "dry_run"
         assert r.rows_extracted == 3
 
-    def test_dry_run_with_transform_list(
-        self, db, cleanup_pipeline_runs, etl_table
-    ):
+    def test_dry_run_with_transform_list(self, db, cleanup_pipeline_runs, etl_table):
         """dry_run + transform as list covers lines 839-842, 844-847 (sync dry-run transform list)."""
 
         def add_one(df):
@@ -1568,7 +1566,7 @@ class TestAsyncRunResultSurface:
         """async run() with a table-name source (non-SQL) reads from the table."""
         # Seed source data into async_etl_table then copy to a new table
         await async_db.execute(
-            f'INSERT INTO public."{async_etl_table}" (id, val) VALUES (99, \'src\')',
+            f"INSERT INTO public.\"{async_etl_table}\" (id, val) VALUES (99, 'src')",
             autocommit=True,
         )
         tgt_tbl = f"etl_atgt_{uuid.uuid4().hex[:8]}"
@@ -1615,7 +1613,7 @@ class TestAsyncRunResultSurface:
         # Seed some rows
         for i in range(5):
             await async_db.execute(
-                f'INSERT INTO public."{async_etl_table}" (id, val) VALUES ({i}, \'x\')',
+                f"INSERT INTO public.\"{async_etl_table}\" (id, val) VALUES ({i}, 'x')",
                 autocommit=True,
             )
         p = Pipeline(
@@ -1670,9 +1668,7 @@ class TestAsyncRunResultSurface:
         assert r.rows_extracted == 0
         assert r.rows_loaded == 0
 
-    async def test_async_run_upsert_mode(
-        self, async_db, cleanup_async_pipeline_runs
-    ):
+    async def test_async_run_upsert_mode(self, async_db, cleanup_async_pipeline_runs):
         """async run() with load_mode='upsert' inserts/updates via conflict columns."""
         upsert_tbl = f"etl_upsert_{uuid.uuid4().hex[:8]}"
         await async_db.execute(
@@ -1682,7 +1678,7 @@ class TestAsyncRunResultSurface:
         try:
             # Seed a row
             await async_db.execute(
-                f'INSERT INTO public."{upsert_tbl}" (id, val) VALUES (1, \'old\')',
+                f"INSERT INTO public.\"{upsert_tbl}\" (id, val) VALUES (1, 'old')",
                 autocommit=True,
             )
             p = Pipeline(
@@ -1704,7 +1700,7 @@ class TestAsyncRunResultSurface:
     ):
         """async run() with load_mode='append' adds rows without truncating."""
         await async_db.execute(
-            f'INSERT INTO public."{async_etl_table}" (id, val) VALUES (1, \'existing\')',
+            f"INSERT INTO public.\"{async_etl_table}\" (id, val) VALUES (1, 'existing')",
             autocommit=True,
         )
         p = Pipeline(

@@ -3,7 +3,7 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -16,9 +16,9 @@ def db_config():
     # Use environment variables if set, otherwise defaults from setup_test_db.py
     host = os.getenv("PGHOST", "localhost")
     user = os.getenv("PGUSER", "postgres")
-    password = os.getenv("PGPASSWORD", "postgres") 
+    password = os.getenv("PGPASSWORD", "postgres")
     port = int(os.getenv("PGPORT", "5432"))
-    
+
     return Config(
         host=host,
         port=port,
@@ -71,7 +71,9 @@ def temp_migrations_dir():
 def sample_migrations(temp_migrations_dir):
     """Create sample migration files."""
     migrations = [
-        ("001_create_users.sql", """-- UP
+        (
+            "001_create_users.sql",
+            """-- UP
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL
@@ -79,14 +81,20 @@ CREATE TABLE users (
 
 -- DOWN
 DROP TABLE users;
-"""),
-        ("002_add_email.sql", """-- UP
+""",
+        ),
+        (
+            "002_add_email.sql",
+            """-- UP
 ALTER TABLE users ADD COLUMN email TEXT;
 
 -- DOWN
 ALTER TABLE users DROP COLUMN email;
-"""),
-        ("003_create_orders.sql", """-- UP
+""",
+        ),
+        (
+            "003_create_orders.sql",
+            """-- UP
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id)
@@ -94,7 +102,8 @@ CREATE TABLE orders (
 
 -- DOWN
 DROP TABLE orders;
-"""),
+""",
+        ),
     ]
 
     for filename, content in migrations:
@@ -127,5 +136,7 @@ def database_url_env(monkeypatch):
         if key.startswith(("DB_", "PG")):
             monkeypatch.delenv(key, raising=False)
 
-    monkeypatch.setenv("DATABASE_URL", "postgresql://urluser:urlpass@urlhost:5434/urldb")
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql://urluser:urlpass@urlhost:5434/urldb"
+    )
     yield

@@ -10,11 +10,10 @@ All tests use real PostgreSQL and test edge cases in migration rollback:
 """
 
 import pytest
-from pathlib import Path
 
 from pycopg import Database
-from pycopg.migrations import Migrator
 from pycopg.exceptions import MigrationError
+from pycopg.migrations import Migrator
 
 
 @pytest.fixture
@@ -156,24 +155,33 @@ DROP TABEL test_rollback_syntax;
         """Test rolling back multiple migrations with steps parameter."""
         # Create 3 migrations
         migrations = [
-            ("001_first.sql", """-- UP
+            (
+                "001_first.sql",
+                """-- UP
 CREATE TABLE test_multi_step_1 (id SERIAL PRIMARY KEY);
 
 -- DOWN
 DROP TABLE test_multi_step_1;
-"""),
-            ("002_second.sql", """-- UP
+""",
+            ),
+            (
+                "002_second.sql",
+                """-- UP
 CREATE TABLE test_multi_step_2 (id SERIAL PRIMARY KEY);
 
 -- DOWN
 DROP TABLE test_multi_step_2;
-"""),
-            ("003_third.sql", """-- UP
+""",
+            ),
+            (
+                "003_third.sql",
+                """-- UP
 CREATE TABLE test_multi_step_3 (id SERIAL PRIMARY KEY);
 
 -- DOWN
 DROP TABLE test_multi_step_3;
-"""),
+""",
+            ),
         ]
 
         for filename, content in migrations:

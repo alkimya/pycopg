@@ -60,11 +60,17 @@ class TestPostGISErrorHandling:
 
         # Error should mention the table doesn't exist
         error_msg = str(exc_info.value).lower()
-        assert "exist" in error_msg or "not found" in error_msg or "relation" in error_msg
+        assert (
+            "exist" in error_msg or "not found" in error_msg or "relation" in error_msg
+        )
 
     @pytest.mark.skipif(
-        not has_postgis(pytest.lazy_fixture("db_config") if hasattr(pytest, "lazy_fixture") else None),
-        reason="PostGIS not installed"
+        not has_postgis(
+            pytest.lazy_fixture("db_config")
+            if hasattr(pytest, "lazy_fixture")
+            else None
+        ),
+        reason="PostGIS not installed",
     )
     def test_list_geometry_columns_with_postgis(self, db_config):
         """Test list_geometry_columns works when PostGIS is available."""
@@ -97,7 +103,11 @@ class TestPostGISErrorHandling:
 
         # Error should mention geometry_columns doesn't exist
         error_msg = str(exc_info.value).lower()
-        assert "geometry_columns" in error_msg or "exist" in error_msg or "relation" in error_msg
+        assert (
+            "geometry_columns" in error_msg
+            or "exist" in error_msg
+            or "relation" in error_msg
+        )
 
     def test_create_spatial_index_name_parameter(self, db_config):
         """Test create_spatial_index with custom name parameter."""
@@ -118,11 +128,14 @@ class TestPostGISErrorHandling:
             db.create_spatial_index(table_name, "geom", name=custom_index_name)
 
             # Verify index was created with custom name
-            result = db.execute("""
+            result = db.execute(
+                """
                 SELECT indexname
                 FROM pg_indexes
                 WHERE tablename = %s AND indexname = %s
-            """, [table_name, custom_index_name])
+            """,
+                [table_name, custom_index_name],
+            )
 
             assert len(result) == 1
             assert result[0]["indexname"] == custom_index_name
@@ -150,9 +163,18 @@ class TestPostGISErrorHandling:
             # Error should mention something useful (column, table, or SQL context)
             assert len(error_msg) > 20  # Not just a generic error
             # Should contain some context about what went wrong
-            assert any(word in error_msg.lower() for word in [
-                "column", "table", "exist", "found", "gist", "geometry", "index"
-            ])
+            assert any(
+                word in error_msg.lower()
+                for word in [
+                    "column",
+                    "table",
+                    "exist",
+                    "found",
+                    "gist",
+                    "geometry",
+                    "index",
+                ]
+            )
 
         finally:
             try:

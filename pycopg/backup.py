@@ -99,7 +99,9 @@ class BackupAccessor:
         )
 
         # Run with password in environment
-        env = {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+        env = (
+            {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+        )
         result = subprocess.run(
             cmd, env={**os.environ, **env}, capture_output=True, text=True
         )
@@ -177,7 +179,9 @@ class BackupAccessor:
         )
 
         # Run with password in environment
-        env = {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+        env = (
+            {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+        )
         result = subprocess.run(
             cmd, env={**os.environ, **env}, capture_output=True, text=True
         )
@@ -203,7 +207,9 @@ class BackupAccessor:
             str(sql_file),
         ]
 
-        env = {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+        env = (
+            {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+        )
         result = subprocess.run(
             cmd, env={**os.environ, **env}, capture_output=True, text=True
         )

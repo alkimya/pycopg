@@ -29,13 +29,13 @@ import uuid
 import pytest
 
 from pycopg import Database
-from pycopg.migrations import Migrator
 from pycopg.exceptions import MigrationError
-
+from pycopg.migrations import Migrator
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
 # ---------------------------------------------------------------------------
+
 
 def _unique_suffix() -> str:
     """Return a short unique suffix to avoid table-name collisions across runs."""
@@ -69,6 +69,7 @@ def atomicity_migrator(db_config, temp_migrations_dir):
 # ---------------------------------------------------------------------------
 # Test A — apply failure leaves no partial trace
 # ---------------------------------------------------------------------------
+
 
 class TestApplyAtomicity:
     """Test A (D-05/B3): a migration whose UP SQL fails mid-course leaves no
@@ -113,7 +114,7 @@ DROP TABLE {probe_table};
         result = db.execute(
             "SELECT 1 FROM information_schema.tables "
             "WHERE table_schema = 'public' AND table_name = %s",
-            [probe_table]
+            [probe_table],
         )
         assert len(result) == 0, (
             f"Partial trace: table '{probe_table}' was NOT rolled back. "
@@ -127,14 +128,11 @@ DROP TABLE {probe_table};
             "WHERE table_schema = 'public' AND table_name = 'schema_migrations'"
         )
         migrations_table_exists = (
-            version_count_rows[0]["cnt"] > 0
-            if version_count_rows
-            else False
+            version_count_rows[0]["cnt"] > 0 if version_count_rows else False
         )
         if migrations_table_exists:
             rows = db.execute(
-                "SELECT count(*) AS cnt FROM schema_migrations WHERE version = %s",
-                [1]
+                "SELECT count(*) AS cnt FROM schema_migrations WHERE version = %s", [1]
             )
             count = rows[0]["cnt"] if rows else 0
             assert count == 0, (
@@ -146,6 +144,7 @@ DROP TABLE {probe_table};
 # ---------------------------------------------------------------------------
 # Test B — rollback failure leaves version row intact
 # ---------------------------------------------------------------------------
+
 
 class TestRollbackAtomicity:
     """Test B (D-05/B3): a failed rollback (DOWN SQL fails mid-course) leaves
@@ -179,8 +178,7 @@ DROP TABLE {probe_table};
 
         # Confirm version row exists before rollback attempt
         rows_before = db.execute(
-            "SELECT count(*) AS cnt FROM schema_migrations WHERE version = %s",
-            [1]
+            "SELECT count(*) AS cnt FROM schema_migrations WHERE version = %s", [1]
         )
         assert rows_before[0]["cnt"] == 1, "Version row should exist after apply"
 
@@ -200,8 +198,7 @@ DROP TABLE nonexistent_table_{suffix}_xyz;
 
         # Assert: version row must STILL exist (DELETE was rolled back)
         rows_after = db.execute(
-            "SELECT count(*) AS cnt FROM schema_migrations WHERE version = %s",
-            [1]
+            "SELECT count(*) AS cnt FROM schema_migrations WHERE version = %s", [1]
         )
         assert rows_after[0]["cnt"] == 1, (
             "Version row was deleted even though rollback failed. "
@@ -212,7 +209,7 @@ DROP TABLE nonexistent_table_{suffix}_xyz;
         schema_rows = db.execute(
             "SELECT 1 FROM information_schema.tables "
             "WHERE table_schema = 'public' AND table_name = %s",
-            [probe_table]
+            [probe_table],
         )
         assert len(schema_rows) == 1, (
             f"Table '{probe_table}' disappeared after a failed rollback. "

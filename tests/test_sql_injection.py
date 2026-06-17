@@ -113,7 +113,9 @@ class TestSyncValueInjection:
 
     def test_valid_until_create_role(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.admin.create_role("appuser", valid_until="2025-01-01'; DROP TABLE x; --")
+            sync_db.admin.create_role(
+                "appuser", valid_until="2025-01-01'; DROP TABLE x; --"
+            )
 
     def test_valid_until_alter_role(self, sync_db):
         with pytest.raises(InvalidIdentifier):
@@ -135,7 +137,9 @@ class TestSyncValueInjection:
 
     def test_grant_object_type(self, sync_db):
         with pytest.raises(InvalidIdentifier):
-            sync_db.admin.grant("SELECT", "users", "readonly", object_type="TABLE; DROP")
+            sync_db.admin.grant(
+                "SELECT", "users", "readonly", object_type="TABLE; DROP"
+            )
 
     def test_revoke_privileges(self, sync_db):
         with pytest.raises(InvalidIdentifier):
@@ -214,7 +218,9 @@ class TestAsyncValueInjection:
     @pytest.mark.asyncio
     async def test_revoke_object_type(self, async_db):
         with pytest.raises(InvalidIdentifier):
-            await async_db.admin.revoke("SELECT", "users", "readonly", object_type="X; DROP")
+            await async_db.admin.revoke(
+                "SELECT", "users", "readonly", object_type="X; DROP"
+            )
 
     @pytest.mark.asyncio
     async def test_insert_many_column_injection(self, async_db):

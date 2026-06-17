@@ -10,7 +10,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 from pycopg.exceptions import MigrationError
 from pycopg.utils import validate_identifier
@@ -54,7 +54,7 @@ class Migration:
         MigrationError
             If filename format is invalid.
         """
-        match = re.match(r'^(\d+)_(.+)\.sql$', self.filename)
+        match = re.match(r"^(\d+)_(.+)\.sql$", self.filename)
         if not match:
             raise MigrationError(
                 f"Invalid migration filename: {self.filename}. "
@@ -65,7 +65,7 @@ class Migration:
     @property
     def sql(self) -> str:
         """Read and return SQL content."""
-        return self.path.read_text(encoding='utf-8')
+        return self.path.read_text(encoding="utf-8")
 
     def __repr__(self) -> str:
         """Return string representation of the Migration instance."""
@@ -82,8 +82,8 @@ class Migrator:
 
     def __init__(
         self,
-        db: "Database",
-        migrations_dir: Union[str, Path],
+        db: Database,
+        migrations_dir: str | Path,
         table: str = "schema_migrations",
     ):
         """Initialize migrator.
@@ -99,13 +99,15 @@ class Migrator:
         """
         self.db = db
         self.migrations_dir = Path(migrations_dir)
-        
+
         # Validate table name to prevent SQL injection
         validate_identifier(table)
         self.table = table
 
         if not self.migrations_dir.exists():
-            raise MigrationError(f"Migrations directory not found: {self.migrations_dir}")
+            raise MigrationError(
+                f"Migrations directory not found: {self.migrations_dir}"
+            )
 
     def _ensure_table(self) -> None:
         """Create migrations tracking table if it doesn't exist."""
@@ -161,7 +163,7 @@ class Migrator:
             ORDER BY version
         """)
 
-    def migrate(self, target: Optional[int] = None) -> list[Migration]:
+    def migrate(self, target: int | None = None) -> list[Migration]:
         """Run pending migrations.
 
         Parameters
@@ -218,7 +220,7 @@ class Migrator:
                 cur.execute(up_sql)
                 cur.execute(
                     f"INSERT INTO {self.table} (version, name) VALUES (%s, %s)",
-                    [migration.version, migration.name]
+                    [migration.version, migration.name],
                 )
 
     def rollback(self, steps: int = 1) -> list[dict]:
@@ -256,9 +258,7 @@ class Migrator:
             # Find migration file
             migration = self._find_migration(version)
             if not migration:
-                raise MigrationError(
-                    f"Migration file for version {version} not found"
-                )
+                raise MigrationError(f"Migration file for version {version} not found")
 
             # Extract DOWN section
             down_sql = self._extract_section(migration.sql, "DOWN")
@@ -275,8 +275,7 @@ class Migrator:
                     with conn.cursor() as cur:
                         cur.execute(down_sql)
                         cur.execute(
-                            f"DELETE FROM {self.table} WHERE version = %s",
-                            [version]
+                            f"DELETE FROM {self.table} WHERE version = %s", [version]
                         )
                 rolled_back.append(info)
             except Exception as e:
@@ -286,14 +285,14 @@ class Migrator:
 
         return rolled_back
 
-    def _find_migration(self, version: int) -> Optional[Migration]:
+    def _find_migration(self, version: int) -> Migration | None:
         """Find migration by version number."""
         for m in self._get_migrations():
             if m.version == version:
                 return m
         return None
 
-    def _extract_section(self, sql: str, section: str) -> Optional[str]:
+    def _extract_section(self, sql: str, section: str) -> str | None:
         """Extract UP or DOWN section from migration SQL.
 
         Migration format:
@@ -315,7 +314,7 @@ class Migrator:
         str or None
             Section SQL or None if not found.
         """
-        pattern = rf'--\s*{section}\s*\n(.*?)(?=--\s*(?:UP|DOWN)\s*\n|$)'
+        pattern = rf"--\s*{section}\s*\n(.*?)(?=--\s*(?:UP|DOWN)\s*\n|$)"
         match = re.search(pattern, sql, re.IGNORECASE | re.DOTALL)
         if match:
             return match.group(1).strip()
@@ -353,7 +352,7 @@ class Migrator:
             Path to created migration file.
         """
         # Sanitize name
-        safe_name = re.sub(r'[^a-z0-9_]', '_', name.lower())
+        safe_name = re.sub(r"[^a-z0-9_]", "_", name.lower())
 
         # Get next version number
         migrations = self._get_migrations()
@@ -374,7 +373,7 @@ class Migrator:
 -- Write your rollback SQL here (optional)
 
 """
-        path.write_text(template, encoding='utf-8')
+        path.write_text(template, encoding="utf-8")
         return path
 
     def __repr__(self) -> str:

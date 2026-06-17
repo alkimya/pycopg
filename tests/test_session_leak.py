@@ -31,10 +31,10 @@ import pytest
 
 from pycopg import AsyncDatabase, Config, Database
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config() -> Config:
     """Minimal config — connect_params() must return valid kwarg dict."""
@@ -58,7 +58,9 @@ class TestSyncSessionCloseOnCommitFailure:
     def _make_conn_mock(self, commit_raises: bool = False) -> MagicMock:
         conn = MagicMock()
         if commit_raises:
-            conn.commit.side_effect = psycopg.OperationalError("commit failed — injected")
+            conn.commit.side_effect = psycopg.OperationalError(
+                "commit failed — injected"
+            )
         return conn
 
     def test_close_called_even_when_commit_raises(self):
@@ -158,7 +160,9 @@ class TestAsyncSessionCloseOnCommitFailure:
         conn = MagicMock()
         conn.close = AsyncMock()
         if commit_raises:
-            conn.commit = AsyncMock(side_effect=psycopg.OperationalError("async commit failed"))
+            conn.commit = AsyncMock(
+                side_effect=psycopg.OperationalError("async commit failed")
+            )
         else:
             conn.commit = AsyncMock()
         return conn

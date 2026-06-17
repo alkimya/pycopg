@@ -2,6 +2,7 @@
 
 import pytest
 
+from pycopg.exceptions import InvalidIdentifier
 from pycopg.utils import (
     quote_literal,
     validate_csv_option,
@@ -14,7 +15,6 @@ from pycopg.utils import (
     validate_privileges,
     validate_timestamp,
 )
-from pycopg.exceptions import InvalidIdentifier
 
 
 class TestValidateIdentifier:

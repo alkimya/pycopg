@@ -127,7 +127,9 @@ class TestSessionExceptionScenarios:
             # Use session with autocommit
             with db.session(autocommit=True) as session:
                 # Create table - should persist without explicit commit
-                session.execute(f"CREATE TABLE {table_name} (id SERIAL PRIMARY KEY, value TEXT)")
+                session.execute(
+                    f"CREATE TABLE {table_name} (id SERIAL PRIMARY KEY, value TEXT)"
+                )
 
                 # Insert data
                 session.execute(f"INSERT INTO {table_name} (value) VALUES ('test')")
@@ -154,7 +156,9 @@ class TestSessionExceptionScenarios:
             # Use session without autocommit (default)
             with db.session() as session:
                 # Insert data
-                session.execute(f"INSERT INTO {table_name} (value) VALUES ('committed')")
+                session.execute(
+                    f"INSERT INTO {table_name} (value) VALUES ('committed')"
+                )
                 # Don't explicitly commit
 
             # After session exits, data should be committed

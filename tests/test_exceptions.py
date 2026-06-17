@@ -3,13 +3,13 @@
 import pytest
 
 from pycopg.exceptions import (
-    PycopgError,
-    ConnectionError,
     ConfigurationError,
+    ConnectionError,
     ExtensionNotAvailable,
-    TableNotFound,
     InvalidIdentifier,
     MigrationError,
+    PycopgError,
+    TableNotFound,
 )
 
 

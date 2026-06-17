@@ -7,12 +7,12 @@ Loads database credentials from environment variables or .env file.
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 # python-dotenv is optional
 try:
     from dotenv import load_dotenv
+
     HAS_DOTENV = True
 except ImportError:
     HAS_DOTENV = False
@@ -37,9 +37,9 @@ class Config:
     database: str = "postgres"
     user: str = "postgres"
     password: str = ""
-    sslmode: Optional[str] = None
+    sslmode: str | None = None
     options: dict = field(default_factory=dict)
-    statement_timeout: Optional[int] = None
+    statement_timeout: int | None = None
     default_batch_size: int = 1000
 
     @classmethod
@@ -75,7 +75,9 @@ class Config:
 
         # Extract statement_timeout from query params
         statement_timeout_str = options.pop("statement_timeout", None)
-        statement_timeout = int(statement_timeout_str) if statement_timeout_str else None
+        statement_timeout = (
+            int(statement_timeout_str) if statement_timeout_str else None
+        )
 
         return cls(
             host=parsed.hostname or "localhost",
@@ -91,7 +93,7 @@ class Config:
     @classmethod
     def from_env(
         cls,
-        dotenv_path: Optional[str | Path] = None,
+        dotenv_path: str | Path | None = None,
         *,
         load_dotenv_file: bool = True,
     ) -> "Config":

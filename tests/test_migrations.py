@@ -1,14 +1,11 @@
 """Tests for pycopg.migrations module."""
 
-import tempfile
-from datetime import datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from pycopg.migrations import Migration, Migrator
 from pycopg.exceptions import MigrationError
+from pycopg.migrations import Migration, Migrator
 
 
 class TestMigration:
@@ -193,11 +190,13 @@ class TestMigrator:
     def test_pending_all_applied(self, sample_migrations):
         """Test no pending when all applied."""
         db = MagicMock()
-        db.execute = MagicMock(return_value=[
-            {"version": 1},
-            {"version": 2},
-            {"version": 3},
-        ])
+        db.execute = MagicMock(
+            return_value=[
+                {"version": 1},
+                {"version": 2},
+                {"version": 3},
+            ]
+        )
 
         migrator = Migrator(db, sample_migrations)
         pending = migrator.pending()
@@ -207,10 +206,12 @@ class TestMigrator:
     def test_applied(self, sample_migrations):
         """Test getting applied migrations."""
         db = MagicMock()
-        db.execute = MagicMock(return_value=[
-            {"version": 1, "name": "create_users", "applied_at": "2024-01-01"},
-            {"version": 2, "name": "add_email", "applied_at": "2024-01-02"},
-        ])
+        db.execute = MagicMock(
+            return_value=[
+                {"version": 1, "name": "create_users", "applied_at": "2024-01-01"},
+                {"version": 2, "name": "add_email", "applied_at": "2024-01-02"},
+            ]
+        )
 
         migrator = Migrator(db, sample_migrations)
         applied = migrator.applied()
@@ -264,11 +265,13 @@ class TestMigrator:
     def test_migrate_none_pending(self, sample_migrations):
         """Test migrating when nothing pending."""
         db = MagicMock()
-        db.execute = MagicMock(return_value=[
-            {"version": 1},
-            {"version": 2},
-            {"version": 3},
-        ])
+        db.execute = MagicMock(
+            return_value=[
+                {"version": 1},
+                {"version": 2},
+                {"version": 3},
+            ]
+        )
 
         migrator = Migrator(db, sample_migrations)
         applied = migrator.migrate()
@@ -361,10 +364,14 @@ DROP TABLE test;
         cursor_mock.__exit__ = MagicMock(return_value=False)
 
         # Return applied migrations
-        db.execute = MagicMock(side_effect=[
-            [],  # _ensure_table
-            [{"version": 1, "name": "create_users", "applied_at": "2024-01-01"}],  # applied()
-        ])
+        db.execute = MagicMock(
+            side_effect=[
+                [],  # _ensure_table
+                [
+                    {"version": 1, "name": "create_users", "applied_at": "2024-01-01"}
+                ],  # applied()
+            ]
+        )
         db.cursor = MagicMock(return_value=cursor_mock)
 
         migrator = Migrator(db, sample_migrations)
@@ -380,14 +387,16 @@ DROP TABLE test;
         cursor_mock.__enter__ = MagicMock(return_value=cursor_mock)
         cursor_mock.__exit__ = MagicMock(return_value=False)
 
-        db.execute = MagicMock(side_effect=[
-            [],  # _ensure_table
-            [
-                {"version": 1, "name": "create_users", "applied_at": "2024-01-01"},
-                {"version": 2, "name": "add_email", "applied_at": "2024-01-02"},
-                {"version": 3, "name": "create_orders", "applied_at": "2024-01-03"},
-            ],
-        ])
+        db.execute = MagicMock(
+            side_effect=[
+                [],  # _ensure_table
+                [
+                    {"version": 1, "name": "create_users", "applied_at": "2024-01-01"},
+                    {"version": 2, "name": "add_email", "applied_at": "2024-01-02"},
+                    {"version": 3, "name": "create_orders", "applied_at": "2024-01-03"},
+                ],
+            ]
+        )
         db.cursor = MagicMock(return_value=cursor_mock)
 
         migrator = Migrator(db, sample_migrations)
@@ -413,10 +422,12 @@ DROP TABLE test;
         (temp_migrations_dir / "001_no_down.sql").write_text("CREATE TABLE test;")
 
         db = MagicMock()
-        db.execute = MagicMock(side_effect=[
-            [],  # _ensure_table
-            [{"version": 1, "name": "no_down", "applied_at": "2024-01-01"}],
-        ])
+        db.execute = MagicMock(
+            side_effect=[
+                [],  # _ensure_table
+                [{"version": 1, "name": "no_down", "applied_at": "2024-01-01"}],
+            ]
+        )
 
         migrator = Migrator(db, temp_migrations_dir)
 
@@ -427,12 +438,16 @@ DROP TABLE test;
     def test_status(self, sample_migrations):
         """Test getting migration status."""
         db = MagicMock()
-        db.execute = MagicMock(side_effect=[
-            [],  # _ensure_table for applied()
-            [{"version": 1, "name": "create_users", "applied_at": "2024-01-01"}],  # applied()
-            [],  # _ensure_table for pending()
-            [{"version": 1}],  # _get_applied for pending()
-        ])
+        db.execute = MagicMock(
+            side_effect=[
+                [],  # _ensure_table for applied()
+                [
+                    {"version": 1, "name": "create_users", "applied_at": "2024-01-01"}
+                ],  # applied()
+                [],  # _ensure_table for pending()
+                [{"version": 1}],  # _get_applied for pending()
+            ]
+        )
 
         migrator = Migrator(db, sample_migrations)
         status = migrator.status()

@@ -16,6 +16,7 @@ from pycopg.exceptions import InvalidIdentifier
 
 class ConcreteDatabaseBase(DatabaseBase):
     """Concrete implementation for testing DatabaseBase."""
+
     pass
 
 
@@ -42,11 +43,14 @@ class TestDatabaseBase:
         """Test from_env class method."""
         # Use DATABASE_URL which takes precedence
         import os
+
         for key in list(os.environ.keys()):
             if key.startswith(("DB_", "PG", "DATABASE_")):
                 monkeypatch.delenv(key, raising=False)
 
-        monkeypatch.setenv("DATABASE_URL", "postgresql://envuser:envpass@envhost:5432/envdb")
+        monkeypatch.setenv(
+            "DATABASE_URL", "postgresql://envuser:envpass@envhost:5432/envdb"
+        )
 
         db = ConcreteDatabaseBase.from_env()
         assert db.config.host == "envhost"
@@ -173,7 +177,10 @@ class TestQueryMixin:
             limit=5,
             offset=10,
         )
-        assert "SELECT id, name FROM app.users WHERE active = true ORDER BY id DESC LIMIT 5 OFFSET 10" == sql
+        assert (
+            "SELECT id, name FROM app.users WHERE active = true ORDER BY id DESC LIMIT 5 OFFSET 10"
+            == sql
+        )
 
     def test_build_select_sql_validates_identifiers(self):
         """Test that invalid identifiers are rejected."""
@@ -269,9 +276,7 @@ class TestBuildPgDumpCmd:
 
     def test_compress_zero_not_applied(self):
         """compress=0 is falsy, so no -Z even for custom."""
-        cmd = build_pg_dump_cmd(
-            **_CONN, output_file="out", format="custom", compress=0
-        )
+        cmd = build_pg_dump_cmd(**_CONN, output_file="out", format="custom", compress=0)
         assert "-Z" not in cmd
 
     def test_jobs_applied_only_for_directory(self):
@@ -280,16 +285,12 @@ class TestBuildPgDumpCmd:
             **_CONN, output_file="out", format="directory", jobs=4
         )
         assert "-j" in directory and directory[directory.index("-j") + 1] == "4"
-        custom = build_pg_dump_cmd(
-            **_CONN, output_file="out", format="custom", jobs=4
-        )
+        custom = build_pg_dump_cmd(**_CONN, output_file="out", format="custom", jobs=4)
         assert "-j" not in custom
 
     def test_jobs_one_not_applied(self):
         """jobs=1 (default) adds no -j even for directory."""
-        cmd = build_pg_dump_cmd(
-            **_CONN, output_file="out", format="directory", jobs=1
-        )
+        cmd = build_pg_dump_cmd(**_CONN, output_file="out", format="directory", jobs=1)
         assert "-j" not in cmd
 
     def test_tables_repeated_t(self):
@@ -301,16 +302,12 @@ class TestBuildPgDumpCmd:
 
     def test_exclude_tables_repeated_exclude_flag(self):
         """exclude_tables produce repeated -T flags."""
-        cmd = build_pg_dump_cmd(
-            **_CONN, output_file="out", exclude_tables=["x", "y"]
-        )
+        cmd = build_pg_dump_cmd(**_CONN, output_file="out", exclude_tables=["x", "y"])
         assert cmd.count("-T") == 2
 
     def test_schemas_repeated_n(self):
         """schemas produce repeated -n flags."""
-        cmd = build_pg_dump_cmd(
-            **_CONN, output_file="out", schemas=["public", "geo"]
-        )
+        cmd = build_pg_dump_cmd(**_CONN, output_file="out", schemas=["public", "geo"])
         assert cmd.count("-n") == 2
 
     def test_output_file_trailing_f(self):

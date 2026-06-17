@@ -10,7 +10,6 @@ from pycopg.backup import AsyncBackupAccessor, BackupAccessor
 from pycopg.config import Config
 from pycopg.database import Database
 from pycopg.etl import AsyncETLAccessor, ETLAccessor, Pipeline, RunResult
-from pycopg.maint import AsyncMaintAccessor, MaintAccessor
 from pycopg.exceptions import (
     ConfigurationError,
     ConnectionError,
@@ -24,6 +23,7 @@ from pycopg.exceptions import (
     PycopgError,
     TableNotFound,
 )
+from pycopg.maint import AsyncMaintAccessor, MaintAccessor
 from pycopg.migrations import Migrator
 from pycopg.pool import AsyncPooledDatabase, PooledDatabase
 from pycopg.spatial import AsyncSpatialAccessor, SpatialAccessor

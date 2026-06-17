@@ -1,5 +1,6 @@
-import psycopg
 import os
+
+import psycopg
 
 # Try to connect to default postgres db to create the test db
 # This assumes local dev environment with standard credentials or trust auth
@@ -11,21 +12,22 @@ PORT = os.getenv("PGPORT", "5432")
 
 DSN_ADMIN = f"host={HOST} port={PORT} user={USER} password={PASSWORD} dbname=postgres"
 
+
 def setup_db():
-    print(f"Connecting to admin DB to create pycopg_test...")
+    print("Connecting to admin DB to create pycopg_test...")
     try:
         conn = psycopg.connect(DSN_ADMIN, autocommit=True)
     except Exception as e:
         print(f"Failed to connect with password: {e}")
         # Try without password (trust auth)
         try:
-             dsn_no_pass = f"host={HOST} port={PORT} user={USER} dbname=postgres"
-             conn = psycopg.connect(dsn_no_pass, autocommit=True)
-             global PASSWORD
-             PASSWORD = "" # It worked without password
+            dsn_no_pass = f"host={HOST} port={PORT} user={USER} dbname=postgres"
+            conn = psycopg.connect(dsn_no_pass, autocommit=True)
+            global PASSWORD
+            PASSWORD = ""  # It worked without password
         except Exception as e2:
-             print(f"Could not connect to postgres: {e2}")
-             return False
+            print(f"Could not connect to postgres: {e2}")
+            return False
 
     # Create database pycopg_test if not exists
     try:
@@ -35,7 +37,7 @@ def setup_db():
         print("Database pycopg_test already exists")
     except Exception as e:
         print(f"Error creating database: {e}")
-    
+
     conn.close()
 
     # Now connect to pycopg_test
@@ -43,14 +45,14 @@ def setup_db():
         test_dsn = f"host={HOST} port={PORT} user={USER} password={PASSWORD} dbname=pycopg_test"
     else:
         test_dsn = f"host={HOST} port={PORT} user={USER} dbname=pycopg_test"
-        
+
     print(f"Connecting to {test_dsn}...")
     conn = psycopg.connect(test_dsn, autocommit=True)
-    
+
     # Create schema
     conn.execute("DROP SCHEMA IF EXISTS test_schema CASCADE")
     conn.execute("CREATE SCHEMA test_schema")
-    
+
     # Create tables
     # Authors: 3NF, smallint identity
     print("Creating table authors...")
@@ -62,7 +64,7 @@ def setup_db():
             created_at timestamptz default now()
         )
     """)
-    
+
     # Categories
     print("Creating table categories...")
     conn.execute("""
@@ -94,7 +96,7 @@ def setup_db():
             PRIMARY KEY (article_id, category_id)
         )
     """)
-    
+
     # Insert data
     print("Inserting data...")
     conn.execute("""
@@ -104,7 +106,7 @@ def setup_db():
             ('Bob', 'bob@example.com'),
             ('Charlie', 'charlie@example.com')
     """)
-    
+
     conn.execute("""
         INSERT INTO test_schema.categories (name)
         VALUES ('Tech'), ('Life'), ('Science')
@@ -117,16 +119,17 @@ def setup_db():
             ('Python Tips', 1, 'Use pycopg', '2023-01-02', true),
             ('Bob''s Thoughts', 2, 'Thinking...', '2023-01-03', false)
     """)
-    
+
     # Link categories
     # Alice's first post -> Tech
     conn.execute("INSERT INTO test_schema.article_categories VALUES (1, 1)")
     # Alice's second post -> Tech, Science
     conn.execute("INSERT INTO test_schema.article_categories VALUES (2, 1), (2, 3)")
-    
+
     print("Test database setup complete.")
     conn.close()
     return True
+
 
 if __name__ == "__main__":
     setup_db()

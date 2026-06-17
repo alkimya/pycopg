@@ -4,10 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from pycopg import Config
-from pycopg.exceptions import ConfigurationError
 
 
 class TestConfig:
@@ -68,7 +65,9 @@ class TestConfig:
 
     def test_from_url_with_options(self):
         """Test URL with additional query params."""
-        config = Config.from_url("postgresql://user:pass@host/db?sslmode=require&connect_timeout=10")
+        config = Config.from_url(
+            "postgresql://user:pass@host/db?sslmode=require&connect_timeout=10"
+        )
         assert config.sslmode == "require"
         assert config.options.get("connect_timeout") == "10"
 
@@ -292,7 +291,9 @@ class TestConfigResilience:
 
     def test_config_from_url_with_statement_timeout(self):
         """Test from_url parses statement_timeout from query parameters."""
-        config = Config.from_url("postgresql://user:pass@localhost/db?statement_timeout=10000")
+        config = Config.from_url(
+            "postgresql://user:pass@localhost/db?statement_timeout=10000"
+        )
         assert config.statement_timeout == 10000
 
     def test_config_from_url_without_statement_timeout(self):
@@ -316,13 +317,17 @@ class TestConfigResilience:
 
     def test_dsn_with_password(self):
         """Test DSN includes password field."""
-        config = Config(host="localhost", database="db", user="user", password="secret123")
+        config = Config(
+            host="localhost", database="db", user="user", password="secret123"
+        )
         dsn = config.dsn
         assert "password=secret123" in dsn
 
     def test_dsn_with_statement_timeout(self):
         """Test DSN includes options string with statement_timeout."""
-        config = Config(host="localhost", database="db", user="user", statement_timeout=15000)
+        config = Config(
+            host="localhost", database="db", user="user", statement_timeout=15000
+        )
         dsn = config.dsn
         assert "options=" in dsn
         assert "-c statement_timeout=15000" in dsn

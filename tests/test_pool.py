@@ -1,11 +1,11 @@
 """Tests for pycopg.pool module."""
 
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from pycopg import Config
-from pycopg.pool import PooledDatabase, AsyncPooledDatabase
+from pycopg.pool import AsyncPooledDatabase, PooledDatabase
 
 
 class TestPooledDatabase:
@@ -128,7 +128,9 @@ class TestPooledDatabase:
         db = PooledDatabase(config)
         result = db.execute("SELECT * FROM test WHERE id = %s", [1])
 
-        mock_cursor.execute.assert_called_once_with("SELECT * FROM test WHERE id = %s", [1])
+        mock_cursor.execute.assert_called_once_with(
+            "SELECT * FROM test WHERE id = %s", [1]
+        )
 
     @patch("pycopg.pool.ConnectionPool")
     def test_execute_no_result(self, mock_pool_class, config):
@@ -433,7 +435,6 @@ class TestAsyncPooledDatabaseMethods:
     @patch("pycopg.pool.AsyncConnectionPool")
     async def test_execute_returns_rows_when_description(self, mock_pool_class, config):
         """Test execute returns fetched rows when cursor has description (SELECT)."""
-        from psycopg.rows import dict_row
 
         mock_pool = MagicMock()
         mock_conn = MagicMock()
@@ -458,7 +459,9 @@ class TestAsyncPooledDatabaseMethods:
         mock_conn.commit.assert_awaited_once()
 
     @patch("pycopg.pool.AsyncConnectionPool")
-    async def test_execute_returns_empty_when_no_description(self, mock_pool_class, config):
+    async def test_execute_returns_empty_when_no_description(
+        self, mock_pool_class, config
+    ):
         """Test execute returns empty list when cursor has no description (INSERT/UPDATE)."""
         mock_pool = MagicMock()
         mock_conn = MagicMock()
@@ -574,7 +577,9 @@ class TestAsyncPooledDatabaseMethods:
         assert val is None
 
     @patch("pycopg.pool.AsyncConnectionPool")
-    async def test_transaction_context_manager_yields_conn(self, mock_pool_class, config):
+    async def test_transaction_context_manager_yields_conn(
+        self, mock_pool_class, config
+    ):
         """Test transaction() context manager yields connection for use inside transaction."""
         mock_pool = MagicMock()
         mock_conn = MagicMock()
@@ -600,6 +605,7 @@ class TestPoolReconnectParams:
     def test_pooled_database_accepts_reconnect_params(self):
         """Test PooledDatabase.__init__ accepts reconnect_timeout, reconnect_failed, check."""
         import inspect
+
         sig = inspect.signature(PooledDatabase.__init__)
         params = sig.parameters
 
@@ -610,6 +616,7 @@ class TestPoolReconnectParams:
     def test_async_pooled_database_accepts_reconnect_params(self):
         """Test AsyncPooledDatabase.__init__ accepts reconnect_timeout, reconnect_failed, check."""
         import inspect
+
         sig = inspect.signature(AsyncPooledDatabase.__init__)
         params = sig.parameters
 
@@ -620,6 +627,7 @@ class TestPoolReconnectParams:
     def test_pooled_database_reconnect_timeout_default(self):
         """Test PooledDatabase reconnect_timeout default is 300.0."""
         import inspect
+
         sig = inspect.signature(PooledDatabase.__init__)
         param = sig.parameters["reconnect_timeout"]
         assert param.default == 300.0
@@ -627,6 +635,7 @@ class TestPoolReconnectParams:
     def test_async_pooled_database_reconnect_timeout_default(self):
         """Test AsyncPooledDatabase reconnect_timeout default is 300.0."""
         import inspect
+
         sig = inspect.signature(AsyncPooledDatabase.__init__)
         param = sig.parameters["reconnect_timeout"]
         assert param.default == 300.0

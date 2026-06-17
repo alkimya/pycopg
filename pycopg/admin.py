@@ -207,7 +207,9 @@ class AdminAccessor:
 
         if rename_to:
             validate_identifier(rename_to)
-            self._db.execute(f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True)
+            self._db.execute(
+                f"ALTER ROLE {name} RENAME TO {rename_to}", autocommit=True
+            )
             return
 
         options = []

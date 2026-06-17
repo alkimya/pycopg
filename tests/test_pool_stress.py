@@ -9,12 +9,12 @@ All tests use real PostgreSQL and test pool behavior under stress:
 - Context manager usage
 """
 
-import pytest
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from pycopg import Config
-from pycopg.pool import PooledDatabase
+import pytest
 from psycopg_pool import PoolTimeout
+
+from pycopg.pool import PooledDatabase
 
 
 class TestPoolStressScenarios:
@@ -54,11 +54,14 @@ class TestPoolStressScenarios:
         pool = PooledDatabase(db_config, min_size=2, max_size=5, timeout=10.0)
 
         try:
+
             def worker_task(worker_id):
                 """Each worker executes 10 queries."""
                 results = []
                 for i in range(10):
-                    result = pool.execute("SELECT %s AS worker_id, %s AS iteration", [worker_id, i])
+                    result = pool.execute(
+                        "SELECT %s AS worker_id, %s AS iteration", [worker_id, i]
+                    )
                     results.append(result[0])
                 return results
 
@@ -94,7 +97,9 @@ class TestPoolStressScenarios:
 
         try:
             # Create regular table (not TEMP - temp tables are connection-specific)
-            pool.execute(f"CREATE TABLE IF NOT EXISTS {table_name} (id INTEGER, value TEXT)")
+            pool.execute(
+                f"CREATE TABLE IF NOT EXISTS {table_name} (id INTEGER, value TEXT)"
+            )
 
             # Clean any existing data
             pool.execute(f"DELETE FROM {table_name}")
@@ -106,8 +111,7 @@ class TestPoolStressScenarios:
                 [3, "third"],
             ]
             affected = pool.execute_many(
-                f"INSERT INTO {table_name} (id, value) VALUES (%s, %s)",
-                params
+                f"INSERT INTO {table_name} (id, value) VALUES (%s, %s)", params
             )
             assert affected == 3
 

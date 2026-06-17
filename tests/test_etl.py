@@ -477,5 +477,7 @@ class TestRowToResult:
         row = self._sample_row()
         result = _row_to_result(row)
         assert isinstance(result, RunResult)
-        with pytest.raises(Exception):  # dataclasses.FrozenInstanceError (AttributeError subclass)
+        with pytest.raises(
+            Exception
+        ):  # dataclasses.FrozenInstanceError (AttributeError subclass)
             result.status = "failed"  # type: ignore[misc]
