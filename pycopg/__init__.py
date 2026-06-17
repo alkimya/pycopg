@@ -4,10 +4,13 @@ pycopg - High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
 Simple, powerful, pythonic database operations.
 """
 
+from pycopg.admin import AdminAccessor, AsyncAdminAccessor
 from pycopg.async_database import AsyncDatabase
+from pycopg.backup import AsyncBackupAccessor, BackupAccessor
 from pycopg.config import Config
 from pycopg.database import Database
 from pycopg.etl import AsyncETLAccessor, ETLAccessor, Pipeline, RunResult
+from pycopg.maint import AsyncMaintAccessor, MaintAccessor
 from pycopg.exceptions import (
     ConfigurationError,
     ConnectionError,
@@ -59,6 +62,15 @@ __all__ = [
     # TimescaleDB
     "TimescaleAccessor",
     "AsyncTimescaleAccessor",
+    # Admin
+    "AdminAccessor",
+    "AsyncAdminAccessor",
+    # Maint
+    "MaintAccessor",
+    "AsyncMaintAccessor",
+    # Backup
+    "BackupAccessor",
+    "AsyncBackupAccessor",
     # Exceptions
     "PycopgError",
     "ConnectionError",
