@@ -833,54 +833,13 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     # POSTGIS SPATIAL OPERATIONS
     # =========================================================================
 
-    async def create_spatial_index(
-        self,
-        table: str,
-        column: str = "geometry",
-        schema: str = "public",
-        name: str | None = None,
-    ) -> None:
-        """Create a GIST spatial index on a geometry column.
+    @deprecated_alias("spatial.create_spatial_index")
+    async def create_spatial_index(self, *args, **kwargs):
+        """Deprecated: use ``async_db.spatial.create_spatial_index`` instead."""
 
-        Parameters
-        ----------
-        table : str
-            Table name.
-        column : str, optional
-            Geometry column name, by default "geometry".
-        schema : str, optional
-            Schema name, by default "public".
-        name : str, optional
-            Index name (auto-generated if not provided).
-        """
-        validate_identifiers(table, column, schema)
-        if name:
-            validate_identifier(name)
-        index_name = name or f"idx_{table}_{column}_gist"
-        await self.execute(f"""
-            CREATE INDEX IF NOT EXISTS {index_name}
-            ON {schema}.{table} USING GIST ({column})
-        """)
-
-    async def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
-        """List geometry columns in the database.
-
-        Parameters
-        ----------
-        schema : str, optional
-            Schema filter.
-
-        Returns
-        -------
-        list of dict
-            List of geometry column info.
-        """
-        where_clause = "WHERE f_table_schema = %s" if schema else ""
-        params = [schema] if schema else None
-        return await self.execute(
-            queries.LIST_GEOMETRY_COLUMNS.format(where_clause=where_clause),
-            params,
-        )
+    @deprecated_alias("spatial.list_geometry_columns")
+    async def list_geometry_columns(self, *args, **kwargs):
+        """Deprecated: use ``async_db.spatial.list_geometry_columns`` instead."""
 
     # =========================================================================
     # TIMESCALEDB OPERATIONS
