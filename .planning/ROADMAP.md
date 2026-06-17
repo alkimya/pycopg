@@ -6,8 +6,16 @@
 - ✅ **v0.3.1 Security Hotfix** — injections SQL corrigées (shipped PyPI 2026-06-06)
 - ✅ **v0.4.0 Quality & Spatial Helpers** — Phases 9-15 (shipped 2026-06-14)
 - ✅ **v0.5.0 ETL Pipeline Runner** — Phases 16-20 (shipped 2026-06-15)
+- 🔄 **v0.6.0 Réorganisation en accessors** — Phases 21-24 (in progress)
 
 ## Phases
+
+### v0.6.0 — Réorganisation en accessors
+
+- [ ] **Phase 21: Infrastructure & Timescale Accessor** - Deliver `@deprecated_alias` decorator + prove the full pattern end-to-end with the timescale accessor (6 methods)
+- [ ] **Phase 22: Admin, Maint & Backup Accessors** - Replicate the proven pattern across the three smaller accessors (12 + 6 + 4 methods)
+- [ ] **Phase 23: Schema Accessor & Spatial Relocation** - Migrate the largest block (~26 DDL/introspection methods) and relocate the 2 spatial-index methods to `db.spatial.*`
+- [ ] **Phase 24: Exports, Docs & Release v0.6.0** - Wire `__init__.py` exports, README/Sphinx/CHANGELOG/MIGRATION, version bump, tag + PyPI publish
 
 <details>
 <summary>✅ v0.5.0 ETL Pipeline Runner (Phases 16-20) — SHIPPED 2026-06-15</summary>
@@ -52,12 +60,63 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 </details>
 
+## Phase Details
+
+### Phase 21: Infrastructure & Timescale Accessor
+**Goal**: Users calling `db.timescale.*` get a working timescale accessor, and callers still using the old flat `db.create_hypertable(...)` etc. get a `DeprecationWarning` naming the new path — the full alias + accessor pattern is established and all future phases replicate it mechanically
+**Depends on**: Phase 20 (v0.5.0 shipped)
+**Requirements**: REORG-01, REORG-02, REORG-03, REORG-04, TS-01
+**Success Criteria** (what must be TRUE):
+  1. Calling `db.timescale.create_hypertable(...)` (and all 5 other timescale methods) returns the same result as before
+  2. Calling the old flat `db.create_hypertable(...)` still works AND emits a `DeprecationWarning` with a message pointing to `db.timescale.create_hypertable`
+  3. `test_parity` passes with the timescale accessor registered for both sync and async surfaces
+  4. A dedicated test asserts each alias both warns (with the correct message) and delegates correctly; the existing test suite runs without DeprecationWarning noise breaking any `-W error` gate; coverage stays ≥94%
+**Plans**: TBD
+
+### Phase 22: Admin, Maint & Backup Accessors
+**Goal**: Users can access `db.admin.*`, `db.maint.*`, and `db.backup.*` with all methods working, and the 22 legacy flat names on `db.*` all warn and delegate — three accessors delivered in one phase using the pattern already validated in Phase 21
+**Depends on**: Phase 21
+**Requirements**: ADM-01, MNT-01, BKP-01
+**Success Criteria** (what must be TRUE):
+  1. Calling `db.admin.create_role(...)`, `db.maint.vacuum(...)`, `db.backup.pg_dump(...)` (and all remaining methods in those 3 accessors) returns the same results as the old flat calls
+  2. Each of the 22 legacy flat names (`db.create_role`, `db.vacuum`, `db.pg_dump`, etc.) still works and emits a `DeprecationWarning` naming the new accessor path
+  3. `test_parity` passes with all three new accessors registered (sync and async)
+  4. Coverage stays ≥94% with alias warn+delegate tests in place
+**Plans**: TBD
+
+### Phase 23: Schema Accessor & Spatial Relocation
+**Goal**: Users can access all ~26 DDL/introspection methods under `db.schema.*`, and the 2 spatial-index methods (`create_spatial_index`, `list_geometry_columns`) land under `db.spatial.*` — the largest accessor block is migrated and the PostGIS surface is made thematically complete
+**Depends on**: Phase 22
+**Requirements**: SCH-01, SCH-02
+**Success Criteria** (what must be TRUE):
+  1. Calling `db.schema.create_database(...)`, `db.schema.list_tables()`, `db.schema.create_index(...)` (and all ~26 schema methods) returns the same results as before
+  2. Calling `db.spatial.create_spatial_index(...)` and `db.spatial.list_geometry_columns()` works; the old flat `db.create_spatial_index(...)` and `db.list_geometry_columns()` still work and emit `DeprecationWarning` pointing to `db.spatial.*`
+  3. All ~28 legacy flat schema+spatial-relocation names warn and delegate; no existing caller is silently broken
+  4. `test_parity` passes with the schema accessor registered (sync and async); coverage stays ≥94%
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 24: Exports, Docs & Release v0.6.0
+**Goal**: The 5 new accessor classes are publicly importable from `pycopg`, fully documented in README and Sphinx, with a CHANGELOG entry and MIGRATION note for the deprecation cycle, and v0.6.0 is tagged and published to PyPI
+**Depends on**: Phase 23
+**Requirements**: REORG-05
+**Success Criteria** (what must be TRUE):
+  1. `from pycopg import TimescaleAccessor, AdminAccessor, SchemaAccessor, MaintAccessor, BackupAccessor` (and async variants) succeeds — all are in `__all__`
+  2. The README lists the `db.X.*` accessor surfaces with their method names; Sphinx/RTD builds cleanly (`-W` green) with each accessor documented
+  3. CHANGELOG has an `[Unreleased]` / `[0.6.0]` entry noting the new accessor paths and the deprecation cycle (removal in v0.7.0); MIGRATION.md instructs callers how to update from flat names
+  4. `pip install pycopg==0.6.0` installs the release; `python -c "from pycopg import Database; db = Database.from_env(); print(db.timescale)"` works in a clean venv
+**Plans**: TBD
+
 ## Progress
 
-**Execution Order:** 16 → 17 → 18 → 19 → 20
+**Execution Order:** 21 → 22 → 23 → 24
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
+| 21. Infrastructure & Timescale Accessor | v0.6.0 | 0/? | Not started | - |
+| 22. Admin, Maint & Backup Accessors | v0.6.0 | 0/? | Not started | - |
+| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/? | Not started | - |
+| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
@@ -73,8 +132,8 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 13. Qualité documentaire (numpydoc + interrogate) | v0.4.0 | 6/6 | Complete | 2026-06-10 |
 | 14. Spatial helpers (db.spatial.*) | v0.4.0 | 4/4 | Complete | 2026-06-12 |
 | 15. Release v0.4.0 (PyPI + RTD) | v0.4.0 | 6/6 | Complete | 2026-06-14 |
-| 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete    | 2026-06-14 |
-| 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete    | 2026-06-15 |
-| 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete    | 2026-06-15 |
-| 19. Sync Runner & Query Surface | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
-| 20. Async Parity, Wiring & Release | v0.5.0 | 3/3 | Complete   | 2026-06-15 |
+| 16. Pure ETL Layer | v0.5.0 | 2/2 | Complete | 2026-06-14 |
+| 17. Run-Tracking Foundation | v0.5.0 | 2/2 | Complete | 2026-06-15 |
+| 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete | 2026-06-15 |
+| 19. Sync Runner & Query Surface | v0.5.0 | 3/3 | Complete | 2026-06-15 |
+| 20. Async Parity, Wiring & Release | v0.5.0 | 3/3 | Complete | 2026-06-15 |

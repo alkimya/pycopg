@@ -81,27 +81,27 @@ Explicitly excluded for v0.6.0. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Populated during roadmap creation (Step 10).
+Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REORG-01 | Phase [N] | Pending |
-| REORG-02 | Phase [N] | Pending |
-| REORG-03 | Phase [N] | Pending |
-| REORG-04 | Phase [N] | Pending |
-| REORG-05 | Phase [N] | Pending |
-| TS-01 | Phase [N] | Pending |
-| ADM-01 | Phase [N] | Pending |
-| SCH-01 | Phase [N] | Pending |
-| SCH-02 | Phase [N] | Pending |
-| MNT-01 | Phase [N] | Pending |
-| BKP-01 | Phase [N] | Pending |
+| REORG-01 | Phase 21 | Pending |
+| REORG-02 | Phase 21 | Pending |
+| REORG-03 | Phase 21 | Pending |
+| REORG-04 | Phase 21 | Pending |
+| TS-01 | Phase 21 | Pending |
+| ADM-01 | Phase 22 | Pending |
+| MNT-01 | Phase 22 | Pending |
+| BKP-01 | Phase 22 | Pending |
+| SCH-01 | Phase 23 | Pending |
+| SCH-02 | Phase 23 | Pending |
+| REORG-05 | Phase 24 | Pending |
 
 **Coverage:**
 - v1 requirements: 11 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 11 ⚠️
+- Mapped to phases: 11
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-17*
-*Last updated: 2026-06-17 after initial definition*
+*Last updated: 2026-06-17 — traceability filled after roadmap creation (Phases 21-24)*
