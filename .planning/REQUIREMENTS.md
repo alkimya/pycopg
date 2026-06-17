@@ -36,7 +36,7 @@ pattern, les phases suivantes le répliquent).
 ### Schema accessor (SCH)
 
 - [x] **SCH-01**: `db.schema.*` / `async_db.schema.*` exposes the ~26 DDL + introspection methods as a single block — bases (`create_database`/`drop_database`/`database_exists`/`list_databases`), extensions (`create_extension`/`drop_extension`/`list_extensions`/`has_extension`), schemas (`create_schema`/`drop_schema`/`list_schemas`/`schema_exists`), tables/columns (`list_tables`/`table_exists`/`list_columns`/`columns_with_types`/`drop_table`/`truncate_table`/`table_info`/`row_count`), constraints/index (`add_primary_key`/`add_foreign_key`/`add_unique_constraint`/`create_index`/`drop_index`/`list_indexes`/`list_constraints`); the flat `db.*` names remain as deprecated aliases.
-- [ ] **SCH-02**: `create_spatial_index` and `list_geometry_columns` are relocated to **`db.spatial.*`** / `async_db.spatial.*` (thematic PostGIS coherence, not `db.schema.*`); the flat `db.*` names remain as deprecated aliases.
+- [x] **SCH-02**: `create_spatial_index` and `list_geometry_columns` are relocated to **`db.spatial.*`** / `async_db.spatial.*` (thematic PostGIS coherence, not `db.schema.*`); the flat `db.*` names remain as deprecated aliases.
 
 ### Maint accessor (MNT)
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | MNT-01 | Phase 22 | Complete |
 | BKP-01 | Phase 22 | Complete |
 | SCH-01 | Phase 23 | Complete |
-| SCH-02 | Phase 23 | Pending |
+| SCH-02 | Phase 23 | Complete |
 | REORG-05 | Phase 24 | Pending |
 
 **Coverage:**

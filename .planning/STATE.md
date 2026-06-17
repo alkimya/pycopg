@@ -4,8 +4,8 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: verifying
 stopped_at: Phase 23 Plan 03 complete
-last_updated: "2026-06-17T22:33:56.906Z"
-last_activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites + -W error gate)
+last_updated: "2026-06-17T22:52:36.953Z"
+last_activity: 2026-06-17
 progress:
   total_phases: 4
   completed_phases: 3
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 ## Current Position
 
-Phase: 23 (schema-accessor-spatial-relocation) — EXECUTING
-Plan: 4 of 4
+Phase: 24
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-17 -- Phase 23 Plan 03 executed (spatial relocation + D-05 call-sites + -W error gate)
+Last activity: 2026-06-17
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
 

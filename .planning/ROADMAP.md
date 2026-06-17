@@ -17,7 +17,7 @@
   - [x] 21-02-PLAN.md — Wire `db.timescale`/`async_db.timescale` lazy properties + replace the 6 flat methods with deprecated stubs + `__init__.py` exports
   - [x] 21-03-PLAN.md — Alias warn+delegate tests (D-09), `ACCESSOR_PAIRS` parity registry (D-10), migrate 27 call-sites (D-08), no-noise + coverage gate
 - [x] **Phase 22: Admin, Maint & Backup Accessors** - Replicate the proven pattern across the three smaller accessors (12 + 6 + 4 methods) (completed 2026-06-17)
-- [ ] **Phase 23: Schema Accessor & Spatial Relocation** - Migrate the largest block (~26 DDL/introspection methods) and relocate the 2 spatial-index methods to `db.spatial.*`
+- [x] **Phase 23: Schema Accessor & Spatial Relocation** - Migrate the largest block (~26 DDL/introspection methods) and relocate the 2 spatial-index methods to `db.spatial.*` (completed 2026-06-17)
 - [ ] **Phase 24: Exports, Docs & Release v0.6.0** - Wire `__init__.py` exports, README/Sphinx/CHANGELOG/MIGRATION, version bump, tag + PyPI publish
 
 <details>
@@ -169,7 +169,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete   | 2026-06-17 |
+| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete    | 2026-06-17 |
 | 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
