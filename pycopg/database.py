@@ -28,6 +28,7 @@ from tenacity import (
 )
 
 from pycopg import queries
+from pycopg.aliases import deprecated_alias
 from pycopg.base import (
     DatabaseBase,
     QueryMixin,
@@ -43,7 +44,6 @@ from pycopg.utils import (
     validate_identifier,
     validate_identifiers,
     validate_index_method,
-    validate_interval,
     validate_object_type,
     validate_privileges,
     validate_timestamp,
@@ -57,6 +57,7 @@ if TYPE_CHECKING:
 
     from pycopg.etl import ETLAccessor
     from pycopg.spatial import SpatialAccessor
+    from pycopg.timescale import TimescaleAccessor
 
 
 class Database(DatabaseBase, QueryMixin):
@@ -84,6 +85,7 @@ class Database(DatabaseBase, QueryMixin):
         self._session_conn: psycopg.Connection | None = None
         self._spatial: SpatialAccessor | None = None
         self._etl: ETLAccessor | None = None
+        self._timescale: TimescaleAccessor | None = None
 
     @classmethod
     def create(
@@ -269,6 +271,25 @@ class Database(DatabaseBase, QueryMixin):
 
             self._etl = ETLAccessor(self)
         return self._etl
+
+    @property
+    def timescale(self) -> TimescaleAccessor:
+        """Get or create the TimescaleDB accessor (lazy initialization).
+
+        Provides access to TimescaleDB operations such as hypertable
+        management, compression, and retention policies.  The accessor
+        is created on first access and cached for subsequent calls.
+
+        Returns
+        -------
+        TimescaleAccessor
+            TimescaleDB helper namespace bound to this database.
+        """
+        if self._timescale is None:
+            from pycopg.timescale import TimescaleAccessor
+
+            self._timescale = TimescaleAccessor(self)
+        return self._timescale
 
     @retry(
         stop=stop_after_attempt(3),
@@ -1645,239 +1666,29 @@ class Database(DatabaseBase, QueryMixin):
     # TIMESCALEDB OPERATIONS
     # =========================================================================
 
-    def create_hypertable(
-        self,
-        table: str,
-        time_column: str,
-        schema: str = "public",
-        chunk_time_interval: str = "1 day",
-        if_not_exists: bool = True,
-        migrate_data: bool = True,
-    ) -> None:
-        """Convert a table to a TimescaleDB hypertable.
+    @deprecated_alias("timescale.create_hypertable")
+    def create_hypertable(self, *args, **kwargs):
+        """Deprecated: use ``db.timescale.create_hypertable`` instead."""
 
-        Requires TimescaleDB extension.
+    @deprecated_alias("timescale.enable_compression")
+    def enable_compression(self, *args, **kwargs):
+        """Deprecated: use ``db.timescale.enable_compression`` instead."""
 
-        Parameters
-        ----------
-        table : str
-            Table name (must exist with time column).
-        time_column : str
-            Name of the timestamp column.
-        schema : str, optional
-            Schema name, by default "public".
-        chunk_time_interval : str, optional
-            Chunk time interval (e.g., '1 day', '1 week'), by default "1 day".
-        if_not_exists : bool, optional
-            Don't error if already a hypertable, by default True.
-        migrate_data : bool, optional
-            Migrate existing data to chunks, by default True.
+    @deprecated_alias("timescale.add_compression_policy")
+    def add_compression_policy(self, *args, **kwargs):
+        """Deprecated: use ``db.timescale.add_compression_policy`` instead."""
 
-        Raises
-        ------
-        ExtensionNotAvailable
-            If TimescaleDB extension is not installed.
-        """
-        if not self.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
-                "TimescaleDB extension not installed. Run db.create_extension('timescaledb')"
-            )
+    @deprecated_alias("timescale.add_retention_policy")
+    def add_retention_policy(self, *args, **kwargs):
+        """Deprecated: use ``db.timescale.add_retention_policy`` instead."""
 
-        validate_identifiers(table, schema, time_column)
-        validate_interval(chunk_time_interval)
+    @deprecated_alias("timescale.list_hypertables")
+    def list_hypertables(self, *args, **kwargs):
+        """Deprecated: use ``db.timescale.list_hypertables`` instead."""
 
-        self.execute(f"""
-            SELECT create_hypertable(
-                '{schema}.{table}',
-                '{time_column}',
-                chunk_time_interval => INTERVAL '{chunk_time_interval}',
-                if_not_exists => {str(if_not_exists).upper()},
-                migrate_data => {str(migrate_data).upper()}
-            )
-        """)
-
-    def enable_compression(
-        self,
-        table: str,
-        segment_by: str | list[str] | None = None,
-        order_by: str | list[str] | None = None,
-        schema: str = "public",
-    ) -> None:
-        """Enable compression on a hypertable.
-
-        Parameters
-        ----------
-        table : str
-            Hypertable name.
-        segment_by : str or list of str, optional
-            Column(s) to segment compressed data by.
-        order_by : str or list of str, optional
-            Column(s) to order compressed data by.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Raises
-        ------
-        ExtensionNotAvailable
-            If TimescaleDB extension is not installed.
-        """
-        if not self.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
-                "TimescaleDB extension not installed. "
-                "Run db.create_extension('timescaledb')"
-            )
-
-        validate_identifiers(table, schema)
-
-        settings = ["timescaledb.compress"]
-        if segment_by:
-            if isinstance(segment_by, str):
-                segment_by = [segment_by]
-            for col in segment_by:
-                # Extract column name (may have DESC/ASC suffix)
-                col_name = col.split()[0]
-                validate_identifier(col_name)
-            settings.append(
-                f"timescaledb.compress_segmentby = '{','.join(segment_by)}'"
-            )
-        if order_by:
-            if isinstance(order_by, str):
-                order_by = [order_by]
-            for col in order_by:
-                col_name = col.split()[0]
-                validate_identifier(col_name)
-            settings.append(f"timescaledb.compress_orderby = '{','.join(order_by)}'")
-
-        self.execute(f"ALTER TABLE {schema}.{table} SET ({', '.join(settings)})")
-
-    def add_compression_policy(
-        self,
-        table: str,
-        compress_after: str = "7 days",
-        schema: str = "public",
-    ) -> None:
-        """Add automatic compression policy to hypertable.
-
-        Parameters
-        ----------
-        table : str
-            Hypertable name.
-        compress_after : str, optional
-            Compress chunks older than this interval, by default "7 days".
-        schema : str, optional
-            Schema name, by default "public".
-
-        Raises
-        ------
-        ExtensionNotAvailable
-            If TimescaleDB extension is not installed.
-        """
-        validate_identifiers(table, schema)
-        validate_interval(compress_after)
-        if not self.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
-                "TimescaleDB extension not installed. "
-                "Run db.create_extension('timescaledb')"
-            )
-
-        self.execute(f"""
-            SELECT add_compression_policy(
-                '{schema}.{table}',
-                compress_after => INTERVAL '{compress_after}'
-            )
-        """)
-
-    def add_retention_policy(
-        self,
-        table: str,
-        drop_after: str,
-        schema: str = "public",
-    ) -> None:
-        """Add automatic data retention policy to hypertable.
-
-        Parameters
-        ----------
-        table : str
-            Hypertable name.
-        drop_after : str
-            Drop chunks older than this interval.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Raises
-        ------
-        ExtensionNotAvailable
-            If TimescaleDB extension is not installed.
-        """
-        validate_identifiers(table, schema)
-        validate_interval(drop_after)
-        if not self.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
-                "TimescaleDB extension not installed. "
-                "Run db.create_extension('timescaledb')"
-            )
-
-        self.execute(f"""
-            SELECT add_retention_policy(
-                '{schema}.{table}',
-                drop_after => INTERVAL '{drop_after}'
-            )
-        """)
-
-    def list_hypertables(self) -> list[dict]:
-        """List all hypertables.
-
-        Returns
-        -------
-        list of dict
-            List of hypertable info dicts.
-
-        Raises
-        ------
-        ExtensionNotAvailable
-            If TimescaleDB extension is not installed.
-        """
-        if not self.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
-                "TimescaleDB extension not installed. "
-                "Run db.create_extension('timescaledb')"
-            )
-
-        return self.execute(queries.LIST_HYPERTABLES)
-
-    def hypertable_info(self, table: str, schema: str = "public") -> dict:
-        """Get detailed info about a hypertable.
-
-        Parameters
-        ----------
-        table : str
-            Hypertable name.
-        schema : str, optional
-            Schema name, by default "public".
-
-        Returns
-        -------
-        dict
-            Dict with hypertable details including size info.
-
-        Raises
-        ------
-        ExtensionNotAvailable
-            If TimescaleDB extension is not installed.
-        """
-        if not self.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
-                "TimescaleDB extension not installed. "
-                "Run db.create_extension('timescaledb')"
-            )
-
-        result = self.execute(
-            # %%I in queries.HYPERTABLE_INFO is escaped so psycopg passes a
-            # literal %I through to PostgreSQL's format() function.
-            queries.HYPERTABLE_INFO,
-            [schema, table, schema, table],
-        )
-        return result[0] if result else {}
+    @deprecated_alias("timescale.hypertable_info")
+    def hypertable_info(self, *args, **kwargs):
+        """Deprecated: use ``db.timescale.hypertable_info`` instead."""
 
     # =========================================================================
     # SIZE & STATS
