@@ -26,6 +26,7 @@ from pycopg.exceptions import (
 from pycopg.maint import AsyncMaintAccessor, MaintAccessor
 from pycopg.migrations import Migrator
 from pycopg.pool import AsyncPooledDatabase, PooledDatabase
+from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
 from pycopg.spatial import AsyncSpatialAccessor, SpatialAccessor
 from pycopg.timescale import AsyncTimescaleAccessor, TimescaleAccessor
 from pycopg.utils import (
@@ -71,6 +72,9 @@ __all__ = [
     # Backup
     "BackupAccessor",
     "AsyncBackupAccessor",
+    # Schema
+    "SchemaAccessor",
+    "AsyncSchemaAccessor",
     # Exceptions
     "PycopgError",
     "ConnectionError",
