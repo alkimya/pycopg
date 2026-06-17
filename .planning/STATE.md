@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
-status: planning
+status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-17T12:01:43.536Z"
-last_activity: 2026-06-17 — Roadmap created (Phases 21-24)
+last_updated: "2026-06-17T12:10:32.087Z"
+last_activity: 2026-06-17 -- Phase 21 execution started
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** v0.6.0 — Réorganisation en accessors (Phase 21 — not yet started)
+**Current focus:** Phase 21 — infrastructure-timescale-accessor
 
 ## Current Position
 
-Phase: 21 — Infrastructure & Timescale Accessor (not yet started)
-Plan: —
-Status: Roadmap created; ready to plan Phase 21
-Last activity: 2026-06-17 — Roadmap created (Phases 21-24)
+Phase: 21 (infrastructure-timescale-accessor) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 21
+Last activity: 2026-06-17 -- Phase 21 execution started
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0%
 

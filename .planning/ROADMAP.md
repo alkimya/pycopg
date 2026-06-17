@@ -13,7 +13,7 @@
 ### v0.6.0 — Réorganisation en accessors
 
 - [ ] **Phase 21: Infrastructure & Timescale Accessor** (3 plans) - Deliver `@deprecated_alias` decorator + prove the full pattern end-to-end with the timescale accessor (6 methods)
-  - [ ] 21-01-PLAN.md — Create `pycopg/aliases.py` (`@deprecated_alias`) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 methods moved verbatim)
+  - [x] 21-01-PLAN.md — Create `pycopg/aliases.py` (`@deprecated_alias`) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 methods moved verbatim)
   - [ ] 21-02-PLAN.md — Wire `db.timescale`/`async_db.timescale` lazy properties + replace the 6 flat methods with deprecated stubs + `__init__.py` exports
   - [ ] 21-03-PLAN.md — Alias warn+delegate tests (D-09), `ACCESSOR_PAIRS` parity registry (D-10), migrate 27 call-sites (D-08), no-noise + coverage gate
 - [ ] **Phase 22: Admin, Maint & Backup Accessors** - Replicate the proven pattern across the three smaller accessors (12 + 6 + 4 methods)
@@ -138,7 +138,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 21. Infrastructure & Timescale Accessor | v0.6.0 | 0/3 | Planned | - |
+| 21. Infrastructure & Timescale Accessor | v0.6.0 | 1/3 | In Progress|  |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 0/? | Not started | - |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/? | Not started | - |
 | 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
