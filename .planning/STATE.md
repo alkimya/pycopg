@@ -4,12 +4,12 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
 stopped_at: Phase 22 context gathered
-last_updated: "2026-06-17T16:17:23.808Z"
-last_activity: 2026-06-17 -- Phase 22 planning complete
+last_updated: "2026-06-17T16:39:07.512Z"
+last_activity: 2026-06-17 -- Phase 22 execution started
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
+  total_plans: 6
   completed_plans: 3
   percent: 25
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 21 — infrastructure-timescale-accessor
+**Current focus:** Phase 22 — admin-maint-backup-accessors
 
 ## Current Position
 
-Phase: 22
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-17 -- Phase 22 planning complete
+Phase: 22 (admin-maint-backup-accessors) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 22
+Last activity: 2026-06-17 -- Phase 22 execution started
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0%
 

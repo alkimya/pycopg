@@ -105,7 +105,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 Plans:
 **Wave 1**
 
-- [ ] 22-01-PLAN.md — Create admin.py/maint.py/backup.py accessor modules (move 21 method bodies verbatim, sync + async)
+- [x] 22-01-PLAN.md — Create admin.py/maint.py/backup.py accessor modules (move 21 method bodies verbatim, sync + async)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 22. Admin, Maint & Backup Accessors | v0.6.0 | 0/? | Not started | - |
+| 22. Admin, Maint & Backup Accessors | v0.6.0 | 1/3 | In Progress|  |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/? | Not started | - |
 | 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
