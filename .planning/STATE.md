@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
-stopped_at: Phase 22 context gathered
-last_updated: "2026-06-17T17:57:32.519Z"
+stopped_at: Phase 23 context gathered
+last_updated: "2026-06-17T18:09:45.665Z"
 last_activity: 2026-06-17
 progress:
   total_phases: 4
@@ -80,9 +80,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17T14:08:50.978Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-admin-maint-backup-accessors/22-CONTEXT.md
+Last session: 2026-06-17T18:09:45.652Z
+Stopped at: Phase 23 context gathered
+Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-CONTEXT.md
 Next action: `/gsd-plan-phase 21`
 
 ## Operator Next Steps
