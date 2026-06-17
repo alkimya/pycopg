@@ -113,7 +113,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 22-03-PLAN.md — DB-free alias tests + ACCESSOR_PAIRS registry + call-site migration + gates (coverage ≥94%, -W error)
+- [x] 22-03-PLAN.md — DB-free alias tests + ACCESSOR_PAIRS registry + call-site migration + gates (coverage ≥94%, -W error)
 
 ### Phase 23: Schema Accessor & Spatial Relocation
 
@@ -151,7 +151,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 22. Admin, Maint & Backup Accessors | v0.6.0 | 2/3 | In Progress|  |
+| 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete   | 2026-06-17 |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/? | Not started | - |
 | 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
