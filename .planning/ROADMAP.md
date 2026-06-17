@@ -101,7 +101,12 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   3. `test_parity` passes with all three new accessors registered (sync and async)
   4. Coverage stays ≥94% with alias warn+delegate tests in place
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — Create admin.py/maint.py/backup.py accessor modules (move 21 method bodies verbatim, sync + async)
+- [ ] 22-02-PLAN.md — Wire lazy properties + 21 @deprecated_alias stubs on Database/AsyncDatabase + __init__.py exports
+- [ ] 22-03-PLAN.md — DB-free alias tests + ACCESSOR_PAIRS registry + call-site migration + gates (coverage ≥94%, -W error)
 
 ### Phase 23: Schema Accessor & Spatial Relocation
 
