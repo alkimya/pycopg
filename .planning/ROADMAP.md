@@ -127,7 +127,24 @@ Plans:
   3. All ~28 legacy flat schema+spatial-relocation names warn and delegate; no existing caller is silently broken
   4. `test_parity` passes with the schema accessor registered (sync and async); coverage stays ≥94%
 
-**Plans**: TBD
+**Plans**: 4 plans (4 waves)
+
+**Wave 1**
+
+- [ ] 23-01-PLAN.md — Create `pycopg/schema.py` (`SchemaAccessor`/`AsyncSchemaAccessor`, 27 schema bodies moved verbatim, D-04 rewrite) — SCH-01
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 23-02-PLAN.md — `_schema` cache + lazy `schema` property + 27 @deprecated_alias("schema.<m>") stubs (sync+async) + `__init__.py` export — SCH-01
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 23-03-PLAN.md — Spatial relocation: move `create_spatial_index`/`list_geometry_columns` into Spatial accessors + 2 stubs + spatial ACCESSOR_PAIRS + spatial alias tests + atomic rewrite of the 8 D-05 DataFrame call-sites — SCH-02
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 23-04-PLAN.md — Schema track tests: `test_schema_aliases.py` (27×2) + schema ACCESSOR_PAIRS + migrate test call-sites to `db.schema.*` + hold gates (full suite, coverage ≥94%, -W error) — SCH-01
+
 **UI hint**: no
 
 ### Phase 24: Exports, Docs & Release v0.6.0
@@ -152,7 +169,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/? | Not started | - |
+| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 0/4 | Not started | - |
 | 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 0/? | Not started | - |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
