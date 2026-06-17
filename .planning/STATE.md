@@ -1,71 +1,61 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.5.0
-milestone_name: ETL Pipeline Runner
-status: Awaiting next milestone
-stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-06-15T22:50:40.387Z"
-last_activity: 2026-06-15 — Milestone v0.5.0 completed and archived
+milestone: v0.6.0
+milestone_name: Réorganisation en accessors
+status: planning
+last_updated: "2026-06-17T09:28:02.157Z"
+last_activity: 2026-06-17
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-14)
+See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 20 — Async Parity, Wiring & Release
+**Current focus:** v0.6.0 — Réorganisation en accessors (defining requirements)
 
 ## Current Position
 
-Phase: Milestone v0.5.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-15 — Milestone v0.5.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-17 — Milestone v0.6.0 started
 
 ## Performance Metrics
 
-**Velocity (v0.4.0 reference):**
+**Velocity (v0.5.0 reference):**
 
-- Coverage ratchet: 94 (measured 94.09%); gate stays at --cov-fail-under=94
+- Coverage ratchet: 94 (measured 94.26%); gate stays at --cov-fail-under=94
 - interrogate: 100% (gate ≥ 95)
 
-**By Phase (v0.5.0 — not yet started):**
+**By Phase (v0.6.0 — not yet started):**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 16 | 2 | - | - |
-| 17 | 2 | - | - |
-| 18 | 3 | - | - |
-| 19 | TBD | - | - |
-| 20 | TBD | - | - |
-| Phase 16 P01 | 2 | 3 tasks | 3 files |
-| Phase 16 P02 | 2 | 2 tasks | 2 files |
-| Phase 17 P01 | 2 | 2 tasks | 3 files (1 created, 2 modified) |
-| Phase 19-sync-runner-query-surface P01 | 2min | 1 tasks | 2 files |
-| Phase 19-sync-runner-query-surface P03 | 4min | 3 tasks | 2 files |
+| Phase             | Plans | Total | Avg/Plan |
+|-------------------|-------|-------|----------|
+| (roadmap pending) | -     | -     | -        |
 
 ## Accumulated Context
 
 ### Decisions
 
-All v0.4.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
+All v0.4.0 + v0.5.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
 
-Open design decisions resolved at requirements time (see REQUIREMENTS.md OD section):
+v0.6.0 locked decisions (D-SCOPE-1..4, see `.planning/v0.6.0-SCOPE.md`):
 
-- OD-1: `pipeline_runs.watermark` = single nullable JSONB column (always NULL in v0.5.0)
-- OD-2: Load failure = re-raise original exception after recording failed run (no PipelineError wrapper)
-- OD-3: Both lazy auto-create on first `run()` AND explicit `db.etl.init()` available
-- [Phase 16]: ETL exception hierarchy: two-level (ETLError→PycopgError; subclasses→ETLError); no PipelineError wrapper (D-09); pipeline_runs uses TEXT+CHECK not PG ENUM (D-14)
-- [Phase 16 P02]: Pipeline is frozen dataclass with 8 fields; _validate_load_mode rejects non-public values; extract_limit=-1 rejected; _is_sql_source heuristic included; Callable from collections.abc per ruff UP035
-- [Phase 17 P01]: ETLAccessor mirrors SpatialAccessor shape; db.etl lazy property wired; run-log writes on dedicated autocommit connections (D-04/D-05); status literals 'running'/'success'/'failed'; SC-1..SC-4 proven; db.execute() inside db.transaction() doesn't share the txn conn — SC-4 test uses conn.cursor() directly
+- D-SCOPE-1: transition = alias mince + `DeprecationWarning` → nouveau chemin; suppression des alias en v0.7.0 (zéro rupture brutale).
+- D-SCOPE-2: la vraie implémentation vit dans l'accessor; l'ancien `db.*` devient le wrapper qui warn + délègue.
+- D-SCOPE-3: les 5 accessors (`timescale`/`admin`/`schema`/`maint`/`backup`) en un seul milestone (~5-6 phases).
+- D-SCOPE-4: parité sync/async obligatoire; `test_parity` enregistre les 5 nouveaux accessors.
+
+Open questions tranchées au cadrage (2026-06-17): `db.schema.*` reste un seul bloc (DDL + introspection); DataFrame reste à plat sur `db.*`; `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`.
 
 ### Pending Todos
 
@@ -73,15 +63,15 @@ None.
 
 ### Blockers/Concerns
 
-None. All three open design decisions (OD-1, OD-2, OD-3) resolved before Phase 16.
+None.
 
 ## Session Continuity
 
-Last session: 2026-06-15T18:50:09.343Z
-Stopped at: Completed 19-03-PLAN.md
+Last session: 2026-06-17 — milestone v0.6.0 started via /gsd-new-milestone
+Stopped at: PROJECT.md + STATE.md updated; defining requirements next
 Resume file: None
-Next action: /gsd-execute-phase 18 (extract + load modes)
+Next action: define REQUIREMENTS.md, then spawn roadmapper
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Define v0.6.0 requirements, then create the roadmap (in progress via /gsd-new-milestone).

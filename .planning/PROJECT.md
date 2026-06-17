@@ -16,13 +16,31 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Next Milestone Goals — v0.6.0 (planning)
+## Current Milestone: v0.6.0 Réorganisation en accessors
 
-No milestone started yet (run `/gsd-new-milestone`). Strongest candidate from the deferred backlog:
+**Goal:** Regrouper les ~54 méthodes publiques à plat de `Database`/`AsyncDatabase` sous 5 accessors lazy (`db.timescale/admin/schema/maint/backup.*`), avec alias rétro-compatibles + `DeprecationWarning`, en gardant le cœur transactionnel à plat — sur le pattern déjà éprouvé `db.spatial.*` (v0.4.0) et `db.etl.*` (v0.5.0). Assainir avant d'étendre : ce milestone **déménage l'existant**, il n'ajoute aucun nouveau pouvoir.
 
-- **ETL incremental / CDC watermarks** — the v0.5.0 `pipeline_runs` table already reserves a nullable `watermark JSONB` column so incremental support slots on additively with no breaking migration. This is the natural v0.6.0 headline.
-- **Other deferred API work** (independent of ETL): named parameters (`:name`), connection health checks, structured logging, transaction isolation control, savepoints, sync result streaming, dynamic pool sizing.
-- **ETL cross-DB transfer and DataFrame/CSV/parquet source/sink** — v0.5.0 is same-DB only; multi-endpoint ETL is a possible larger v0.6.0+ direction.
+**Target features:**
+- `db.timescale.*` (6 méthodes — hypertables, compression, retention/compression policies)
+- `db.admin.*` (12 méthodes — rôles & permissions)
+- `db.schema.*` (~26 méthodes — DDL, introspection, extensions, contraintes, index ; un seul bloc)
+- `db.maint.*` (6 méthodes — size, vacuum, analyze, explain)
+- `db.backup.*` (4 méthodes — pg_dump/pg_restore, copy CSV)
+
+**Locked decisions (D-SCOPE-1..4, voir `.planning/v0.6.0-SCOPE.md`):**
+- **D-SCOPE-1** — Transition = alias mince + `DeprecationWarning` pointant vers le nouveau chemin ; suppression des alias planifiée pour v0.7.0. Zéro rupture brutale (lib publiée sur PyPI).
+- **D-SCOPE-2** — La vraie implémentation vit **dans** l'accessor ; l'ancien `db.*` devient le wrapper qui warn + délègue. Supprimer la dette en v0.7.0 = effacer un bloc d'alias.
+- **D-SCOPE-3** — Les 5 accessors en **un seul milestone** (~5-6 phases ; travail mécanique répétitif validé en phase 1 puis répliqué).
+- **D-SCOPE-4** — Parité sync/async obligatoire (Core Value) ; `test_parity` enregistre les 5 nouveaux accessors.
+
+**Open questions résolues au cadrage (2026-06-17):**
+- `db.schema.*` reste **un seul bloc** (DDL + introspection) — cohérent avec spatial/etl qui groupent par domaine et non par type d'opération ; un éventuel `db.meta.*` se carve plus tard (v0.9.0) sur surface propre si ça vaut le coup.
+- Méthodes **DataFrame** (`to_dataframe`/`from_dataframe`/`*_geodataframe`) → restent **à plat** sur `db.*` (usage quotidien).
+- `create_spatial_index` / `list_geometry_columns` → rejoignent **`db.spatial.*`** (cohérence thématique PostGIS).
+
+**Reste à plat sur `db.*` (cœur transactionnel — ne pas déménager):** `create`, `create_from_env`, `engine`, `connect`, `cursor`, `transaction`, `session`, `in_session`, `execute`, `execute_many`, `insert_many`, `upsert_many`, `stream`, `notify`, `insert_batch`, `copy_insert`, `fetch_one`, `fetch_val`, les méthodes DataFrame, et les accessors existants (`spatial`, `etl`).
+
+Suite prévue (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : v0.7.0 suppression des alias + ETL incrémental → v0.8.0 TimescaleDB avancé → v0.9.0 CRUD/introspection → v1.0.0 spatial v2.
 
 ## Requirements
 
@@ -73,7 +91,7 @@ No milestone started yet (run `/gsd-new-milestone`). Strongest candidate from th
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-None — v0.5.0 shipped. Start the next milestone with `/gsd-new-milestone` (see Next Milestone Goals above; ETL incremental watermarks for v0.6.0 is the leading candidate).
+v0.6.0 — Réorganisation en accessors (5 accessors lazy + alias dépréciés). Full REQ-ID list in REQUIREMENTS.md.
 
 ### Out of Scope
 
@@ -197,3 +215,5 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-15 — Phase 18 "Load Modes & Extract" complete (3/3 plans, verification 6/6). The real `ETLAccessor.run(pipeline: Pipeline) -> int` body replaces the Phase 17 stub: extract (SQL/table via `to_dataframe`) → transform chain (`None`/single/list, `ETLTransformError` names the failing step via `_step_label`) → mode-dispatched load. New pure builders `_build_insert_sql` (append/replace) and `_build_upsert_sql` (ON CONFLICT DO UPDATE) join `build_truncate_sql`, all `validate_identifiers`-first with user values as `%s` only. Atomicity seam (RESEARCH Q1): load runs on the `db.transaction()` connection inside an internal `db.session()` so replace's TRUNCATE+INSERT is atomic (`replace_atomic_rollback` proven), while run-log writes stay isolated on dedicated autocommit connections. ETL-02..06 + ETL-16 validated; 186 ETL tests pass. Code review (advisory, not blocking): CR-01 latent upsert edge case (all-columns-are-conflict-columns → empty SET; untested, no in-contract impact), CR-02 `rows_loaded` from `cur.rowcount` deferred to Phase 19's `RunResult`. Next: Phase 19 (Sync Runner & Query Surface).*
 
 *Last updated: 2026-06-15 — Phase 20 complete + milestone v0.5.0 "ETL Pipeline Runner" SHIPPED via `/gsd-complete-milestone`. Phase 20 delivered `AsyncETLAccessor` (async mirror, `asyncio.to_thread` transforms), lazy `async_db.etl`, `TestEtlParity`, `docs/etl.md`, and the v0.5.0 release (tag + PyPI via OIDC, human-gated publish); VERIFICATION PASSED 5/5. Full PROJECT.md evolution review: "What This Is" → v0.5.0; Current State + Next Milestone Goals (v0.6.0 ETL watermarks candidate); all 17 ETL requirements moved to Validated; Active emptied; Context refreshed (94.26% coverage, 2 known-flaky tests as tech debt); v0.5.0 Key Decisions outcomes recorded. ROADMAP collapsed + REQUIREMENTS archived to `milestones/v0.5.0-*`.*
+
+*Last updated: 2026-06-17 — milestone v0.6.0 "Réorganisation en accessors" started via `/gsd-new-milestone`. Goal: regrouper les ~54 méthodes publiques à plat de `Database`/`AsyncDatabase` sous 5 accessors lazy (`db.timescale/admin/schema/maint/backup.*`) avec alias dépréciés (D-SCOPE-1..4 verrouillés en discussion, voir `.planning/v0.6.0-SCOPE.md`). 3 questions ouvertes du scope tranchées au cadrage : `db.schema.*` reste un seul bloc, DataFrame reste à plat, spatial-index → `db.spatial.*`. Cœur transactionnel reste à plat. Active set to the réorg scope. Phase numbering continues from Phase 21. Suite validée (FUTURE-MILESTONES) : v0.7.0 alias removal + ETL incrémental → v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2.*
