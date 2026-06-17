@@ -28,8 +28,9 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from pycopg import queries
 from pycopg.exceptions import ExtensionNotAvailable
-from pycopg.utils import validate_identifiers
+from pycopg.utils import validate_identifier, validate_identifiers
 
 if TYPE_CHECKING:
     import geopandas as gpd
@@ -1855,6 +1856,55 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "geometry_transformed")
 
+    def create_spatial_index(
+        self,
+        table: str,
+        column: str = "geometry",
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
+        """Create a GIST spatial index on a geometry column.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        column : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        name : str, optional
+            Index name (auto-generated if not provided).
+        """
+        validate_identifiers(table, column, schema)
+        if name:
+            validate_identifier(name)
+        index_name = name or f"idx_{table}_{column}_gist"
+        self._db.execute(f"""
+            CREATE INDEX IF NOT EXISTS {index_name}
+            ON {schema}.{table} USING GIST ({column})
+        """)
+
+    def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
+        """List geometry columns in the database.
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema filter.
+
+        Returns
+        -------
+        list of dict
+            List of geometry column info.
+        """
+        where_clause = "WHERE f_table_schema = %s" if schema else ""
+        params = [schema] if schema else None
+        return self._db.execute(
+            queries.LIST_GEOMETRY_COLUMNS.format(where_clause=where_clause),
+            params,
+        )
+
 
 class AsyncSpatialAccessor:
     """Async spatial helper namespace exposed as ``async_db.spatial``.
@@ -2728,3 +2778,54 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, "geometry_transformed")
+
+    async def create_spatial_index(
+        self,
+        table: str,
+        column: str = "geometry",
+        schema: str = "public",
+        name: str | None = None,
+    ) -> None:
+        """Create a GIST spatial index on a geometry column.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        column : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        name : str, optional
+            Index name (auto-generated if not provided).
+        """
+        await self._check_postgis()
+        validate_identifiers(table, column, schema)
+        if name:
+            validate_identifier(name)
+        index_name = name or f"idx_{table}_{column}_gist"
+        await self._db.execute(f"""
+            CREATE INDEX IF NOT EXISTS {index_name}
+            ON {schema}.{table} USING GIST ({column})
+        """)
+
+    async def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
+        """List geometry columns in the database.
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema filter.
+
+        Returns
+        -------
+        list of dict
+            List of geometry column info.
+        """
+        await self._check_postgis()
+        where_clause = "WHERE f_table_schema = %s" if schema else ""
+        params = [schema] if schema else None
+        return await self._db.execute(
+            queries.LIST_GEOMETRY_COLUMNS.format(where_clause=where_clause),
+            params,
+        )
