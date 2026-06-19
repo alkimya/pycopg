@@ -69,12 +69,15 @@ What "done" means (ROADMAP Phase 24 success criteria):
   - Rewrite the flat-method prose examples in `docs/roles-permissions.md`, `docs/backup-restore.md`,
     `docs/timescaledb.md`, and `docs/database.md` to the accessor paths, mirroring the README rewrite
     for consistency.
-- **D-03 [vigilance]:** `-W` (warnings-as-errors) is the hard gate for criterion #2. The likely
+- **D-03 [vigilance, informational]:** `-W` (warnings-as-errors) is the hard gate for criterion #2. The likely
   failure modes the researcher must pre-empt: (a) a newly-autodoc'd accessor module with a member
   lacking a docstring (interrogate is ≥95 but `-W` is stricter on cross-refs), (b) duplicate-object
   warnings if a method is documented both via `pycopg.database` autodoc (the deprecated stub) and the
   accessor module autodoc, (c) broken `:ref:`/toctree links after edits. Plan must build docs with
-  `-W` locally before declaring done. *(Tagged `[vigilance]`: a gate to hold, not a citable feature.)*
+  `-W` locally before declaring done. *(Tagged `[vigilance, informational]`: a gate to HOLD during
+  execution, not a citable deliverable — excluded from the decision-coverage gate. Its substance is
+  implemented as the cleared-cache `-W` build in 24-01 T1/T2 acceptance criteria and 24-03 T1 release
+  gates; RESEARCH verified the build is warning-free with all 5 accessor modules added.)*
 
 ### MIGRATION.md structure
 - **D-04:** **Prepend a new `## Migration Guide: v0.5.0 → v0.6.0` section at the TOP of the existing

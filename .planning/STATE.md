@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
-status: verifying
+status: executing
 stopped_at: Phase 24 context gathered
-last_updated: "2026-06-19T10:33:02.125Z"
-last_activity: 2026-06-17
+last_updated: "2026-06-19T11:17:06.887Z"
+last_activity: 2026-06-19 -- Phase 24 planning complete
 progress:
   total_phases: 4
   completed_phases: 3
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 Phase: 24
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-17
+Status: Ready to execute
+Last activity: 2026-06-19 -- Phase 24 planning complete
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
 
