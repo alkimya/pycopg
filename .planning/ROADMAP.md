@@ -88,7 +88,12 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   3. All per-alias warn+delegate tests are removed; `test_parity` and `ACCESSOR_PAIRS` still pass green; `-W error::DeprecationWarning` gate is clean because there are no stubs left to fire it
   4. MIGRATION.md has a `v0.6→v0.7` section with a 1:1 flat→accessor replacement table covering all 56 names; CHANGELOG `[0.7.0]` has a `Breaking` entry pointing to it
   5. IDE autocomplete on a `py.typed`-declared `Database` shows only accessor-namespaced methods (no `*args/**kwargs` stubs); error messages in `ExtensionNotAvailable` reference accessor paths
-**Plans**: TBD
+**Plans**: 5 plans (2 waves)
+- [ ] 25-01-PLAN.md — Remove 56 @deprecated_alias stubs + import + IN-02 PostGIS string in database.py (wave 1)
+- [ ] 25-02-PLAN.md — Remove 56 @deprecated_alias stubs + import + IN-02 PostGIS string in async_database.py (wave 1)
+- [ ] 25-03-PLAN.md — Delete aliases.py + 6 alias test files; add test_alias_removal.py (AttributeError + WR-01 proof) (wave 2)
+- [ ] 25-04-PLAN.md — IN-02 guard strings in spatial.py + timescale.py + test_sql_injection.py comment (wave 1)
+- [ ] 25-05-PLAN.md — MIGRATION v0.6→v0.7 + CHANGELOG [0.7.0] Breaking + docs/*.md flat-name examples (wave 1)
 
 ### Phase 26: Incremental ETL — Pure Layer
 **Goal**: The pure foundation of incremental ETL exists and is DB-free unit-testable — `Pipeline` accepts and validates `incremental_column`, pure SQL builders produce correct WHERE-clause SQL and subquery wraps, and the encode/decode functions for the JSONB watermark envelope are verified for all supported types
@@ -139,7 +144,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 25. Alias Removal | v0.7.0 | 0/TBD | Not started | - |
+| 25. Alias Removal | v0.7.0 | 0/5 | Planned | - |
 | 26. Incremental ETL — Pure Layer | v0.7.0 | 0/TBD | Not started | - |
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 0/TBD | Not started | - |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 0/TBD | Not started | - |

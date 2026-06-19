@@ -1,9 +1,9 @@
 ---
 phase: 25
 slug: alias-removal
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: planned
+nyquist_compliant: true
+wave_0_complete: false  # test_alias_removal.py scheduled in plan 25-03 (wave 2)
 created: 2026-06-19
 ---
 
@@ -88,4 +88,4 @@ created: 2026-06-19
 - [ ] Feedback latency < 120s
 - [ ] `nyquist_compliant: true` set in frontmatter once plans are written
 
-**Approval:** pending
+**Approval:** plans written 2026-06-19 (25-01..25-05)
