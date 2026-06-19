@@ -20,16 +20,23 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Next Milestone Goals
+## Current Milestone: v0.7.0 Alias Removal + Incremental ETL
 
-v0.6.0 shipped (see Current State above). Suite prévue (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) :
+**Goal:** Solder la dette de dépréciation de v0.6.0 (retirer les 56 alias plats) et livrer l'ETL incrémental (watermarks CDC) — la suite logique de v0.5.0, déjà à moitié préparée via la colonne `pipeline_runs.watermark JSONB` réservée (toujours NULL aujourd'hui → ajout additif, pas de migration cassante).
 
-- **v0.7.0** — suppression des alias dépréciés introduits en v0.6.0 (ALIAS-RM-01 ; un cycle de dépréciation = une version, trivial car la vraie logique vit déjà dans les accessors) + ETL incrémental (watermarks sur la colonne `pipeline_runs.watermark JSONB` réservée en v0.5.0).
-- **v0.8.0** — TimescaleDB avancé (continuous aggregates, `time_bucket`/gapfill, `show_chunks`/`drop_chunks`, `add_dimension`) sous le `db.timescale.*` créé en v0.6.0.
-- **v0.9.0** — CRUD ergonomique + introspection enrichie ; moment naturel pour carver un `db.meta.*` depuis `db.schema.*` si ça le mérite.
-- **v1.0.0** — spatial v2.
+**Target features:**
 
-Démarrer le prochain milestone via `/gsd-new-milestone` (la numérotation des phases continue depuis la Phase 24).
+- **Alias removal (ALIAS-RM-01)** — supprimer les 56 stubs `@deprecated_alias` sur `Database`/`AsyncDatabase` (112 au total) ; la vraie logique vit déjà dans les accessors (D-SCOPE-2 → suppression = effacement d'un bloc). Met à jour `test_parity`/tests d'alias ; CHANGELOG `[0.7.0]` **Breaking** + MIGRATION v0.6→v0.7 listant les 56 → chemins accessor. Solde la dette WR-01 (signatures IDE) et IN-02 (messages d'erreur sur chemin plat).
+- **ETL incrémental (ETL-INC-01)** — nouveau champ `incremental_column` sur `Pipeline` (déclaratif : dérive le filtre `col > last_watermark` et enregistre `max(col)` comme nouveau high-water mark). Sources SQL enveloppées en `SELECT * FROM (<sql>) sub WHERE col > %s`. Premier run (sans watermark) = chargement complet puis `max(col)` stocké dans `pipeline_runs.watermark JSONB`. Compatible `load_mode` ∈ {append, upsert} ; `incremental_column` + `replace` **interdit** à la construction. Parité sync/async obligatoire (Core Value).
+
+**Locked scope decisions (cadrage 2026-06-19) :**
+- Watermark déclaratif via `incremental_column` (pas de callback) ; high-water mark = `max(col)` du batch extrait.
+- Sources SQL-string : wrap subquery + WHERE (la colonne watermark doit figurer dans le SELECT).
+- Premier run = full load puis record `max(col)`.
+- Incrémental réservé à `load_mode` ∈ {append, upsert} ; `replace` interdit avec `incremental_column`.
+- Suppression d'alias = hard remove (un cycle de dépréciation déjà servi en v0.6.0) + MIGRATION v0.6→v0.7 + note Breaking au CHANGELOG.
+
+Suite prévue après v0.7.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : **v0.8.0** TimescaleDB avancé → **v0.9.0** CRUD ergonomique + introspection → **v1.0.0** spatial v2. Numérotation des phases continue depuis la Phase 24 (v0.7.0 démarre à la Phase 25).
 
 <details>
 <summary>v0.6.0 milestone goal & locked decisions (shipped — historical reference)</summary>
@@ -103,7 +110,10 @@ Démarrer le prochain milestone via `/gsd-new-milestone` (la numérotation des p
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-(None — v0.6.0 shipped. Next milestone scope defined via `/gsd-new-milestone`; planned next: v0.7.0 alias removal + ETL incremental — see `.planning/FUTURE-MILESTONES.md`.)
+v0.7.0 "Alias Removal + Incremental ETL" — see `.planning/REQUIREMENTS.md` for full REQ-ID list.
+
+- [ ] **ALIAS-RM-01**: Remove the 56 deprecated flat aliases from `Database`/`AsyncDatabase` (hard remove + MIGRATION v0.6→v0.7 + Breaking CHANGELOG note)
+- [ ] **ETL-INC-01**: Incremental ETL via `Pipeline.incremental_column` (watermark on `pipeline_runs.watermark JSONB`), append/upsert only, full sync/async parity
 
 ### Out of Scope
 
@@ -243,5 +253,7 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-17 — milestone v0.6.0 "Réorganisation en accessors" started via `/gsd-new-milestone`. Goal: regrouper les ~54 méthodes publiques à plat de `Database`/`AsyncDatabase` sous 5 accessors lazy (`db.timescale/admin/schema/maint/backup.*`) avec alias dépréciés (D-SCOPE-1..4 verrouillés en discussion, voir `.planning/v0.6.0-SCOPE.md`). 3 questions ouvertes du scope tranchées au cadrage : `db.schema.*` reste un seul bloc, DataFrame reste à plat, spatial-index → `db.spatial.*`. Cœur transactionnel reste à plat. Active set to the réorg scope. Phase numbering continues from Phase 21. Suite validée (FUTURE-MILESTONES) : v0.7.0 alias removal + ETL incrémental → v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2.*
 
 *Last updated: 2026-06-19 — milestone v0.6.0 "Réorganisation en accessors" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.6.0 (already done at phase close); all 11 v0.6.0 requirements (REORG-01..05, TS/ADM/MNT/BKP/SCH-01, SCH-02) moved to Validated; Active emptied; "Current Milestone" reframed as "Next Milestone Goals" (v0.7.0 alias removal + ETL incremental → v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2), v0.6.0 goal/decisions collapsed to historical reference; Context refreshed (95.64% coverage, 5 new accessor modules ~3,800 LOC, WR-01 tech debt recorded); 8 v0.6.0 Key Decisions outcomes added (D-SCOPE-1..4 + 4 scoping calls). ROADMAP collapsed + REQUIREMENTS/audit archived to `milestones/v0.6.0-*`. Milestone audit passed (11/11 reqs, integration clean). Next: `/gsd-new-milestone`.*
+
+*Last updated: 2026-06-19 — milestone v0.7.0 "Alias Removal + Incremental ETL" started via `/gsd-new-milestone`. Goal: solder la dette de dépréciation v0.6.0 (hard-remove des 56 alias plats — ALIAS-RM-01) + livrer l'ETL incrémental (watermarks CDC via `pipeline_runs.watermark JSONB` réservée en v0.5.0 — ETL-INC-01). Scope locked au cadrage : watermark déclaratif via `incremental_column` (pas de callback), high-water mark = `max(col)` du batch, sources SQL enveloppées (subquery + WHERE), premier run = full load puis record, incrémental réservé à `load_mode` ∈ {append, upsert} (`replace` interdit), suppression d'alias = hard remove + MIGRATION v0.6→v0.7 + note Breaking. Active set au scope v0.7.0. Phase numbering continues from Phase 25. Suite validée (FUTURE-MILESTONES) : v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2.*
 
 *Last updated: 2026-06-17 — Phase 21 "Infrastructure & Timescale Accessor" complete (3/3 plans, verification PASSED 4/4). Le pattern alias+accessor est désormais établi de bout en bout et prouvé : `pycopg/aliases.py` (`@deprecated_alias` — `stacklevel=2`, branche `iscoroutinefunction`, sans eval/exec, réutilisé tel quel par les Phases 22-24) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 méthodes déplacées verbatim avec `self.`→`self._db.`). `db.timescale.*` / `async_db.timescale.*` câblés en propriétés lazy (cache `_timescale`, miroir de `_spatial`/`_etl`) ; les 6 méthodes plates sync + 6 async sont des stubs `@deprecated_alias` qui warn + délèguent (zéro breaking change). Registre data-driven `ACCESSOR_PAIRS` + `test_accessor_parity` (sync↔async), `test_timescale_aliases.py` (warn+delegate par alias), 27 call-sites migrés. Gates : suite complète 994 passants (2 échecs DB pré-existants connus), `-W error::DeprecationWarning` vert (295), coverage 94.46% (ratchet ≥94 tenu). Revue de code : 0 critique, 4 warnings advisory (notamment WR-01 : signatures `(*args, **kwargs)` dégradant le typage statique sur ce package `py.typed` ; WR-02 : README/docs documentent encore l'API plate dépréciée). REORG-01/02/03/04 + TS-01 validés. Next : Phase 22 (Admin, Maint & Backup accessors).*
