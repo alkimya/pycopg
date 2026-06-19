@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
-stopped_at: Phase 24 context gathered
-last_updated: "2026-06-19T11:39:58.037Z"
-last_activity: 2026-06-19 -- Phase 24 execution started
+stopped_at: Phase 24 Plan 02 complete
+last_updated: "2026-06-19T12:00:00.000Z"
+last_activity: 2026-06-19 -- Phase 24 Plan 02 executed (CHANGELOG + MIGRATION + exports verification)
 progress:
   total_phases: 4
   completed_phases: 3
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 ## Current Position
 
 Phase: 24 (exports-docs-release-v0-6-0) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-06-19 -- Phase 24 execution started
+Last activity: 2026-06-19 -- Phase 24 Plan 02 complete (CHANGELOG + MIGRATION + exports)
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
 
@@ -81,6 +81,9 @@ Open questions tranchées au cadrage (2026-06-17): `db.schema.*` reste un seul b
 - D-06 accepted: SpatialAccessor PostGIS guard now applies to deprecated flat path (cleaner failure mode)
 - (SpatialAccessor, AsyncSpatialAccessor) added to ACCESSOR_PAIRS (was absent — CONTEXT.md correction)
 - Internal deprecated calls in spatial.py fixed: SpatialAccessor.__init__ + AsyncSpatialAccessor._check_postgis now use db.schema.has_extension (Rule 1 auto-fix)
+- D-04 executed: v0.5→v0.6 migration section prepended to MIGRATION.md with live-verified 56-name flat→accessor table (admin 11/schema 27/timescale 6/maint 6/backup 4/spatial 2)
+- D-05 executed: CHANGELOG [0.6.0] entry written with Added/Deprecated/Changed buckets, v0.7.0 removal notice, D-06 PostGIS-guard note, and updated compare-link footer
+- Criterion #1 (REORG-05) confirmed: all 10 accessor classes importable from pycopg; __init__.py untouched
 
 ### Pending Todos
 
@@ -92,11 +95,11 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-19T11:39:58.026Z
-Stopped at: Phase 24 context gathered
-Resume file: .planning/phases/24-exports-docs-release-v0-6-0/24-CONTEXT.md
-Next action: Execute Phase 23 Plan 04
+Last session: 2026-06-19T12:00:00.000Z
+Stopped at: Phase 24 Plan 02 complete
+Resume file: .planning/phases/24-exports-docs-release-v0-6-0/24-02-SUMMARY.md
+Next action: Execute Phase 24 Plan 03 (version bump + gates + release)
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 23` Plan 04 to add schema alias tests, update test_parity with SchemaAccessor pair, and finalize the schema track.
+- Run `/gsd-execute-phase 24` Plan 03 to bump version, run release gates, build artifacts, and publish v0.6.0 to PyPI (human checkpoint required before publish).

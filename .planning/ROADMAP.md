@@ -164,7 +164,7 @@ Plans:
 **Wave 1** *(parallel — no file overlap)*
 
 - [x] 24-01-PLAN.md — README Namespaces overview + accessor-path rewrite of 4 prose pages + 5 automodule blocks (api-autodoc.md) under a green Sphinx `-W` build — REORG-05
-- [ ] 24-02-PLAN.md — CHANGELOG `[0.6.0]` entry + prepend v0.5→v0.6 MIGRATION guide (56-name table) + exports smoke-test verify — REORG-05
+- [x] 24-02-PLAN.md — CHANGELOG `[0.6.0]` entry + prepend v0.5→v0.6 MIGRATION guide (56-name table) + exports smoke-test verify — REORG-05
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -179,7 +179,7 @@ Plans:
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete    | 2026-06-17 |
-| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 1/3 | In Progress|  |
+| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 2/3 | In Progress|  |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
