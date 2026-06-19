@@ -37,11 +37,15 @@ deletion phase — no new behavior, no new accessor methods.
   and all 56 from `pycopg/async_database.py` (112 total). Remove the
   `from pycopg.aliases import deprecated_alias` import line from both files. Removed
   names must resolve to a plain `AttributeError` (no stub, no warning, no delegation).
-- **D-02**: The stubs are NOT a single trailing block — in `database.py` the alias
-  region sits between the "DATABASE ADMINISTRATION" section (~L855) and the lifecycle
-  methods `close`/`__enter__`/`__exit__` at EOF. Removal must preserve those trailing
-  lifecycle methods. Same care for `async_database.py` (`close`/`__aenter__`/`__aexit__`
-  at EOF). Delete the stubs, not "everything after line N".
+- **D-02 (CRITICAL — corrected by research)**: The alias stubs are **interleaved with
+  real methods**, NOT a single contiguous block. In `database.py` (stubs ~L859–L1329) a
+  `DATAFRAME OPERATIONS` block of 4 real methods sits at ~L983–L1192. In
+  `async_database.py` (stubs ~L732–L1340) there are 3 interleaved real-method sections —
+  DATAFRAME (~L940), BATCH OPERATIONS (~L1161), STREAMING (~L1247). The trailing lifecycle
+  methods (`close`/`__enter__`/`__exit__`; `close`/`__aenter__`/`__aexit__`) also sit at
+  EOF. **Removal MUST target each `@deprecated_alias`-decorated stub by text pattern
+  (decorator + its 2–3 line stub body + leading docstring), never by deleting a line range.**
+  All interleaved real methods MUST be preserved.
 
 ### aliases.py module
 - **D-03**: Delete `pycopg/aliases.py` entirely. First verify no module other than
@@ -49,10 +53,13 @@ deletion phase — no new behavior, no new accessor methods.
   those two import it). The decorator has no post-removal purpose.
 
 ### Tests
-- **D-04**: Delete the 7 `tests/test_*_aliases.py` files (admin, maint, schema, backup,
-  timescale, spatial, sql — i.e. `test_admin_aliases.py`, `test_maint_aliases.py`,
-  `test_schema_aliases.py`, `test_backup_aliases.py`, `test_timescale_aliases.py`,
-  `test_spatial_aliases.py`). They test the warn+delegate behavior being removed.
+- **D-04 (corrected by research — 6 files, not 7)**: Delete the **6** warn+delegate test
+  files: `tests/test_admin_aliases.py`, `tests/test_maint_aliases.py`,
+  `tests/test_schema_aliases.py`, `tests/test_backup_aliases.py`,
+  `tests/test_timescale_aliases.py`, `tests/test_spatial_aliases.py`. They test the
+  warn+delegate behavior being removed. NOTE: `tests/test_sql_injection.py` is NOT an alias
+  test file (it stays — only its stale comment is fixed under D-08); the original "7th file"
+  was a miscount.
 - **D-05**: Add one new parametrized test (e.g. `tests/test_alias_removal.py`) asserting
   that a representative set of (or all 56) removed flat names raise `AttributeError`
   when accessed on a live `Database` AND `AsyncDatabase` instance. This is the positive
@@ -68,14 +75,18 @@ deletion phase — no new behavior, no new accessor methods.
   autocomplete/signatures on this `py.typed` package. Removal resolves WR-01 structurally
   — verify (don't just assert) that the public surface now exposes only accessor-namespaced
   methods with real signatures and no `*args/**kwargs` stub remains on `Database`/`AsyncDatabase`.
-- **D-08 (IN-02)**: Fix stale flat-name references in non-test code and comments:
-  - `pycopg/spatial.py` `_POSTGIS_GUARD_MSG` (~L966): `"...Run db.create_extension('postgis')"`
-    → `db.schema.create_extension('postgis')`.
-  - `tests/test_sql_injection.py` (~L38): stale comment "the deprecated flat spatial
-    aliases now route through ..." — the test bodies already call accessor paths
-    (`sync_db.spatial.*`, `sync_db.schema.*`); update/remove the misleading comment.
-  - Sweep `pycopg/` for any other error/docstring text naming a flat `db.<method>(...)`
-    path that now requires an accessor.
+- **D-08 (IN-02 — corrected by research: 15 source sites, not 1)**: Fix all stale flat-name
+  references in non-test code/comments. Research enumerated 15 error-message sites:
+  - PostGIS guard `"...Run db.create_extension('postgis')"` → `db.schema.create_extension('postgis')`
+    at THREE sites: `pycopg/spatial.py:966`, `pycopg/database.py:1108`, `pycopg/async_database.py:1119`.
+  - TimescaleDB guard `"...Run db.create_extension('timescaledb')"` → `db.schema.create_extension('timescaledb')`
+    at TWELVE sites in `pycopg/timescale.py` (~L80, 124, 177, 214, 240, 268, 332, 376, 431, 468, + 2 more).
+  - `tests/test_sql_injection.py` (~L38): stale comment "the deprecated flat spatial aliases
+    now route through ..." — test bodies already call accessor paths; update/remove the comment.
+  - 4 docs source files contain flat-name code examples (factually wrong post-v0.7.0, though
+    NOT Sphinx `-W` failures since they're fenced code, not `:meth:` refs) — fix for accuracy.
+  - Re-grep `pycopg/` after edits to confirm zero remaining `db.create_extension(` / flat
+    `db.<method>(` references in error strings.
 
 ### Documentation (ALIAS-RM-03)
 - **D-09**: Add a `Migration Guide: v0.6.0 → v0.7.0` section to `MIGRATION.md` with a 1:1
@@ -88,9 +99,11 @@ deletion phase — no new behavior, no new accessor methods.
 
 ### Gates
 - **D-11**: `-W error::DeprecationWarning` must be clean after removal — there are no stubs
-  left to fire the warning. Coverage ratchet (≥94) must hold; deleting the warn+delegate
-  tests reduces test count but those lines of source are also gone, so net coverage should
-  not regress.
+  left to fire the warning. Coverage ratchet (≥94) must hold. Research confirms the deletion
+  is **symmetric** (stub source lines AND their covering tests disappear together) and the
+  current baseline is **95.64%** (1.64% headroom), so net coverage should not regress —
+  but the plan MUST run the full suite with coverage post-removal to confirm ≥94, not assume it.
+  The `*args/**kwargs` count is exactly 56 per file and belongs entirely to alias stubs.
 
 ### Claude's Discretion
 - Exact new test file name/structure for D-05 (parametrized over a name list vs. introspecting
@@ -98,6 +111,9 @@ deletion phase — no new behavior, no new accessor methods.
 - Whether to drive the 56-name list in MIGRATION from the existing v0.6.0 table verbatim or
   regenerate it.
 - Wave/plan decomposition (source removal vs. tests vs. docs vs. IN-02 cleanup).
+- Whether to delete the now-orphaned section-header comments (`# EXTENSIONS`,
+  `# POSTGIS SPATIAL OPERATIONS`, etc.) that become empty once their stubs are removed
+  (research open question — recommended yes, they are dead headers).
 </decisions>
 
 <canonical_refs>
