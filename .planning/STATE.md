@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
 status: planning
-last_updated: "2026-06-19T14:57:02.699Z"
+last_updated: "2026-06-19"
 last_activity: 2026-06-19
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,69 +17,49 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-17)
+See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Planning next milestone (v0.7.0 — alias removal / ALIAS-RM-01)
+**Current focus:** Phase 25 ready to plan (Alias Removal)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 25 of 29 (Alias Removal)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-19 — Milestone v0.7.0 started
+Status: Ready to plan Phase 25
+Last activity: 2026-06-19 — Roadmap created for v0.7.0 (5 phases, 17 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**Velocity (v0.5.0 reference):**
+**Gates (v0.6.0 baseline):**
+- Coverage ratchet: ≥94% (measured 95.64% at v0.6.0 ship)
+- interrogate: gate ≥95 (measured 100%)
+- `-W error::DeprecationWarning`: green (will stay green after alias removal — no stubs left)
 
-- Coverage ratchet: 94 (measured 94.26%); gate stays at --cov-fail-under=94
-- interrogate: 100% (gate ≥ 95)
-
-**By Phase (v0.6.0 — all complete):**
+**By Phase (v0.7.0 — none complete yet):**
 
 | Phase | Plans | Complete | Status |
 |-------|-------|----------|--------|
-| 21. Infrastructure & Timescale Accessor | 3 | 3 | Complete |
-| 22. Admin, Maint & Backup Accessors | 3 | 3 | Complete |
-| 23. Schema Accessor & Spatial Relocation | 4 | 4 | Complete |
-| 24. Exports, Docs & Release v0.6.0 | 3 | 3 | Complete |
+| 25. Alias Removal | TBD | 0 | Not started |
+| 26. Incremental ETL — Pure Layer | TBD | 0 | Not started |
+| 27. Incremental ETL — Run-Log Integration | TBD | 0 | Not started |
+| 28. Incremental ETL — Extract, RunResult & Async Parity | TBD | 0 | Not started |
+| 29. Release v0.7.0 | TBD | 0 | Not started |
 
 ## Accumulated Context
 
 ### Decisions
 
-All v0.4.0 + v0.5.0 decisions logged in PROJECT.md Key Decisions table with outcomes.
+Locked scope decisions (cadrage 2026-06-19, see PROJECT.md):
+- Watermark via `incremental_column` only (no callbacks); high-water mark = `max(col)` from raw batch before transforms
+- `incremental_column` + `load_mode` ∈ {append, replace} forbidden at construction (`ValueError`)
+- First run (no watermark) = full load then record `max(col)`; advance only on successful load
+- Empty batch: success + `rows_loaded=0` + prior watermark preserved (never write NULL)
+- Alias removal = hard remove (one cycle already served in v0.6.0) + MIGRATION + Breaking CHANGELOG
 
-v0.6.0 locked decisions (D-SCOPE-1..4, see `.planning/v0.6.0-SCOPE.md`):
-
-- D-SCOPE-1: transition = alias mince + `DeprecationWarning` → nouveau chemin; suppression des alias en v0.7.0 (zéro rupture brutale).
-- D-SCOPE-2: la vraie implémentation vit dans l'accessor; l'ancien `db.*` devient le wrapper qui warn + délègue.
-- D-SCOPE-3: les 5 accessors (`timescale`/`admin`/`schema`/`maint`/`backup`) en un seul milestone (~4 phases).
-- D-SCOPE-4: parité sync/async obligatoire; `test_parity` enregistre les 5 nouveaux accessors.
-
-Open questions tranchées au cadrage (2026-06-17): `db.schema.*` reste un seul bloc (DDL + introspection); DataFrame reste à plat sur `db.*`; `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`.
-
-- [Phase ?]: D-01 confirmed: 27 schema methods exactly in SchemaAccessor/AsyncSchemaAccessor
-- [Phase ?]: Rule 1 auto-fix: etl.py + timescale.py internal deprecated flat calls rewritten to accessor paths
-
-### Roadmap phase mapping (v0.6.0)
-
-- Phase 21: REORG-01, REORG-02, REORG-03, REORG-04, TS-01 — infrastructure + timescale (pattern proof)
-- Phase 22: ADM-01, MNT-01, BKP-01 — admin + maint + backup (small accessors)
-- Phase 23: SCH-01, SCH-02 — schema (~26 methods) + spatial relocation
-- Phase 24: REORG-05 — exports + docs + release v0.6.0
-
-### Decisions
-
-- D-07 honoured: create_spatial_index + list_geometry_columns moved verbatim into SpatialAccessor/AsyncSpatialAccessor (no builder/run conformance)
-- D-05 executed atomically: all 8 call-sites in from_dataframe/from_geodataframe rewritten to accessor paths
-- D-06 accepted: SpatialAccessor PostGIS guard now applies to deprecated flat path (cleaner failure mode)
-- (SpatialAccessor, AsyncSpatialAccessor) added to ACCESSOR_PAIRS (was absent — CONTEXT.md correction)
-- Internal deprecated calls in spatial.py fixed: SpatialAccessor.__init__ + AsyncSpatialAccessor._check_postgis now use db.schema.has_extension (Rule 1 auto-fix)
-- D-04 executed: v0.5→v0.6 migration section prepended to MIGRATION.md with live-verified 56-name flat→accessor table (admin 11/schema 27/timescale 6/maint 6/backup 4/spatial 2)
-- D-05 executed: CHANGELOG [0.6.0] entry written with Added/Deprecated/Changed buckets, v0.7.0 removal notice, D-06 PostGIS-guard note, and updated compare-link footer
-- Criterion #1 (REORG-05) confirmed: all 10 accessor classes importable from pycopg; __init__.py untouched
+Open question resolved in REQUIREMENTS.md: `append` + `incremental_column` is **forbidden** (locked).
 
 ### Pending Todos
 
@@ -87,28 +67,20 @@ None.
 
 ### Blockers/Concerns
 
-- 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — UndefinedTable fixture-isolation bug, not v0.6.0 code; use `-o addopts=""` for targeted runs.
+- 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — fixture-isolation bug, not v0.7.0 code; use `-o addopts=""` for targeted runs.
 
 ## Deferred Items
 
-Items acknowledged and deferred at milestone close on 2026-06-19:
-
 | Category | Item | Status |
 |----------|------|--------|
-| nyquist | Phase 22 VALIDATION.md left `draft` / `nyquist_compliant: false` | deferred — verified PASSED via VERIFICATION.md; optional `/gsd-validate-phase 22` |
-| nyquist | Phase 23 VALIDATION.md left `draft` / `nyquist_compliant: false` | deferred — verified PASSED via VERIFICATION.md; optional `/gsd-validate-phase 23` |
-| nyquist | Phase 24 VALIDATION.md left `draft` / `nyquist_compliant: false` | deferred — verified PASSED via VERIFICATION.md; optional `/gsd-validate-phase 24` |
-| tech_debt | WR-01: deprecated `*args/**kwargs` alias stubs erase IDE signatures | accepted milestone-wide; self-resolves at v0.7.0 alias removal (ALIAS-RM-01) |
-| tech_debt | IN-02: `ExtensionNotAvailable` message may still name flat `db.create_extension(...)` | cosmetic; resolves at v0.7.0 |
-| tech_debt | WR-02: dead `has_extension`/`role_exists` monkeypatches in `test_sql_injection.py` async fixture | housekeeping; tests pass 92/92 |
+| nyquist | Phase 22/23/24 VALIDATION.md left `draft` | deferred from v0.6.0 — verified PASSED via VERIFICATION.md |
+| tech_debt | WR-02: dead monkeypatches in `test_sql_injection.py` async fixture | housekeeping; non-blocking |
+| future | ETL-INC-F01: `initial_watermark` first-run bounding | deferred to v0.8.0 |
+| future | ETL-INC-F02: configurable `>` vs `>=` boundary | deferred to v0.8.0 |
 
 ## Session Continuity
 
-Last session: 2026-06-19T12:02:09.338Z
-Stopped at: Phase 24 Plan 02 complete
-Resume file: .planning/phases/24-exports-docs-release-v0-6-0/24-02-SUMMARY.md
-Next action: Execute Phase 24 Plan 03 (version bump + gates + release)
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd-new-milestone
+Last session: 2026-06-19
+Stopped at: Roadmap created — 5 phases (25-29), 17/17 requirements mapped
+Resume file: None
+Next action: `/gsd-plan-phase 25`

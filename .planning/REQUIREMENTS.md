@@ -81,30 +81,30 @@ Which phases cover which requirements. Filled during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ALIAS-RM-01 | Phase [N] | Pending |
-| ALIAS-RM-02 | Phase [N] | Pending |
-| ALIAS-RM-03 | Phase [N] | Pending |
-| ALIAS-RM-04 | Phase [N] | Pending |
-| ETL-INC-01 | Phase [N] | Pending |
-| ETL-INC-02 | Phase [N] | Pending |
-| ETL-INC-03 | Phase [N] | Pending |
-| ETL-INC-04 | Phase [N] | Pending |
-| ETL-INC-05 | Phase [N] | Pending |
-| ETL-INC-06 | Phase [N] | Pending |
-| ETL-INC-07 | Phase [N] | Pending |
-| ETL-INC-08 | Phase [N] | Pending |
-| ETL-INC-09 | Phase [N] | Pending |
-| ETL-INC-10 | Phase [N] | Pending |
-| ETL-INC-11 | Phase [N] | Pending |
-| ETL-INC-12 | Phase [N] | Pending |
-| REL-07 | Phase [N] | Pending |
+| ALIAS-RM-01 | Phase 25 | Pending |
+| ALIAS-RM-02 | Phase 25 | Pending |
+| ALIAS-RM-03 | Phase 25 | Pending |
+| ALIAS-RM-04 | Phase 25 | Pending |
+| ETL-INC-01 | Phase 26 | Pending |
+| ETL-INC-02 | Phase 27 | Pending |
+| ETL-INC-03 | Phase 28 | Pending |
+| ETL-INC-04 | Phase 28 | Pending |
+| ETL-INC-05 | Phase 27 | Pending |
+| ETL-INC-06 | Phase 27 | Pending |
+| ETL-INC-07 | Phase 28 | Pending |
+| ETL-INC-08 | Phase 28 | Pending |
+| ETL-INC-09 | Phase 28 | Pending |
+| ETL-INC-10 | Phase 27 | Pending |
+| ETL-INC-11 | Phase 28 | Pending |
+| ETL-INC-12 | Phase 28 | Pending |
+| REL-07 | Phase 29 | Pending |
 
 **Coverage:**
 
 - v1 requirements: 17 total
-- Mapped to phases: 0 (filled by roadmapper)
-- Unmapped: 17 ⚠️ (until roadmap created)
+- Mapped to phases: 17 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-19*
-*Last updated: 2026-06-19 after initial definition*
+*Last updated: 2026-06-19 — traceability filled by roadmapper (phases 25-29)*
