@@ -168,7 +168,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 24-03-PLAN.md — Version bump (pyproject.toml + docs/conf.py) + uv lock + three gates + build + human-sign-off PyPI publish + tag + manual clean-venv smoke — REORG-05
+- [x] 24-03-PLAN.md — Version bump (pyproject.toml + docs/conf.py) + uv lock + three gates + build + human-sign-off PyPI publish + tag + manual clean-venv smoke — REORG-05
 
 ## Progress
 
@@ -179,7 +179,7 @@ Plans:
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete    | 2026-06-17 |
-| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 2/3 | In Progress|  |
+| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 3/3 | Complete   | 2026-06-19 |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
