@@ -4,13 +4,13 @@ milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
 status: executing
 stopped_at: Roadmap created — 5 phases (25-29), 17/17 requirements mapped
-last_updated: "2026-06-19T20:42:35.589Z"
-last_activity: 2026-06-19 -- Phase 25 execution started
+last_updated: "2026-06-19T21:00:00Z"
+last_activity: 2026-06-19 -- Plan 25-02 executed (async_database.py stubs removed)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 25 (alias-removal) — EXECUTING
-Plan: 2 of 5
-Status: Ready to execute
-Last activity: 2026-06-19 -- Phase 25 execution started
+Plan: 3 of 5
+Status: Plan 25-02 complete; ready for plan 25-03
+Last activity: 2026-06-19 -- Plan 25-02 executed (async_database.py stubs removed)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0%
 | 28. Incremental ETL — Extract, RunResult & Async Parity | TBD | 0 | Not started |
 | 29. Release v0.7.0 | TBD | 0 | Not started |
 | Phase 25-alias-removal P01 | 2 | 2 tasks | 1 files |
+| Phase 25-alias-removal P02 | 2 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -84,7 +85,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-19T20:42:35.578Z
-Stopped at: Roadmap created — 5 phases (25-29), 17/17 requirements mapped
+Last session: 2026-06-19T21:00:00Z
+Stopped at: Plan 25-02 complete — async_database.py stubs removed, parity restored
 Resume file: None
-Next action: `/gsd-plan-phase 25`
+Next action: `/gsd-execute-phase 25` (plan 25-03: delete 6 alias test files, add test_alias_removal.py)
