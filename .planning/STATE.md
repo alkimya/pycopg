@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: verifying
-stopped_at: Phase 23 Plan 03 complete
-last_updated: "2026-06-17T22:52:36.953Z"
+stopped_at: Phase 24 context gathered
+last_updated: "2026-06-19T10:33:02.125Z"
 last_activity: 2026-06-17
 progress:
   total_phases: 4
@@ -92,9 +92,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-17T22:33:52.064Z
-Stopped at: Phase 23 Plan 03 complete
-Resume file: .planning/phases/23-schema-accessor-spatial-relocation/23-03-SUMMARY.md
+Last session: 2026-06-19T10:33:02.111Z
+Stopped at: Phase 24 context gathered
+Resume file: .planning/phases/24-exports-docs-release-v0-6-0/24-CONTEXT.md
 Next action: Execute Phase 23 Plan 04
 
 ## Operator Next Steps
