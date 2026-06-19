@@ -4,8 +4,8 @@ milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
 status: completed
 stopped_at: Plan 25-04 complete — IN-02 guard strings fixed in spatial.py/timescale.py, stale comment corrected in test_sql_injection.py
-last_updated: "2026-06-19T21:07:39.722Z"
-last_activity: 2026-06-19 -- Plan 25-04 executed (IN-02 guard strings in spatial.py/timescale.py + stale comment fix)
+last_updated: "2026-06-19T21:19:51.740Z"
+last_activity: 2026-06-19
 progress:
   total_phases: 5
   completed_phases: 1
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 25 (alias-removal) — EXECUTING
-Plan: 5 of 5
+Phase: 26
+Plan: Not started
 Status: Plan 25-04 complete; ready for plan 25-05
-Last activity: 2026-06-19 -- Plan 25-04 executed (IN-02 guard strings in spatial.py/timescale.py + stale comment fix)
+Last activity: 2026-06-19
 
 Progress: [░░░░░░░░░░] 0%
 
