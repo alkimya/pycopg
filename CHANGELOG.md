@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0]
+
+### Added
+
+- `db.timescale.*` / `async_db.timescale.*` namespace: 6 TimescaleDB methods
+  (`create_hypertable`, `enable_compression`, `add_compression_policy`,
+  `add_retention_policy`, `list_hypertables`, `hypertable_info`); full sync/async parity
+- `db.admin.*` / `async_db.admin.*` namespace: 11 role & permission methods
+  (`create_role`, `drop_role`, `role_exists`, `list_roles`, `alter_role`, `grant_role`,
+  `revoke_role`, `grant`, `revoke`, `list_role_members`, `list_role_grants`); full sync/async parity
+- `db.maint.*` / `async_db.maint.*` namespace: 6 maintenance methods
+  (`size`, `table_size`, `table_sizes`, `vacuum`, `analyze`, `explain`); full sync/async parity
+- `db.backup.*` / `async_db.backup.*` namespace: 4 dump/restore/CSV methods
+  (`pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv`); full sync/async parity
+- `db.schema.*` / `async_db.schema.*` namespace: 27 DDL + introspection methods
+  (databases 4, extensions 4, schemas 4, tables+columns 8, constraints+indexes 7); full sync/async parity
+- `TimescaleAccessor`, `AsyncTimescaleAccessor`, `AdminAccessor`, `AsyncAdminAccessor`,
+  `MaintAccessor`, `AsyncMaintAccessor`, `BackupAccessor`, `AsyncBackupAccessor`,
+  `SchemaAccessor`, `AsyncSchemaAccessor` exported from the `pycopg` top-level namespace
+
+### Deprecated
+
+- All 56 legacy flat names on `db.*` / `async_db.*` (the methods moved to accessor namespaces)
+  now emit `DeprecationWarning` pointing to the new accessor path (e.g.
+  `db.create_hypertable` warns: "use db.timescale.create_hypertable"). Scheduled for
+  removal in **v0.7.0**. See [MIGRATION.md](MIGRATION.md) for the complete flat-name →
+  accessor-path table.
+
+### Changed
+
+- Calling the deprecated flat `db.create_spatial_index` or `db.list_geometry_columns`
+  now raises `ExtensionNotAvailable` early (via the `db.spatial` PostGIS guard) when
+  PostGIS is not installed, rather than a raw psycopg error. A strictly clearer failure
+  mode on the deprecated path.
+
 ## [0.5.0] - 2026-06-15
 
 ### Added
@@ -161,7 +196,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/alkimya/pycopg/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/alkimya/pycopg/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alkimya/pycopg/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/alkimya/pycopg/compare/v0.3.0...v0.3.1
