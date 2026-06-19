@@ -1,11 +1,39 @@
 # TimescaleDB Support
 
-pycopg provides built-in support for TimescaleDB, a PostgreSQL extension for time-series data.
+pycopg provides a `db.timescale.*` (and `async_db.timescale.*`) accessor namespace with
+built-in support for TimescaleDB, a PostgreSQL extension for time-series data.
 
 ## Prerequisites
 
 1. TimescaleDB extension installed on your PostgreSQL server
 2. Regular pycopg installation (no additional packages needed)
+
+## Access Pattern
+
+```python
+from pycopg import Database
+
+db = Database.from_env()
+
+# Enable TimescaleDB extension (uses transactional-core execute — stays flat)
+db.schema.create_extension("timescaledb")
+
+# Sync: db.timescale is initialized lazily on first access
+db.timescale.create_hypertable("events", "time")
+```
+
+```python
+from pycopg import AsyncDatabase
+
+async_db = AsyncDatabase.from_env()
+
+# Async: async_db.timescale mirrors the sync API with awaited methods
+await async_db.timescale.create_hypertable("events", "time")
+```
+
+> **Note:** The flat `db.*` methods (e.g. `db.create_hypertable`) are deprecated as of
+> v0.6.0 and will be removed in v0.7.0. Use `db.timescale.*` instead.
+> See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
 
 ## Setup
 
@@ -15,10 +43,10 @@ from pycopg import Database
 db = Database.from_env()
 
 # Enable TimescaleDB extension
-db.create_extension("timescaledb")
+db.schema.create_extension("timescaledb")
 
 # Verify installation
-if db.has_extension("timescaledb"):
+if db.schema.has_extension("timescaledb"):
     print("TimescaleDB is ready")
 ```
 
@@ -40,13 +68,13 @@ db.execute("""
 """)
 
 # Convert to hypertable
-db.create_hypertable("events", "time")
+db.timescale.create_hypertable("events", "time")
 ```
 
 ### With Options
 
 ```python
-db.create_hypertable(
+db.timescale.create_hypertable(
     "events",
     "time",
     schema="metrics",              # Target schema
@@ -58,11 +86,11 @@ db.create_hypertable(
 
 ### Common Chunk Intervals
 
-| Use Case | Interval |
-|----------|----------|
-| High-frequency IoT data | `1 hour` |
-| Standard metrics | `1 day` |
-| Long-term storage | `1 week` or `1 month` |
+| Use Case                 | Interval              |
+| ------------------------ | --------------------- |
+| High-frequency IoT data  | `1 hour`              |
+| Standard metrics         | `1 day`               |
+| Long-term storage        | `1 week` or `1 month` |
 
 ## Compression
 
@@ -72,7 +100,7 @@ Enable compression to reduce storage for older data.
 
 ```python
 # Enable compression on hypertable
-db.enable_compression(
+db.timescale.enable_compression(
     "events",
     segment_by="device_id",       # Group compressed data
     order_by="time DESC",         # Order within segments
@@ -85,10 +113,10 @@ Automatically compress chunks older than a threshold.
 
 ```python
 # Compress chunks older than 7 days
-db.add_compression_policy("events", compress_after="7 days")
+db.timescale.add_compression_policy("events", compress_after="7 days")
 
 # Or custom interval
-db.add_compression_policy("events", compress_after="30 days")
+db.timescale.add_compression_policy("events", compress_after="30 days")
 ```
 
 ## Data Retention
@@ -97,16 +125,16 @@ Automatically drop old data chunks.
 
 ```python
 # Drop chunks older than 90 days
-db.add_retention_policy("logs", drop_after="90 days")
+db.timescale.add_retention_policy("logs", drop_after="90 days")
 
 # For metrics, keep 1 year
-db.add_retention_policy("metrics", drop_after="365 days")
+db.timescale.add_retention_policy("metrics", drop_after="365 days")
 ```
 
 ## Listing Hypertables
 
 ```python
-hypertables = db.list_hypertables()
+hypertables = db.timescale.list_hypertables()
 # [
 #     {
 #         'schema': 'public',
@@ -122,7 +150,7 @@ hypertables = db.list_hypertables()
 ## Hypertable Info
 
 ```python
-info = db.hypertable_info("events")
+info = db.timescale.hypertable_info("events")
 # {
 #     'total_size': '1.2 GB',
 #     'detailed_size': {...}
@@ -241,7 +269,7 @@ from datetime import datetime, timedelta
 db = Database.from_env()
 
 # Setup
-db.create_extension("timescaledb")
+db.schema.create_extension("timescaledb")
 
 # Create sensor table
 db.execute("""
@@ -256,7 +284,7 @@ db.execute("""
 """)
 
 # Convert to hypertable
-db.create_hypertable("sensors", "time", if_not_exists=True)
+db.timescale.create_hypertable("sensors", "time", if_not_exists=True)
 
 # Create indexes
 db.execute("""
@@ -265,15 +293,15 @@ db.execute("""
 """)
 
 # Enable compression
-db.enable_compression(
+db.timescale.enable_compression(
     "sensors",
     segment_by="sensor_id",
     order_by="time DESC"
 )
 
 # Add policies
-db.add_compression_policy("sensors", compress_after="7 days")
-db.add_retention_policy("sensors", drop_after="90 days")
+db.timescale.add_compression_policy("sensors", compress_after="7 days")
+db.timescale.add_retention_policy("sensors", drop_after="90 days")
 
 # Insert sample data
 import random
@@ -320,7 +348,7 @@ latest = db.execute("""
 """)
 
 # Check hypertable info
-print(db.list_hypertables())
+print(db.timescale.list_hypertables())
 
 db.close()
 ```
@@ -331,13 +359,13 @@ db.close()
 
 ```python
 # High-frequency data (1000+ rows/second)
-db.create_hypertable("events", "time", chunk_time_interval="1 hour")
+db.timescale.create_hypertable("events", "time", chunk_time_interval="1 hour")
 
 # Standard metrics
-db.create_hypertable("metrics", "time", chunk_time_interval="1 day")
+db.timescale.create_hypertable("metrics", "time", chunk_time_interval="1 day")
 
 # Low-frequency, long-term data
-db.create_hypertable("monthly_reports", "time", chunk_time_interval="1 month")
+db.timescale.create_hypertable("monthly_reports", "time", chunk_time_interval="1 month")
 ```
 
 ### 2. Use Appropriate Indexes

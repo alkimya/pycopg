@@ -1,6 +1,31 @@
 # Roles & Permissions
 
-pycopg provides comprehensive role and permission management for PostgreSQL.
+pycopg provides a `db.admin.*` (and `async_db.admin.*`) accessor namespace for
+comprehensive role and permission management for PostgreSQL.
+
+## Access Pattern
+
+```python
+from pycopg import Database
+
+db = Database.from_env()
+
+# Sync: db.admin is initialized lazily on first access
+db.admin.create_role("appuser", password="secret123", login=True)
+```
+
+```python
+from pycopg import AsyncDatabase
+
+async_db = AsyncDatabase.from_env()
+
+# Async: async_db.admin mirrors the sync API with awaited methods
+await async_db.admin.create_role("appuser", password="secret123", login=True)
+```
+
+> **Note:** The flat `db.*` methods (e.g. `db.create_role`) are deprecated as of
+> v0.6.0 and will be removed in v0.7.0. Use `db.admin.*` instead.
+> See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
 
 ## Creating Roles
 
@@ -8,13 +33,13 @@ pycopg provides comprehensive role and permission management for PostgreSQL.
 
 ```python
 # Create a user that can log in
-db.create_role("appuser", password="secret123", login=True)
+db.admin.create_role("appuser", password="secret123", login=True)
 ```
 
 ### With Options
 
 ```python
-db.create_role(
+db.admin.create_role(
     "admin",
     password="secret",
     login=True,
@@ -35,10 +60,10 @@ Group roles don't log in but grant permissions to members.
 
 ```python
 # Create a group role
-db.create_role("readonly", login=False)
+db.admin.create_role("readonly", login=False)
 
 # Create user in the group
-db.create_role("analyst", password="secret", login=True, in_roles=["readonly"])
+db.admin.create_role("analyst", password="secret", login=True, in_roles=["readonly"])
 ```
 
 ## Managing Roles
@@ -47,19 +72,19 @@ db.create_role("analyst", password="secret", login=True, in_roles=["readonly"])
 
 ```python
 # Change password
-db.alter_role("appuser", password="newpassword")
+db.admin.alter_role("appuser", password="newpassword")
 
 # Change connection limit
-db.alter_role("appuser", connection_limit=20)
+db.admin.alter_role("appuser", connection_limit=20)
 
 # Disable login
-db.alter_role("appuser", login=False)
+db.admin.alter_role("appuser", login=False)
 
 # Rename role
-db.alter_role("oldname", rename_to="newname")
+db.admin.alter_role("oldname", rename_to="newname")
 
 # Multiple changes
-db.alter_role(
+db.admin.alter_role(
     "appuser",
     password="newpass",
     connection_limit=50,
@@ -70,21 +95,21 @@ db.alter_role(
 ### Drop Role
 
 ```python
-db.drop_role("olduser")
-db.drop_role("olduser", if_exists=True)
+db.admin.drop_role("olduser")
+db.admin.drop_role("olduser", if_exists=True)
 ```
 
 ### Check Role Exists
 
 ```python
-if db.role_exists("appuser"):
+if db.admin.role_exists("appuser"):
     print("Role exists")
 ```
 
 ### List Roles
 
 ```python
-roles = db.list_roles()
+roles = db.admin.list_roles()
 # [
 #     {
 #         'name': 'admin',
@@ -100,7 +125,7 @@ roles = db.list_roles()
 # ]
 
 # Include system roles (pg_*)
-all_roles = db.list_roles(include_system=True)
+all_roles = db.admin.list_roles(include_system=True)
 ```
 
 ## Role Membership
@@ -109,22 +134,22 @@ all_roles = db.list_roles(include_system=True)
 
 ```python
 # Make 'analyst' a member of 'readonly'
-db.grant_role("readonly", "analyst")
+db.admin.grant_role("readonly", "analyst")
 
 # With admin option (can grant role to others)
-db.grant_role("admin", "lead_dev", with_admin=True)
+db.admin.grant_role("admin", "lead_dev", with_admin=True)
 ```
 
 ### Revoke Role
 
 ```python
-db.revoke_role("readonly", "analyst")
+db.admin.revoke_role("readonly", "analyst")
 ```
 
 ### List Role Members
 
 ```python
-members = db.list_role_members("readonly")
+members = db.admin.list_role_members("readonly")
 # ['analyst', 'reporter', 'dashboard_user']
 ```
 
@@ -134,53 +159,53 @@ members = db.list_role_members("readonly")
 
 ```python
 # Grant SELECT
-db.grant("SELECT", "users", "readonly")
+db.admin.grant("SELECT", "users", "readonly")
 
 # Grant multiple privileges
-db.grant(["SELECT", "INSERT", "UPDATE"], "orders", "appuser")
+db.admin.grant(["SELECT", "INSERT", "UPDATE"], "orders", "appuser")
 
 # Grant all privileges
-db.grant("ALL", "products", "admin")
+db.admin.grant("ALL", "products", "admin")
 ```
 
 ### On All Tables in Schema
 
 ```python
 # Grant SELECT on all tables in public schema
-db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
+db.admin.grant("SELECT", "ALL TABLES", "readonly", schema="public")
 
 # Grant all on all tables
-db.grant("ALL", "ALL TABLES", "admin", schema="app")
+db.admin.grant("ALL", "ALL TABLES", "admin", schema="app")
 ```
 
 ### On Schemas
 
 ```python
 # Grant USAGE (required to access objects in schema)
-db.grant("USAGE", "app", "appuser", object_type="SCHEMA")
+db.admin.grant("USAGE", "app", "appuser", object_type="SCHEMA")
 
 # Grant CREATE (can create objects in schema)
-db.grant("CREATE", "app", "admin", object_type="SCHEMA")
+db.admin.grant("CREATE", "app", "admin", object_type="SCHEMA")
 
 # Grant all
-db.grant("ALL", "app", "admin", object_type="SCHEMA")
+db.admin.grant("ALL", "app", "admin", object_type="SCHEMA")
 ```
 
 ### On Databases
 
 ```python
 # Grant CONNECT
-db.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
+db.admin.grant("CONNECT", "mydb", "appuser", object_type="DATABASE")
 
 # Grant CREATE (can create schemas)
-db.grant("CREATE", "mydb", "admin", object_type="DATABASE")
+db.admin.grant("CREATE", "mydb", "admin", object_type="DATABASE")
 ```
 
 ### With Grant Option
 
 ```python
 # Allow grantee to grant to others
-db.grant("SELECT", "users", "team_lead", with_grant_option=True)
+db.admin.grant("SELECT", "users", "team_lead", with_grant_option=True)
 ```
 
 ## Revoking Privileges
@@ -188,28 +213,28 @@ db.grant("SELECT", "users", "team_lead", with_grant_option=True)
 ### Basic Revoke
 
 ```python
-db.revoke("INSERT", "users", "readonly")
-db.revoke(["INSERT", "UPDATE", "DELETE"], "orders", "readonly")
+db.admin.revoke("INSERT", "users", "readonly")
+db.admin.revoke(["INSERT", "UPDATE", "DELETE"], "orders", "readonly")
 ```
 
 ### Cascade Revoke
 
 ```python
 # Revoke from dependent grants too
-db.revoke("ALL", "users", "admin", cascade=True)
+db.admin.revoke("ALL", "users", "admin", cascade=True)
 ```
 
 ### On Schemas and Databases
 
 ```python
-db.revoke("USAGE", "app", "olduser", object_type="SCHEMA")
-db.revoke("CONNECT", "mydb", "olduser", object_type="DATABASE")
+db.admin.revoke("USAGE", "app", "olduser", object_type="SCHEMA")
+db.admin.revoke("CONNECT", "mydb", "olduser", object_type="DATABASE")
 ```
 
 ## Listing Grants
 
 ```python
-grants = db.list_role_grants("appuser")
+grants = db.admin.list_role_grants("appuser")
 # [
 #     {'schema': 'public', 'object_name': 'users', 'privilege': 'SELECT'},
 #     {'schema': 'public', 'object_name': 'users', 'privilege': 'INSERT'},
@@ -224,28 +249,28 @@ grants = db.list_role_grants("appuser")
 
 ```python
 # Create read-only role
-db.create_role("readonly", login=False)
-db.grant("USAGE", "public", "readonly", object_type="SCHEMA")
-db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
+db.admin.create_role("readonly", login=False)
+db.admin.grant("USAGE", "public", "readonly", object_type="SCHEMA")
+db.admin.grant("SELECT", "ALL TABLES", "readonly", schema="public")
 
 # Create read-only user
-db.create_role("reader", password="secret", login=True, in_roles=["readonly"])
+db.admin.create_role("reader", password="secret", login=True, in_roles=["readonly"])
 ```
 
 ### Application User
 
 ```python
 # Create role with typical app permissions
-db.create_role("appuser", password="secret", login=True)
-db.grant("USAGE", "public", "appuser", object_type="SCHEMA")
-db.grant(["SELECT", "INSERT", "UPDATE", "DELETE"], "ALL TABLES", "appuser", schema="public")
-db.grant(["USAGE", "SELECT"], "ALL SEQUENCES", "appuser", schema="public")
+db.admin.create_role("appuser", password="secret", login=True)
+db.admin.grant("USAGE", "public", "appuser", object_type="SCHEMA")
+db.admin.grant(["SELECT", "INSERT", "UPDATE", "DELETE"], "ALL TABLES", "appuser", schema="public")
+db.admin.grant(["USAGE", "SELECT"], "ALL SEQUENCES", "appuser", schema="public")
 ```
 
 ### Admin User
 
 ```python
-db.create_role(
+db.admin.create_role(
     "admin",
     password="secret",
     login=True,
@@ -253,25 +278,25 @@ db.create_role(
     createdb=True,
     createrole=True,
 )
-db.grant("ALL", "ALL TABLES", "admin", schema="public")
-db.grant("ALL", "public", "admin", object_type="SCHEMA")
+db.admin.grant("ALL", "ALL TABLES", "admin", schema="public")
+db.admin.grant("ALL", "public", "admin", object_type="SCHEMA")
 ```
 
 ### Team Hierarchy
 
 ```python
 # Create team roles
-db.create_role("engineering", login=False)
-db.create_role("senior_engineers", login=False, in_roles=["engineering"])
+db.admin.create_role("engineering", login=False)
+db.admin.create_role("senior_engineers", login=False, in_roles=["engineering"])
 
 # Grant permissions to groups
-db.grant("SELECT", "ALL TABLES", "engineering", schema="public")
-db.grant(["INSERT", "UPDATE"], "code_reviews", "engineering")
-db.grant("DELETE", "code_reviews", "senior_engineers")
+db.admin.grant("SELECT", "ALL TABLES", "engineering", schema="public")
+db.admin.grant(["INSERT", "UPDATE"], "code_reviews", "engineering")
+db.admin.grant("DELETE", "code_reviews", "senior_engineers")
 
 # Create users in teams
-db.create_role("alice", password="secret", login=True, in_roles=["engineering"])
-db.create_role("bob", password="secret", login=True, in_roles=["senior_engineers"])
+db.admin.create_role("alice", password="secret", login=True, in_roles=["engineering"])
+db.admin.create_role("bob", password="secret", login=True, in_roles=["senior_engineers"])
 ```
 
 ## Row-Level Security
@@ -303,40 +328,40 @@ db.execute("ALTER TABLE orders FORCE ROW LEVEL SECURITY")
 # Instead, create role groups
 
 # Base roles
-db.create_role("read_access", login=False)
-db.create_role("write_access", login=False, in_roles=["read_access"])
-db.create_role("admin_access", login=False, in_roles=["write_access"])
+db.admin.create_role("read_access", login=False)
+db.admin.create_role("write_access", login=False, in_roles=["read_access"])
+db.admin.create_role("admin_access", login=False, in_roles=["write_access"])
 
 # Users inherit from roles
-db.create_role("alice", password="...", in_roles=["write_access"])
+db.admin.create_role("alice", password="...", in_roles=["write_access"])
 ```
 
 ### 2. Principle of Least Privilege
 
 ```python
 # Grant minimum required permissions
-db.grant("SELECT", "users", "readonly")  # Not ALL
+db.admin.grant("SELECT", "users", "readonly")  # Not ALL
 
 # Be specific about tables
-db.grant("SELECT", "public_data", "readonly")  # Not ALL TABLES
+db.admin.grant("SELECT", "public_data", "readonly")  # Not ALL TABLES
 ```
 
 ### 3. Use Separate Roles for Apps
 
 ```python
 # Each app gets its own role
-db.create_role("webapp", password="...", login=True)
-db.create_role("worker", password="...", login=True)
-db.create_role("analytics", password="...", login=True)
+db.admin.create_role("webapp", password="...", login=True)
+db.admin.create_role("worker", password="...", login=True)
+db.admin.create_role("analytics", password="...", login=True)
 ```
 
 ### 4. Regular Audits
 
 ```python
 # Review all roles
-for role in db.list_roles():
+for role in db.admin.list_roles():
     print(f"{role['name']}: login={role['login']}, super={role['superuser']}")
-    grants = db.list_role_grants(role['name'])
+    grants = db.admin.list_role_grants(role['name'])
     for g in grants:
         print(f"  - {g['privilege']} on {g['schema']}.{g['object_name']}")
 ```

@@ -139,7 +139,7 @@ if db.in_session:
 # Useful for batch operations
 with db.session() as session:
     for table in tables:
-        session.truncate_table(table)
+        session.schema.truncate_table(table)
         session.insert_batch(table, data[table])
 ```
 
@@ -180,48 +180,56 @@ with db.cursor(autocommit=True) as cur:
 
 ## Database Exploration
 
+pycopg provides a `db.schema.*` (and `async_db.schema.*`) accessor namespace for DDL
+and introspection, and `db.maint.*` for maintenance operations.
+
+> **Note:** The flat `db.*` DDL and maintenance methods (e.g. `db.list_schemas`,
+> `db.vacuum`) are deprecated as of v0.6.0 and will be removed in v0.7.0.
+> Use `db.schema.*` and `db.maint.*` instead.
+> See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
+
 ### Schemas
 
 ```python
 # List schemas
-schemas = db.list_schemas()
+schemas = db.schema.list_schemas()
 # ['public', 'app', 'audit']
 
 # Check if schema exists
-if db.schema_exists("app"):
+if db.schema.schema_exists("app"):
     print("Schema exists")
 
 # Create schema
-db.create_schema("new_schema")
-db.create_schema("new_schema", owner="appuser")
+db.schema.create_schema("new_schema")
+db.schema.create_schema("new_schema", owner="appuser")
 
 # Drop schema
-db.drop_schema("old_schema")
-db.drop_schema("old_schema", cascade=True)  # Drop all objects
+db.schema.drop_schema("old_schema")
+db.schema.drop_schema("old_schema", cascade=True)  # Drop all objects
 ```
 
 ### Tables
 
 ```python
 # List tables
-tables = db.list_tables("public")
+tables = db.schema.list_tables("public")
 # ['users', 'orders', 'products']
 
 # Check if table exists
-if db.table_exists("users"):
+if db.schema.table_exists("users"):
     print("Table exists")
 
 # Get column info (detailed)
-columns = db.table_info("users")
+columns = db.schema.table_info("users")
 for col in columns:
     print(f"{col['column_name']}: {col['data_type']} (nullable: {col['is_nullable']})")
 
 # Get updated column names (lightweight)
-names = db.list_columns("users")
+names = db.schema.list_columns("users")
 # ['id', 'name', 'email']
 
 # Get column names with types (lightweight)
-cols = db.columns_with_types("users")
+cols = db.schema.columns_with_types("users")
 # [('id', 'integer'), ('name', 'text'), ('email', 'text')]
 
 # Returns: column_name, data_type, is_nullable, column_default,
@@ -229,49 +237,49 @@ cols = db.columns_with_types("users")
 #          numeric_precision, numeric_scale
 
 # Get row count (approximate, fast)
-count = db.row_count("users")
+count = db.schema.row_count("users")
 
 # Drop table
-db.drop_table("old_table")
-db.drop_table("old_table", cascade=True)
+db.schema.drop_table("old_table")
+db.schema.drop_table("old_table", cascade=True)
 
 # Truncate table
-db.truncate_table("logs")
-db.truncate_table("logs", cascade=True)
+db.schema.truncate_table("logs")
+db.schema.truncate_table("logs", cascade=True)
 ```
 
 ### Extensions
 
 ```python
 # List installed extensions
-extensions = db.list_extensions()
+extensions = db.schema.list_extensions()
 # [{'extname': 'plpgsql', 'extversion': '1.0', 'nspname': 'pg_catalog'}, ...]
 
 # Check if extension is installed
-if db.has_extension("postgis"):
+if db.schema.has_extension("postgis"):
     print("PostGIS is installed")
 
 # Create extension
-db.create_extension("uuid-ossp")
-db.create_extension("postgis", schema="extensions")
+db.schema.create_extension("uuid-ossp")
+db.schema.create_extension("postgis", schema="extensions")
 
 # Drop extension
-db.drop_extension("old_extension")
-db.drop_extension("old_extension", cascade=True)
+db.schema.drop_extension("old_extension")
+db.schema.drop_extension("old_extension", cascade=True)
 ```
 
 ## Size & Statistics
 
 ```python
 # Database size
-size = db.size()           # '256 MB'
-size_bytes = db.size(pretty=False)  # 268435456
+size = db.maint.size()           # '256 MB'
+size_bytes = db.maint.size(pretty=False)  # 268435456
 
 # Table size
-size = db.table_size("users")  # '1.2 MB'
+size = db.maint.table_size("users")  # '1.2 MB'
 
 # All table sizes
-sizes = db.table_sizes("public", limit=10)
+sizes = db.maint.table_sizes("public", limit=10)
 # [{'table_name': 'orders', 'total_size': '500 MB', 'data_size': '400 MB', 'index_size': '100 MB'}, ...]
 ```
 
@@ -281,35 +289,35 @@ sizes = db.table_sizes("public", limit=10)
 
 ```python
 # Create index
-db.create_index("users", "email")
-db.create_index("users", "email", unique=True)
-db.create_index("products", ["category", "price"])
-db.create_index("documents", "content", method="gin")
+db.schema.create_index("users", "email")
+db.schema.create_index("users", "email", unique=True)
+db.schema.create_index("products", ["category", "price"])
+db.schema.create_index("documents", "content", method="gin")
 
 # List indexes
-indexes = db.list_indexes("users")
+indexes = db.schema.list_indexes("users")
 
 # Drop index
-db.drop_index("idx_users_email")
+db.schema.drop_index("idx_users_email")
 ```
 
 ### Constraints
 
 ```python
 # Primary key
-db.add_primary_key("users", "id")
-db.add_primary_key("order_items", ["order_id", "product_id"])
+db.schema.add_primary_key("users", "id")
+db.schema.add_primary_key("order_items", ["order_id", "product_id"])
 
 # Foreign key
-db.add_foreign_key("orders", "user_id", "users", "id")
-db.add_foreign_key("orders", "user_id", "users", "id", on_delete="CASCADE")
+db.schema.add_foreign_key("orders", "user_id", "users", "id")
+db.schema.add_foreign_key("orders", "user_id", "users", "id", on_delete="CASCADE")
 
 # Unique constraint
-db.add_unique_constraint("users", "email")
-db.add_unique_constraint("products", ["category", "sku"])
+db.schema.add_unique_constraint("users", "email")
+db.schema.add_unique_constraint("products", ["category", "sku"])
 
 # List constraints
-constraints = db.list_constraints("users")
+constraints = db.schema.list_constraints("users")
 ```
 
 ## DataFrame Operations
@@ -344,7 +352,7 @@ active_df = db.to_dataframe(
 import geopandas as gpd
 
 # Ensure PostGIS is installed
-db.create_extension("postgis")
+db.schema.create_extension("postgis")
 
 # Create spatial table
 gdf = gpd.read_file("parcels.geojson")
@@ -366,20 +374,20 @@ nearby = db.spatial.dwithin(
 
 ```python
 # Vacuum
-db.vacuum("users")
-db.vacuum("users", full=True)  # Full vacuum (locks table)
-db.vacuum()  # Vacuum entire database
+db.maint.vacuum("users")
+db.maint.vacuum("users", full=True)  # Full vacuum (locks table)
+db.maint.vacuum()  # Vacuum entire database
 
 # Analyze (update statistics)
-db.analyze("users")
-db.analyze()  # Analyze entire database
+db.maint.analyze("users")
+db.maint.analyze()  # Analyze entire database
 
 # Query plan
-plan = db.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
+plan = db.maint.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
 print("\n".join(plan))
 
 # With actual execution
-plan = db.explain(
+plan = db.maint.explain(
     "SELECT * FROM users WHERE email = %s",
     ["test@example.com"],
     analyze=True
@@ -390,16 +398,16 @@ plan = db.explain(
 
 ```python
 # Create database
-db.create_database("myapp")
-db.create_database("myapp", owner="appuser")
+db.schema.create_database("myapp")
+db.schema.create_database("myapp", owner="appuser")
 
 # Drop database
-db.drop_database("olddb")
+db.schema.drop_database("olddb")
 
 # Check if database exists
-if db.database_exists("myapp"):
+if db.schema.database_exists("myapp"):
     print("Database exists")
 
 # List databases
-databases = db.list_databases()
+databases = db.schema.list_databases()
 ```
