@@ -35,8 +35,8 @@ def sync_db(config):
     The schema accessor's ``has_extension`` is patched to return True so that
     SpatialAccessor.__init__ passes without a real PostGIS connection. All other
     schema methods retain real validation behaviour.
-    This is necessary because the deprecated flat spatial aliases now route through
-    the PostGIS-guarded SpatialAccessor (D-06).
+    This is necessary because SpatialAccessor.__init__ performs a PostGIS guard
+    check (via has_extension), so the fixture patches it to return True.
     """
     with patch("pycopg.database.psycopg") as mock_psycopg:
         mock_conn = MagicMock()
