@@ -1,3 +1,175 @@
+# Migration Guide: v0.5.0 → v0.6.0
+
+This guide helps you upgrade from pycopg 0.5.0 to 0.6.0. Version 0.6.0 introduces
+accessor namespaces (`db.timescale.*`, `db.admin.*`, `db.schema.*`, `db.maint.*`,
+`db.backup.*`) for all non-transactional operations. The flat names are deprecated and
+will be **removed in v0.7.0**.
+
+## Deprecation: Flat Method Names → Accessor Paths
+
+All 56 methods that moved to accessor namespaces now emit `DeprecationWarning` when called
+via the old flat name. They continue to work in v0.6.0 — update your code before v0.7.0.
+
+### Before (v0.5.0) / After (v0.6.0)
+
+**Timescale:**
+```python
+# Before
+db.create_hypertable("events", "time")
+await async_db.enable_compression("events", segment_by="device_id")
+
+# After
+db.timescale.create_hypertable("events", "time")
+await async_db.timescale.enable_compression("events", segment_by="device_id")
+```
+
+**Admin:**
+```python
+# Before
+db.create_role("appuser", password="secret", login=True)
+db.grant("SELECT", "users", "readonly")
+
+# After
+db.admin.create_role("appuser", password="secret", login=True)
+db.admin.grant("SELECT", "users", "readonly")
+```
+
+**Schema:**
+```python
+# Before
+db.list_schemas()
+db.create_index("users", "email", unique=True)
+
+# After
+db.schema.list_schemas()
+db.schema.create_index("users", "email", unique=True)
+```
+
+**Maint:**
+```python
+# Before
+db.vacuum("users", analyze=True)
+db.size()
+
+# After
+db.maint.vacuum("users", analyze=True)
+db.maint.size()
+```
+
+**Backup:**
+```python
+# Before
+db.pg_dump("backup.dump")
+db.copy_to_csv("users", "users.csv")
+
+# After
+db.backup.pg_dump("backup.dump")
+db.backup.copy_to_csv("users", "users.csv")
+```
+
+**Spatial (relocated in v0.6.0):**
+```python
+# Before
+db.create_spatial_index("parcels", "geometry")
+
+# After
+db.spatial.create_spatial_index("parcels", "geometry")
+# Note: the deprecated flat path now raises ExtensionNotAvailable early when
+# PostGIS is absent (stricter than the raw psycopg error it raised before).
+```
+
+## Complete Flat-Name → Accessor-Path Table
+
+Generated from live source (`grep '@deprecated_alias' pycopg/database.py`). Do not use
+the SCOPE doc counts — use this table.
+
+**Regeneration command** (verify against live source before publishing):
+
+```bash
+grep '@deprecated_alias' pycopg/database.py \
+  | sed 's/.*@deprecated_alias("\(.*\)")/\1/' \
+  | sort
+```
+
+| Flat name (deprecated) | Accessor path (use this) |
+| ---------------------- | ------------------------ |
+| `db.add_compression_policy` | `db.timescale.add_compression_policy` |
+| `db.add_retention_policy` | `db.timescale.add_retention_policy` |
+| `db.create_hypertable` | `db.timescale.create_hypertable` |
+| `db.enable_compression` | `db.timescale.enable_compression` |
+| `db.hypertable_info` | `db.timescale.hypertable_info` |
+| `db.list_hypertables` | `db.timescale.list_hypertables` |
+| `db.alter_role` | `db.admin.alter_role` |
+| `db.create_role` | `db.admin.create_role` |
+| `db.drop_role` | `db.admin.drop_role` |
+| `db.grant` | `db.admin.grant` |
+| `db.grant_role` | `db.admin.grant_role` |
+| `db.list_role_grants` | `db.admin.list_role_grants` |
+| `db.list_role_members` | `db.admin.list_role_members` |
+| `db.list_roles` | `db.admin.list_roles` |
+| `db.revoke` | `db.admin.revoke` |
+| `db.revoke_role` | `db.admin.revoke_role` |
+| `db.role_exists` | `db.admin.role_exists` |
+| `db.copy_from_csv` | `db.backup.copy_from_csv` |
+| `db.copy_to_csv` | `db.backup.copy_to_csv` |
+| `db.pg_dump` | `db.backup.pg_dump` |
+| `db.pg_restore` | `db.backup.pg_restore` |
+| `db.analyze` | `db.maint.analyze` |
+| `db.explain` | `db.maint.explain` |
+| `db.size` | `db.maint.size` |
+| `db.table_size` | `db.maint.table_size` |
+| `db.table_sizes` | `db.maint.table_sizes` |
+| `db.vacuum` | `db.maint.vacuum` |
+| `db.add_foreign_key` | `db.schema.add_foreign_key` |
+| `db.add_primary_key` | `db.schema.add_primary_key` |
+| `db.add_unique_constraint` | `db.schema.add_unique_constraint` |
+| `db.columns_with_types` | `db.schema.columns_with_types` |
+| `db.create_database` | `db.schema.create_database` |
+| `db.create_extension` | `db.schema.create_extension` |
+| `db.create_index` | `db.schema.create_index` |
+| `db.create_schema` | `db.schema.create_schema` |
+| `db.database_exists` | `db.schema.database_exists` |
+| `db.drop_database` | `db.schema.drop_database` |
+| `db.drop_extension` | `db.schema.drop_extension` |
+| `db.drop_index` | `db.schema.drop_index` |
+| `db.drop_schema` | `db.schema.drop_schema` |
+| `db.drop_table` | `db.schema.drop_table` |
+| `db.has_extension` | `db.schema.has_extension` |
+| `db.list_columns` | `db.schema.list_columns` |
+| `db.list_constraints` | `db.schema.list_constraints` |
+| `db.list_databases` | `db.schema.list_databases` |
+| `db.list_extensions` | `db.schema.list_extensions` |
+| `db.list_indexes` | `db.schema.list_indexes` |
+| `db.list_schemas` | `db.schema.list_schemas` |
+| `db.list_tables` | `db.schema.list_tables` |
+| `db.row_count` | `db.schema.row_count` |
+| `db.schema_exists` | `db.schema.schema_exists` |
+| `db.table_exists` | `db.schema.table_exists` |
+| `db.table_info` | `db.schema.table_info` |
+| `db.truncate_table` | `db.schema.truncate_table` |
+| `db.create_spatial_index` | `db.spatial.create_spatial_index` |
+| `db.list_geometry_columns` | `db.spatial.list_geometry_columns` |
+
+**Total: 56 deprecated names** (timescale 6 / admin 11 / backup 4 / maint 6 / schema 27 / spatial 2).
+All `async_db.*` flat names are identical (same 56, same accessor paths with `async_db` prefix).
+
+## Upgrade Checklist
+
+- [ ] Search codebase for deprecated flat names (see table above) and update to accessor paths
+- [ ] Update any `import` statements if you imported deprecated names directly
+- [ ] Run test suite: `uv run pytest tests/ -x -q -o addopts=""`
+- [ ] Verify no `DeprecationWarning` in your test output
+
+## Getting Help
+
+If you encounter issues during migration:
+
+1. Check that you're using a supported Python version (3.11+)
+2. Review the [CHANGELOG.md](CHANGELOG.md) for the full list of changes
+3. Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
+
+---
+
 # Migration Guide: v0.2.0 to v0.3.0
 
 This guide helps you upgrade from pycopg 0.2.0 to 0.3.0. Version 0.3.0 is a consolidation release that achieves full async/sync parity, adds resilience features, and includes one breaking change.
