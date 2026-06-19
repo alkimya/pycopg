@@ -4,7 +4,8 @@
 > Le contenu de chaque milestone se confirme à son `/gsd-new-milestone`, mais **l'ORDRE est
 > validé** (utilisateur, 2026-06-15) : réorg → ETL incrémental → TimescaleDB avancé → CRUD →
 > spatial v2/1.0. L'arbitrage v0.7.0↔v0.8.0 est tranché : **ETL incrémental AVANT TimescaleDB**
-> (déjà à moitié préparé via la colonne watermark). Rédigé le 2026-06-15 après la clôture de v0.5.0.
+> (déjà à moitié préparé via la colonne watermark). Rédigé le 2026-06-15 après la clôture de v0.5.0 ;
+> mis à jour le 2026-06-19 après la clôture de v0.6.0 (réorg livrée → **prochain = v0.7.0**).
 
 ## Principe directeur
 
@@ -15,11 +16,12 @@ courts (4-6 phases), sur le pattern builder-pur + accessor déjà éprouvé (spa
 
 ## Séquence recommandée
 
-### v0.6.0 — Réorganisation en accessors  *(cadré, prêt à lancer)*
+### v0.6.0 — Réorganisation en accessors  *(✅ shippé 2026-06-19)*
 Regrouper l'existant sous `db.timescale/admin/schema/maint/backup.*` avec alias + DeprecationWarning.
-Détail complet : voir `.planning/v0.6.0-SCOPE.md`. **Prochain à lancer.**
+Détail complet : voir `.planning/milestones/v0.6.0-ROADMAP.md`. Livré sur PyPI ; 56 alias dépréciés
+(suppression planifiée v0.7.0).
 
-### v0.7.0 — Suppression des alias + ETL incrémental  *(candidat fort)*
+### v0.7.0 — Suppression des alias + ETL incrémental  *(prochain à lancer)*
 Deux choses qui vont bien ensemble :
 - **Retirer les alias dépréciés** introduits en v0.6.0 (un cycle de dépréciation = une version).
 - **ETL incrémental / CDC watermarks** : `db.etl.run()` ne recharge que le nouveau, via la colonne
@@ -53,4 +55,4 @@ logique de v0.5.0, déjà préparée) → puis les features par valeur décroiss
 
 ---
 
-*Vision préparée le 2026-06-15. Non engageante ; chaque milestone se confirme via `/gsd-new-milestone`.*
+*Vision préparée le 2026-06-15, mise à jour le 2026-06-19 (v0.6.0 shippé). Non engageante ; chaque milestone se confirme via `/gsd-new-milestone`.*
