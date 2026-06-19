@@ -96,7 +96,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 - [x] 25-01-PLAN.md — Remove 56 @deprecated_alias stubs + import + IN-02 PostGIS string in database.py (wave 1)
 - [x] 25-02-PLAN.md — Remove 56 @deprecated_alias stubs + import + IN-02 PostGIS string in async_database.py (wave 1)
 - [x] 25-04-PLAN.md — IN-02 guard strings in spatial.py + timescale.py + test_sql_injection.py comment (wave 1)
-- [ ] 25-05-PLAN.md — MIGRATION v0.6→v0.7 + CHANGELOG [0.7.0] Breaking + docs/*.md flat-name examples (wave 1)
+- [x] 25-05-PLAN.md — MIGRATION v0.6→v0.7 + CHANGELOG [0.7.0] Breaking + docs/*.md flat-name examples (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

@@ -11,10 +11,10 @@ Requirements for the v0.7.0 release. Each maps to exactly one roadmap phase (num
 
 Mechanical, breaking. One deprecation cycle was already served in v0.6.0 (the 56 flat names have emitted `DeprecationWarning` since then). The real logic already lives in the accessors, so removal is a one-block deletion (D-SCOPE-2).
 
-- [ ] **ALIAS-RM-01**: The 56 deprecated flat `@deprecated_alias` stubs are removed from both `Database` and `AsyncDatabase` (112 stubs total); the public surface is accessor-only (`db.timescale/admin/maint/backup/schema.*` + `db.spatial.*`)
+- [x] **ALIAS-RM-01**: The 56 deprecated flat `@deprecated_alias` stubs are removed from both `Database` and `AsyncDatabase` (112 stubs total); the public surface is accessor-only (`db.timescale/admin/maint/backup/schema.*` + `db.spatial.*`)
 - [ ] **ALIAS-RM-02**: Calling any removed flat name raises a plain `AttributeError` (no stub, no warning); the alias-specific warn+delegate tests are removed and `test_parity`/`ACCESSOR_PAIRS` still passes green
-- [ ] **ALIAS-RM-03**: A MIGRATION v0.6→v0.7 section documents the removal with a 1:1 flat→accessor replacement table for all 56 names; CHANGELOG `[0.7.0]` has a `Breaking` entry pointing to it
-- [ ] **ALIAS-RM-04**: Carried-forward tech debt resolved by removal is closed: WR-01 (deprecated `*args/**kwargs` stubs erasing IDE signatures on this `py.typed` package) and IN-02 (`ExtensionNotAvailable`/error messages still naming flat `db.create_extension(...)`)
+- [x] **ALIAS-RM-03**: A MIGRATION v0.6→v0.7 section documents the removal with a 1:1 flat→accessor replacement table for all 56 names; CHANGELOG `[0.7.0]` has a `Breaking` entry pointing to it
+- [x] **ALIAS-RM-04**: Carried-forward tech debt resolved by removal is closed: WR-01 (deprecated `*args/**kwargs` stubs erasing IDE signatures on this `py.typed` package) and IN-02 (`ExtensionNotAvailable`/error messages still naming flat `db.create_extension(...)`)
 
 ### Incremental ETL
 
@@ -81,10 +81,10 @@ Which phases cover which requirements. Filled during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ALIAS-RM-01 | Phase 25 | Pending |
+| ALIAS-RM-01 | Phase 25 | Complete |
 | ALIAS-RM-02 | Phase 25 | Pending |
-| ALIAS-RM-03 | Phase 25 | Pending |
-| ALIAS-RM-04 | Phase 25 | Pending |
+| ALIAS-RM-03 | Phase 25 | Complete |
+| ALIAS-RM-04 | Phase 25 | Complete |
 | ETL-INC-01 | Phase 26 | Pending |
 | ETL-INC-02 | Phase 27 | Pending |
 | ETL-INC-03 | Phase 28 | Pending |
