@@ -105,6 +105,55 @@
 
 ---
 
+## Milestone: v0.6.0 — Réorganisation en accessors
+
+**Shipped:** 2026-06-19
+**Phases:** 4 (21–24) | **Plans:** 13 | **Tasks:** 24
+
+### What Was Built
+
+- **Infrastructure + pattern proof (Phase 21):** `@deprecated_alias` decorator (`pycopg/aliases.py`, sync + async, `stacklevel=2`, `iscoroutinefunction` branch, no eval/exec) — the single shared warn+delegate mechanism — proven end-to-end with `TimescaleAccessor`/`AsyncTimescaleAccessor` (6 methods moved verbatim, `self.`→`self._db.`).
+- **Three small accessors (Phase 22):** `AdminAccessor` (11), `MaintAccessor` (6), `BackupAccessor` (4) delivered in one phase by replicating the Phase 21 pattern; 21 flat aliases per class; `_psql_restore` kept private on the accessor.
+- **Largest block + spatial relocation (Phase 23):** `SchemaAccessor` (27 DDL/introspection methods) + relocation of `create_spatial_index`/`list_geometry_columns` into `SpatialAccessor`; 8 internal `from_dataframe`/`from_geodataframe` call-sites rewritten to accessor paths; sibling-accessor and `self._db.schema.has_extension` rewrites across `timescale.py`/`etl.py`/`spatial.py`.
+- **Exports, docs, release (Phase 24):** 10 accessor classes in `__all__`; README "Accessor Namespaces" overview + 5 Sphinx automodule blocks (green `-W`); CHANGELOG `[0.6.0]` + prepended 56-row MIGRATION v0.5→v0.6 guide (1:1 with `@deprecated_alias` stubs); version bump; v0.6.0 tag + PyPI publish via OIDC; clean-venv smoke.
+
+### What Worked
+
+- **The "validate once at Phase 21, replicate mechanically" bet held exactly as designed (D-SCOPE-3).** The decorator + lazy-accessor + alias-test + parity-pair recipe proved once on timescale, then Phases 22-24 were near-mechanical applications — admin/maint/backup landed together in a single phase, schema (the 27-method block) went smoothly because the geometry was already known.
+- **DB-free MagicMock alias tests scaled the coverage requirement cheaply.** Every alias gets a fast, no-DB test asserting it both warns (correct message + `stacklevel`) and delegates; 56 aliases covered without touching the DB, and coverage *rose* to 95.64%.
+- **The `-W error::DeprecationWarning` gate caught the real risk of this milestone** — internal self-calls to now-deprecated flat methods. Phase 23's call-site rewrites were verified by 1030 unit tests running clean under the gate, proving no production path emits a spurious warning to users.
+- **`test_parity`'s data-driven `ACCESSOR_PAIRS` registry** turned "every moved method exists on both sync and async" into one parametrized invariant; adding a pair per accessor kept the Core Value automated.
+- **A real milestone audit ran this time** (`/gsd-audit-milestone` — skipped in v0.5.0): 3-source requirements cross-reference + a `gsd-integration-checker` pass confirming 56/56 aliases resolve E2E and 0 broken flows. Cheap insurance that the refactor integrates end-to-end.
+
+### What Was Inefficient
+
+- **SUMMARY one-liner noise recurred (third milestone running).** `milestone.complete` again auto-extracted junk "accomplishments" (bare filenames `pycopg/admin.py`, a commit hash `374534c`, bug-rule fragments) from SUMMARY files whose `one_liner` frontmatter was malformed — hand-cleaned in MILESTONES.md. This is now a confirmed three-milestone pattern (v0.4.0, v0.5.0, v0.6.0).
+- **Nyquist VALIDATION.md left in draft for 3 of 4 phases.** Phases 22-24's VALIDATION.md stayed `status: draft` / `nyquist_compliant: false` — they were verified PASSED via VERIFICATION.md regardless, but the formal Nyquist sign-off was never promoted. Bookkeeping gap, recorded as deferred.
+- **REQUIREMENTS.md ADM-01 "12 methods" stale off-by-one** (real count 11) propagated as a note through every Phase 22+ artifact — a single source-doc typo that each downstream doc had to caveat rather than fix at the root.
+- **Ran sequential-on-main, not via worktrees.** Given the prior two milestones' worktree wrong-base tax, this milestone executed phases inline on `main` (per project memory guidance). It worked and avoided the recovery dance, but means the parallelization the executor supports went unused.
+
+### Patterns Established
+
+- **`@deprecated_alias` decorator as the deprecation-cycle primitive:** real logic lives in the accessor, the old flat name is a thin warn+delegate wrapper (D-SCOPE-2). Removal next version = deleting one block of stubs, no logic touched — making v0.7.0's ALIAS-RM-01 trivial by construction.
+- **DB-free MagicMock alias test per moved method** — the standard way to cover a delegating wrapper without DB cost while holding the coverage ratchet.
+- **Verify refactors under `-W error::DeprecationWarning`** to prove no internal caller still routes through a deprecated path — the specific failure mode of an alias-migration milestone.
+- **Group accessors by domain, not by operation type** (schema stays one block; spatial-index methods follow PostGIS coherence over DDL grouping) — consistent with the spatial/etl precedent.
+
+### Key Lessons
+
+1. **A purely mechanical, repetitive milestone is exactly where "prove the pattern once, then replicate" earns its keep.** The one-phase-of-real-design-then-N-phases-of-application shape (D-SCOPE-3) compressed 5 accessors + a release into 4 phases with no rework.
+2. **The SUMMARY one-liner auto-extraction is now a confirmed three-milestone defect** — worth fixing the `summary-extract` field handling (or the SUMMARY template's frontmatter) rather than hand-cleaning MILESTONES.md a fourth time.
+3. **For an alias-migration refactor, the `-W error` gate is the load-bearing check** — it's what distinguishes "moved the code" from "moved the code AND rerouted every internal caller." Make it a required gate for any deprecation milestone.
+4. **Running the milestone audit is cheap and worth it even when the release already shipped** — the integration checker's E2E alias-resolution pass is precisely the cross-phase confidence per-phase verification can't give.
+
+### Cost Observations
+
+- Model mix: Opus for orchestration/planning, Sonnet for researchers/executors/verifier/integration-checker.
+- Sessions: spread across 2026-06-17 (Phases 21-23) → 2026-06-19 (Phase 24 release + audit + close).
+- Notable: sequential-on-main execution traded parallel speed for zero worktree-recovery overhead; the mature pattern made discuss-phase unnecessary for the mechanical middle phases.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -114,6 +163,7 @@
 | v0.3.0 | 7 (1–7) | 14 | Initial consolidation: full async parity, real-PostgreSQL testing |
 | v0.4.0 | 7 (9–15) | 36 | uv toolchain, coverage ratchet discipline, builder/accessor pattern, human-gated release |
 | v0.5.0 | 5 (16–20) | 13 | ETL pipeline runner via the spatial mirror pattern; structural run-log isolation; fenced reversible-prep + human-gated publish |
+| v0.6.0 | 4 (21–24) | 13 | Accessor reorg via `@deprecated_alias` + lazy accessors; prove-once-replicate-N; `-W error` as the load-bearing refactor gate; milestone audit restored |
 
 ### Cumulative Quality
 
@@ -122,10 +172,12 @@
 | v0.3.0 | — | 72.76% | Coverage 23% → 72.76%; real-DB tests |
 | v0.4.0 | 22 (~749 tests) | 94.09% | Ratchet 70→80→90→92→94; numpydoc + interrogate gate |
 | v0.5.0 | 23 (~983 tests) | 94.26% | Ratchet held at 94 with new async ETL behavioral tests; interrogate 100% |
+| v0.6.0 | 30+ (~1100 tests) | 95.64% | Ratchet held at 94; +56 DB-free alias tests + 7-pair parity; `-W error::DeprecationWarning` green at 1030 unit tests; interrogate 100% |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. **Real PostgreSQL beats mocks** for catching driver/DB interaction bugs (v0.3.0, v0.4.0, and v0.5.0 all surfaced latent bugs only real-DB tests caught).
 2. **Sync is the established core-value API; align async toward it** — enriching async never breaking sync kept the parity promise with zero sync breakage across all three milestones.
-3. **The builder/accessor mirror pattern compounds.** Established in v0.4.0 (spatial), reused wholesale in v0.5.0 (ETL) — the most reusable architectural decision of the project, and it makes each new sync/async surface near-mechanical.
-4. **Two recurring infra taxes remain unfixed across milestones:** worktree wrong-base recovery (v0.4.0 + v0.5.0) and manual REQUIREMENTS.md checkbox updates (v0.4.0 + v0.5.0). Both are now confirmed patterns, not one-offs — worth fixing before the next milestone.
+3. **The builder/accessor mirror pattern compounds.** Established in v0.4.0 (spatial), reused wholesale in v0.5.0 (ETL), and in v0.6.0 it became the *target shape* the whole monolith was refactored toward — the most reusable architectural decision of the project, and it makes each new sync/async surface near-mechanical.
+4. **Recurring tooling taxes, now tracked across milestones:** (a) the SUMMARY one-liner auto-extraction emits junk "accomplishments" — confirmed in v0.4.0, v0.5.0, *and* v0.6.0 (three running); (b) manual REQUIREMENTS.md checkbox updates at close (v0.4.0 + v0.5.0) — sidestepped in v0.6.0 by running on `main` where the milestone CLI marks them. The worktree wrong-base tax (v0.4.0 + v0.5.0) did **not** recur in v0.6.0 because phases ran sequential-on-main by design — trading parallelism for zero recovery overhead is a viable mitigation in this environment.
+5. **Match execution mode to the work.** v0.6.0's mechanical, low-conflict refactor ran cleanly sequential-on-main; the worktree parallelization that caused two milestones of recovery pain was simply not needed. Reserve worktrees for genuinely parallel, file-disjoint work.
