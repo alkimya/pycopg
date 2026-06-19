@@ -4,13 +4,13 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: executing
 stopped_at: Phase 24 context gathered
-last_updated: "2026-06-19T11:17:06.887Z"
-last_activity: 2026-06-19 -- Phase 24 planning complete
+last_updated: "2026-06-19T11:39:58.037Z"
+last_activity: 2026-06-19 -- Phase 24 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
   percent: 75
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 23 — schema-accessor-spatial-relocation
+**Current focus:** Phase 24 — exports-docs-release-v0-6-0
 
 ## Current Position
 
-Phase: 24
-Plan: Not started
+Phase: 24 (exports-docs-release-v0-6-0) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-19 -- Phase 24 planning complete
+Last activity: 2026-06-19 -- Phase 24 execution started
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
 
@@ -92,7 +92,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-19T10:33:02.111Z
+Last session: 2026-06-19T11:39:58.026Z
 Stopped at: Phase 24 context gathered
 Resume file: .planning/phases/24-exports-docs-release-v0-6-0/24-CONTEXT.md
 Next action: Execute Phase 23 Plan 04

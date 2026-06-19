@@ -23,7 +23,7 @@ pattern, les phases suivantes le répliquent).
 - [x] **REORG-02**: Each migrated method keeps a working flat alias on `db.*` / `async_db.*` that warns and delegates — zero breaking change for existing callers (D-SCOPE-1/D-SCOPE-2).
 - [x] **REORG-03**: `test_parity` registers the 5 new accessors and verifies sync ↔ async surface parity for every moved method (D-SCOPE-4).
 - [x] **REORG-04**: Coverage ratchet held at ≥94% — every alias has a test asserting it both warns and delegates correctly; existing tests' `DeprecationWarning` noise is filtered (no `-W error` breakage).
-- [ ] **REORG-05**: New accessor classes are exported in `__init__.py` `__all__` (mirroring `SpatialAccessor`/`ETLAccessor`); README + Sphinx document the `db.X.*` surface; CHANGELOG + MIGRATION note the deprecation cycle (removal in v0.7.0).
+- [x] **REORG-05**: New accessor classes are exported in `__init__.py` `__all__` (mirroring `SpatialAccessor`/`ETLAccessor`); README + Sphinx document the `db.X.*` surface; CHANGELOG + MIGRATION note the deprecation cycle (removal in v0.7.0).
 
 ### Timescale accessor (TS)
 
@@ -95,7 +95,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | BKP-01 | Phase 22 | Complete |
 | SCH-01 | Phase 23 | Complete |
 | SCH-02 | Phase 23 | Complete |
-| REORG-05 | Phase 24 | Pending |
+| REORG-05 | Phase 24 | Complete |
 
 **Coverage:**
 
