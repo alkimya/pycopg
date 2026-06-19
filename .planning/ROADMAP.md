@@ -159,7 +159,16 @@ Plans:
   3. CHANGELOG has an `[Unreleased]` / `[0.6.0]` entry noting the new accessor paths and the deprecation cycle (removal in v0.7.0); MIGRATION.md instructs callers how to update from flat names
   4. `pip install pycopg==0.6.0` installs the release; `python -c "from pycopg import Database; db = Database.from_env(); print(db.timescale)"` works in a clean venv
 
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+
+**Wave 1** *(parallel — no file overlap)*
+
+- [ ] 24-01-PLAN.md — README Namespaces overview + accessor-path rewrite of 4 prose pages + 5 automodule blocks (api-autodoc.md) under a green Sphinx `-W` build — REORG-05
+- [ ] 24-02-PLAN.md — CHANGELOG `[0.6.0]` entry + prepend v0.5→v0.6 MIGRATION guide (56-name table) + exports smoke-test verify — REORG-05
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 24-03-PLAN.md — Version bump (pyproject.toml + docs/conf.py) + uv lock + three gates + build + human-sign-off PyPI publish + tag + manual clean-venv smoke — REORG-05
 
 ## Progress
 
