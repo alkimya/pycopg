@@ -1,745 +1,579 @@
 # Architecture Research
 
-**Domain:** ETL pipeline-runner layer on top of an existing sync/async PostgreSQL library
-**Researched:** 2026-06-14
-**Confidence:** HIGH — based on direct source-code reading of the existing codebase
+**Domain:** Watermark-based incremental ETL integrated into existing pycopg v0.5.0 ETL runner
+**Researched:** 2026-06-19
+**Confidence:** HIGH — based on direct source-code reading of `pycopg/etl.py`, `pycopg/queries.py`, and `.planning/PROJECT.md`
 
 ---
 
-## Standard Architecture
+## System Overview
 
-### System Overview
+The existing architecture is frozen and must be integrated WITH, not redesigned. The incremental feature slots into three seams already present in the v0.5.0 design:
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                          Public API surface                           │
-│   db.etl.init()   db.etl.run(pipeline)   db.etl.list_runs(name)     │
-│   async_db.etl.init()  async_db.etl.run(pipeline)  ...              │
-├──────────────────────────────────────────────────────────────────────┤
-│                    pycopg/etl.py  (NEW FILE)                         │
-│  ┌──────────────────────────────┐   ┌──────────────────────────────┐ │
-│  │  Pure builders / dataclasses  │   │  EtlAccessor (sync)          │ │
-│  │  Pipeline  ExtractSpec        │   │  AsyncEtlAccessor (async)    │ │
-│  │  LoadSpec                     │   │  lazy db._etl/async_db._etl  │ │
-│  │  build_init_sql()             │   │  .init() .run() .list_runs() │ │
-│  │  build_upsert_sql()           │   └──────────────────────────────┘ │
-│  │  build_truncate_sql()         │                                    │
-│  └──────────────────────────────┘                                    │
-├──────────────────────────────────────────────────────────────────────┤
-│                 pycopg/queries.py  (MODIFIED FILE)                   │
-│   ETL_INIT_PIPELINE_RUNS  ETL_INSERT_RUN  ETL_UPDATE_RUN            │
-│   ETL_LIST_RUNS  ETL_GET_LAST_RUN                                   │
-├──────────────────────────────────────────────────────────────────────┤
-│              pycopg/database.py  (MODIFIED — adds etl property)      │
-│              pycopg/async_database.py  (MODIFIED — adds etl property)│
-├──────────────────────────────────────────────────────────────────────┤
-│                    Existing infrastructure                            │
-│  Database / AsyncDatabase   psycopg_pool   tenacity   pandas        │
-│  to_dataframe()  insert_many()  upsert_many()  transaction()        │
-└──────────────────────────────────────────────────────────────────────┘
-```
+1. `pipeline_runs.watermark JSONB` — reserved column, always NULL today, designed for this exact purpose.
+2. `ETL_UPDATE_RUN` — the existing autocommit UPDATE path; watermark persists via this same path on success only.
+3. `ETL_GET_LAST_RUN` — the existing last-run query; watermark is read from the most-recent **successful** row using a filtered variant.
 
-### Component Responsibilities
-
-| Component | Responsibility | Location |
-|-----------|----------------|----------|
-| `Pipeline` | Immutable, DB-free descriptor of a pipeline (extract + transform + load) | `etl.py` |
-| `ExtractSpec` | Describes source: table-name OR raw SQL, optional schema | `etl.py` |
-| `LoadSpec` | Describes target: table-name, schema, load mode (`truncate` or `upsert`), conflict keys | `etl.py` |
-| Pure SQL builders | Build DDL / DML strings without any DB access (shared between sync and async) | `etl.py` |
-| SQL constants | Multi-line SQL strings for `pipeline_runs` DDL and DML | `queries.py` |
-| `EtlAccessor` | Sync orchestrator: init table, run pipeline, record outcome | `etl.py` |
-| `AsyncEtlAccessor` | Async mirror of `EtlAccessor`; re-uses same pure builders | `etl.py` |
-| `db.etl` property | Lazy accessor factory on `Database` | `database.py` |
-| `async_db.etl` property | Lazy accessor factory on `AsyncDatabase` | `async_database.py` |
-
----
-
-## Recommended Project Structure
-
-```
-pycopg/
-├── etl.py               # NEW — pure builders + EtlAccessor + AsyncEtlAccessor
-├── queries.py           # MODIFIED — add ETL_* SQL constants section
-├── database.py          # MODIFIED — add `etl` lazy property + `_etl` field
-├── async_database.py    # MODIFIED — add `etl` lazy property + `_etl` field
-├── __init__.py          # MODIFIED — export EtlAccessor, AsyncEtlAccessor, Pipeline
-└── exceptions.py        # MODIFIED (optional) — add PipelineError
-
-tests/
-├── test_etl.py              # NEW — unit tests for pure builders + Pipeline dataclass
-├── test_etl_integration.py  # NEW — integration tests for EtlAccessor (real DB)
-├── test_etl_async.py        # NEW — async mirror of test_etl_integration.py
-└── test_parity.py           # NO CHANGES needed if method names match
-```
-
-### Structure Rationale
-
-- **etl.py:** mirrors `spatial.py` exactly. All pure functions at module level; both accessor classes in the same file. This keeps the pattern consistent and avoids a separate accessors/builders split that would add indirection without benefit.
-- **queries.py:** existing convention — every multi-line SQL constant lives here with a section comment block. ETL constants join existing sections with a new `# ETL QUERIES` block.
-- **database.py / async_database.py:** only a `_etl` field in `__init__` and an `etl` lazy property need to be added. Zero logic changes to the core DB classes.
-
----
-
-## Architectural Patterns
-
-### Pattern 1: Pure Builders + Accessor Split (mirror of spatial.py)
-
-**What:** All SQL assembly lives in stateless module-level functions that return `(sql, params)` or a plain SQL string. The accessor classes hold the DB reference and call these builders.
-
-**When to use:** Always for ETL — the same extract SQL, upsert SQL, and run-tracking SQL is used by both `EtlAccessor` and `AsyncEtlAccessor` without duplication.
-
-**Trade-offs:** Slightly more boilerplate (separate builder + accessor method), but builders are fully unit-testable without a DB, and the pattern is already established throughout `spatial.py`.
-
-**Example (builder in etl.py):**
-```python
-def build_upsert_sql(
-    table: str,
-    columns: list[str],
-    conflict_columns: list[str],
-    schema: str = "public",
-) -> tuple[str, str]:
-    """Build INSERT ... ON CONFLICT DO UPDATE SQL for idempotent load.
-
-    Pure function: no I/O, no DB reference.
-
-    Returns
-    -------
-    tuple of (str, str)
-        (sql_template, columns_csv) matching QueryMixin._build_insert_sql shape.
-    """
-    validate_identifiers(table, schema, *columns, *conflict_columns)
-    cols = ", ".join(columns)
-    ph = ", ".join(["%s"] * len(columns))
-    update_cols = [c for c in columns if c not in conflict_columns]
-    update_str = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
-    conflict_str = ", ".join(conflict_columns)
-    sql = (
-        f"INSERT INTO {schema}.{table} ({cols}) VALUES ({ph}) "
-        f"ON CONFLICT ({conflict_str}) DO UPDATE SET {update_str}"
-    )
-    return sql, cols
-```
-
-### Pattern 2: Frozen Dataclass Pipeline Descriptor
-
-**What:** `Pipeline` is a `@dataclass(frozen=True)` that carries all declarative fields but performs no I/O. It is passed to `db.etl.run(pipeline)`.
-
-**When to use:** Always — frozen ensures the pipeline definition is not mutated between runs, which is important for idempotency guarantees.
-
-**Trade-offs:** Frozen dataclasses cannot have mutable defaults directly; `tuple` is used for `conflict_columns` instead of `list`. The `transform` callable is included, which means the dataclass is not JSON-serializable by default — acceptable for v0.5.0.
-
-**Example (Pipeline + supporting specs in etl.py):**
-```python
-from __future__ import annotations
-import dataclasses
-from typing import Callable
-import pandas as pd
-
-
-@dataclasses.dataclass(frozen=True)
-class ExtractSpec:
-    table: str | None = None
-    sql: str | None = None
-    schema: str = "public"
-
-    def __post_init__(self) -> None:
-        if (self.table is None) == (self.sql is None):
-            raise ValueError("Exactly one of table= or sql= must be provided")
-        if self.table:
-            validate_identifiers(self.table, self.schema)
-
-
-@dataclasses.dataclass(frozen=True)
-class LoadSpec:
-    table: str
-    schema: str = "public"
-    mode: str = "upsert"              # "truncate" | "upsert"
-    conflict_columns: tuple[str, ...] = ()
-
-    def __post_init__(self) -> None:
-        if self.mode not in ("truncate", "upsert"):
-            raise ValueError(f"mode must be 'truncate' or 'upsert', got {self.mode!r}")
-        if self.mode == "upsert" and not self.conflict_columns:
-            raise ValueError("conflict_columns must be non-empty for mode='upsert'")
-        validate_identifiers(self.table, self.schema)
-        if self.conflict_columns:
-            validate_identifiers(*self.conflict_columns)
-
-
-@dataclasses.dataclass(frozen=True)
-class Pipeline:
-    name: str
-    extract: ExtractSpec
-    load: LoadSpec
-    transform: Callable[[pd.DataFrame], pd.DataFrame] | None = None
-```
-
-### Pattern 3: Separate Transaction for Run-Log Write
-
-**What:** The load transaction and the `pipeline_runs` write transaction are separate connections. The load uses `db.transaction()` which rolls back on error. The run-log write uses an independent `db.connect()` block that always commits, even if the load failed.
-
-**When to use:** Always, in `EtlAccessor.run()` and `AsyncEtlAccessor.run()`.
-
-**Trade-offs:** Two round-trips to the DB for the run record (INSERT at start, UPDATE at end). Acceptable — run tracking is lightweight metadata. The alternative (same transaction) would lose the failure record on rollback.
-
-**Example (sync execution flow):**
-```python
-def run(self, pipeline: Pipeline) -> dict:
-    run_id = self._start_run(pipeline.name)   # independent connection, commits immediately
-    try:
-        with self._db.transaction() as conn:
-            df = self._extract(pipeline.extract)
-            if pipeline.transform is not None:
-                df = pipeline.transform(df)
-            rows_loaded = self._load(pipeline.load, df)
-        self._end_run(run_id, "success", rows_loaded)
-        return {"run_id": run_id, "status": "success", "rows_loaded": rows_loaded}
-    except Exception as exc:
-        self._end_run(run_id, "error", 0, error=str(exc))  # commits failure record
-        raise
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          Public API (UNCHANGED)                           │
+│   db.etl.run(pipeline)   async_db.etl.run(pipeline)                     │
+│   Pipeline(incremental_column="ts")   ← new optional field              │
+├──────────────────────────────────────────────────────────────────────────┤
+│                     pycopg/etl.py  (MODIFIED)                            │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────────┐   │
+│  │  Pipeline (frozen dataclass) │  │  ETLAccessor / AsyncETLAccessor │   │
+│  │  + incremental_column: str  │  │  run():                          │   │
+│  │  + __post_init__:           │  │   NEW: _read_watermark()         │   │
+│  │    replace+incremental=err  │  │   MODIFIED: extract with WHERE   │   │
+│  │                             │  │   NEW: _compute_new_watermark()  │   │
+│  │  NEW pure builders:         │  │   MODIFIED: _end_run watermark   │   │
+│  │  build_incremental_where()  │  └─────────────────────────────────┘   │
+│  │  build_wrapped_source_sql() │                                         │
+│  └─────────────────────────────┘                                         │
+├──────────────────────────────────────────────────────────────────────────┤
+│                  pycopg/queries.py  (MODIFIED)                           │
+│   ETL_GET_LAST_SUCCESS_WATERMARK  ← NEW constant                        │
+│   ETL_UPDATE_RUN_WITH_WATERMARK   ← NEW constant (or extended UPDATE)   │
+├──────────────────────────────────────────────────────────────────────────┤
+│              pycopg/database.py / async_database.py (UNCHANGED)          │
+├──────────────────────────────────────────────────────────────────────────┤
+│                    Existing infrastructure (UNCHANGED)                    │
+│  Database / AsyncDatabase   pipeline_runs table (watermark col exists)  │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Data Flow
+## Integration Point Map
 
-### ETL Execution Flow (sync)
+The five questions from the research prompt, answered against exact file/function locations:
 
-```
-db.etl.run(pipeline)
-    |
-    +-- _start_run(name)                    [independent conn, commits]
-    |       INSERT INTO pipeline_runs (status='running', started_at=now())
-    |       returns run_id (int)
-    |
-    +-- with db.transaction():              [load transaction -- rolls back on error]
-    |       |
-    |       +-- _extract(extract_spec)
-    |       |     db.to_dataframe(table=... or sql=...) -> pd.DataFrame
-    |       |
-    |       +-- pipeline.transform(df)      [Python, no I/O, sync callable]
-    |       |     -> pd.DataFrame
-    |       |
-    |       +-- _load(load_spec, df)
-    |             mode="truncate": TRUNCATE TABLE ... then df via from_dataframe(if_exists="append")
-    |             mode="upsert":   db.upsert_many(table, rows, conflict_columns)
-    |             returns rows_loaded (int)
-    |
-    +-- _end_run(run_id, status, rows_loaded [, error])
-            [independent conn, commits always -- even if load raised]
-            UPDATE pipeline_runs SET status=..., finished_at=now(), rows_loaded=... WHERE id=...
-```
+### Q1: WHERE to read the prior watermark
 
-### ETL Execution Flow (async)
+**Read from:** `pipeline_runs.watermark` of the most recent **successful** row for `pipeline.name`.
 
-```
-await async_db.etl.run(pipeline)
-    |
-    +-- await _start_run(name)              [independent async conn, commits]
-    |
-    +-- async with async_db.transaction(): [load transaction]
-    |       |
-    |       +-- await _extract(extract_spec)
-    |       |     await async_db.to_dataframe(...)       [uses conn.run_sync internally]
-    |       |
-    |       +-- await loop.run_in_executor(None, pipeline.transform, df)
-    |       |     [thread pool for sync callable -- consistent with run_sync pattern]
-    |       |
-    |       +-- await _load(load_spec, df)
-    |             await async_db.upsert_many(...)  OR  TRUNCATE + conn.run_sync(df.to_sql)
-    |
-    +-- await _end_run(run_id, status, rows_loaded [, error])
-```
+**Why last successful:** A failed run does not advance the watermark (invariant). Reading from the last row regardless of status would skip rows if the previous run failed mid-load. Only `status = 'success'` rows carry a valid watermark.
 
-### Key Data Flows
+**New SQL constant in `pycopg/queries.py`:**
 
-1. **Run tracking:** `pipeline_runs` row inserted before load starts; updated after load completes or fails. Two independent connections ensure the failure record always commits.
-2. **Extract:** Delegates to existing `db.to_dataframe()` / `async_db.to_dataframe()` — no new extract logic needed beyond wrapping.
-3. **Transform:** Pure Python callable on a DataFrame. No DB I/O. In async context, delegated to thread pool via `run_in_executor`.
-4. **Load (truncate):** TRUNCATE DDL (autocommit=False inside transaction), then `from_dataframe(if_exists="append")`.
-5. **Load (upsert):** Direct `upsert_many()` call — existing method handles batching and conflict resolution.
-
----
-
-## Module Layout — What Goes Where
-
-### pycopg/etl.py (NEW FILE)
-
-```
-Module-level (pure -- no DB, no I/O):
-  @dataclass(frozen=True)  ExtractSpec
-  @dataclass(frozen=True)  LoadSpec
-  @dataclass(frozen=True)  Pipeline
-  build_init_sql() -> str           # returns queries.ETL_INIT_PIPELINE_RUNS
-  build_truncate_sql(table, schema) -> str
-  _validate_pipeline(pipeline)      # raises ValueError on bad input
-
-class EtlAccessor:
-  __init__(db: Database)
-  init() -> None                    # CREATE TABLE IF NOT EXISTS pipeline_runs
-  run(pipeline: Pipeline) -> dict   # full ETL + run tracking
-  list_runs(name: str | None, limit: int) -> list[dict]
-  get_last_run(name: str) -> dict | None
-  _start_run(name) -> int           # private: insert run row, return id
-  _end_run(run_id, status, rows, error=None) -> None   # private: update row
-  _extract(spec) -> pd.DataFrame    # private: calls db.to_dataframe
-  _load(spec, df) -> int            # private: truncate or upsert, returns row count
-
-class AsyncEtlAccessor:
-  __init__(db: AsyncDatabase)
-  async init() -> None
-  async run(pipeline: Pipeline) -> dict
-  async list_runs(name: str | None, limit: int) -> list[dict]
-  async get_last_run(name: str) -> dict | None
-  async _start_run(name) -> int
-  async _end_run(run_id, status, rows, error=None) -> None
-  async _extract(spec) -> pd.DataFrame
-  async _load(spec, df) -> int
-```
-
-### pycopg/queries.py (MODIFIED)
-
-Add a `# ETL QUERIES` section at the bottom:
-
-```python
-# =============================================================================
-# ETL QUERIES
-# =============================================================================
-
-ETL_INIT_PIPELINE_RUNS = """
-    CREATE TABLE IF NOT EXISTS pipeline_runs (
-        id             BIGSERIAL    PRIMARY KEY,
-        pipeline_name  TEXT         NOT NULL,
-        status         TEXT         NOT NULL DEFAULT 'running',
-        started_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
-        finished_at    TIMESTAMPTZ,
-        rows_loaded    BIGINT,
-        error_message  TEXT,
-        watermark      JSONB
-    )
-"""
-
-ETL_INSERT_RUN = """
-    INSERT INTO pipeline_runs (pipeline_name, status, started_at)
-    VALUES (%s, 'running', now())
-    RETURNING id
-"""
-
-ETL_UPDATE_RUN = """
-    UPDATE pipeline_runs
-    SET status = %s, finished_at = now(), rows_loaded = %s, error_message = %s
-    WHERE id = %s
-"""
-
-ETL_LIST_RUNS = """
-    SELECT id, pipeline_name, status, started_at, finished_at,
-           rows_loaded, error_message
-    FROM pipeline_runs
-    {where_clause}
-    ORDER BY started_at DESC
-    LIMIT %s
-"""
-
-ETL_GET_LAST_RUN = """
-    SELECT id, pipeline_name, status, started_at, finished_at,
-           rows_loaded, error_message
+```sql
+ETL_GET_LAST_SUCCESS_WATERMARK = """
+    SELECT watermark
     FROM pipeline_runs
     WHERE pipeline_name = %s
+      AND status = 'success'
+      AND watermark IS NOT NULL
     ORDER BY started_at DESC
     LIMIT 1
 """
 ```
 
-### pycopg/database.py (MODIFIED)
+**Which connection:** The autocommit run-log reader connection — identical to `_fetch_run_result`, `last_run`, and `history`. This is a plain `SELECT`; it must NOT run on the load-transaction connection (which could be inside a `db.session()` and subject to snapshot isolation). Open a dedicated `db.connect(autocommit=True)` for this read, just as every other run-log access does.
 
-Two additions only:
+**New private helper in `ETLAccessor` and `AsyncETLAccessor`:**
 
 ```python
-# In __init__:
-self._etl: EtlAccessor | None = None
-
-# New lazy property (after spatial property, same shape):
-@property
-def etl(self) -> EtlAccessor:
-    """Get or create the ETL accessor (lazy initialization).
-
-    Returns
-    -------
-    EtlAccessor
-        ETL pipeline runner namespace bound to this database.
-    """
-    if self._etl is None:
-        from pycopg.etl import EtlAccessor
-        self._etl = EtlAccessor(self)
-    return self._etl
+def _read_watermark(self, name: str) -> object | None:
+    """Return the last successful watermark for pipeline *name*, or None."""
+    with self._db.connect(autocommit=True) as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(queries.ETL_GET_LAST_SUCCESS_WATERMARK, [name])
+            row = cur.fetchone()
+    return row["watermark"] if row is not None else None
 ```
 
-### pycopg/async_database.py (MODIFIED)
+`None` return means: first run (no prior success) — perform full load and record `max(col)` as the first watermark.
+
+### Q2: WHERE the new max(col) is computed and the consistency hazard
+
+**Compute from:** the extracted DataFrame, using `df[pipeline.incremental_column].max()`.
+
+**Why DataFrame-side, not a separate MAX query:** The extract already returns the rows that will be loaded. Computing `max(col)` from the extracted batch is strictly consistent — the watermark reflects exactly what was loaded. A separate `SELECT MAX(col)` query would read a snapshot that may include rows arriving after the extract (race window), advancing the watermark past rows not yet loaded.
+
+**The consistency hazard:** rows arriving between the extract snapshot and the load are NOT in the extracted DataFrame. If the watermark were set to "current DB max" rather than "batch max", those rows would be skipped on the next run. Using `df[col].max()` avoids this: the next run will pick them up because `WHERE col > last_watermark` is `> batch_max`, which is strictly less than the current DB max at next-run time.
+
+**For first run (watermark is None):** no WHERE clause is applied; full extract proceeds. The watermark written is `df[col].max()` from that full-load batch.
+
+**For empty batches:** if the extracted DataFrame is empty (no new rows since last run), `df[col].max()` returns `NaN`/`NaT`/`None`. The watermark must NOT advance in this case — keep the existing watermark. The `_end_run` call records `status='success'` with watermark unchanged (i.e., do not overwrite the existing column — use the same new-watermark-only path).
+
+**New private helper in `ETLAccessor` (pure, no I/O):**
 
 ```python
-# In __init__:
-self._etl: AsyncEtlAccessor | None = None
-
-# New lazy property:
-@property
-def etl(self) -> AsyncEtlAccessor:
-    """Get or create the async ETL accessor (lazy initialization).
-
-    Returns
-    -------
-    AsyncEtlAccessor
-        Async ETL pipeline runner namespace bound to this database.
-    """
-    if self._etl is None:
-        from pycopg.etl import AsyncEtlAccessor
-        self._etl = AsyncEtlAccessor(self)
-    return self._etl
+def _compute_new_watermark(
+    self, df: pd.DataFrame, incremental_column: str
+) -> object | None:
+    """Return max(incremental_column) from df, or None if df is empty."""
+    if df.empty:
+        return None
+    val = df[incremental_column].max()
+    # pandas max() returns NaN/NaT on all-null columns; treat as None
+    if pd.isna(val):
+        return None
+    # Convert pandas Timestamp → Python datetime (psycopg serializes natively)
+    if hasattr(val, 'to_pydatetime'):
+        return val.to_pydatetime()
+    return val
 ```
 
-### pycopg/__init__.py (MODIFIED)
+### Q3: WHEN/HOW the new watermark is persisted — the invariant
 
-```python
-from pycopg.etl import AsyncEtlAccessor, EtlAccessor, ExtractSpec, LoadSpec, Pipeline
+**Core invariant:** The watermark only advances on a successful run. On failure, the existing watermark in `pipeline_runs` is not modified.
+
+**Implementation:** The existing `_end_run()` call on the success path is extended to also write the watermark. The failure-path `_end_run()` call (inside `except`) does NOT pass a watermark — it writes `NULL` for the watermark column, leaving prior successful rows' watermarks intact.
+
+Two options for SQL:
+
+**Option A (preferred): new constant `ETL_UPDATE_RUN_WITH_WATERMARK` for success path**
+
+Keep `ETL_UPDATE_RUN` exactly as-is for the failure path (no watermark written into any row). Add a new constant that includes the watermark for the success path:
+
+```sql
+ETL_UPDATE_RUN_WITH_WATERMARK = """
+    UPDATE pipeline_runs
+    SET status = %s,
+        finished_at = %s,
+        rows_extracted = %s,
+        rows_loaded = %s,
+        error_message = %s,
+        error_traceback = %s,
+        watermark = %s
+    WHERE run_id = %s
+"""
 ```
 
-Add to `__all__`:  `"EtlAccessor"`, `"AsyncEtlAccessor"`, `"Pipeline"`, `"ExtractSpec"`, `"LoadSpec"`.
-
----
-
-## Runner Method Signatures (Complete Reference)
-
-### EtlAccessor (sync)
+`_end_run()` signature becomes:
 
 ```python
-def init(self) -> None:
-    """Create the pipeline_runs tracking table if it does not exist."""
+def _end_run(
+    self,
+    run_id: int,
+    status: str,
+    rows_extracted: int,
+    rows_loaded: int,
+    error_message: str | None = None,
+    error_traceback: str | None = None,
+    watermark: object | None = None,   # NEW optional field
+) -> None:
+```
 
-def run(self, pipeline: Pipeline) -> dict:
-    """Execute a pipeline end-to-end and record the run outcome.
+When `watermark is not None`, use `ETL_UPDATE_RUN_WITH_WATERMARK` and pass `json.dumps({"value": watermark_serialized})` as the JSONB parameter. When `watermark is None`, use the existing `ETL_UPDATE_RUN` — the `watermark` column for this row stays `NULL`.
+
+**Why not a single `_end_run` with conditional SQL:** two constants with explicit dispatch is cleaner than building the SQL string conditionally. It also keeps `ETL_UPDATE_RUN` unchanged and the failure path unmodified, reducing the diff on a security-sensitive path.
+
+**Watermark JSONB format:** store as `{"value": <scalar>}`. This reserves namespace for future multi-column watermarks without breaking the existing `watermark IS NOT NULL` filter. The read helper unwraps `row["watermark"]["value"]`.
+
+**What happens on a failed load:** the `except` block calls `self._end_run(run_id, "failed", ...)` without the watermark argument. The `pipeline_runs` row for this failed run gets `watermark = NULL`. The next run reads `ETL_GET_LAST_SUCCESS_WATERMARK` which filters `status = 'success'` — it skips the failed row entirely and returns the same prior watermark. The re-run starts from the same point.
+
+### Q4: New pure builders needed
+
+Two new pure builders (no I/O, no `self`) in `pycopg/etl.py`, placed alongside the existing builders:
+
+**Builder 1: `build_incremental_where_clause(incremental_column)`**
+
+Validates the identifier, returns the raw WHERE fragment for embedding:
+
+```python
+def build_incremental_where_clause(incremental_column: str) -> str:
+    """Return a WHERE fragment for incremental filtering.
 
     Parameters
     ----------
-    pipeline : Pipeline
-        Declarative pipeline descriptor.
+    incremental_column : str
+        Column name to filter on. Must be a valid SQL identifier.
 
     Returns
     -------
-    dict
-        Keys: run_id (int), status ("success" or "error"), rows_loaded (int).
+    str
+        ``'WHERE <col> > %s'`` with the validated column name interpolated.
 
     Raises
     ------
-    Exception
-        Re-raises the original exception after recording failure in pipeline_runs.
+    InvalidIdentifier
+        If ``incremental_column`` is not a valid SQL identifier.
     """
-
-def list_runs(
-    self,
-    name: str | None = None,
-    limit: int = 100,
-) -> list[dict]:
-    """Return recent pipeline run records.
-
-    Parameters
-    ----------
-    name : str, optional
-        Filter to this pipeline name. None returns all pipelines.
-    limit : int, optional
-        Maximum rows to return, by default 100.
-
-    Returns
-    -------
-    list of dict
-        Run records ordered newest-first.
-    """
-
-def get_last_run(self, name: str) -> dict | None:
-    """Return the most recent run for a pipeline name, or None.
-
-    Parameters
-    ----------
-    name : str
-        Pipeline name.
-
-    Returns
-    -------
-    dict or None
-        Most recent run record, or None if no runs exist.
-    """
+    validate_identifiers(incremental_column)
+    return f"WHERE {incremental_column} > %s"
 ```
 
-### AsyncEtlAccessor (async -- identical parameter names)
+**Builder 2: `build_wrapped_source_sql(source_sql, incremental_column)`**
+
+Wraps a SQL-string source with the incremental WHERE, following the locked scope decision ("sources SQL enveloppées en `SELECT * FROM (<sql>) sub WHERE col > %s`"):
 
 ```python
-async def init(self) -> None: ...
-async def run(self, pipeline: Pipeline) -> dict: ...
-async def list_runs(self, name: str | None = None, limit: int = 100) -> list[dict]: ...
-async def get_last_run(self, name: str) -> dict | None: ...
+def build_wrapped_source_sql(
+    source_sql: str,
+    incremental_column: str,
+) -> str:
+    """Wrap a SQL source with an incremental WHERE clause.
+
+    Parameters
+    ----------
+    source_sql : str
+        The original source SQL (SELECT/WITH statement).
+    incremental_column : str
+        Column name for the watermark filter. Must be a valid SQL identifier.
+
+    Returns
+    -------
+    str
+        Wrapped SQL of the form
+        ``'SELECT * FROM (<source_sql>) AS _etl_inc_sub WHERE <col> > %s'``.
+
+    Raises
+    ------
+    InvalidIdentifier
+        If ``incremental_column`` is not a valid SQL identifier.
+    """
+    validate_identifiers(incremental_column)
+    return (
+        f"SELECT * FROM ({source_sql}) AS _etl_inc_sub"
+        f" WHERE {incremental_column} > %s"
+    )
 ```
 
-**Parity note:** `test_parity.py` uses `inspect.getmembers(Database)` and `inspect.getmembers(AsyncDatabase)`. The `etl` property is a member of both classes, so it is picked up automatically. The public methods `init`, `run`, `list_runs`, `get_last_run` exist on both accessor classes — their signatures have identical parameter names, which satisfies `test_method_signatures_match`. No changes to `test_parity.py` are needed.
+**Builder 3 (for table sources): `build_incremental_table_sql(table, schema, incremental_column)`**
 
----
+For table-name sources (not SQL strings), the existing extract path builds `SELECT * FROM schema.table`. The incremental variant appends the WHERE:
 
-## Transaction Boundaries
+```python
+def build_incremental_table_sql(
+    table: str,
+    schema: str,
+    incremental_column: str,
+) -> str:
+    """Build a SELECT with incremental WHERE for a table-name source.
 
-### The Tension
+    Parameters
+    ----------
+    table : str
+        Source table name. Must be a valid SQL identifier.
+    schema : str
+        Schema name. Must be a valid SQL identifier.
+    incremental_column : str
+        Column name for the watermark filter. Must be a valid SQL identifier.
 
-A failed load must roll back all inserted data (atomicity). But the `pipeline_runs` failure record must commit independently — otherwise a failed run leaves no trace, defeating the purpose of run tracking.
+    Returns
+    -------
+    str
+        SQL of the form
+        ``'SELECT * FROM schema.table WHERE col > %s'``.
 
-### Recommended Pattern: Two Independent Connections
-
-Run-tracking writes (`_start_run` and `_end_run`) each open their own short-lived connection via `db.connect()` (sync) or an independent `async_db.connect()` (async). These commits are unconditional.
-
-The load step (`_extract` + `transform` + `_load`) runs inside `db.transaction()`. If it raises, the load transaction rolls back, but `_end_run` is called in the `except` block using a fresh connection.
-
-```
-START:  independent conn
-            INSERT pipeline_runs (status='running') COMMIT
-
-LOAD:   db.transaction()
-            extract -> transform -> load
-            [COMMIT on success]  [ROLLBACK on error]
-
-END:    independent conn
-            UPDATE pipeline_runs (status, finished_at, rows_loaded) COMMIT
-            [called in both success path AND except block]
-```
-
-**Why not use the session connection for run tracking?** Sessions and transactions in psycopg share the underlying connection. Writing to `pipeline_runs` inside the same transaction means the failure record is lost on rollback. A fresh connection avoids this — the same approach used by PostgreSQL job schedulers and migration systems.
-
-**Why not SAVEPOINT?** Savepoints are deferred to v0.6.0 (API-05 in PROJECT.md). The two-connection approach is simpler and sufficient for v0.5.0.
-
-**Impact on async:** `AsyncDatabase` uses psycopg async connections. The same two-connection pattern applies: `_start_run` and `_end_run` open independent `AsyncConnection` instances via `psycopg.AsyncConnection.connect(...)` or the async pool, bypassing the active session.
-
----
-
-## `pipeline_runs` Schema and Forward Compatibility
-
-### Recommended Schema
-
-```sql
-CREATE TABLE IF NOT EXISTS pipeline_runs (
-    id             BIGSERIAL    PRIMARY KEY,
-    pipeline_name  TEXT         NOT NULL,
-    status         TEXT         NOT NULL DEFAULT 'running',
-                   -- allowed values: 'running' | 'success' | 'error'
-    started_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    finished_at    TIMESTAMPTZ,           -- NULL until run completes
-    rows_loaded    BIGINT,                -- NULL until run completes
-    error_message  TEXT,                  -- NULL unless status='error'
-
-    -- Reserved for v0.6.0 incremental watermarks.
-    -- Always NULL in v0.5.0 rows. JSONB accommodates any watermark
-    -- shape (timestamp, integer offset, string cursor) without ALTER TABLE.
-    watermark      JSONB
-);
+    Raises
+    ------
+    InvalidIdentifier
+        If any identifier is not valid.
+    """
+    validate_identifiers(table, schema, incremental_column)
+    return f"SELECT * FROM {schema}.{table} WHERE {incremental_column} > %s"
 ```
 
-### Forward-Compat Design Choices
+**How they slot beside existing builders:** placed after `build_truncate_sql` and before `_build_insert_sql` in `etl.py`. They are module-level functions, no class dependency. No changes to `_build_insert_sql` or `_build_upsert_sql`.
 
-- **`watermark JSONB`** is present but always NULL in v0.5.0. v0.6.0 writes watermark values into this column without an `ALTER TABLE` or migration. No migration pain — the column exists, it's just unused.
-- **`status TEXT`** (not ENUM) — avoids `ALTER TYPE` to add future status values. A CHECK constraint can be added later if desired.
-- **`BIGSERIAL`** id — handles high-volume pipelines without risk of integer overflow.
-- **`TIMESTAMPTZ`** (not `TIMESTAMP`) for all time columns — timezone-aware, required for deployments running across zones.
-- All nullable columns (`finished_at`, `rows_loaded`, `error_message`, `watermark`) are NOT constrained NOT NULL — they are genuinely unknown at insert time.
+### Q5: Concurrency — two runs of the same pipeline
 
-### Table Initialization: Explicit `db.etl.init()`
-
-**Recommendation: explicit `db.etl.init()` call, not lazy auto-create inside `run()`.**
+For v0.7.0: **last-writer-wins is acceptable; no locking needed.**
 
 Rationale:
-- Lazy init inside `run()` adds an existence-check round-trip on every pipeline execution. For frequent pipelines this matters.
-- Migration system approach (versioned SQL files) would require the migration runner — coupling ETL setup to migration workflow is invasive and inconsistent with how PostGIS is handled (`db.create_extension('postgis')` is always explicit).
-- `db.etl.init()` is a single bootstrap call. Callers put it in their startup script. `CREATE TABLE IF NOT EXISTS` makes it idempotent — calling `init()` multiple times is always safe.
-- This is consistent with the existing `db.spatial` accessor pattern: PostGIS availability is checked explicitly, not lazily injected into every helper call.
+
+- `pipeline_runs` is append-only; two concurrent runs each get their own `run_id`.
+- Both runs read the same prior watermark (the same last-success row).
+- Both extract overlapping windows (both satisfy `col > prior_watermark`).
+- With `load_mode="append"`: duplicate rows are inserted. This is a caller concern — `append` never claims idempotency.
+- With `load_mode="upsert"`: duplicate upserts are idempotent by design (ON CONFLICT DO UPDATE sets the same values). The second run overwrites the first run's identical rows — correct.
+- The watermark written by whichever run finishes last reflects the later batch's max. Since both batches overlap from the same prior watermark, the later finish is a superset — the watermark is still correct or slightly further ahead (also correct).
+- Advisory locks (`pg_try_advisory_lock`) would prevent true duplication for `append` mode but add complexity. Defer to v0.8.0 if needed; document the limitation.
+
+**Document explicitly** in the `Pipeline` docstring: concurrent runs of the same pipeline are safe only with `load_mode="upsert"`. For `append` + incremental, the caller is responsible for ensuring non-overlapping runs.
 
 ---
 
-## Parity-Safe Data Flow: Pure vs Accessor
+## Modified Data Flow: `ETLAccessor.run()` with `incremental_column`
 
-### What is Pure (shared, no I/O — usable in both accessors and unit tests)
+The changes to `run()` are additive — two new steps are injected into the existing 6-step flow:
 
-| Item | Why Pure |
-|------|----------|
-| `ExtractSpec`, `LoadSpec`, `Pipeline` dataclasses | no DB, no I/O; validated in `__post_init__` |
-| `build_init_sql()` | returns `queries.ETL_INIT_PIPELINE_RUNS` string |
-| `build_truncate_sql(table, schema)` | returns `TRUNCATE TABLE ...` string |
-| `_validate_pipeline(pipeline)` | raises `ValueError` on invalid combos |
-| All `queries.py` ETL constants | string literals |
-
-### What is Accessor-Only (does I/O, differs sync/async)
-
-| Method | Sync implementation | Async implementation |
-|--------|---------------------|----------------------|
-| `init()` | `db.execute(ETL_INIT_PIPELINE_RUNS)` | `await async_db.execute(...)` |
-| `_start_run(name)` | `db.execute(ETL_INSERT_RUN, [name])` | `await async_db.execute(...)` |
-| `_end_run(...)` | `db.execute(ETL_UPDATE_RUN, [...])` | `await async_db.execute(...)` |
-| `_extract(spec)` | `db.to_dataframe(table=... or sql=...)` | `await async_db.to_dataframe(...)` |
-| `transform(df)` | `pipeline.transform(df)` direct call | `await loop.run_in_executor(None, fn, df)` |
-| `_load mode=truncate` | `db.execute("TRUNCATE ...")` + `db.from_dataframe(if_exists="append")` | `await async_db.execute(...)` + `await conn.run_sync(df.to_sql)` |
-| `_load mode=upsert` | `db.upsert_many(table, rows, conflict_columns)` | `await async_db.upsert_many(...)` |
-| `list_runs(...)` | `db.execute(ETL_LIST_RUNS, [...])` | `await async_db.execute(...)` |
-| `get_last_run(name)` | `db.execute(ETL_GET_LAST_RUN, [name])` | `await async_db.execute(...)` |
-
-### The One Parity Risk: Transform Callable in Async Context
-
-The `transform` callable is a sync Python function (pandas is sync-only). In the async accessor, calling it directly blocks the event loop. The existing `run_sync` pattern (used in `async_database.py` at lines 1937, 1971, 2026) shows how to handle this for pandas operations: `await conn.run_sync(lambda sync_conn: pd.read_sql(...))`. However, `transform` takes a DataFrame, not a connection.
-
-**Recommendation:** In `AsyncEtlAccessor.run()`, wrap the transform call:
-```python
-import asyncio
-loop = asyncio.get_event_loop()
-df = await loop.run_in_executor(None, pipeline.transform, df)
+```text
+db.etl.run(pipeline)   where pipeline.incremental_column is set
+    |
+    +-- self.init()                              [UNCHANGED — autocommit conn]
+    +-- run_id = self._start_run(name)           [UNCHANGED — autocommit conn]
+    |
+    +-- NEW STEP 0: _read_watermark(name)        [autocommit conn]
+    |       SELECT watermark FROM pipeline_runs
+    |       WHERE pipeline_name=%s AND status='success' AND watermark IS NOT NULL
+    |       ORDER BY started_at DESC LIMIT 1
+    |       → prior_watermark (Python scalar or None)
+    |
+    +-- STEP 1: EXTRACT  (MODIFIED)
+    |       if incremental_column and prior_watermark is not None:
+    |           if SQL source: wrap with build_wrapped_source_sql() + pass [prior_watermark] as param
+    |           if table source: use build_incremental_table_sql() + pass [prior_watermark] as param
+    |       else (first run or non-incremental):
+    |           existing extract logic unchanged
+    |
+    +-- STEP 2: TRANSFORM CHAIN                  [UNCHANGED]
+    |
+    +-- STEP 3: NaN/NaT → None                  [UNCHANGED]
+    |
+    +-- NEW STEP 3b: _compute_new_watermark(df, incremental_column)
+    |       → new_watermark (Python scalar or None if empty batch)
+    |
+    +-- STEP 4: EXISTENCE CHECK                  [UNCHANGED]
+    |
+    +-- STEP 5: BUILD LOAD SQL                   [UNCHANGED]
+    |
+    +-- STEP 6: ATOMIC LOAD                      [UNCHANGED]
+    |       with self._db.session():
+    |           with self._db.transaction() as conn:
+    |               cur.execute(insert_sql, insert_params)
+    |               rows_loaded += cur.rowcount
+    |
+    +-- SUCCESS PATH:
+    |       if new_watermark is not None:
+    |           self._end_run(run_id, "success", ..., watermark=new_watermark)
+    |           → uses ETL_UPDATE_RUN_WITH_WATERMARK, passes json-serialized watermark
+    |       else:  (empty batch — watermark unchanged)
+    |           self._end_run(run_id, "success", ...)
+    |           → uses existing ETL_UPDATE_RUN, watermark column stays NULL for this row
+    |
+    +-- EXCEPT PATH (UNCHANGED in effect):
+            self._end_run(run_id, "failed", ...) — no watermark arg
+            → uses existing ETL_UPDATE_RUN, watermark stays NULL for this row
 ```
-This delegates the sync callable to the default thread pool executor, consistent with how `conn.run_sync` works internally. Document this in the numpydoc docstring under a "Notes" section. This is the only divergence between sync and async execution paths.
+
+**Key invariant:** `new_watermark` is computed from the extracted DataFrame BEFORE the load step. The load step is atomic. The watermark UPDATE happens AFTER the load commits. If the load transaction raises, execution jumps to the `except` block, which calls `_end_run` WITHOUT the watermark. The watermark therefore only advances when the load successfully commits.
+
+There is a narrow failure window: the load commits but `_end_run` raises before the watermark UPDATE. In this case the run row stays `status='running'` (its final UPDATE was lost), and the next run reads the prior success watermark (re-processes the same window). With `upsert`, this is idempotent. With `append`, rows are duplicated. This window exists in the current non-incremental design too (failed `_end_run` leaves a `running` row) — it is a known accepted limitation, not a regression.
 
 ---
 
-## Scaling Considerations
+## `Pipeline` Dataclass Changes
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| Small pipelines (<100K rows) | No changes; `upsert_many` batch insert suffices |
-| Large pipelines (>1M rows) | For truncate-load mode, swap `from_dataframe` for `copy_insert()` (already on `Database`); upsert-by-key stays row-batched |
-| High-frequency pipelines | Add index on `(pipeline_name, started_at)` in `pipeline_runs` for efficient `list_runs` queries |
-| Many parallel pipelines | `pipeline_runs` is append-only; no locking contention on run-tracking writes |
+### New field
 
-These are v0.6.0+ concerns. v0.5.0 uses the standard `upsert_many` / `from_dataframe` paths that exist today.
+```python
+@dataclass(frozen=True)
+class Pipeline:
+    # ... existing fields unchanged ...
+    incremental_column: str | None = None   # NEW — default None = non-incremental
+```
 
----
+### `__post_init__` additions
 
-## Integration Points with Existing Architecture
+```python
+# In Pipeline.__post_init__, after existing validations:
 
-### Existing Patterns Being Reused
+# Incremental + replace is forbidden (locked scope decision)
+if self.incremental_column is not None and self.load_mode == "replace":
+    raise ValueError(
+        "incremental_column is not compatible with load_mode='replace'; "
+        "use 'append' or 'upsert' (locked scope ETL-INC-01)"
+    )
 
-| Existing Pattern | How ETL Uses It |
-|-----------------|-----------------|
-| `db.spatial` lazy property in `database.py` | `db.etl` property follows identical shape |
-| `_spatial` private field in `__init__` | `_etl` private field follows identical shape |
-| `AsyncSpatialAccessor` deferred guard pattern | `AsyncEtlAccessor` — no guard needed; `init()` is explicit |
-| `queries.py` SQL constants with section headers | ETL SQL constants added in new `# ETL QUERIES` section |
-| `db.transaction()` context manager | Used for the load step |
-| `db.connect()` context manager | Used for isolated run-tracking writes (`_start_run`, `_end_run`) |
-| `db.to_dataframe()` | Used in `EtlAccessor._extract()` |
-| `db.upsert_many()` | Used in `EtlAccessor._load(mode="upsert")` |
-| `db.from_dataframe()` | Used in `EtlAccessor._load(mode="truncate")` |
-| `conn.run_sync(fn)` pattern | Used in `AsyncEtlAccessor._load` for `df.to_sql` |
-| `validate_identifiers()` | Called in `ExtractSpec.__post_init__` and `LoadSpec.__post_init__` |
-| `test_parity.py` harness | No changes needed — `etl` property appears on both classes automatically |
+# Validate incremental_column as a SQL identifier at construction time
+if self.incremental_column is not None:
+    validate_identifiers(self.incremental_column)
+```
+
+Construction-time validation keeps the "frozen + validated at birth" contract consistent with every other field.
 
 ---
 
-## New vs Modified Files (Explicit List)
+## `RunResult` — No Changes Required
 
-### New Files
+`RunResult` does not expose the watermark field to callers. The watermark is an internal run-log implementation detail readable via `history()` if the caller directly inspects `pipeline_runs`. Adding `watermark` to `RunResult` is deferred — it would require either a new field (source compatibility break on positional construction) or a `@dataclass` kwarg-only pattern. Not needed for v0.7.0.
+
+---
+
+## `queries.py` Changes
+
+### New constants to add (in the `# ETL QUERIES` section)
+
+```python
+ETL_GET_LAST_SUCCESS_WATERMARK = """
+    SELECT watermark
+    FROM pipeline_runs
+    WHERE pipeline_name = %s
+      AND status = 'success'
+      AND watermark IS NOT NULL
+    ORDER BY started_at DESC
+    LIMIT 1
+"""
+
+ETL_UPDATE_RUN_WITH_WATERMARK = """
+    UPDATE pipeline_runs
+    SET status = %s,
+        finished_at = %s,
+        rows_extracted = %s,
+        rows_loaded = %s,
+        error_message = %s,
+        error_traceback = %s,
+        watermark = %s
+    WHERE run_id = %s
+"""
+```
+
+### Existing constants UNCHANGED
+
+- `ETL_INIT_PIPELINE_RUNS` — no DDL change needed; `watermark JSONB` column already exists.
+- `ETL_INSERT_RUN` — unchanged; new runs insert with `watermark` defaulting to `NULL`.
+- `ETL_UPDATE_RUN` — unchanged; used for the failure path and empty-batch success path.
+- `ETL_LIST_RUNS`, `ETL_GET_LAST_RUN`, `ETL_GET_RUN` — unchanged; they return `watermark` as part of `SELECT *`, already available.
+
+---
+
+## Sync/Async Parity Path
+
+Every new private method and every SQL constant is used identically in both `ETLAccessor` and `AsyncETLAccessor`. The pattern is byte-for-byte the same as the v0.5.0 run-log helpers:
+
+| Method | Sync | Async |
+| --- | --- | --- |
+| `_read_watermark(name)` | `with self._db.connect(autocommit=True)` | `async with self._db.connect(autocommit=True)` |
+| `_compute_new_watermark(df, col)` | shared pure function (no `self`) | same pure function |
+| `build_wrapped_source_sql(...)` | pure function, no class | same pure function |
+| `build_incremental_table_sql(...)` | pure function, no class | same pure function |
+| `build_incremental_where_clause(...)` | pure function, no class | same pure function |
+| `_end_run(..., watermark=...)` | `with self._db.connect(autocommit=True)` | `async with self._db.connect(autocommit=True)` |
+
+`TestEtlParity` covers `ETLAccessor` vs `AsyncETLAccessor` method surface. The new `_read_watermark` and modified `_end_run` are private — no parity-test changes needed for them. The `incremental_column` field on `Pipeline` is tested via `test_pipeline_incremental_validation.py` (new, no DB required).
+
+---
+
+## Recommended Project Structure — Files Touched
+
+### Modified files (incremental feature only)
+
+**`pycopg/etl.py`** — main changes:
+
+- `Pipeline`: add `incremental_column: str | None = None` field; `__post_init__` guard for `replace` + incremental.
+- New pure builders: `build_wrapped_source_sql`, `build_incremental_table_sql`, `build_incremental_where_clause`, `_compute_new_watermark`.
+- `ETLAccessor` and `AsyncETLAccessor`: add `_read_watermark` method; modify `run()` to call it, apply watermark filter in extract, compute new watermark after extract; modify `_end_run` signature to add `watermark=None` kwarg and dispatch to `ETL_UPDATE_RUN_WITH_WATERMARK` when non-None.
+
+**`pycopg/queries.py`** — add two SQL constants to the `# ETL QUERIES` section:
+
+- `ETL_GET_LAST_SUCCESS_WATERMARK`
+- `ETL_UPDATE_RUN_WITH_WATERMARK`
+
+### New test files
 
 | File | Purpose |
-|------|---------|
-| `pycopg/etl.py` | All ETL code: dataclasses, pure builders, EtlAccessor, AsyncEtlAccessor |
-| `tests/test_etl.py` | Unit tests for pure builders and Pipeline dataclass validation (no DB needed) |
-| `tests/test_etl_integration.py` | Integration tests for EtlAccessor (real PostgreSQL) |
-| `tests/test_etl_async.py` | Integration tests for AsyncEtlAccessor (real PostgreSQL) |
-| `docs/etl.md` | Sphinx documentation page (mirrors `docs/spatial.md`) |
+| --- | --- |
+| `tests/test_etl_incremental.py` | Pure-builder unit tests (no DB) and integration tests for first-run, incremental, empty-batch, failure no-advance, replace+incremental guard |
+| `tests/test_etl_incremental_async.py` | Async mirror of the integration tests |
 
-### Modified Files
-
-| File | Change |
-|------|--------|
-| `pycopg/queries.py` | Add `# ETL QUERIES` section with 5 SQL constants |
-| `pycopg/database.py` | Add `_etl: EtlAccessor | None = None` in `__init__`; add `etl` property |
-| `pycopg/async_database.py` | Add `_etl: AsyncEtlAccessor | None = None` in `__init__`; add `etl` property |
-| `pycopg/__init__.py` | Import and export `EtlAccessor`, `AsyncEtlAccessor`, `Pipeline`, `ExtractSpec`, `LoadSpec` |
-| `docs/index.rst` | Add ETL page to the Sphinx TOC |
-| `CHANGELOG.md` | Record new `db.etl.*` surface |
-| `MIGRATION.md` | Document `db.etl.init()` bootstrap requirement |
-
-### Untouched Files
+### Untouched files
 
 | File | Why |
-|------|-----|
-| `pycopg/base.py` | ETL logic is accessor-level; no new base-class behavior needed |
-| `pycopg/spatial.py` | Not affected |
-| `tests/test_parity.py` | Existing harness catches `etl` property automatically; no changes needed |
+| --- | --- |
+| `pycopg/database.py` | No new properties, no new lazy fields |
+| `pycopg/async_database.py` | No new properties, no new lazy fields |
+| `pycopg/__init__.py` | No new exports needed; `Pipeline` already exported; new builders are internal |
+| `pycopg/queries.py` DDL | `ETL_INIT_PIPELINE_RUNS` stays identical; `watermark` column already present |
+| `tests/test_parity.py` | No new public accessor methods; `_read_watermark` is private |
+| `pycopg/exceptions.py` | No new exception types; existing `ETLTransformError`/`ETLTargetNotFoundError` cover failure modes |
 
 ---
 
-## Anti-Patterns
+## Watermark Serialization
 
-### Anti-Pattern 1: Lazy `init()` Inside `run()`
+Watermarks are stored as JSONB in the format `{"value": <scalar>}`. This wrapper:
 
-**What people do:** Check `IF NOT EXISTS pipeline_runs` on every `run()` call to avoid requiring an explicit init step.
+- Reserves namespace for future multi-column watermarks (`{"ts": ..., "id": ...}`) without a schema migration.
+- Avoids ambiguity when the scalar is `0`, `""`, or `false` (all falsy in Python but valid watermarks).
+- Makes `watermark IS NOT NULL` the only filter needed — an empty dict `{}` is also non-null, but the `"value"` key check guards against malformed rows.
 
-**Why it's wrong:** Adds a redundant existence-check round-trip on every pipeline execution. Hides the setup step from the caller's view. Inconsistent with `db.create_extension('postgis')` which is always explicit.
+**Python → JSONB serialization:** psycopg 3 serializes `dict` to JSONB natively when the column type is `JSONB`. Pass `{"value": watermark_value}` directly. For `datetime` values (the most common watermark type), convert pandas `Timestamp` to Python `datetime` first via `.to_pydatetime()` — psycopg 3 serializes `datetime` inside a dict as an ISO 8601 string; this round-trips correctly on read.
 
-**Do this instead:** Require `db.etl.init()` once at startup. `CREATE TABLE IF NOT EXISTS` makes it safe to call repeatedly.
+**JSONB → Python deserialization:** psycopg 3 deserializes JSONB into Python `dict`. The `_read_watermark` helper returns `row["watermark"]["value"]` — a plain Python scalar (str, int, float, or datetime-string). The caller (in `run()`) passes this directly as `%s` to the incremental SQL; psycopg handles type matching with the DB column.
 
-### Anti-Pattern 2: Writing Run-Tracking Inside the Load Transaction
-
-**What people do:** Put `pipeline_runs` INSERTs/UPDATEs inside the same `db.transaction()` block as the load.
-
-**Why it's wrong:** When the load fails and the transaction rolls back, the `pipeline_runs` row disappears. A failed run leaves no trace.
-
-**Do this instead:** Use independent connections for run-tracking writes, as described in the Transaction Boundaries section.
-
-### Anti-Pattern 3: Blocking Transform in Async Accessor
-
-**What people do:** Call `pipeline.transform(df)` directly inside an async method.
-
-**Why it's wrong:** pandas operations are synchronous and can take seconds. This blocks the entire event loop, starving all other coroutines.
-
-**Do this instead:** `await loop.run_in_executor(None, pipeline.transform, df)`, consistent with the `conn.run_sync` pattern already in `async_database.py`.
-
-### Anti-Pattern 4: ETL Logic in base.py
-
-**What people do:** Add `_extract`, `_load`, or pipeline helpers to `DatabaseBase` or `QueryMixin`.
-
-**Why it's wrong:** The base/mixin layer is for SQL builders and shared config, not for feature-specific orchestration. Adding ETL logic there couples all Database subclasses to ETL concepts. `spatial.py` established the correct pattern: feature logic goes in a dedicated module with a dedicated accessor.
-
-**Do this instead:** All ETL logic stays in `etl.py`. The `Database` and `AsyncDatabase` classes get only a lazy property — no logic.
+**For datetime columns (most common):** the watermark round-trips as an ISO 8601 string. When passed back as a `%s` parameter in `WHERE ts > %s`, psycopg coerces the string to a `timestamptz` for comparison. If strict typing is needed, cast explicitly in the WHERE: `WHERE ts > %s::timestamptz`. The builders should not add this cast by default — keep them type-agnostic. Document the cast option in the numpydoc.
 
 ---
 
-## Suggested Build Order
+## Anti-Patterns to Avoid
 
-Dependencies drive this order. Each step produces a stable, testable artifact before the next step begins. Sync and async are built simultaneously at each step (not sync-first then async catch-up — the PAR-* rework lesson from v0.4.0).
+### Anti-Pattern 1: Watermark from `MAX(col)` DB Query Instead of Batch Max
 
-| Step | Components | Deliverable | Test coverage |
-|------|------------|-------------|---------------|
-| 1 | `Pipeline`, `ExtractSpec`, `LoadSpec` frozen dataclasses + `_validate_pipeline()` | Stable, serializable descriptors | `test_etl.py` unit tests, no DB |
-| 2 | `queries.py` ETL constants + `build_init_sql()` + `build_truncate_sql()` pure builders | SQL string constants ready for accessors | `test_etl.py` unit tests, no DB |
-| 3 | `EtlAccessor.init()` + `AsyncEtlAccessor.init()` + `pipeline_runs` table DDL | Foundation for run tracking | Integration: table exists after `init()` |
-| 4 | `_start_run()` + `_end_run()` (sync + async) | Run lifecycle recording | Integration: rows with correct status appear |
-| 5 | `_extract()` (sync + async) | Extract step for both modes | Integration: DataFrame returned from table or SQL |
-| 6 | `_load(mode="truncate")` (sync + async) | Truncate-load path | Integration: data in target table, idempotent on re-run |
-| 7 | `_load(mode="upsert")` (sync + async) | Upsert-by-key path | Integration: idempotent re-runs, conflict resolution |
-| 8 | `EtlAccessor.run()` + `AsyncEtlAccessor.run()` full wiring | End-to-end pipeline execution | Integration: `run()` returns correct dict; `list_runs()` shows history; failure records commit |
-| 9 | `list_runs()` + `get_last_run()` (sync + async) | Query surface complete | Integration: filtering by name, newest-first ordering |
-| 10 | `db.etl` / `async_db.etl` lazy properties + `__init__.py` exports | Public API wired | Parity test passes; import `from pycopg import Pipeline` works |
-| 11 | Docs page + CHANGELOG + coverage gate check | Shippable milestone | `interrogate >= 95`, coverage >= 94 |
+**What:** Run `SELECT MAX(incremental_column) FROM source` after extract to get the "true" current max.
 
-**Phase decomposition hint for roadmapper:**
-- Phase A: Steps 1–2 (pure layer — no DB, fully unit-tested before any I/O code)
-- Phase B: Steps 3–4 (run tracking foundation — `init()` + `_start_run`/`_end_run`, sync + async)
-- Phase C: Steps 5–7 (load modes — extract + truncate + upsert, sync + async)
-- Phase D: Steps 8–9 (full runner — `run()` + `list_runs` + `get_last_run`, sync + async)
-- Phase E: Step 10–11 (property wiring + exports + docs + release gate)
+**Why wrong:** Rows arriving between the extract snapshot and this MAX query produce a watermark that is ahead of what was loaded. Next run skips those rows permanently.
+
+**Do instead:** `df[incremental_column].max()` — the batch max is the correct, consistent watermark.
+
+### Anti-Pattern 2: Writing Watermark on the Load Transaction Connection
+
+**What:** Update `pipeline_runs.watermark` inside the `db.session()` / `db.transaction()` block alongside the load.
+
+**Why wrong:** If the load transaction rolls back, the watermark UPDATE rolls back too — no problem. But then the separate `_end_run` (on the autocommit connection) writes `status='failed'` without a watermark, which is correct. The real risk is complexity: the load transaction is intentionally isolated from run-log writes (ETL-08/09 invariant). Mixing them breaks the dual-connection architecture.
+
+**Do instead:** Write the watermark in `_end_run` via the autocommit connection, after the load transaction has committed — the existing success path.
+
+### Anti-Pattern 3: Watermark Advances on Empty Batch
+
+**What:** When `df.empty`, still write `new_watermark = datetime.now()` to avoid re-scanning old data.
+
+**Why wrong:** The watermark must reflect `max(incremental_column)` of rows actually processed — not wall-clock time. An empty batch means no new rows were found; the prior watermark is still valid.
+
+**Do instead:** When the batch is empty, call `_end_run(run_id, "success", 0, 0)` without a watermark argument. The watermark column for this row stays `NULL`. The next run reads the last non-null success watermark and gets the same value — correct re-scan boundary.
+
+### Anti-Pattern 4: `replace` + `incremental_column`
+
+**What:** Allow `Pipeline(incremental_column="ts", load_mode="replace")`.
+
+**Why wrong:** `replace` truncates the target before loading. If the load only inserts the incremental window (new rows since last watermark), the TRUNCATE destroys all prior loaded data. Semantically incoherent.
+
+**Do instead:** Raise `ValueError` at `Pipeline.__post_init__` time (construction-time guard, consistent with existing validations). The locked scope decision (ETL-INC-01) mandates `load_mode ∈ {append, upsert}` for incremental.
+
+### Anti-Pattern 5: Mutating `ETL_UPDATE_RUN` to Always Include Watermark
+
+**What:** Add `watermark = %s` to the existing `ETL_UPDATE_RUN` constant and always pass `None` or the watermark.
+
+**Why wrong:** Passing `None` for `watermark` would overwrite a previously-set watermark on a re-used run_id — impossible with BIGSERIAL, but fragile. More importantly, NULL-overwriting makes it impossible to distinguish "run with no incremental" from "incremental run with empty batch". Using two distinct SQL constants (`ETL_UPDATE_RUN` and `ETL_UPDATE_RUN_WITH_WATERMARK`) keeps the failure path completely unchanged and the intent explicit.
+
+---
+
+## Suggested Build Order (Phase 25+)
+
+Dependencies drive this order. The ALIAS-RM-01 work (removing 56 deprecated aliases) is independent of ETL-INC-01 and can run in parallel or sequentially; it is pure deletion work with no dependency on the incremental feature.
+
+#### Phase 25 — Alias removal (ALIAS-RM-01)
+
+Files: `pycopg/database.py`, `pycopg/async_database.py`, alias test files, MIGRATION v0.6→v0.7, CHANGELOG `[0.7.0]` Breaking section. Deliverable: hard-remove 56 deprecated stubs; update parity tests. Tests: alias tests now assert `AttributeError`; parity tests updated.
+
+#### Phase 26 — Incremental ETL: pure layer
+
+Files: `pycopg/etl.py` (`Pipeline.incremental_column` + `__post_init__`), new pure builders (`build_wrapped_source_sql`, `build_incremental_table_sql`, `build_incremental_where_clause`, `_compute_new_watermark`). Deliverable: construction-time validation; pure builders with identifier guards. Tests: unit tests, no DB — `replace`+`incremental_column` raises; identifier validation; SQL shape assertions.
+
+#### Phase 27 — Incremental ETL: run-log integration
+
+Files: `pycopg/queries.py` (2 new constants), `ETLAccessor._read_watermark` + modified `_end_run`, `AsyncETLAccessor._read_watermark` + modified `_end_run`. Deliverable: watermark read/write on dedicated autocommit connections. Tests: integration — first-run writes watermark, failure does NOT advance watermark, empty batch does NOT advance watermark.
+
+#### Phase 28 — Incremental ETL: extract integration + async parity
+
+Files: `ETLAccessor.run()` + `AsyncETLAccessor.run()` modified extract step; `TestEtlParity` confirms `run` signature unchanged. Deliverable: end-to-end incremental — first full load, second load fetches only new rows, correct watermark stored. Tests: integration + async parity — `rows_extracted` reflects only new rows on second run; watermark matches `df[col].max()`.
+
+#### Phase 29 — Release v0.7.0
+
+Files: CHANGELOG `[0.7.0]` finalized, MIGRATION v0.6→v0.7 with full alias table, version bump, Sphinx docs updated, PyPI publish. Gates: coverage ratchet ≥94, `interrogate ≥ 95`, Sphinx `-W` clean.
+
+#### Phase ordering rationale
+
+- Phase 25 (alias removal) first: it is the mechanical debt work with zero ETL coupling. Getting it out of the way keeps the git diff for Phases 26–28 clean and isolated to incremental ETL. It also immediately resolves WR-01 (IDE signature degradation) after one phase.
+- Phase 26 before 27: pure builder layer must exist before the accessor can call them. Unit-testable without DB, so the test suite runs fast and gives confidence before touching live connections.
+- Phase 27 before 28: run-log integration (`_read_watermark`, modified `_end_run`) must be proven correct in isolation (the invariant tests) before wiring into the full `run()` body. Otherwise a subtle bug in watermark-advance logic is buried inside a complex end-to-end flow.
+- Phase 28 last for incremental: the extract modification is the riskiest change (SQL injection surface — subquery wrapping). It builds on proven builders (Phase 26) and proven run-log integration (Phase 27). Async parity is enforced within this phase, not as a separate phase.
+- Phase 29 (release) is gated on all integration tests passing, coverage ratchet, and `interrogate`.
 
 ---
 
 ## Sources
 
-- Direct source reading: `pycopg/spatial.py` (2731 lines) — canonical pattern mirrored
-- Direct source reading: `pycopg/queries.py` — SQL constant style and sectioning convention
-- Direct source reading: `pycopg/base.py` — `DatabaseBase`, `QueryMixin`, `SessionMixin`, pure builder functions
-- Direct source reading: `pycopg/database.py` — `spatial` property (lines 229–249), `transaction()` (lines 316–335), `upsert_many` (lines 484–527)
-- Direct source reading: `pycopg/async_database.py` — `spatial` property (lines 95–110), `run_sync` usage in `to_dataframe`/`from_dataframe` (lines 1937, 1971, 2026)
-- Direct source reading: `pycopg/__init__.py` — `__all__` export conventions
-- Direct source reading: `tests/test_parity.py` — parity harness mechanics (lines 1–110): `inspect.getmembers`, `SYNC_ONLY_METHODS`, `ASYNC_ONLY_METHODS`, signature comparison
-- Direct source reading: `.planning/PROJECT.md` — v0.5.0 scope, deferred items (API-05 savepoints, v0.6.0 watermarks), architectural decisions table
+- Direct source reading: `pycopg/etl.py` (full file, 1477 lines) — `ETLAccessor.run()`, `AsyncETLAccessor.run()`, `_start_run`, `_end_run`, `_fetch_run_result`, `Pipeline.__post_init__`, all existing builders
+- Direct source reading: `pycopg/queries.py` — `ETL_INIT_PIPELINE_RUNS` (watermark column confirmed present), `ETL_UPDATE_RUN` (parameter order), `ETL_GET_LAST_RUN` (no status filter — gap identified), `ETL_INSERT_RUN`
+- Direct source reading: `.planning/PROJECT.md` — v0.7.0 locked scope decisions (ETL-INC-01, ALIAS-RM-01), dual-connection atomicity seam documented in History section, `watermark JSONB` reservation rationale, phase numbering continues from Phase 25
+- Direct source reading: `.planning/research/ARCHITECTURE.md` v0.5.0 — prior architecture decisions, dual-connection invariant explanation, `_row_to_result` drops `watermark` (confirmed — watermark not in RunResult)
 
 ---
 
-*Architecture research for: pycopg v0.5.0 ETL Pipeline Runner*
-*Researched: 2026-06-14*
+*Architecture research for: pycopg v0.7.0 incremental ETL (watermark/CDC) integration*
+*Researched: 2026-06-19*

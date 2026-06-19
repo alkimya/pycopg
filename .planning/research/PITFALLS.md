@@ -1,412 +1,343 @@
 # Pitfalls Research
 
-**Domain:** Same-DB ETL pipeline-runner on psycopg 3 — adding `db.etl.*` / `async_db.etl.*` to pycopg v0.5.0
-**Researched:** 2026-06-14
-**Confidence:** HIGH (codebase read directly; pitfalls derived from actual code patterns, not generic ETL theory)
+**Domain:** Watermark-based incremental ETL added to pycopg v0.7.0 (`Pipeline.incremental_column`, `pipeline_runs.watermark JSONB`, append/upsert only)
+**Researched:** 2026-06-19
+**Confidence:** HIGH (pitfalls derived from direct code reading of `etl.py` and `queries.py`, cross-checked against the locked scope in PROJECT.md)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Failed Run Leaves No Trace — the Log-in-Same-Transaction Trap
+### Pitfall 1: Inclusive vs. Exclusive Boundary — The `>` vs `>=` Trade-Off
 
 **What goes wrong:**
 
-The run-tracking INSERT into `pipeline_runs` lives inside the same transaction as the load step. When the load fails, the transaction rolls back — taking the failure record with it. The next operator has no evidence the run ever started, no error message, no timestamp, no partial row count. Debugging requires grep-ing logs rather than querying `pipeline_runs`.
+Two symmetrical failure modes sit on opposite sides of the same boundary operator.
 
-The mirror failure also exists: if the run-log UPDATE (marking success) runs before a commit that then fails, the "success" record is also rolled back, leaving `pipeline_runs` showing "running" forever.
+Using `>=` re-loads the watermark row on every subsequent run. If the previous run's high-water mark was `2024-01-01 12:00:00`, the next run's filter `WHERE updated_at >= '2024-01-01 12:00:00'` re-extracts every row that matches that exact timestamp. With `load_mode="append"` this produces duplicates immediately. With `load_mode="upsert"` no duplicate rows are written, but the boundary row is re-processed in every run — an unnecessary at-least-once re-send that can cause side effects in transforms.
+
+Using `>` skips the re-processing but silently drops any source rows that committed at exactly the watermark timestamp. In a table with second-granularity `updated_at` and any kind of concurrent writes, multiple rows share the same max timestamp. The batch captured on run N has max `updated_at = T`. On run N+1, the filter `WHERE updated_at > T` silently discards all rows that were written at exactly time T but missed the run-N snapshot (late arrivals, concurrent commits not yet visible at extract time).
 
 **Why it happens:**
 
-The natural implementation wraps everything in one `with db.transaction()` block: open run record → extract → transform → load → update run record → commit. This seems clean but the transaction atomicity guarantee works against observability. The pattern is copied from simpler "wrap all side effects in one transaction" thinking.
+The temptation is to implement `>` because it "avoids re-processing". It does, at the cost of losing boundary-timestamp rows that commit between the run's extract and its watermark advancement. The loss is silent: no error, no missing-row log, just a gap in the target table.
 
 **How to avoid:**
 
-Use a separate, independent connection for all `pipeline_runs` writes. This is the standard pattern in ETL tooling (Airflow, dbt, Prefect all write task state on a dedicated connection with `autocommit=True` to survive the main transaction's rollback).
+Use `>` as the default and require `load_mode="upsert"` for any table with non-unique timestamps (at-least-once semantics: the boundary row is never skipped; if it is re-sent it is idempotent via ON CONFLICT). Document the trade-off explicitly:
 
-Concretely for pycopg:
+- `>` + `upsert`: at-least-once with idempotent re-processing. Correct and safe. Requires `conflict_columns`.
+- `>` + `append`: at-most-once. Correct only when the watermark column is strictly monotonic and unique across all rows (auto-increment ID). Unsafe for timestamp columns.
+- `>=` + `upsert`: also at-least-once safe but unnecessarily re-processes the boundary row on every run.
+- `>=` + `append`: always-duplicates. Reject at construction time (enforce: `incremental_column` + `load_mode="append"` raises `ValueError` unless the user explicitly opts into `append_incremental_unsafe=True`).
 
-1. Open the `pipeline_runs` row immediately on a *new* connection (not the pool's main connection) with `autocommit=True`. Use `psycopg.connect(**db.config.connect_params(), autocommit=True)`.
-2. Run the pipeline (extract → transform → load) on the main connection/pool.
-3. On any exception, write `status='failed'`, `error=str(exc)`, `finished_at=now()` on the same dedicated autocommit connection before re-raising.
-4. On success, write `status='success'`, `rows_loaded=n`, `finished_at=now()` on the dedicated connection.
+Concretely: in `Pipeline.__post_init__`, add: if `incremental_column` is set and `load_mode == "append"`, raise `ValueError("incremental_column with load_mode='append' risks duplicates; use load_mode='upsert' or confirm idempotency via conflict_columns")`.
 
-The dedicated connection must be opened and closed within the runner function — never grabbed from the existing pool while the pool may be exhausted (see Pitfall 4).
+The filter injected into the SQL source wrap must use `col > %s` (strict greater-than) and the docstring must explain the at-least-once contract for upsert.
 
 **Warning signs:**
 
-- `pipeline_runs` table has a "running" row with no corresponding failure row after a known-failed run.
-- `SELECT * FROM pipeline_runs WHERE status = 'running' AND started_at < now() - interval '1 hour'` returns rows.
-- The run-log INSERT is inside the same `db.transaction()` context manager as the TRUNCATE and the INSERT of loaded data.
+- Filter uses `>=` and `load_mode="append"` — re-processing every run doubles the target rows.
+- Filter uses `>` and `load_mode="append"` — silent data loss on any table with non-unique timestamps.
+- Tests do not include a scenario where two source rows share the same max timestamp; only one runs per test.
 
 **Phase to address:**
 
-Run-tracking phase (design the schema + runner skeleton). Must be settled before the load phase is wired, because the load transaction boundary depends on this decision. Write a test: deliberately fail the load step and assert a `failed` row exists in `pipeline_runs`.
+Phase 25 (Pipeline incremental design and `__post_init__` validation). The `>` vs `>=` decision must be locked in the constructor validation and documented in the API docstring before any runner code is written. Add a test: two source rows at the same timestamp; verify both are captured by the next incremental run.
 
 ---
 
-### Pitfall 2: Truncate-Then-Fail Destroys Target Data With No Recovery Path
+### Pitfall 2: Low-Resolution or Non-Monotonic Watermark Column
 
 **What goes wrong:**
 
-Truncate-load order is: TRUNCATE target → extract from source → transform → INSERT into target. If extraction or transform fails after the TRUNCATE but before data is inserted, the target table is empty and the source data is still in its original table (because same-DB). However if the TRUNCATE and INSERT are in the same transaction, a rollback restores the target — which is correct and safe. The trap is implementing truncate-load outside a transaction (e.g., as two separate `autocommit` statements), leaving the target empty with no rollback possible.
+The watermark is only as good as the column it tracks. Three common failure modes:
+
+1. **Second-granularity timestamps (`TIMESTAMP` without fractional seconds):** A batch completes at `12:00:00.500`. PostgreSQL stores the max as `12:00:00` (second boundary). New rows written at `12:00:00.800` (still the same second) are stored as `12:00:00`. Next run filter: `WHERE col > '12:00:00'` — those rows are included. Appears correct. But if the column is truly `TIMESTAMP(0)`, new rows at `12:00:00` are stored as `12:00:00`, and the filter `col > '12:00:00'` skips them silently.
+
+2. **Application-layer `updated_at` set by the client:** If the application inserts rows with `updated_at = datetime.now()` on the writer's clock and the writer machine has clock skew (even 1–2 seconds of NTP drift), a row written at wall-clock `T+1s` may arrive in PostgreSQL with `updated_at = T-0.5s`. The watermark from the previous run was `T`. Next run filter: `WHERE col > T` — the late-clock row at `T-0.5s` is silently skipped forever.
+
+3. **`updated_at` updated by application logic, not DB trigger:** Bulk update statements (`UPDATE table SET updated_at = now() WHERE ...`) are correct. But application code that forgets to set `updated_at` on an UPDATE leaves stale timestamps. The watermark never advances past those rows because the filter doesn't see them as new.
 
 **Why it happens:**
 
-Developers think "TRUNCATE is fast and I'll INSERT right after" and skip the transaction wrapper. This is particularly likely when COPY is used for the INSERT (the existing `copy_insert` opens its own `conn.commit()` — see `database.py:694`), because COPY already manages its own commit internally, making it incompatible with an outer transaction without explicit savepoints or a staging table.
+Developers pick `updated_at` because it semantically means "last changed" without auditing whether the column is set reliably by a DB-level trigger or by fallible application code. Clock skew is invisible in development (same machine) and surfaces only in distributed production environments.
 
 **How to avoid:**
 
-For truncate-load: always wrap TRUNCATE + INSERT in a single `db.transaction()` block. This guarantees atomicity: either both succeed or the target is restored.
+Document clearly: `incremental_column` must be a column that is:
+- Set by a database-level `DEFAULT now()` or `BEFORE UPDATE` trigger (not application code).
+- Of type `TIMESTAMPTZ` with microsecond precision (not `TIMESTAMP(0)`).
+- Monotonically non-decreasing under inserts (can share values; must not go backwards).
 
-For large-data loads where COPY performance is needed: use a staging table pattern — INSERT into `target_staging` via COPY (own commit), then `BEGIN; TRUNCATE target; INSERT INTO target SELECT * FROM target_staging; COMMIT; DROP TABLE target_staging`. The staging copy is resumable; only the atomic swap risks data loss if crashed mid-swap, and the source is always intact.
+For integer/sequence watermarks (auto-increment `id`), the above constraints reduce to: must be strictly increasing per INSERT. Sequence columns are ideal watermark candidates.
 
-For v0.5.0's scope (same-DB, not huge tables initially), the simple `TRUNCATE + batch INSERT` inside one transaction is the safe default. Document that COPY-based truncate-load is deferred.
+In the `Pipeline` docstring for `incremental_column`, list these constraints explicitly. pycopg cannot validate them at construction time (no schema introspection at pipeline-define time), but the docstring is the contract.
 
 **Warning signs:**
 
-- `TRUNCATE` is called via `db.execute(..., autocommit=True)` anywhere in the load path.
-- The existing `copy_insert` method is used for truncate-load without a staging table.
-- Tests do not assert that a failed mid-load leaves the target in its pre-run state.
+- Watermark column is `TIMESTAMP` (no timezone, no fractional seconds).
+- `updated_at` is set by application code without a DB trigger fallback.
+- Test environment is single-machine (clock skew not observable); clock-skew scenarios not in the test suite.
+- Two consecutive incremental runs on a static dataset extract 0 rows but the target is known to be incomplete.
 
 **Phase to address:**
 
-Load phase (idempotent load implementation). Write a specific test: start truncate-load, raise an exception mid-insert, assert target row count equals the pre-run count (not zero).
+Phase 25 (API design + docstring). The column contract belongs in `Pipeline.incremental_column` docstring. Add a test with an integer sequence watermark and a test with a `TIMESTAMPTZ` microsecond watermark; include a negative test where a source row has a timestamp 1 second before the current watermark and assert it is NOT re-extracted (proves the boundary semantics are as documented).
 
 ---
 
-### Pitfall 3: Upsert With Missing or Wrong Conflict Key — Silent Duplicates or Constraint Errors
+### Pitfall 3: Advancing the Watermark on a Failed or Partially-Applied Load
 
 **What goes wrong:**
 
-Two failure modes. First: the conflict key is not the table's actual unique/PK constraint. psycopg's `ON CONFLICT (col)` requires an exact index match. If `conflict_columns` doesn't match an existing unique index, PostgreSQL raises `ERROR: there is no unique or exclusion constraint matching the ON CONFLICT specification` — loud and clear. But if the caller passes a subset of the natural key (e.g., `conflict_columns=["id"]` when the PK is actually `(id, source)`), the INSERT silently creates duplicates because the conflict never triggers.
-
-Second: if `update_columns` is empty (all columns are conflict columns), the generated `DO UPDATE SET` clause is empty, which raises a syntax error. The existing `upsert_many` in database.py computes `update_columns = [c for c in columns if c not in conflict_columns]` but does not guard against the empty-update case.
-
-**Why it happens:**
-
-The ETL pipeline definition will accept `conflict_columns` as a user-provided list. Users copy column names by hand, miss a composite key component, and get no immediate error because inserts still succeed (they just don't deduplicate). The bug only surfaces when data accumulates or when a unique constraint elsewhere catches the duplicate.
-
-**How to avoid:**
-
-1. At pipeline definition time (not run time), validate that the `conflict_columns` list is non-empty.
-2. Guard that `update_columns` (or the derived set) is non-empty when using upsert mode. If all columns are conflict columns, raise `ValueError("upsert_mode requires at least one non-conflict column to update; use load_mode='truncate' for replace semantics")`.
-3. Document clearly: the user must ensure `conflict_columns` matches an existing unique constraint or PK. pycopg cannot auto-detect this without an introspection query (which would be overengineering for v0.5.0).
-4. Consider an optional `verify_conflict_constraint=True` flag on the pipeline that does a one-time introspection check via `pg_constraint`.
-
-**Warning signs:**
-
-- `pipeline_runs` shows `rows_loaded=N` but `SELECT COUNT(*) FROM target` grows without bound across re-runs (duplicates accumulating).
-- `conflict_columns` is set to `["id"]` on a table with a composite PK.
-- No test asserts that re-running a pipeline leaves the row count unchanged (idempotency assertion).
-
-**Phase to address:**
-
-Pipeline definition and load phase. Add a test: run the same pipeline twice with upsert mode; assert `SELECT COUNT(*) FROM target` is the same after both runs.
-
----
-
-### Pitfall 4: Pool Exhaustion When Run-Log Connection Is Grabbed From the Same Pool
-
-**What goes wrong:**
-
-If the run-log writes (open, update, close) use `async_db.execute(...)` or `db.execute(...)` — which draw from the connection pool — while the main pipeline connection is already held, a pool of size 1 deadlocks: the main connection waits for the log write, the log write waits for a free connection. With pool size > 1 this works but wastes a connection slot and makes the ETL surface depend on pool sizing.
-
-For the async path this is more dangerous: `AsyncDatabase` uses `psycopg_pool.AsyncConnectionPool`. If the runner holds one connection for the duration of the run and then tries to execute the run-log update on the same pool's second connection, concurrency is lost and pool exhaustion is a ticking clock as more pipelines run simultaneously.
-
-**Why it happens:**
-
-The simplest implementation of run-log writes reuses `self._db.execute(...)`. This is natural — why open a new connection when we already have one? The answer is that the log write must survive the main transaction's rollback, which requires a *separate* connection outside the pool's transaction lifecycle.
-
-**How to avoid:**
-
-Open the dedicated run-log connection directly via `psycopg.connect(...)` / `psycopg.AsyncConnection.connect(...)` using `db.config.connect_params()`, not via the pool. Close it explicitly in a `finally` block. This is a raw connection, not managed by the pool, so it does not exhaust pool slots and its commits are independent.
-
-For the async path, the run-log connection must be `await psycopg.AsyncConnection.connect(..., autocommit=True)` and closed with `await log_conn.close()` in `finally`.
-
-**Warning signs:**
-
-- The runner method calls `self._db.execute("INSERT INTO pipeline_runs ...")` while inside a `with self._db.transaction()` block.
-- Pool size is 1 and a test hangs (deadlock) when both the main flow and run-log write are attempted.
-- The run-log connection appears in `pg_stat_activity` with a name tied to the pool connection label.
-
-**Phase to address:**
-
-Run-tracking phase. Test: configure a pool of size 1; run a pipeline; assert it completes without hanging and that the run-log row was written.
-
----
-
-### Pitfall 5: Sync Transform Called Bare Inside the Async Runner (Blocks the Event Loop)
-
-**What goes wrong:**
-
-The transform callable is a user-supplied Python function, typically operating on a pandas DataFrame. pandas is synchronous and CPU-bound. If the async runner calls it directly — `result = transform_fn(df)` — it blocks the event loop for the duration of the transform, stalling all other coroutines. For large DataFrames this can block for seconds.
-
-This is exactly the problem `run_sync` / `conn.run_sync` was adopted for in the existing `AsyncDatabase.to_dataframe` / `from_dataframe` (see `async_database.py:1937`).
-
-**Why it happens:**
-
-The transform callable's type is `Callable[[pd.DataFrame], pd.DataFrame]` — identical between sync and async paths. The async runner naturally calls it the same way as the sync runner does, forgetting that in async context the call must be delegated to a thread pool.
-
-**How to avoid:**
-
-In the async runner, wrap all transform calls in `await asyncio.to_thread(transform_fn, df)` (Python 3.9+; pycopg already requires 3.11+). This is the correct async pattern for CPU/IO-bound callables.
-
-The async runner method signature remains identical to the sync runner (for parity), but internally the transform dispatch differs: sync calls `transform_fn(df)` directly; async calls `await asyncio.to_thread(transform_fn, df)`.
-
-Document the contract: transforms must be thread-safe (they receive a DataFrame slice, not a shared reference). Since transforms operate on in-memory DataFrame copies, thread safety is trivially satisfied.
-
-**Warning signs:**
-
-- The async runner's transform dispatch reads `result = transform_fn(df)` without `await asyncio.to_thread(...)`.
-- The async runner test passes with small DataFrames but the event loop appears to stall under load.
-- `asyncio.sleep(0)` injected into a concurrent coroutine never yields during a pipeline run.
-
-**Phase to address:**
-
-Async accessor phase (ETL parity). Write a test: run a pipeline with a slow transform (`time.sleep(0.1)` inside) concurrently with an `asyncio.sleep(0)` task; assert the sleep task completes while the transform is running (fails if the event loop is blocked).
-
----
-
-### Pitfall 6: Identifier Injection via f-String Table Names in Load Builders
-
-**What goes wrong:**
-
-The ETL load step needs to generate SQL like `TRUNCATE public.target_table` and `INSERT INTO public.target_table (col1, col2) VALUES (...)`. The temptation is to use f-strings directly: `f"TRUNCATE {schema}.{table}"`. This bypasses the `validate_identifiers` guard that every other module in pycopg uses and that was specifically hardened in v0.3.1.
-
-This is a security regression: a pipeline definition with `target_table="target; DROP TABLE users; --"` would execute arbitrary SQL.
-
-**Why it happens:**
-
-The ETL load builder is new code written quickly; the developer knows the identifier validation exists in `utils.py` but writes the SQL builder first ("I'll add validation later") and later never comes. The spatial.py builders are a working example of every identifier passing through `validate_identifiers` before interpolation — the ETL builders must follow the same pattern.
-
-**How to avoid:**
-
-Copy the spatial.py builder pattern exactly: the ETL load builder functions (analogous to `build_contains_sql`) must call `validate_identifiers(table, schema)` and `validate_identifiers(*conflict_columns)` before any string interpolation. Column lists must be validated before joining. Values are always `%s` parameters, never f-string interpolated.
-
-The existing `upsert_many` already calls `validate_identifiers(*conflict_columns)` and `validate_identifiers(*update_columns)` — the ETL builders must reuse this same call site pattern, not replicate it ad-hoc.
-
-**Warning signs:**
-
-- Any ETL load builder function that does not call `validate_identifiers` before the first f-string including a user-supplied identifier.
-- A test_sql_injection.py test that does NOT cover `db.etl.run(pipeline=Pipeline(target="malicious; DROP"))`.
-- Column names from a DataFrame being joined with `", ".join(df.columns)` without validation.
-
-**Phase to address:**
-
-Load phase (SQL builder, day one). Add ETL cases to `test_sql_injection.py`. This must be in the first load phase, not deferred to a hardening phase.
-
----
-
-### Pitfall 7: Materializing the Full Source Table Into Memory for Transform
-
-**What goes wrong:**
-
-The transform callable receives a `pd.DataFrame`. For a small table (thousands of rows) this is fine. For a large table (millions of rows) this is a silent OOM bomb: `to_dataframe("source_table")` reads the entire table into a single DataFrame before the transform is called, exhausting memory with no warning.
-
-The tension is fundamental: Python-callable transforms need data in memory; large tables cannot fit in memory. The wrong solution is to silently allow unbounded extraction. The right solution is to document the constraint and add a safety opt-in.
-
-**Why it happens:**
-
-The MVP is designed for medium-sized datasets where the pattern works. No one adds a limit to the extraction query because "the user knows their data". Then the first production run on a 50M-row table OOMs the process.
-
-**How to avoid:**
-
-For v0.5.0 (same-DB, DataFrame transforms):
-
-1. Add an optional `extract_limit: int | None = None` parameter to the pipeline definition. When set, the extraction SQL appends `LIMIT {int(extract_limit)}`.
-2. Add an optional `extract_batch_size: int | None = None` parameter. When set, the runner uses `db.stream(sql, batch_size=extract_batch_size)` to iterate in batches, calling the transform on each batch DataFrame and loading each batch incrementally.
-3. Document prominently: "The default extraction materializes the full result set into a DataFrame. For tables larger than available RAM, use `extract_batch_size` to process in chunks."
-4. Do NOT silently limit extraction (e.g., force `LIMIT 10000`). That would silently corrupt the load for large tables.
-
-The existing `db.stream()` method (database.py:529, async_database.py:2204) is the mechanism for batch extraction. The ETL runner uses it when `extract_batch_size` is set.
-
-**Warning signs:**
-
-- The extraction step always calls `db.to_dataframe(sql=extract_sql)` with no size guard.
-- No parameter on `Pipeline` or `run()` controls extraction size.
-- The docs do not mention memory requirements.
-
-**Phase to address:**
-
-Extract phase. Document the memory model in the API docstring. Implement `extract_limit` and `extract_batch_size` as optional parameters from the start rather than retrofitting them.
-
----
-
-### Pitfall 8: Re-Run While Previous Run Is Still "Running" — Concurrent Execution Corruption
-
-**What goes wrong:**
-
-Two concurrent calls to `db.etl.run(pipeline)` both read `pipeline_runs` and find no active run, then both proceed to TRUNCATE the target and INSERT. With truncate-load, the second TRUNCATE wipes the first run's partial inserts. With upsert mode, both runs write the same conflict keys and the result is non-deterministic. The `pipeline_runs` table ends up with two "running" rows for the same pipeline.
-
-**Why it happens:**
-
-The status check ("is this pipeline already running?") and the run-log INSERT are not atomic. A standard SELECT + INSERT has a race window. This is the classic check-then-act TOCTOU problem.
-
-**How to avoid:**
-
-Use PostgreSQL advisory locks. Before starting the pipeline:
-
-```sql
-SELECT pg_try_advisory_lock(hashtext('pipeline:' || pipeline_name))
+The watermark is written to `pipeline_runs.watermark` as part of `_end_run`. If the watermark is written before confirming the load transaction committed — or if `_end_run` is called with `"success"` when the load raised an exception that was caught and swallowed — the next run starts from a watermark that skips rows whose load never completed. Those rows are silently dropped from the target forever.
+
+Looking at the current `_end_run` implementation: it runs on a dedicated autocommit connection, independent of the load transaction. This is correct for failure visibility (the failed run row commits even when the load rolls back) but requires care for the success path: the watermark must only be written AFTER the load transaction's `COMMIT` is confirmed. If the load transaction is inside `with self._db.session(): with self._db.transaction() as conn:` and the watermark is written in the `except` block by mistake, or if the code writes the watermark in `_end_run` before the `with` block exits, the watermark advances even when the load rolled back.
+
+Current code structure in `etl.py` (lines 994–1005):
+```
+try:
+    ... load transaction ...
+except Exception as exc:
+    self._end_run(run_id, "failed", ...)  # <-- correct: failed path
+    raise
+
+self._end_run(run_id, "success", ...)  # <-- correct: only reached on success
+return self._fetch_run_result(run_id)
 ```
 
-If this returns false, the pipeline is already running — raise `PipelineAlreadyRunning` and exit. Advisory locks are session-scoped in PostgreSQL and automatically released when the connection closes, so they survive abnormal termination. They require no schema migration.
-
-Use `pg_try_advisory_lock` (non-blocking) rather than `pg_advisory_lock` (blocking) so the caller gets an immediate error rather than a hang.
-
-The advisory lock must be acquired on the dedicated run-log connection (the same connection opened for run-log writes), so the lock persists for the duration of the run and is released atomically when the log connection closes.
-
-**Warning signs:**
-
-- `pipeline_runs` has two rows with `status='running'` and the same `pipeline_name`.
-- No advisory lock or unique constraint guards concurrent pipeline execution.
-- Tests do not test concurrent `run()` calls on the same pipeline name.
-
-**Phase to address:**
-
-Run-tracking phase. Write a test: a second concurrent `run()` call raises `PipelineAlreadyRunning` immediately rather than proceeding.
-
----
-
-### Pitfall 9: `test_parity` Passes but ETL Async Accessor Is Missing Methods
-
-**What goes wrong:**
-
-The `test_parity` harness (test_parity.py) inspects `inspect.getmembers(Database)` for all non-underscore members. If `db.etl` is a property returning `EtlAccessor` and `async_db.etl` is a property returning `AsyncEtlAccessor`, the property name `etl` appears in both and parity passes. But if `EtlAccessor` has method `run` and `AsyncEtlAccessor` is missing `run`, the *accessor's* methods are invisible to `test_parity` — it only sees top-level Database/AsyncDatabase members.
-
-The risk is implementing the ETL accessor with full `EtlAccessor` coverage but forgetting to wire the async accessor, then having `test_parity` pass because both have an `etl` property, while `async_db.etl.run()` is missing.
+The pattern is correct for the non-incremental path. For the incremental path, the `max(col)` watermark value must be computed and passed to `_end_run` only on the success path, never on the failure path. The `except` block must pass `watermark=None` (or not update the watermark column at all).
 
 **Why it happens:**
 
-The `test_parity` harness checks `Database` vs `AsyncDatabase` surface. It does not recursively inspect accessor classes. The spatial accessor had the same gap: SpatialAccessor and AsyncSpatialAccessor needed their own parity test (test_spatial.py covers both sync and async paths).
+The `_end_run` function currently does not write the watermark column — `ETL_UPDATE_RUN` in `queries.py` (lines 270–279) does not include a `watermark = %s` SET clause. When watermark support is added, the temptation is to add `watermark = %s` to `ETL_UPDATE_RUN` and pass the computed watermark in every `_end_run` call. If the `except` path then passes the computed watermark (which was set before the exception), the watermark advances on failure.
 
 **How to avoid:**
 
-1. Add a dedicated `TestEtlParity` test class (analogous to the spatial parity tests in test_spatial.py) that inspects `EtlAccessor` vs `AsyncEtlAccessor` method surfaces using the same `inspect.getmembers` pattern.
-2. Add behavioral parity tests: run the same pipeline on both `db.etl` and `async_db.etl`, assert identical `pipeline_runs` outcomes and target row counts.
-3. The `SYNC_ONLY_METHODS` and `ASYNC_ONLY_METHODS` sets in `TestAsyncParity` must remain unchanged (neither `etl` nor its methods should be added as exceptions).
+Two design choices, either is safe:
+
+Option A (recommended): Add `watermark` as a keyword argument to `_end_run(... watermark=None)`. On the success path, pass `watermark=json.dumps({"col": col_name, "value": serialized_value})`. On the failure path, always pass `watermark=None` (do not update the watermark column). The `ETL_UPDATE_RUN` query only sets `watermark` when the argument is non-None, or use a separate `ETL_UPDATE_RUN_WITH_WATERMARK` constant that includes `watermark = %s`.
+
+Option B: Keep `ETL_UPDATE_RUN` unchanged (no watermark column); add a separate `ETL_SET_WATERMARK` query run only on the success path after `_end_run`. This makes the watermark write visibly separate from the status update.
+
+Either way: the test must verify that after a deliberately-failed load, the `pipeline_runs.watermark` for that run row is NULL, and the next successful run re-extracts the full delta from the previous successful watermark.
 
 **Warning signs:**
 
-- `test_parity.py` passes but `async_db.etl.run()` has not been implemented.
-- `EtlAccessor` and `AsyncEtlAccessor` have different method names or signatures.
-- No test file named `test_etl.py` or `test_etl_parity.py` with accessor-level method inspection.
+- `_end_run` receives the computed watermark value in the `except` block as well as the success block.
+- `ETL_UPDATE_RUN` sets `watermark = %s` unconditionally and the caller passes the watermark from a pre-exception code path.
+- No test asserts that a failed incremental run does not advance the watermark.
 
 **Phase to address:**
 
-Async accessor phase. Write the accessor parity test skeleton before implementing `AsyncEtlAccessor`, so the test fails (xfail or outright) until the async implementation is complete.
+Phase 25 or 26 (whichever phase implements the runner + watermark write). This must be verified with a test: deliberately fail the load of an incremental pipeline; assert `pipeline_runs.watermark IS NULL` for the failed run row; assert the next successful run re-extracts rows from the pre-failure watermark.
 
 ---
 
-### Pitfall 10: `pipeline_runs` Schema Blocks v0.6.0 Watermarks — Non-Additive Design
+### Pitfall 4: Snapshot Hazard — Computing max(col) From the Extracted Batch While Concurrent Writes Occur
 
 **What goes wrong:**
 
-v0.5.0 defers incremental watermarks to v0.6.0. If `pipeline_runs` is designed without watermark columns in mind, v0.6.0 will require an `ALTER TABLE pipeline_runs ADD COLUMN watermark_value TEXT` migration — which is additive and safe — or worse, a destructive schema change if the status enum or primary key were designed incompatibly.
+The incremental ETL sequence is:
+1. Read `last_watermark` from `pipeline_runs`.
+2. Extract: `SELECT * FROM source WHERE col > last_watermark`.
+3. Transform.
+4. Load.
+5. Compute new watermark: `max(col)` from the extracted DataFrame.
+6. Write new watermark to `pipeline_runs`.
 
-The specific trap: designing `pipeline_runs` with `status` as a PostgreSQL `ENUM` type. Adding a new enum value (`'partial'`) in v0.6.0 requires `ALTER TYPE` which in older PostgreSQL versions is not transactional and can cause production issues. Using a plain `TEXT` column for status avoids this.
+Between steps 2 and 6, concurrent transactions in the source table may INSERT new rows with `col` values between `last_watermark` and `new_watermark`. Those rows are NOT in the extracted DataFrame (they committed after the snapshot of step 2) but they ARE older than the new watermark. The next run filter `WHERE col > new_watermark` skips them silently — they are lost.
+
+This is the fundamental "read committed snapshot hazard" in incremental ETL. It is unavoidable without a read-committed snapshot isolation or a CDC mechanism. The risk is proportional to:
+- Write throughput on the source table during the ETL window.
+- Duration of the extract step (longer = more concurrent commits sneak in).
+
+For pycopg's same-DB scope, the source and target are in the same PostgreSQL instance, and the extract uses psycopg 3 with `READ COMMITTED` (default). In READ COMMITTED, each statement sees a snapshot of rows committed before that statement began — not a consistent snapshot for the entire transaction. So concurrent commits during the extract are invisible to step 2 but have `col` values inside the `[last_watermark, new_watermark]` range.
 
 **Why it happens:**
 
-Developers use Postgres ENUM because it feels more correct for a fixed set of values ('running', 'success', 'failed'). But ENUM types are hard to evolve and offer no real constraint benefit over a TEXT column with a CHECK constraint.
+Developers compute `new_watermark = df[incremental_column].max()` from the batch DataFrame and assume it is safe to use as the next filter boundary. This is correct only if the source table has no concurrent writes during the extract window — which is true in practice for batch-overnight ETL but false for any near-real-time pipeline.
 
 **How to avoid:**
 
-Design `pipeline_runs` with explicit forward compatibility from day one:
+Two mitigations (implement the first, document the second):
 
-```sql
-CREATE TABLE pipeline_runs (
-    id SERIAL PRIMARY KEY,
-    pipeline_name TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
-    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    finished_at TIMESTAMPTZ,
-    rows_extracted INTEGER,
-    rows_loaded INTEGER,
-    error TEXT,
-    -- v0.6.0 watermark slots (nullable, ignored by v0.5.0 runner):
-    watermark_column TEXT,
-    watermark_value TEXT
-);
+1. **Compute the watermark from the DB, not the batch:** Instead of `df[col].max()`, run `SELECT max(col) FROM source WHERE col > last_watermark` as a separate query using a snapshot taken at the start of the run. Use `BEGIN ISOLATION LEVEL REPEATABLE READ` for the extract query so the snapshot is consistent. Then advance only to the max that was visible at the start of the run, not the running max at the time of step 5.
+
+   For v0.7.0's scope (no streaming, full-batch extract into DataFrame), this reduces to: capture `new_watermark = db.fetch_val("SELECT max({col}) FROM ...")` at the same time as (or before) the extract, using the same transaction snapshot. This requires the extract and the watermark-max query to share a transaction (not use `autocommit`).
+
+2. **Document the gap and recommend a safe-lag offset:** For append-only sources, document: "To avoid losing concurrent inserts at the boundary, set `watermark_lag_seconds=N` to advance the watermark to `max(col) - N seconds`. This causes each run to re-extract the last N seconds of data, which upsert mode handles idempotently."
+
+   For v0.7.0 MVP with upsert mode: the combination of `>` filter and idempotent upsert means boundary-row re-processing is safe. The snapshot hazard only causes data loss if a concurrent row's `col` value falls exactly in the gap between `last_watermark` and `max(extracted_batch_col)`. With upsert, those rows are loaded on the next run if they share the new watermark value (picked up by the `>=` window). Document this residual risk.
+
+**Warning signs:**
+
+- `new_watermark` is computed from `df[incremental_column].max()` with no consideration of concurrent transactions.
+- The extract uses a regular `to_dataframe` call (autocommit connection, READ COMMITTED) with no snapshot isolation.
+- No test simulates a concurrent insert between extract and watermark-advance.
+
+**Phase to address:**
+
+Phase 26 (runner implementation, watermark compute logic). Document the isolation level used and the residual gap. The MVP v0.7.0 may accept the gap with documentation; a future milestone can add snapshot isolation or `watermark_lag`.
+
+---
+
+### Pitfall 5: NULLs in the Watermark Column
+
+**What goes wrong:**
+
+`df[incremental_column].max()` in pandas returns `NaN` (for numeric columns) or `NaT` (for datetime columns) when the column contains only NULL values. The NaN/NaT → None coercion (`df.astype(object).where(pd.notnull(df), None)`) is already applied to the loaded rows, but the watermark computation happens after this coercion on a potentially all-None column. `None` as a JSONB watermark means the next run reads `watermark IS NULL` and falls back to a full load — which is safe but may be unexpected.
+
+A more dangerous failure: if the source table has NULLs mixed with valid timestamps in `incremental_column`, the `max()` in pandas silently ignores NULLs and returns the non-NULL max. This is correct Python/pandas behavior but means NULL-valued rows are never included in the `col > last_watermark` filter (PostgreSQL `NULL > T` is `NULL`, which evaluates as `false` in a `WHERE` clause). Those rows are silently excluded from every incremental run.
+
+**Why it happens:**
+
+The watermark column is chosen by the user without verification that it is `NOT NULL`. NULL semantics in SQL WHERE clauses (`NULL > value` = `NULL`, not `TRUE`) mean NULL rows are invisible to the filter. Pandas `max()` silently drops NULLs when computing the watermark, so the code appears correct but the NULL rows are never loaded.
+
+**How to avoid:**
+
+1. At construction time, do not attempt to validate the column's nullability (schema introspection at define-time is overengineering for v0.7.0).
+2. At run time, after computing `watermark_value = df[incremental_column].max()`, check: `if pd.isna(watermark_value): raise ETLIncrementalError("incremental_column '{col}' produced a NULL watermark — column may be all-NULL or not present in the extracted batch")`.
+3. In the docstring: "The `incremental_column` must be `NOT NULL` in the source table. Rows with `NULL` in this column are excluded by the `WHERE col > %s` filter and will never be loaded incrementally."
+4. For the SQL source wrap, `SELECT * FROM (<sql>) sub WHERE col > %s` correctly excludes NULL-col rows (SQL NULL comparison returns NULL, not TRUE). This is the documented behavior, not a bug — but must be called out.
+
+**Warning signs:**
+
+- `incremental_column` points to a nullable column with no NOT NULL constraint in the source table.
+- The extracted DataFrame has `df[incremental_column].isna().any()` but no error is raised.
+- The watermark value stored in `pipeline_runs.watermark` is `null` (JSON null) after a run that extracted rows — indicates the watermark column was all-NULL in the batch.
+
+**Phase to address:**
+
+Phase 26 (runner implementation). Add NULL watermark detection after `max()` computation. Add test: source table with one row having `NULL` in `incremental_column`; assert the runner raises or warns; assert the NULL row is not silently loaded and then lost.
+
+---
+
+### Pitfall 6: JSONB Serialization Round-Trip Type Drift
+
+**What goes wrong:**
+
+The watermark is stored as `pipeline_runs.watermark JSONB` (per the existing DDL in `queries.py`). The round-trip `Python value → JSON string → JSONB → Python value` introduces type drift for several types:
+
+1. **`datetime` → JSON string → text comparison on next run:** If the watermark is a `datetime` object serialized to JSON as `"2024-01-01T12:00:00+00:00"`, it is read back as a string. The incremental filter then compares `col > '2024-01-01T12:00:00+00:00'` where `col` is a `TIMESTAMPTZ`. PostgreSQL will cast the string literal to `TIMESTAMPTZ` for comparison (implicit cast), which works — but the round-trip must preserve the timezone designator. A naive `datetime.isoformat()` without `+00:00` or `Z` produces a timezone-naive string that PostgreSQL interprets in the session timezone, not UTC, causing offset-by-N-hours skips.
+
+2. **`Decimal` → float precision loss:** A numeric watermark column with type `NUMERIC(18,6)` returns a `Decimal` from psycopg 3. `json.dumps(Decimal("123456789012.123456"))` raises `TypeError`. A naïve `float(watermark_value)` loses precision. `str(watermark_value)` is safe for JSON storage but must be deserialized as `Decimal`, not `float`, on read.
+
+3. **Large integer (`BIGINT`) → float:** JSON numbers have no integer/float distinction. `json.dumps({"value": 9007199254740993})` → `9007199254740993` (correct). `json.loads(...)["value"]` → `9007199254740993` (Python int, correct). But some JSON libraries round large integers to float; verify `json.loads` returns `int` for integers within Python's arbitrary precision range.
+
+4. **psycopg 3 returns the `watermark` column as a Python `dict`** (JSONB → dict via the built-in adapter). Reading `row["watermark"]` gives `{"col": "updated_at", "value": "2024-01-01T12:00:00+00:00"}` — the value is a string, not a `datetime`. The filter param `%s` sent to psycopg 3 with a string value for a `TIMESTAMPTZ` column works via implicit PostgreSQL cast, but must be tested explicitly.
+
+**Why it happens:**
+
+JSON is the natural "schema-free" storage for a dynamic watermark value, but it erases Python/PostgreSQL type information. The developer serializes a `datetime` with `isoformat()` without confirming the round-trip produces the exact same value (timezone offset intact, microseconds intact) and that PostgreSQL accepts the string for comparison with the source column type.
+
+**How to avoid:**
+
+Define a strict serialization contract for the watermark JSONB:
+- `datetime`/`date`: serialize with `isoformat()` only after ensuring `tzinfo=UTC` (enforce `datetime.now(UTC)`, not naive `datetime.now()`). Deserialize via `datetime.fromisoformat()`.
+- `int` / `BIGINT`: serialize as JSON integer (no quotes). Deserialize as Python `int`. Test with values > 2^53.
+- `Decimal` / `NUMERIC`: serialize as quoted string (`str(value)`). Deserialize as `Decimal`. Never via `float`.
+- `date`: serialize as `"YYYY-MM-DD"` string; deserialize via `datetime.date.fromisoformat()`.
+
+Store in JSONB as `{"col": "<column_name>", "value": <serialized>, "type": "datetime"|"int"|"decimal"|"date"}` so the reader knows which deserializer to apply.
+
+The `type` discriminator field removes guessing and allows forward-compatible extensions.
+
+Write a round-trip test for each supported type: `serialize(v) → store as JSONB → read back → deserialize → assert == v` with no precision loss and correct timezone.
+
+**Warning signs:**
+
+- Watermark is serialized via `json.dumps({"value": watermark_value})` without handling `datetime` types (raises `TypeError`).
+- Round-trip test not present in the test suite.
+- Timezone-naive `datetime` values are used as watermarks on `TIMESTAMPTZ` columns.
+- Large integer watermarks are deserialized as `float` and compared with `==` to the original (fails above 2^53).
+
+**Phase to address:**
+
+Phase 25 or 26 (whichever defines the watermark serialization utilities). Write the round-trip test before wiring the runner. The serialization helpers must be pure functions (no DB), unit-testable without a real PostgreSQL instance.
+
+---
+
+### Pitfall 7: Transform Chain Drops the Watermark Column Before max() Is Computed
+
+**What goes wrong:**
+
+The watermark is computed from the post-transform DataFrame: `new_watermark = df[incremental_column].max()`. If any transform step drops the `incremental_column` (e.g., `df.drop(columns=["updated_at"])` or a `df[["col1", "col2"]]` column selection that omits it), the `df[incremental_column]` lookup raises `KeyError`. This is a runtime error, not a construction-time error — it surfaces only on the first incremental run.
+
+Worse: if the transform renames the column (`df.rename(columns={"updated_at": "ts"})`), the `max()` on the original name raises `KeyError`. The new name is `ts` but the pipeline still references `incremental_column="updated_at"`.
+
+Even more subtle: a transform that **modifies** the watermark column's values (`df["updated_at"] = df["updated_at"].dt.tz_convert("US/Eastern")`) computes the watermark in the wrong timezone. The loaded column has US/Eastern timestamps but the watermark is in UTC. Next run: `WHERE updated_at > <UTC watermark>` — the filter is against the original source column (still UTC), so this is actually correct for filtering. But the stored watermark is in US/Eastern, so the comparison `UTC_column > Eastern_watermark` works only because PostgreSQL normalizes TIMESTAMPTZ. Not a bug per se, but timezone confusion is a latent maintenance trap.
+
+**Why it happens:**
+
+The transform chain was designed (in v0.5.0) to be a black box that receives a DataFrame and returns a DataFrame. The pipeline runner trusts that the returned DataFrame has all the columns needed for the load. No contract was established about which columns must survive the transform. Adding `incremental_column` introduces a new contract: the column must survive the transform chain with its original name and type intact.
+
+**How to avoid:**
+
+**Compute `max(col)` BEFORE the transform chain, from the raw extracted DataFrame.** This is the correct approach:
+
+```python
+# After extract, before transform:
+if pipeline.incremental_column:
+    col = pipeline.incremental_column
+    if col not in df.columns:
+        raise ETLIncrementalError(f"incremental_column '{col}' not found in extracted data")
+    new_watermark_raw = df[col].max()
+
+# After transform chain:
+# Use new_watermark_raw (not df[col].max() post-transform)
 ```
 
-The watermark columns are nullable and ignored by the v0.5.0 runner. v0.6.0 writes to them without a migration. The PROJECT.md explicitly states: "the `pipeline_runs` table is designed so watermarks slot on additively (nothing wasted)."
+The watermark represents the high-water mark of the **source** data, not the transformed data. Computing it from the raw extract is semantically correct and immune to transform side effects.
+
+**Alternatively** (less preferred): validate at construction time that `incremental_column` will survive transforms — but this is impossible without running the transforms, which requires data.
+
+The better guard is the extraction-time check: before running any transform, assert `incremental_column in df.columns`. This gives a clear error at the right moment instead of a cryptic `KeyError` deep in the runner.
 
 **Warning signs:**
 
-- `status` column defined as `ENUM` rather than `TEXT ... CHECK`.
-- No `watermark_column` / `watermark_value` nullable columns in the initial schema.
-- The CREATE TABLE migration is written to be "minimal now, extend later" without the watermark stubs.
+- `df[incremental_column].max()` appears after the transform loop in the runner code.
+- No check that `incremental_column in df.columns` appears before the transform chain.
+- A transform in the test suite drops a column but the test does not assert the incremental column is preserved.
 
 **Phase to address:**
 
-Run-tracking phase (schema design, the very first ETL phase). This is a one-time, low-cost action (two nullable columns) with a high-value payoff (no breaking migration in v0.6.0).
+Phase 25 or 26 (runner design, this is the highest-priority structural decision for incremental ETL). The watermark computation point must be locked in the design doc before implementation. Write a test: a transform that drops the watermark column; assert the runner raises `ETLIncrementalError` (not `KeyError`), and the message names the missing column and the transform step.
 
 ---
 
-### Pitfall 11: Scope Creep Toward DAG / Orchestrator
+### Pitfall 8: First-Run Full Load on a Huge Table With No Bound
 
 **What goes wrong:**
 
-The natural evolution of "run one pipeline" is "run pipelines in dependency order", then "schedule pipelines", then "retry failed pipelines", then "fan-out on partial failure". Each step is locally reasonable but collectively they build an orchestrator, not a library helper. v0.5.0 is explicitly same-DB, no scheduling, no DAG.
+When `pipeline_runs.watermark IS NULL` (no previous successful run), the incremental pipeline falls back to a full load: `SELECT * FROM source` with no WHERE clause. If the source table has 100M rows, this materializes the entire table into a DataFrame (`to_dataframe()`) before the first incremental watermark is established. The process OOMs or the load takes hours.
 
-The specific API leaks that trigger this: adding a `depends_on` parameter to `Pipeline`, adding `retry_on_failure` to `run()`, adding a `schedule` cron expression, or adding cross-pipeline status checks in the runner.
-
-**Why it happens:**
-
-The pipeline runner's `pipeline_runs` table is a ready-made task state table. Adding `depends_on` feels like a two-line change. It is — but it also commits to DAG semantics that require topo-sort, cycle detection, fan-out, fan-in, and a scheduler loop. The complexity is O(N pipelines), not O(1).
-
-**How to avoid:**
-
-The v0.5.0 `Pipeline` dataclass must have no `depends_on`, `schedule`, `retry_on_failure`, or `timeout` fields. The `run()` method executes exactly one pipeline, unconditionally. Retry belongs at the caller's level (tenacity is already in the dependency tree if needed). Document the boundary explicitly in the API docstring.
-
-The `pipeline_runs` table does not need a `trigger_source` or `parent_run_id` column in v0.5.0. Those slots can be added additively in a future milestone.
-
-**Warning signs:**
-
-- A `depends_on: list[str]` field appears on the `Pipeline` class.
-- The runner iterates over a list of pipelines in dependency order.
-- `pipeline_runs` has a `parent_run_id` FK column in the v0.5.0 schema.
-- The runner has retry logic beyond the existing tenacity integration.
-
-**Phase to address:**
-
-Pipeline definition phase (define `Pipeline` dataclass). Enforce the boundary in the design document and in the `Pipeline.__init__` signature — simplicity is maintained by not having the parameter.
-
----
-
-### Pitfall 12: Coverage Gate Drops Below 94% — ETL I/O Paths Hard to Cover
-
-**What goes wrong:**
-
-The 94% coverage ratchet (`--cov-fail-under=94`) was set after measuring actual coverage at 94.09%. ETL code adds new I/O-heavy paths: the dedicated run-log connection, the advisory lock query, the TRUNCATE + INSERT transaction, the `pipeline_runs` DDL. Some of these paths (the failure branch of the run-log write, the pool-size-1 deadlock guard) are hard to cover without real-PostgreSQL integration tests.
-
-If the ETL phase is implemented with only unit tests (mocking the DB), the integration coverage for these paths is zero, and the ratchet blocks the commit.
+Unlike the non-incremental case (where the user can set `extract_limit`), the incremental full-load-first-run is triggered automatically and invisibly on the very first call to `run()`. The user has no immediate indication that "first run = full load" until the process hangs.
 
 **Why it happens:**
 
-The existing spatial.py builders are pure functions (no I/O) that are trivially unit-testable. The ETL runner is an I/O-heavy orchestrator that requires a real DB to test meaningfully. Developers writing unit tests for ETL logic (mock DB, mock advisory lock) get high apparent coverage but miss the real integration paths. Then the CI coverage measurement (on real PG) shows lower coverage.
+The design decision ("first run = full load then record max(col)") is correct for correctness (no data missed) but hazardous for large tables. The hazard is that the user declares an incremental pipeline expecting fast incremental loads, not knowing the first run is slow.
 
 **How to avoid:**
 
-Follow D-08 precedent: measure coverage before raising the ratchet gate. Specifically:
+1. Add `first_run_limit: int | None = None` to `Pipeline`. When set and `watermark IS NULL`, the full load uses `LIMIT first_run_limit`. Document: "Use `first_run_limit` to bound the first full load on large tables; subsequent runs are incremental."
 
-1. Write real-PostgreSQL integration tests for all ETL paths in the test suite (using `pycopg_test` DB), not mocks.
-2. The run-log failure branch (transaction rolled back, failure row written) must be an integration test with a real transaction rollback.
-3. The advisory lock path (second concurrent run blocked) must be an integration test with two connections.
-4. Check `uv run pytest --cov` on real PG before the phase is marked done; if coverage drops below 94%, add more integration tests before raising the gate.
-5. Do not raise the gate in the middle of the ETL phases — only at the final ETL phase after all paths are covered.
+2. In the API docstring for `incremental_column`, add a prominent note: "**First run:** When no prior watermark exists, the full source table is extracted. For large tables, set `extract_limit` or `first_run_limit` to bound the initial load."
+
+3. Alternatively: require the user to pass `initial_watermark` to the `Pipeline` — a value below which all data is considered already loaded. This avoids the full-load-first-run entirely. Document: "If the target already has data from a manual seed, set `initial_watermark` to the max value in the target to skip re-loading existing data."
+
+For v0.7.0 scope: implement the `initial_watermark` parameter on `Pipeline` (serialized to JSONB on construction or checked at run time if no watermark row exists) as the clean solution. The first incremental run then starts from `initial_watermark` instead of NULL, allowing the user to pre-seed the watermark without a full load.
 
 **Warning signs:**
 
-- ETL tests use `unittest.mock.patch` for the DB connection instead of `pycopg_test`.
-- `uv run pytest --cov` reports coverage below 94% after ETL code is added.
-- The run-log failure branch has no test.
+- No `initial_watermark` or `first_run_limit` parameter on `Pipeline`.
+- The first incremental run on any source table > 10k rows generates a full-table `to_dataframe()` call.
+- Docs do not mention the first-run full-load behavior.
 
 **Phase to address:**
 
-Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage must be monitored continuously per D-08. The final ETL phase should raise the ratchet only after measuring the new baseline.
+Phase 25 (Pipeline design). `initial_watermark` parameter should be on the `Pipeline` dataclass from the start, not retrofitted. Add a test: a Pipeline with `initial_watermark=100` on a table with rows 1–200; assert the first run extracts only rows 101–200.
 
 ---
 
@@ -414,15 +345,13 @@ Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Run-log INSERT in same transaction as load | Simpler code, one transaction | Failed runs leave no trace; debugging blind | Never |
-| `copy_insert` for truncate-load without staging table | Faster inserts | Truncate-then-fail leaves empty target; cannot roll back | Never for truncate-load path |
-| Skip `validate_identifiers` in ETL load builders | Faster to write | SQL injection regression, bypasses hardened security | Never |
-| Use Postgres ENUM for `pipeline_runs.status` | Feels type-safe | ALTER TYPE headache in v0.6.0 when adding watermark status values | Never |
-| Call `transform_fn(df)` directly in async runner | Identical code path to sync | Blocks event loop; test passes (small df) but fails in production | Never |
-| No advisory lock for concurrent runs | Simpler pipeline runner | Silent data corruption on concurrent invocation of truncate-load | Never for truncate-load; acceptable for upsert only if idempotency proven |
-| Materialize full table with no size guard | Simpler API | OOM on first production-scale run | Acceptable only if `extract_limit` documented as mandatory for large tables |
-| Skip ETL accessor parity test | test_parity still passes | Async accessor silently diverges; parity is pycopg's core value | Never |
-| Mock DB in ETL tests instead of real PG | Faster test run | Coverage metric lies; real bugs (pool deadlock, txn rollback) not caught | Never for integration paths |
+| Compute watermark from post-transform DataFrame | Simpler code, one DataFrame reference | Transform drops watermark column → KeyError; wrong timezone if transform mutates timestamps | Never; compute from pre-transform raw extract |
+| Use `>=` for the incremental filter | "Safer", never skips | Re-processes boundary row every run; with append mode produces duplicates on every run | Never for append; only if explicitly documented for upsert |
+| Serialize watermark as bare `json.dumps(value)` without type tag | Fewer lines | datetime loses timezone; Decimal raises TypeError; large int becomes float | Never; use typed serialization with discriminator |
+| Write watermark in `_end_run` on both success and failure paths | DRY, single `_end_run` call | Failed load advances watermark; next run skips rows silently | Never |
+| Allow `incremental_column` with `load_mode="replace"` | Fewer validation rules | `replace` TRUNCATE wipes target before incremental load; on failure, target is empty AND watermark may be stale | Never; forbidden at construction time per locked scope |
+| Skip `initial_watermark` / `first_run_limit` | Smaller API surface | First run silently full-loads a huge table; OOM with no warning | Acceptable only for tables known to be small; unacceptable as a general default |
+| Skip NULL watermark check after `df[col].max()` | Simpler runner | `NaT`/`NaN` written to JSONB as JSON null; next run re-does full load silently | Never; raise `ETLIncrementalError` on NULL watermark |
 
 ---
 
@@ -430,13 +359,12 @@ Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| psycopg 3 `executemany` | Using for large bulk loads | `executemany` in psycopg 3 sends rows one by one (not batched VALUES); use `insert_batch` for <10k rows or `copy_insert` for >10k rows |
-| psycopg 3 COPY inside a transaction | Wrapping `COPY FROM STDIN` in `conn.transaction()` | COPY operates within the current transaction in psycopg 3; `copy_insert` opens its own connection and calls `conn.commit()` explicitly — ETL must not call `copy_insert` inside an outer `db.transaction()` block without a staging table |
-| pandas `to_sql` / `read_sql` in async | Calling directly in async method | Must go through `conn.run_sync(lambda sync_conn: ...)` as all existing `to_dataframe`/`from_dataframe` async methods already do (async_database.py:1937) |
-| pandas NaN in numeric columns | `NaN` sent to a nullable integer or text column | psycopg 3 sends `float('nan')` as the float NaN literal, not SQL NULL; use `df.where(df.notna(), other=None)` before `insert_batch` or `to_sql` |
-| Timezone-naive timestamps | DataFrame `datetime64[ns]` (naive) inserted into `TIMESTAMPTZ` column | PostgreSQL infers session timezone, producing silent data corruption; ensure DataFrame timestamps are `datetime64[ns, UTC]` or use `dtype={"col": TIMESTAMP(timezone=True)}` in `to_sql` |
-| `validate_identifier` vs DataFrame column names | DataFrame columns with spaces or hyphens (e.g., `"order-date"`) fail `validate_identifier` | ETL load builder must validate all target column names; if source DataFrame has non-identifier columns, the transform step must rename them before load |
-| psycopg 3 `stream()` and server-side cursors | Using `fetchmany` on a regular cursor thinking it streams from DB | `fetchmany` on a regular cursor buffers the full result set server-side after `execute()`; for true streaming, use `psycopg.ServerCursor` (sync) or `psycopg.AsyncServerCursor` (async) — the existing `stream()` method uses regular `fetchmany` which is not truly server-side streaming |
+| psycopg 3 JSONB adapter | Reading `row["watermark"]` and assuming it returns a typed Python value | psycopg 3 deserializes JSONB to `dict`/`list`/`str`/`int`/`float`/`None`; datetime strings are returned as `str`, not `datetime`; apply type-discriminator deserialization on read |
+| psycopg 3 `%s` with datetime string from JSONB | Sending the raw string `"2024-01-01T12:00:00+00:00"` as a `%s` param to compare with `TIMESTAMPTZ` | PostgreSQL casts the ISO-8601 string implicitly; works but must be tested; naive strings (no `+00:00`) are interpreted in session timezone — always include timezone offset |
+| pandas `df[col].max()` on datetime column | Returns `pd.Timestamp` (timezone-aware or naive depending on column dtype) | Must convert to Python `datetime` with explicit UTC tzinfo before serializing: `ts.to_pydatetime().astimezone(UTC)` |
+| `ETL_UPDATE_RUN` query | Adding `watermark = %s` to the existing UPDATE without a separate success-only code path | The UPDATE currently runs on both success and failure paths; adding watermark here writes it on failure too; use a separate query constant or add a `watermark` optional kwarg with None-check |
+| SQL subquery wrap for incremental filter | `SELECT * FROM (<sql>) sub WHERE col > %s` — subquery alias `sub` conflicts with source SQL using the same alias | Use a unique internal alias like `_pycopg_etl_src` that is unlikely to conflict with user SQL |
+| `to_dataframe` with bound `%s` watermark parameter | `to_dataframe` uses named params (`:lim`) in the extract path; incremental `%s` for the watermark must match psycopg 3's positional param syntax | Verify whether `to_dataframe` accepts positional `%s` or requires named params `:param`; the current extract-limit path uses `:lim` (named); the watermark param must use the same convention consistently |
 
 ---
 
@@ -444,39 +372,26 @@ Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| `executemany` for ETL load | Loading 50k rows takes 30s instead of 3s | Use `insert_batch` (batch VALUES) for <10k rows; `copy_insert` for >10k rows | >1k rows |
-| Full-table DataFrame extract | Memory spike then OOM or swap thrash | Use `extract_batch_size` to stream in chunks via `db.stream()` | >100k rows on a typical 4GB instance |
-| Advisory lock on pool connection | Lock released when pool recycles the connection before the run ends | Acquire advisory lock on the dedicated run-log connection (not the pool) | Any run lasting longer than pool's `max_idle` timeout |
-| Upsert with no index on conflict columns | Upsert degrades to sequential scan for each row; target table locks | Ensure `conflict_columns` are covered by a unique index before the pipeline runs | >10k rows in target table |
-| Transform receiving the full DataFrame then re-chunking | Two copies of the data in memory (source df + chunked df) | Design the transform to operate on the chunk size that will be passed; document batch size contract | >50k rows with complex transforms |
-
----
-
-## Security Mistakes
-
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| f-string interpolation of `pipeline.target_table` | SQL injection via pipeline definition | Call `validate_identifiers(table, schema)` before any interpolation, same as all other pycopg builders |
-| f-string interpolation of `pipeline.conflict_columns` | SQL injection via conflict column list | Call `validate_identifiers(*conflict_columns)` before joining into ON CONFLICT clause |
-| User-controlled `extract_sql` with raw string injection | ETL pipeline as SQL injection vector if query params not used | Document that `extract_sql` is user-supplied raw SQL (same accepted limitation as spatial `where=` raw fragment); consider noting it in the docstring |
-| `pipeline_runs.error` storing full exception repr | Exception messages may leak internal paths or connection strings | Truncate to 1024 chars; strip connection strings from exception messages before storing |
+| Full-batch extract into DataFrame on first incremental run | OOM or multi-minute stall on first run of any large table | Add `initial_watermark` parameter to skip full load; document the first-run behavior prominently | Any source table > available RAM / 2 |
+| No index on `incremental_column` in source table | Each incremental run does a sequential scan of the full source table | Document that `incremental_column` must be indexed; the subquery-wrap `WHERE col > %s` cannot use an index if none exists | >100k rows |
+| `pipeline_runs` table unbounded growth with high-frequency runs | `history()` / `last_run()` queries slow; `pipeline_runs` becomes large | Add `retention_days` cleanup utility or document manual pruning; the `SELECT * ... LIMIT %s` in `ETL_LIST_RUNS` limits reads but not table size | >1M run rows (~years of hourly runs) |
+| Reading last watermark from `pipeline_runs` scans all rows for the pipeline | `last_run()` uses `ORDER BY started_at DESC LIMIT 1` — requires a sort | Ensure `pipeline_runs(pipeline_name, started_at)` has a composite index; or add `status='success'` filter to read only successful watermarks | >10k runs per pipeline |
+| Incremental filter on a non-indexed column causes full subquery scan | Incremental run slower than full load | Same as index trap above; the subquery `SELECT * FROM (source) sub WHERE col > %s` evaluates the full source then filters — no pushdown through a user-written subquery | >50k rows in source |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Run-log independence:** The `pipeline_runs` INSERT and UPDATE use a dedicated non-pool connection, not `db.execute()`. Test: fail a load step; assert `pipeline_runs` has `status='failed'` row.
-- [ ] **Truncate atomicity:** TRUNCATE and subsequent INSERT share a single transaction. Test: exception mid-insert; assert target row count equals pre-run count.
-- [ ] **Upsert idempotency:** Run the same pipeline twice; assert `SELECT COUNT(*) FROM target` is identical after both runs (no duplicates).
-- [ ] **Async event-loop safety:** Transform callable goes through `asyncio.to_thread()` in the async runner. Test: slow transform + concurrent coroutine; assert concurrent coroutine is not blocked.
-- [ ] **ETL accessor parity:** `EtlAccessor` and `AsyncEtlAccessor` have identical method names and signatures. `TestEtlParity` class exists and passes.
-- [ ] **Identifier validation in load builders:** Every ETL SQL builder calls `validate_identifiers` before any identifier interpolation. `test_sql_injection.py` covers `etl.run(target="malicious")`.
-- [ ] **Watermark slots in schema:** `pipeline_runs` has nullable `watermark_column` and `watermark_value` TEXT columns from the initial migration.
-- [ ] **Memory guard documented:** API docstring for `Pipeline` or `run()` states the memory contract and documents `extract_limit` / `extract_batch_size` parameters.
-- [ ] **Advisory lock test:** A second concurrent `run()` call raises `PipelineAlreadyRunning` immediately rather than proceeding or hanging.
-- [ ] **Coverage gate:** `uv run pytest` still reports >= 94% after all ETL code is added. Coverage measured on real PG (per D-08), not mocks.
-- [ ] **No scope creep:** `Pipeline` dataclass has no `depends_on`, `schedule`, `retry_on_failure`, or `parent_run_id` fields.
-- [ ] **NaN/timezone type adaptation:** Test with DataFrame containing NaN numerics and timezone-naive timestamps; assert NULL and UTC stored correctly in target.
+- [ ] **Boundary semantics locked:** `>` (strict) used for the filter; documented as at-least-once when combined with upsert. Construction-time `ValueError` raised when `incremental_column` + `load_mode="append"` are combined without explicit opt-in.
+- [ ] **Watermark computed pre-transform:** `df[incremental_column].max()` called on the raw extracted DataFrame, before the transform chain. Column presence check `incremental_column in df.columns` asserted before transforms run.
+- [ ] **Watermark advanced only on success:** `_end_run` with `watermark=` value is called only on the success path. The `except` block calls `_end_run` with `watermark=None`. Test: fail a load; assert `pipeline_runs.watermark IS NULL` for that run.
+- [ ] **Watermark round-trip type-safe:** Serialization handles `datetime` (timezone-aware), `int`, `Decimal`, and `date`. Round-trip test for each type. Large integers (> 2^53) tested.
+- [ ] **NULL watermark detected:** After `max()`, check `pd.isna(new_watermark_raw)` and raise `ETLIncrementalError`. Test: all-NULL watermark column raises, not silently stores JSON null.
+- [ ] **First-run bound available:** `initial_watermark` or `first_run_limit` parameter on `Pipeline`. Documented in API docstring. Test: first incremental run with `initial_watermark=N` extracts only rows > N.
+- [ ] **`incremental_column` + `replace` rejected:** `Pipeline.__post_init__` raises `ValueError` for this combination. Test at construction time.
+- [ ] **SQL subquery alias unique:** The internal alias in the subquery wrap is `_pycopg_etl_src` (or similar), not `sub` or `t`, to avoid alias conflicts in complex user SQL.
+- [ ] **Async parity:** `AsyncETLAccessor.run()` has identical incremental logic to `ETLAccessor.run()`. `TestEtlParity` covers the incremental path.
+- [ ] **`ETL_UPDATE_RUN` or watermark write clearly success-only:** The queries.py constant or its usage explicitly documents that `watermark` is written only on success.
 
 ---
 
@@ -484,13 +399,12 @@ Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Failed run leaves no trace (log in same txn) | HIGH | Audit PostgreSQL logs for ERROR messages; check `pg_stat_activity` history if `log_min_duration_statement` is enabled; architectural fix required before next run |
-| Truncate-load data loss (no transaction wrapper) | HIGH | Source data is intact (same-DB); restore target from source with manual INSERT SELECT; add transaction wrapper before next run |
-| Duplicate rows from wrong conflict key | MEDIUM | `DELETE FROM target WHERE ctid NOT IN (SELECT MIN(ctid) FROM target GROUP BY natural_key_cols)`; audit pipeline definition for correct conflict_columns |
-| Pool deadlock from run-log on pool connection | MEDIUM | Restart application; switch run-log to dedicated raw connection |
-| OOM from full-table DataFrame extract | LOW | Kill process; re-run with `extract_batch_size` set; no data corruption (transaction rolled back or extract never completed) |
-| Async event-loop blockage from direct transform call | LOW | No data corruption; fix async runner to use `asyncio.to_thread`; redeploy |
-| test_parity failure from missing async ETL method | LOW | Implement missing async accessor method; parity test is a CI gate so this surfaces immediately before merge |
+| Watermark advanced on failed load | HIGH | Manually `UPDATE pipeline_runs SET watermark = '<previous_good_watermark>' WHERE pipeline_name = '...' AND run_id = <failed_run_id>`; or insert a synthetic success row with the prior watermark; re-run to re-extract the skipped delta |
+| Snapshot hazard — rows lost at boundary | MEDIUM | Identify the gap period (between last successful watermark and `now() - safety_lag`); manually backfill: `INSERT INTO target SELECT * FROM source WHERE col BETWEEN last_watermark AND new_watermark` with conflict handling; re-run incremental from corrected watermark |
+| Transform drops watermark column | LOW | No data loss (run fails before load); fix the transform to preserve `incremental_column`; re-run |
+| JSONB type drift (datetime stored as naive string) | MEDIUM | Correct the serialization code; patch existing watermark rows: `UPDATE pipeline_runs SET watermark = jsonb_set(watermark, '{value}', to_json(watermark->>'value' || '+00:00')::jsonb) WHERE ...`; re-run to verify |
+| First-run OOM on huge table | LOW | No data loss (extract failed before load); add `initial_watermark` or `first_run_limit`; re-run |
+| NULL watermark column rows silently skipped | LOW-MEDIUM | Identify NULL-watermark rows in source; load them manually or via a `load_mode="append"` pipeline with explicit SQL filter; document the NOT NULL constraint for `incremental_column` |
 
 ---
 
@@ -498,33 +412,36 @@ Every ETL phase (extract, transform, load, run-tracking, async parity). Coverage
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Run-log in same transaction (no trace on failure) | Run-tracking phase (schema + runner skeleton) | Test: fail a load step; assert `pipeline_runs` has `status='failed'` row |
-| Truncate-then-fail data loss | Load phase (idempotent load) | Test: exception mid-insert; assert target row count unchanged |
-| Wrong upsert conflict key / empty update set | Pipeline definition + load phase | Test: two runs of same pipeline; assert count unchanged |
-| Pool exhaustion from run-log on pool | Run-tracking phase | Test: pool size 1; run completes without deadlock; run-log row written |
-| Sync transform blocks async event loop | Async accessor phase (ETL parity) | Test: slow transform + concurrent sleep; assert sleep yields during transform |
-| Identifier injection in load builders | Load phase (SQL builders, day one) | test_sql_injection.py covers `etl.run(target="malicious; DROP --")` |
-| Full-table OOM | Extract phase | `extract_limit` / `extract_batch_size` params in API; test with explicit limit |
-| Concurrent run corruption | Run-tracking phase | Test: second concurrent `run()` raises `PipelineAlreadyRunning` immediately |
-| ETL accessor parity gap | Async accessor phase | `TestEtlParity` inspects `EtlAccessor` vs `AsyncEtlAccessor` method surfaces |
-| `pipeline_runs` schema blocks v0.6.0 watermarks | Run-tracking phase (initial migration) | Schema has nullable `watermark_column` + `watermark_value` from creation |
-| NaN/timezone type adaptation | Load phase | Test: DataFrame with NaN numerics and naive timestamps; assert NULL and UTC stored |
-| Scope creep toward DAG/orchestrator | Pipeline definition phase (design gate) | `Pipeline` has no `depends_on`, `schedule`, `retry_on_failure` parameters |
-| Coverage gate drops below 94% | Every ETL phase | `uv run pytest --cov` on real PG; measure before raising gate per D-08 |
+| Inclusive/exclusive boundary (`>` vs `>=`) | Phase 25 — Pipeline design + `__post_init__` | Test: two rows at same max timestamp; assert both captured on next run |
+| Low-resolution / non-monotonic watermark column | Phase 25 — API docstring contract | Test: second-granularity timestamp and integer sequence watermarks |
+| Watermark advanced on failed load | Phase 26 — Runner implementation | Test: fail load; assert `watermark IS NULL` on failed run; next run re-extracts |
+| Snapshot hazard (concurrent inserts at boundary) | Phase 26 — Runner implementation + docs | Document isolation level and residual risk; optional `watermark_lag` for future |
+| NULLs in watermark column | Phase 26 — Runner implementation | Test: all-NULL watermark column raises `ETLIncrementalError` |
+| JSONB serialization type drift | Phase 25 or 26 — Watermark serialization utilities | Round-trip test for datetime/int/Decimal/date |
+| Transform drops watermark column | Phase 25 or 26 — Runner design (compute pre-transform) | Test: transform drops column; assert `ETLIncrementalError` with column name |
+| First-run full load on huge table | Phase 25 — Pipeline design (`initial_watermark` param) | Test: `initial_watermark=N` skips rows <= N on first run |
+
+---
+
+## Note on Alias Removal (ALIAS-RM-01)
+
+The one pitfall worth flagging for the alias removal sub-feature: **silently breaking callers who still use the flat API.** The 56 deprecated aliases (`db.create_hypertable(...)`, `db.vacuum(...)`, etc.) have been emitting `DeprecationWarning` since v0.6.0. Hard-removing them in v0.7.0 is a breaking change. Users who pinned `pycopg>=0.6.0` without an upper bound will hit `AttributeError` on upgrade with no clear error message beyond the attribute name.
+
+Prevention: CHANGELOG `[0.7.0]` must have a `**Breaking**` section listing all 56 removed names with their accessor replacements (1:1 table, same as the MIGRATION v0.5→v0.6 guide). The MIGRATION v0.6→v0.7 guide must be prepended to MIGRATION.md. The `AttributeError` raised by Python when the stub is gone has no context — the MIGRATION guide is the only user-facing recovery path.
+
+No deep pitfall research is needed for this sub-feature; it is mechanical (delete a block, update tests, update docs). The one operational risk is forgetting to update `test_parity.py` to remove the now-deleted method names from any exception lists, causing a false-pass on parity when both sides simply lack the method.
 
 ---
 
 ## Sources
 
-- pycopg source: `/home/loc/workspace/pycopg/pycopg/database.py` — `transaction()`, `insert_batch()`, `upsert_many()`, `copy_insert()`, `stream()`
-- pycopg source: `/home/loc/workspace/pycopg/pycopg/async_database.py` — `run_sync` via `conn.run_sync()`, async `stream()`, async `transaction()`, `to_dataframe()`/`from_dataframe()` patterns
-- pycopg source: `/home/loc/workspace/pycopg/pycopg/spatial.py` — builder pattern with `validate_identifiers`, accessor pattern precedent for ETL
-- pycopg source: `/home/loc/workspace/pycopg/pycopg/utils.py` — `validate_identifiers`, `validate_identifier` — reuse mandated for ETL load builders
-- pycopg source: `/home/loc/workspace/pycopg/tests/test_parity.py` — `TestAsyncParity` harness; `SYNC_ONLY_METHODS` / `ASYNC_ONLY_METHODS` — ETL must not add to exception lists
-- pycopg project: `/home/loc/workspace/pycopg/.planning/PROJECT.md` — D-06/D-07/D-08 parity/coverage decisions; "pipeline_runs designed so watermarks slot on additively"; coverage ratchet stays at 94% baseline
-- Pattern precedent: Airflow, dbt, Prefect all use separate/autocommit connections for task-state persistence (run-log must survive main transaction rollback)
-- PostgreSQL docs: `pg_try_advisory_lock` for non-blocking concurrency guard; `TEXT + CHECK` vs `ENUM` for evolvable status columns; COPY within transaction semantics in psycopg 3
+- `/home/loc/workspace/pycopg/pycopg/etl.py` — current `ETLAccessor.run()` and `AsyncETLAccessor.run()` implementation; transform chain; NaN coercion; `_end_run` call sites (success vs. failure paths)
+- `/home/loc/workspace/pycopg/pycopg/queries.py` — `ETL_INIT_PIPELINE_RUNS` (watermark JSONB column present, always NULL); `ETL_UPDATE_RUN` (does NOT currently write `watermark`); `ETL_GET_LAST_RUN` (used to retrieve last watermark for next run)
+- `/home/loc/workspace/pycopg/.planning/PROJECT.md` — v0.7.0 locked scope decisions (incremental_column, `>` filter, first-run = full load, append/upsert only, `replace` forbidden, zero new runtime deps)
+- Incremental ETL design literature: the `>` vs `>=` boundary trade-off is documented in Airbyte, dbt, and Debezium documentation; the snapshot hazard is the standard "read-committed incremental ETL gap" problem discussed in Flink and Spark Structured Streaming CDC documentation
+- psycopg 3 JSONB adapter behavior: psycopg 3 docs (built-in JSON adaptation — dicts/lists/primitives, no automatic datetime deserialization)
+- pandas `max()` behavior on nullable columns: returns `NaN`/`NaT` for all-null series; ignores NULLs in mixed series (skipna=True by default)
 
 ---
-*Pitfalls research for: same-DB ETL pipeline-runner on psycopg 3 (pycopg v0.5.0)*
-*Researched: 2026-06-14*
+*Pitfalls research for: watermark-based incremental ETL (pycopg v0.7.0, `Pipeline.incremental_column`, `pipeline_runs.watermark JSONB`)*
+*Researched: 2026-06-19*

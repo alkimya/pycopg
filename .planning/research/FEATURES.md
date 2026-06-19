@@ -1,18 +1,55 @@
-# Feature Research — ETL Pipeline Runner (v0.5.0)
+# Feature Research — Incremental ETL (v0.7.0)
 
-**Domain:** Declarative, code-first, single-process ETL pipeline runner for a PostgreSQL library
-**Researched:** 2026-06-14
-**Confidence:** HIGH (codebase analysis) / MEDIUM (ecosystem patterns from petl, dlt, Airflow dag\_run schema, community sources)
+**Domain:** Watermark-based incremental ETL for a high-level Python PostgreSQL library
+**Researched:** 2026-06-19
+**Confidence:** HIGH (codebase analysis + ecosystem verification via dlt, Matillion, Fivetran, ETLworks docs)
 
 ---
 
-## Context: What This Adds to pycopg
+## Context: What v0.7.0 Adds
 
-v0.5.0 adds a thin orchestration layer (`db.etl.*` / `async_db.etl.*`) that composes already-shipped
-primitives (execute, insert\_many, upsert\_many, to\_dataframe, from\_dataframe, transactions) into a
-declarative, re-runnable extract→transform→load flow with a persistent `pipeline_runs` audit table.
-The ETL layer is NOT a general-purpose orchestrator. It is scoped to same-DB, Python-callable-transform,
-full-load idempotency. All table-stakes items below must become testable ETL-\* requirements.
+v0.5.0 shipped a full-load declarative ETL runner (`db.etl.run(pipeline)`). The `pipeline_runs` table already has a reserved nullable `watermark JSONB` column (always NULL so far). v0.7.0 wires that column: a new `Pipeline.incremental_column` field activates watermark-based incremental loading without any schema migration. Everything described here is an additive extension of the existing surface — no existing behavior changes.
+
+**Existing surface this builds on (do not re-research):**
+
+- `Pipeline` frozen dataclass: `name`, `source`, `target`, `load_mode`, `conflict_columns`, `schema`, `transform`, `extract_limit`
+- `RunResult`: `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, `error`
+- `ETLAccessor.run()` / `AsyncETLAccessor.run()` (sync + async parity)
+- `history(name)`, `last_run(name)`, `dry_run=True`
+- `pipeline_runs` table: run-tracking isolation via dedicated autocommit connections; `watermark JSONB` column reserved
+
+---
+
+## The Canonical Incremental-Load Loop
+
+This is the behavior users will assume based on every incremental ETL tool they have used:
+
+```
+1. Read last_watermark = SELECT watermark FROM pipeline_runs
+                         WHERE pipeline_name = :name AND status = 'success'
+                         ORDER BY finished_at DESC LIMIT 1
+   → NULL on first run (no prior successful run)
+
+2. Build filter:
+   - NULL watermark  → no WHERE clause (full load)
+   - has watermark   → WHERE {incremental_column} > {last_watermark}
+
+3. Extract delta via filtered source query
+   (SQL sources: wrapped as subquery + WHERE col > %s)
+   (table sources: SELECT * FROM schema.table WHERE col > %s)
+
+4. Load delta using load_mode (append or upsert)
+
+5. Compute new_watermark = MAX(incremental_column) from extracted batch
+   → NULL if batch was empty (no new rows)
+
+6. Record run row with:
+   - status = 'success'
+   - watermark = {"column": "col_name", "value": new_watermark_serialized}
+   → If batch was empty: copy last_watermark unchanged (no regression)
+```
+
+Users understand this loop implicitly. Any deviation from it — particularly a watermark that regresses, silently re-processes rows, or skips rows at the boundary — will be perceived as a bug.
 
 ---
 
@@ -20,308 +57,384 @@ full-load idempotency. All table-stakes items below must become testable ETL-\* 
 
 ### Table Stakes (Users Expect These)
 
-Features users assume exist in a library-grade ETL runner. Missing = the feature is incomplete or untestable.
-
-For each feature: **Depends On** lists the existing pycopg primitive it composes. **Notes** describes the design contract.
+Features users assume exist when `Pipeline.incremental_column` is set. Missing any of these makes the feature feel broken or incomplete.
 
 ---
 
-#### ETL-01 — Declarative pipeline definition
+#### ETL-INC-01 — `Pipeline.incremental_column` field (declaration)
 
-- **Why expected:** Every lightweight ETL tool (petl, dlt, Hamilton) uses an explicit pipeline object/dataclass separating *what* from *when*. A bare `run(source, transform, target)` call is not inspectable or composable.
+- **Why expected:** Every incremental ETL tool (dlt, Fivetran, Matillion, ADF) exposes a single cursor/watermark column declaration. Users expect to write `Pipeline(..., incremental_column="updated_at")` and have the library handle filter generation automatically.
 - **Complexity:** LOW
-- **Depends on:** nothing yet — new `Pipeline` dataclass
-- **Notes:** `Pipeline` fields: `name`, `source` (SQL string or table name), `target` (table name), `transform` (callable, optional), `load_mode`, `conflict_columns` (for upsert), `schema` (default `public`).
+- **Depends on:** existing `Pipeline` frozen dataclass — adds one optional field `incremental_column: str | None = None`
+- **Notes:**
+  - Construction-time validation: `incremental_column` + `load_mode='replace'` → raise `ValueError` (locked scope decision)
+  - Construction-time validation: `incremental_column` requires `incremental_column` to be a valid identifier (passes `validate_identifiers`)
+  - `incremental_column=None` (default) = existing full-load behavior, unchanged
+  - The column must appear in the SELECT output of the source query — the library cannot validate this at construction time, only at run time when the extracted DataFrame columns are known
 
-#### ETL-02 — Extract from SQL query or table name
+#### ETL-INC-02 — First-run full load then record watermark
 
-- **Why expected:** Users expect to specify either a raw SQL string or a table name as the extract source. Both are common in petl (`frompgsql`) and dlt (`source(table_name=...)`).
+- **Why expected:** Users understand that the first run is always a full load (no prior watermark). Every incremental tool (dlt, Airflow) follows this: "first run seeds the state". Users would find it surprising and confusing if the first run filtered on a non-existent watermark.
 - **Complexity:** LOW
-- **Depends on:** `to_dataframe(sql=..., table=...)` — delegates directly
-- **Notes:** Source is always same-DB. `source="raw_events"` (table) or `source="SELECT * FROM raw_events WHERE ..."` (SQL).
+- **Depends on:** `last_run()` to detect absence of a prior successful watermark; existing extract path
+- **Notes:**
+  - "First run" = no successful run row exists for this pipeline name, OR no prior run has a non-null `watermark`
+  - First run executes with no filter (same extract path as non-incremental)
+  - After a successful first run, `watermark` is written to `pipeline_runs` as `{"column": "<col>", "value": <max_value>}`
+  - A failed first run records `status='failed'` with NULL watermark — the next run is still treated as a first run (full load)
 
-#### ETL-03 — Python-callable transform (DataFrame → DataFrame)
+#### ETL-INC-03 — `>` (exclusive) watermark filter for subsequent runs
 
-- **Why expected:** Every code-first ETL tool treats transforms as ordinary Python functions. The canonical signature is `Callable[[pd.DataFrame], pd.DataFrame]`. petl uses row iterators; dlt uses generator functions; Mage uses `@transformer` functions. For pandas-native tools the DataFrame→DataFrame protocol is dominant and maps cleanly to pycopg's `to_dataframe` output.
-- **Complexity:** LOW
-- **Depends on:** `to_dataframe` output is a DataFrame
-- **Notes:** Transform is optional (`None` = no-op). Callable receives the extracted DataFrame; returns a new DataFrame. Errors in transform propagate as `ETLTransformError` and record a failed run.
-
-#### ETL-04 — Load mode: append (insert)
-
-- **Why expected:** Append is the simplest and most expected mode — add rows to the target, never touch existing data. Required for event logs, audit trails, and staging tables.
-- **Complexity:** LOW
-- **Depends on:** `insert_many`
-- **Notes:** Calls `insert_many(target, rows)`. Target table must already exist for append mode; if not, raises `ETLTargetNotFoundError`.
-
-#### ETL-05 — Load mode: replace (truncate-load)
-
-- **Why expected:** Truncate-then-insert is the simplest idempotent full-load strategy. dlt calls this `write_disposition='replace'`. Standard in all ETL tools. Running the same pipeline twice produces the same final state.
+- **Why expected:** All major tools use a strict-greater-than filter for the lower watermark bound by default: `WHERE col > last_watermark`. This is the safe, non-duplicating default for both append and upsert modes. See boundary analysis in the Anti-Features section for full reasoning.
 - **Complexity:** MEDIUM
-- **Depends on:** `execute("TRUNCATE …")` + `insert_many`, wrapped in `transaction()`
-- **Notes:** Entire TRUNCATE+INSERT in one DB transaction — all-or-nothing. If target table does not exist, it is created from the DataFrame schema via `from_dataframe(if_exists='replace')`.
+- **Depends on:** `_is_sql_source` heuristic; new `_build_incremental_sql` builder; `validate_identifiers`
+- **Notes:**
+  - SQL sources: wrapped as `SELECT * FROM (<original_sql>) AS _etl_inc WHERE <col> > %s`
+  - Table sources: `SELECT * FROM <schema>.<table> WHERE <col> > %s`
+  - The watermark value is always passed as a `%s` parameter — never f-string interpolated (security invariant inherited from the existing codebase)
+  - `incremental_column` is validated with `validate_identifiers` before any identifier interpolation into the WHERE clause
+  - The watermark value extracted from `pipeline_runs.watermark JSONB` is deserialized to the appropriate Python type before use as a parameter. For timestamps this is a `datetime`; for integers it is an `int`.
 
-#### ETL-06 — Load mode: upsert (merge-by-key)
+#### ETL-INC-04 — Record new high-water mark on success
 
-- **Why expected:** Users want to re-run a pipeline without full-table replacement when the target has data that should be preserved for untouched keys. Requires specifying `conflict_columns`. dlt calls this `write_disposition='merge'` with `primary_key`.
-- **Complexity:** MEDIUM
-- **Depends on:** `upsert_many(conflict_columns=...)`
-- **Notes:** `conflict_columns` required when `load_mode='upsert'`; raise `ValueError` at `Pipeline` construction time if missing. On re-run: existing rows updated, new rows inserted.
-
-#### ETL-07 — Run tracking via `pipeline_runs` table
-
-- **Why expected:** Every production ETL tool captures a run record per execution. Airflow's `dag_run` table, dlt's `_dlt_loads`, and Hevo's audit tables all follow this pattern. Users must be able to query history to diagnose failures or verify success.
-- **Complexity:** MEDIUM
-- **Depends on:** `execute` / `insert_many` / DDL helpers
-- **Notes:** Auto-created table schema: `run_id UUID PK, pipeline_name TEXT, started_at TIMESTAMPTZ, finished_at TIMESTAMPTZ, status TEXT, rows_extracted INT, rows_loaded INT, error_message TEXT, error_traceback TEXT`. Schema: configurable (default `public`).
-
-#### ETL-08 — Status lifecycle: running → success / failed
-
-- **Why expected:** Users expect a clear lifecycle: a run that started but did not finish is marked `running` (or `failed` on exception). Inspired by Airflow dag\_run states (running/success/failed) and dlt's completion status model.
+- **Why expected:** Watermark state must persist across runs. Users expect that a successful run advances the watermark to `max(incremental_column)` of the batch just loaded. The existing `pipeline_runs.watermark JSONB` column is purpose-built for this.
 - **Complexity:** LOW
-- **Depends on:** `execute` for INSERT and UPDATE on `pipeline_runs`
-- **Notes:** Insert row with `status='running'` at start; UPDATE to `status='success'` or `status='failed'` at end. Failed runs capture `error_message` (exception str) and `error_traceback` (full traceback).
+- **Depends on:** `ETL_UPDATE_RUN` query — must be extended to also write `watermark`; or a separate update
+- **Notes:**
+  - New watermark = `max(df[incremental_column])` computed on the extracted+transformed DataFrame before load
+  - Stored as `{"column": "<col_name>", "value": <serialized_value>}` in `pipeline_runs.watermark JSONB`
+  - Datetime values serialized as ISO-8601 strings in JSONB; integer values stored as JSON numbers
+  - The JSONB envelope carries the column name so `history()` can surface it unambiguously without needing to know the pipeline's current config
+  - If the extracted batch is empty (zero rows after filter), the new watermark equals the last watermark (no regression). The run records `status='success'`, `rows_loaded=0`, and the prior watermark is copied forward.
 
-#### ETL-09 — Transactional load (all-or-nothing per run)
+#### ETL-INC-05 — Empty-batch handling (no new rows since last run)
 
-- **Why expected:** Replace-mode pipelines must be atomic: truncate + insert must either both succeed or both roll back. A failed mid-load that leaves a half-empty target table is a data corruption scenario.
-- **Complexity:** MEDIUM
-- **Depends on:** `transaction()` context manager
-- **Notes:** Entire load in one DB transaction for `replace` mode. For `upsert` mode, `upsert_many` is a single statement. For `append`, `insert_many` is a single batched operation. Run tracking UPDATE is committed **independently** (separate transaction) so a failed run is still recorded.
-
-#### ETL-10 — `db.etl.run(pipeline)` call shape
-
-- **Why expected:** A single method call that takes a `Pipeline` object and returns a `RunResult`. Consistent with how dlt (`pipeline.run(source)`) and petl (`etl.execute()`) expose execution.
+- **Why expected:** Incremental pipelines are run on a schedule. Many runs will produce zero new rows. Users expect: successful run, rows_loaded=0, watermark unchanged, no error.
 - **Complexity:** LOW
-- **Depends on:** all of ETL-01 through ETL-09
-- **Notes:** `db.etl.run(pipeline) -> RunResult`. `RunResult` carries: `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, `error` (or None).
+- **Depends on:** existing empty-DataFrame path in `ETLAccessor.run()` (already returns early with 0 rows_loaded)
+- **Notes:**
+  - Empty batch → skip load → record success with watermark = last_watermark (unchanged)
+  - This is a normal, expected outcome — NOT an error or warning
+  - `RunResult.rows_extracted = 0`, `RunResult.rows_loaded = 0`
+  - The watermark value recorded in `pipeline_runs` must not be NULL (use last watermark) — a NULL watermark on the next run would trigger a full reload, which would be a severe regression
 
-#### ETL-11 — `db.etl.history(pipeline_name)` — query run history
+#### ETL-INC-06 — `RunResult` exposes watermark used and recorded
 
-- **Why expected:** Users need to look up past runs. dlt exposes `pipeline.last_trace`; Airflow has the `dag_run` table. A library-grade runner must expose a programmatic history query.
+- **Why expected:** Users running `db.etl.run(pipeline)` need to see what filter was applied and what watermark was recorded. Without this, debugging incremental runs requires querying `pipeline_runs` directly.
 - **Complexity:** LOW
-- **Depends on:** `execute` / `to_dataframe(sql=...)`
-- **Notes:** Returns list of `RunResult` for a named pipeline, ordered newest-first. Caller can filter by status.
+- **Depends on:** `RunResult` frozen dataclass — adds 2 new fields
+- **Notes:**
+  - Two new `RunResult` fields: `watermark_used: Any | None` and `watermark_recorded: Any | None`
+  - `watermark_used`: the value read from prior `pipeline_runs.watermark` and used as the filter threshold (None for first run / full-load runs)
+  - `watermark_recorded`: the new `max(col)` value stored after this run (None for failed runs; same as `watermark_used` for empty-batch runs; None for non-incremental pipelines)
+  - For non-incremental pipelines (no `incremental_column`): both fields are `None`
+  - `_row_to_result` must be updated to read `watermark` from the `pipeline_runs` row and parse it
 
-#### ETL-12 — Full sync/async parity: `async_db.etl.run(pipeline)`
+#### ETL-INC-07 — `history()` returns watermark fields per run
 
-- **Why expected:** pycopg's core value is sync/async parity. Every method in Database has a tested async equivalent. The ETL surface must be no exception.
-- **Complexity:** HIGH
-- **Depends on:** `async_db.to_dataframe`, `async_db.upsert_many`, `async_db.insert_many`, async transactions
-- **Notes:** Transform callable may be sync; wrap in `asyncio.to_thread()` (same pattern as `run_sync` used in existing async spatial/DataFrame helpers). Async `pipeline_runs` writes use async execute. Covered by existing `test_parity` harness.
+- **Why expected:** `history()` returns `list[RunResult]`. Since `RunResult` now carries watermark fields, `history()` automatically exposes the full watermark progression across runs. Users expect to be able to audit which watermark each run used and recorded.
+- **Complexity:** LOW (falls out of ETL-INC-06 if `_row_to_result` is updated correctly)
+- **Depends on:** ETL-INC-06 (`RunResult` watermark fields); `ETL_LIST_RUNS` already does `SELECT *` which includes `watermark` JSONB
+- **Notes:**
+  - No change to `history()` signature or query — it already does `SELECT *`
+  - Only `_row_to_result` needs updating to parse `pipeline_runs.watermark JSONB` → `watermark_used` / `watermark_recorded`
+  - The JSONB envelope `{"column": ..., "value": ...}` is the serialization format; deserialization happens in `_row_to_result`
 
-#### ETL-13 — `ETLAccessor` lazy accessor on `db.etl`
+#### ETL-INC-08 — `dry_run=True` with incremental: compute filter, return would-be max, write nothing
 
-- **Why expected:** Following the `db.spatial.*` precedent, the ETL surface is exposed as a lazy accessor, not methods added directly to the `Database` class. Keeps the monolith from growing further.
+- **Why expected:** Users expect `dry_run=True` to show them exactly what an incremental run would do — what filter would be applied, how many rows would be extracted, and what the new watermark would be — without writing anything. This is the primary testing workflow for incremental pipelines.
 - **Complexity:** LOW
-- **Depends on:** `SpatialAccessor` pattern
-- **Notes:** `ETLAccessor(db)` initialized on first `.etl` property access. `AsyncETLAccessor(async_db)` for async.
+- **Depends on:** existing `dry_run` fork in `ETLAccessor.run()` (already forks before `init()`/`_start_run()`)
+- **Notes:**
+  - `dry_run=True` with incremental: reads the last watermark from `pipeline_runs` (read-only, autocommit connection), builds the filter, extracts the delta, computes `max(col)` on the result
+  - Returns `RunResult(status='dry_run', rows_extracted=N, rows_loaded=0, watermark_used=<last>, watermark_recorded=<would_be_max>)`
+  - No `pipeline_runs` row is written (consistent with existing `dry_run` contract)
+  - `dry_run=True` on a pipeline with no prior successful run: extracts the full source (no filter), `watermark_used=None`, `watermark_recorded=<max_of_full_extract>`
+  - If `pipeline_runs` does not exist yet: `dry_run` does NOT create it (consistent with existing behavior — `dry_run` writes nothing)
 
-#### ETL-14 — `pipeline_runs` auto-created if missing
+#### ETL-INC-09 — Backfill / reset: delete successful runs to force full reload
 
-- **Why expected:** Users should not have to run a migration manually before using `db.etl.run(...)`. The runner creates the table on first use (CREATE TABLE IF NOT EXISTS).
-- **Complexity:** LOW
-- **Depends on:** DDL / `execute`
-- **Notes:** Idempotent DDL called at `ETLAccessor.__init__` or lazily on first `run()`. No migration file needed for this internal table.
+- **Why expected:** Users need a "reset" mechanism to re-process all history. This is a universal pattern: dlt has `--full-refresh`, Fivetran has "resync". Without a documented reset path, users are stuck if their incremental state is corrupted.
+- **Complexity:** NONE (no new code) — operational pattern, documented behavior
+- **Depends on:** existing `pipeline_runs` table; user-accessible `pipeline_runs` table is part of the public contract
+- **Notes:**
+  - Reset = user deletes (or `UPDATE ... SET watermark = NULL`) the `pipeline_runs` rows for the pipeline name, then re-runs
+  - Alternatively: delete the `success` status rows; next run finds no prior successful watermark → full load
+  - This requires NO new library code — the `pipeline_runs` table is the user's interface. Document it clearly in docstrings and CHANGELOG.
+  - The library's responsibility: ensure a run with NULL watermark is always treated as a first run (full load). That guarantee is the reset mechanism.
+  - Anti-pattern to avoid: a "reset" API method on the accessor — this would encourage replacing the user's own data management with a library call, which creates an abstraction leak
+
+#### ETL-INC-10 — Full sync/async parity for incremental
+
+- **Why expected:** pycopg's Core Value is full sync/async parity. Every behavior described in ETL-INC-01 through ETL-INC-09 must exist identically in `AsyncETLAccessor`. This is non-negotiable.
+- **Complexity:** MEDIUM (mirroring, not original logic)
+- **Depends on:** all ETL-INC-01..09 implemented in `ETLAccessor`; `AsyncETLAccessor` mirrors verbatim
+- **Notes:**
+  - `TestEtlParity` harness must be extended to register incremental pipeline pairs
+  - The new `watermark_used` / `watermark_recorded` fields on `RunResult` are shared between sync and async paths — no divergence
+  - Async watermark read (to get last watermark) uses existing `connect(autocommit=True)` pattern
 
 ---
 
-### Differentiators (Competitive Advantage)
+### Differentiators (Competitive Advantage for This Library)
 
-Features that go beyond baseline expectations, specific to pycopg's domain or core value.
+Features that go beyond the minimum loop described above. Not assumed, but valued.
 
 | Feature | Value Proposition | Complexity | Notes |
-| --- | --- | --- | --- |
-| **Transform chain (list of callables)** | `transform=[clean, normalize, enrich]` applied in sequence. petl is entirely chain-based; users who think in pipeline stages expect this. | LOW | Each callable is `Callable[[pd.DataFrame], pd.DataFrame]`, applied sequentially via reduce. Error in step N records which step failed. |
-| **`db.etl.last_run(pipeline_name)`** | One-liner to fetch the most recent run result, useful in notebooks and scripts. Returns `RunResult \| None`. | LOW | Syntactic sugar over `history()[0]` with a None guard. |
-| **Row counts surfaced in RunResult** | Extracted row count and loaded row count are distinct. Users want to know "I read 10,000 rows but only loaded 8,500 after transform filtering". | LOW | `rows_extracted` = len(df after extract), `rows_loaded` = rows affected by insert/upsert. |
-| **GeoDataFrame transform support** | Transforms that return a GeoDataFrame are loadable via `from_geodataframe`. Natural for spatial ETL users given existing PostGIS support. | MEDIUM | Detect GeoDataFrame in runner post-transform, route to `from_geodataframe`. Not required for MVP. |
-| **`pipeline_runs` schema-configurable** | `ETLAccessor(db, schema='etl')` stores run tracking in a dedicated schema, not `public`. Multi-tenant or security-conscious users isolate audit tables. | LOW | Pass schema to all `pipeline_runs` DDL and DML. Default `'public'`. |
-| **`dry_run=True` mode** | Execute extract + transform but skip the load and do not write a run record. Lets users validate their transform logic against real data. | LOW | Returns `RunResult(status='dry_run', rows_extracted=N, rows_loaded=0)`. No DB writes. |
+|---------|-------------------|------------|-------|
+| **`watermark_used` / `watermark_recorded` on `RunResult`** | Users see filter applied + new state in the return value of `run()`. No separate query needed to audit what happened. | LOW | Fields: `Any \| None`. Non-incremental pipelines carry `None`. Falls out of `_row_to_result` update. |
+| **Empty-batch watermark preservation** | Zero new rows → watermark does NOT regress to NULL. Next run filters from the same point. | LOW | Critical correctness property — many tools get this wrong on first implementation. |
+| **`dry_run=True` reads last watermark** | Simulate exactly what the next real run would do, including reading the current watermark. Decision-support for debugging without side effects. | LOW | Extends existing `dry_run` path; adds one read-only autocommit query. |
+| **`incremental_column` validated as SQL identifier at construction** | Prevents injection at pipeline definition time, not at run time. Consistent with existing codebase security model. | LOW | `validate_identifiers(pipeline.incremental_column)` in `Pipeline.__post_init__`. |
+| **Table source incremental (not just SQL source)** | `source="events"` (table name) + `incremental_column="created_at"` works without the user writing SQL. The library generates `SELECT * FROM schema.table WHERE col > %s`. | LOW | Already handled by the `_is_sql_source` branch split — just add WHERE to the table-source path. |
 
 ---
 
-### Anti-Features (Deferred — Explicitly Out of Scope for v0.5.0)
+### Anti-Features (Explicitly Out of Scope for v0.7.0)
 
-These are commonly requested in ETL contexts but explicitly deferred. Do NOT propose them as table stakes.
+These are commonly requested in incremental ETL contexts but explicitly out of scope. Do NOT include them.
 
-| Anti-Feature | Why Requested | Why Out of Scope for v0.5.0 | What to Do Instead |
-| --- | --- | --- | --- |
-| **Incremental / watermark-based extract** | "Only load rows since last run" | Requires reliable change detection (updated\_at, CDC). Adds state-management complexity. `pipeline_runs` is designed additively so watermarks slot in cleanly for v0.6.0. | Defer to v0.6.0. Users can pass `source="SELECT * FROM t WHERE updated_at > ..."` manually. |
-| **Cross-DB transfer** | Move data from one Database instance to another | Two-connection management, distributed transaction edge cases. Out of scope for v0.5.0. | Same-DB only. Defer. |
-| **DataFrame / CSV / Parquet as source or sink** | Read from files or dump to Parquet | Source=files requires I/O abstraction; sink=files is not a DB concern. Scope creep. | Users pre-load DataFrames themselves and pass via transform. |
-| **SQL-only transforms** | `transform="UPDATE …"` SQL strings | Bypasses the DataFrame contract, adds injection risk, untestable without a DB. Not aligned with "Python callable" decision. | Users write Python callables that call `db.execute()` for SQL side effects. |
-| **Scheduling / DAG / cron / orchestration** | `db.etl.schedule(pipeline, cron='0 * * * *')` | Scheduling is an application-layer concern. pycopg is a library, not a scheduler. Adds persistent-process and failure-recovery concerns. | Document integration with APScheduler or cron calling `db.etl.run(pipeline)`. |
-| **Retry-as-orchestration (auto-retry failed runs)** | Automatic re-attempt of a failed pipeline | ETL pipeline re-runs may have business implications (duplicate emails, etc.). Different from transient DB retries (tenacity handles those). | Users re-run manually or via their orchestrator. Single-run semantics keep the library predictable. |
-| **Multi-step DAG pipelines** | Fan-out pipelines that depend on each other | DAG dependency resolution is Airflow's job. pycopg's runner is linear: one extract, one transform, one load. | Users call `db.etl.run()` multiple times in their own sequence. |
-| **Pipeline versioning / schema evolution** | Auto-manage target schema changes when transform output columns change | Schema migration is already a distinct concern (migrations.py). ETL runner is not a schema migrator. | Use existing `migrations.py` for target schema changes. |
-| **Streaming / micro-batch transforms** | Process rows in chunks to avoid OOM on large tables | Adds generator protocol to transforms, complicates error handling and row counting. Appropriate for v0.6.0 alongside incremental. | For large tables use `db.stream()` + `db.insert_many()` directly. |
+| Anti-Feature | Why Requested | Why Out of Scope | What to Do Instead |
+|--------------|---------------|------------------|--------------------|
+| **`>=` (inclusive) boundary as default** | "I want to re-process the boundary row to be safe" | Creates silent duplicates for `append` mode. Correct for upsert but confusing as a default. Boundary decision must be single and consistent. | Use `>` (exclusive). Document that for upsert, idempotency means re-processing boundary rows is safe anyway. Users with late-arriving data should use a safety window in their source SQL manually. |
+| **`load_mode='replace'` with `incremental_column`** | "I want to replace the last N rows" | Replace means TRUNCATE + full reload — semantically incompatible with incremental filtering. Ambiguous and dangerous. | Locked scope: `ValueError` at construction time. Users who want rolling-window replacement should use `source="SELECT * FROM t WHERE ..."` in a non-incremental pipeline. |
+| **Multi-column composite watermarks** | "My table has (tenant_id, updated_at) as the cursor" | Composite watermarks require tuple comparison semantics that differ across PostgreSQL types. State management and serialization complexity is high. | Users should use a single `max(incremental_column)` via their `source` SQL to synthesize a single cursor column. |
+| **Configurable `>` vs `>=` boundary** | "Let me choose inclusive or exclusive per pipeline" | Two modes with overlapping semantics confuse users and test matrices. One safe default is better than two options. | Document the `>` default clearly. Upsert users are safe either way. |
+| **CDC log decoding (WAL / logical replication)** | "I want change data capture without a watermark column" | Requires `pg_logical` or `wal2json`, replication slots, and a completely different extraction architecture. Out of scope for a high-level library. | Scope boundary: same-DB, declarative single-column watermark only. |
+| **Scheduler / cron integration** | "Run this pipeline every 5 minutes" | pycopg is a library, not a daemon. Scheduling is the caller's responsibility. | Document: call `db.etl.run(pipeline)` from your scheduler (APScheduler, cron, Airflow). |
+| **Cross-run deduplication by content hash** | "Deduplicate rows where the content matches regardless of watermark" | Requires hashing every row and maintaining a seen-set — O(N) state per run. Scope creep. | Use `load_mode='upsert'` with `conflict_columns` for content-keyed deduplication. |
+| **Late-arriving data / out-of-order events** | "Events arrive up to 5 minutes late — add a safety lookback window" | Safety windows require configurable overlap logic and change the watermark semantics significantly. | Users who need late-data tolerance should shift the watermark back in their source SQL: `WHERE col > (last_watermark - INTERVAL '5 minutes')` and use `load_mode='upsert'`. |
+
+---
+
+## The `>` vs `>=` Boundary Decision (Critical)
+
+This is the single most important behavioral decision for the incremental feature. The answer must be unambiguous.
+
+### The Tradeoff
+
+| Operator | Filter | For `append` | For `upsert` |
+|----------|--------|-------------|-------------|
+| `>` (exclusive) | `WHERE col > last_watermark` | Safe: no re-processing of already-loaded rows | Also safe: skips the boundary row (which was already loaded and committed to target) |
+| `>=` (inclusive) | `WHERE col >= last_watermark` | Unsafe: re-inserts the row(s) at the exact watermark value → duplicates | Safe: re-upserting is idempotent, but wastes a row-load per run |
+
+### Root Cause of the Tension
+
+The watermark is `max(col)` of the last successful batch. The row(s) that produced that max have already been loaded. Using `>=` re-fetches them on the next run.
+
+- For `upsert`: re-fetching those rows is harmless (ON CONFLICT DO UPDATE produces the same row state).
+- For `append`: re-fetching those rows inserts them again → duplicate rows in the target.
+
+### Recommended Default: `>` (exclusive) for both modes
+
+**Rationale:**
+
+1. **`append` requires `>`** — there is no safe alternative for append mode. `>=` produces duplicates; duplicates in an append target are almost always a data quality bug.
+
+2. **`>` is also correct for `upsert`** — the boundary row was already loaded. Skipping it on re-read is the correct behavior: do not re-process what is already reflected in the target. The upsert idempotency guarantee still holds for any new rows with the same key.
+
+3. **Industry standard** — Matillion, ETLworks, Azure Data Factory, and most documented HWM ETL patterns use `WHERE col > last_hwm` (exclusive). dlt uses `>=` by default but only because it pairs it with content-hash deduplication, which pycopg does not implement.
+
+4. **Single operator, no configuration** — exposing a `boundary='gt'/'gte'` option creates two modes with overlapping semantics, confusing test matrices, and documentation complexity. One operator, documented clearly, is better.
+
+**Documented caveat for timestamp watermarks:**
+
+If `incremental_column` is a timestamp with second-level granularity (e.g., `TIMESTAMP` without microseconds) and multiple rows can share the same timestamp, rows that share the same value as `max(col)` of the last batch will be missed in the next run with `>`. The correct approach is:
+
+- Use a column with high granularity (microsecond `TIMESTAMPTZ`) or a monotonic integer (BIGSERIAL) as `incremental_column`.
+- If the source column has low granularity, use `load_mode='upsert'` + `conflict_columns` — upsert idempotency covers the corner case.
+- Document this explicitly in the `Pipeline.incremental_column` docstring.
+
+**Summary:** `>` is the recommended and only supported boundary. Document the timestamp-granularity caveat. Recommend `upsert` when the watermark column may have tied values.
 
 ---
 
 ## Feature Dependencies
 
-```text
-ETL-13 ETLAccessor (lazy accessor pattern)
-    └── requires ETL-07 pipeline_runs DDL (auto-created in __init__)
-    └── requires ETL-14 auto-create pipeline_runs
+```
+ETL-INC-01  Pipeline.incremental_column field
+    └──enables──> ETL-INC-03  Filter generation (> last_watermark)
+    └──requires──> validation: load_mode != 'replace' (raise ValueError)
+    └──requires──> validate_identifiers(incremental_column)
 
-ETL-10 db.etl.run(pipeline)
-    ├── requires ETL-01 Pipeline dataclass
-    ├── requires ETL-02 Extract
-    │       └── composes db.to_dataframe [EXISTING]
-    ├── requires ETL-03 Transform callable
-    ├── requires ETL-04/05/06 Load mode
-    │       ├── ETL-04 composes db.insert_many [EXISTING]
-    │       ├── ETL-05 composes db.execute TRUNCATE + db.insert_many [EXISTING]
-    │       └── ETL-06 composes db.upsert_many [EXISTING]
-    ├── requires ETL-08 Status lifecycle
-    │       └── composes db.execute INSERT/UPDATE on pipeline_runs
-    └── requires ETL-09 Transactional load
-            └── composes db.transaction() [EXISTING]
+ETL-INC-02  First-run full load
+    └──requires──> ETL-INC-01 (incremental_column set)
+    └──requires──> last_run() or equivalent watermark-read query
+                       [EXISTING last_run() queries pipeline_runs]
 
-ETL-11 db.etl.history(name)
-    ├── requires ETL-07 pipeline_runs table exists
-    └── composes db.execute [EXISTING]
+ETL-INC-03  Exclusive filter (col > watermark)
+    └──requires──> ETL-INC-02 (watermark-read logic)
+    └──requires──> _build_incremental_sql (new pure builder)
+    └──depends on──> validate_identifiers [EXISTING]
 
-ETL-12 async_db.etl.run(pipeline)
-    ├── mirrors ETL-10 sync semantics exactly
-    ├── composes async_db.to_dataframe [EXISTING]
-    ├── composes async_db.insert_many / upsert_many [EXISTING]
-    └── wraps sync transform callables in asyncio.to_thread()
+ETL-INC-04  Record new high-water mark
+    └──requires──> ETL-INC-03 (batch extracted with filter)
+    └──requires──> ETL_UPDATE_RUN extension to write watermark JSONB
+                       [pipeline_runs.watermark column ALREADY EXISTS]
+    └──requires──> max(df[incremental_column]) computation
 
-Differentiator: Transform chain
-    └── enhances ETL-03 (replace single callable with list)
+ETL-INC-05  Empty-batch handling
+    └──requires──> ETL-INC-04 (copy prior watermark, no regression)
+    └──depends on──> existing empty-DataFrame early-return path [EXISTING]
 
-Differentiator: GeoDataFrame support
-    ├── enhances ETL-04/05/06
-    └── composes db.from_geodataframe [EXISTING]
+ETL-INC-06  RunResult watermark fields
+    └──requires──> ETL-INC-04 (watermark stored in pipeline_runs row)
+    └──requires──> _row_to_result update to parse watermark JSONB
+    └──requires──> RunResult new fields: watermark_used, watermark_recorded
+                       [RunResult is frozen dataclass — add 2 fields]
+
+ETL-INC-07  history() returns watermark fields
+    └──falls out of──> ETL-INC-06 (_row_to_result updated)
+    └──no query change needed──> ETL_LIST_RUNS already does SELECT *
+
+ETL-INC-08  dry_run with incremental
+    └──requires──> ETL-INC-02 (watermark-read logic, read-only)
+    └──requires──> ETL-INC-03 (filter generation, applied to extract)
+    └──depends on──> existing dry_run fork [EXISTING]
+
+ETL-INC-09  Backfill / reset (documented pattern, no new code)
+    └──depends on──> pipeline_runs.watermark column [EXISTING]
+    └──depends on──> first-run-on-NULL-watermark behavior [ETL-INC-02]
+
+ETL-INC-10  Async parity
+    └──mirrors──> ETL-INC-01..09 in AsyncETLAccessor
+    └──extends──> TestEtlParity [EXISTING harness]
 ```
 
 ### Dependency Notes
 
-- **ETL-05 (replace) requires a transaction:** TRUNCATE + INSERT must be atomic. Uses existing `db.transaction()`.
-- **ETL-06 (upsert) requires `conflict_columns`:** Validated at `Pipeline` construction, not at run time. Fail fast.
-- **ETL-07 (`pipeline_runs`) must exist before ETL-08:** Runner creates the table on accessor init; `run()` can assume it exists.
-- **ETL-09 (transaction) and ETL-08 (run tracking) must NOT share a transaction:** Run tracking UPDATE (`status='failed'`) must commit even when the load transaction rolls back. Two separate transactions: (1) load, (2) run record update.
-- **ETL-12 (async parity) requires `asyncio.to_thread` for sync transforms:** pandas is not async-safe; this is the confirmed pattern from existing `run_sync` usage in async spatial/DataFrame helpers.
+- **ETL-INC-06 (RunResult watermark fields) is a breaking extension.** Adding 2 fields to a frozen dataclass is non-breaking for existing callers that do not unpack `RunResult` positionally. Since `RunResult` is constructed only inside `etl.py` and never by users directly, this is safe. Document in CHANGELOG.
+- **ETL-INC-04 requires updating `ETL_UPDATE_RUN`.** The existing query in `queries.py` does not write `watermark`. Two approaches: (a) add `watermark = %s` to the single UPDATE and pass NULL for non-incremental runs, or (b) add a separate UPDATE for watermark. Option (a) is simpler and keeps the single `_end_run` call shape; prefer it.
+- **ETL-INC-03 (filter SQL builder) must be a pure builder** — consistent with the existing `_build_insert_sql`, `_build_upsert_sql` pattern. No I/O, no `self`, returns `(sql, params)` tuple, validates identifiers first.
+- **`last_run()` is not sufficient to read the last watermark** — it returns the most recent run regardless of status. The watermark must be read from the most recent **successful** run (status='success' with non-null watermark). This requires either a new query constant or a filter on the existing `ETL_GET_LAST_RUN`.
 
 ---
 
-## MVP Definition (v0.5.0 Launch Set)
+## MVP Definition (v0.7.0 Incremental ETL Set)
 
-### Must Ship (ETL-\* Table Stakes)
+### Must Ship
 
-- [x] ETL-01 Pipeline dataclass — defines extract/transform/load declaratively
-- [x] ETL-02 Extract from SQL or table name — delegates to `to_dataframe`
-- [x] ETL-03 Transform callable (DataFrame→DataFrame), optional/no-op
-- [x] ETL-04 Load mode: append
-- [x] ETL-05 Load mode: replace (truncate-load, transactional)
-- [x] ETL-06 Load mode: upsert (merge-by-key via `conflict_columns`)
-- [x] ETL-07 `pipeline_runs` table — auto-created, persistent run audit
-- [x] ETL-08 Status lifecycle: running → success / failed with timestamps and row counts
-- [x] ETL-09 Transactional load (load tx separate from run tracking tx)
-- [x] ETL-10 `db.etl.run(pipeline) -> RunResult` — the primary execution entry point
-- [x] ETL-11 `db.etl.history(pipeline_name)` — query past runs
-- [x] ETL-12 Async parity — `async_db.etl.run(pipeline)` and `async_db.etl.history(name)`
-- [x] ETL-13 `ETLAccessor` lazy accessor on `db.etl` (mirrors `db.spatial`)
-- [x] ETL-14 `pipeline_runs` auto-created if missing — no manual migration needed
+- [ ] ETL-INC-01 — `Pipeline.incremental_column` field with construction-time validation
+- [ ] ETL-INC-02 — First-run full load (NULL watermark → no filter)
+- [ ] ETL-INC-03 — `>` exclusive watermark filter for subsequent runs
+- [ ] ETL-INC-04 — Record `max(col)` as new watermark on success
+- [ ] ETL-INC-05 — Empty-batch handling: success + 0 rows + watermark preserved
+- [ ] ETL-INC-06 — `RunResult.watermark_used` and `RunResult.watermark_recorded` fields
+- [ ] ETL-INC-07 — `history()` returns watermark fields (falls out of ETL-INC-06)
+- [ ] ETL-INC-08 — `dry_run=True` with incremental: compute filter + would-be max, write nothing
+- [ ] ETL-INC-09 — Backfill / reset documented (no new code)
+- [ ] ETL-INC-10 — Full sync/async parity for all above
 
-### Add After MVP Validation
+### Explicitly Deferred (do not scope into v0.7.0)
 
-- [ ] Transform chain (list of callables) — ergonomic improvement once single-callable is solid
-- [ ] `dry_run=True` mode — useful for testing transforms against production data
-- [ ] `db.etl.last_run(pipeline_name)` — convenience wrapper
-- [ ] GeoDataFrame-aware load — if spatial ETL use cases emerge
-
-### Future (v0.6.0+)
-
-- [ ] Incremental / watermark extract — `pipeline_runs.finished_at` is the hook point; do not build now
-- [ ] Cross-DB transfer — separate Database instances as source/target
-- [ ] File source/sink (CSV, Parquet)
-- [ ] Streaming transforms for large tables
-- [ ] Pipeline dependency DAGs
+- Configurable `>` vs `>=` boundary option — single operator is better than two
+- Multi-column composite watermarks — complexity without clear use case
+- CDC / WAL decoding — different architecture entirely
+- Late-arriving data lookback window — user-level concern, handle in source SQL
+- Scheduler / cron integration — out of scope for a library
 
 ---
 
-## Requirement Drafts (ETL-\* Testable Statements)
+## Impact on Existing `RunResult` / `history()` / `dry_run` Surface
 
-Each table-stakes feature maps to one concrete user-centric requirement:
+This section documents the exact changes to each existing surface.
 
-| Req ID | Testable Requirement |
-| --- | --- |
-| ETL-01 | User can define a pipeline with `Pipeline(name=..., source=..., target=..., load_mode=...)` and the object is inspectable (`name`, `source`, `target`, `load_mode`, `schema` are readable attributes). |
-| ETL-02 | User can set `source="SELECT * FROM raw_events"` (SQL) or `source="raw_events"` (table name) and both successfully extract a DataFrame on `run()`. |
-| ETL-03 | User can pass `transform=None` (no-op) or `transform=lambda df: df.dropna()` and the transform is applied before load. An exception in the transform raises `ETLTransformError` and records a failed run. |
-| ETL-04 | User can set `load_mode='append'` and running the pipeline twice inserts rows twice into the target. Target must exist; if not, raises `ETLTargetNotFoundError`. |
-| ETL-05 | User can set `load_mode='replace'` and running the pipeline twice leaves only the most recent extract's rows in the target. If the target does not exist, it is created. The truncate+insert is atomic: a mid-load error leaves the target unchanged. |
-| ETL-06 | User can set `load_mode='upsert'` with `conflict_columns=['id']` and running the pipeline twice updates existing rows and inserts new ones without duplicates. Omitting `conflict_columns` with `load_mode='upsert'` raises `ValueError` at pipeline construction time. |
-| ETL-07 | After any `db.etl.run(pipeline)` call, a row exists in `pipeline_runs` with `run_id`, `pipeline_name`, `started_at`, `finished_at`, `status`, `rows_extracted`, `rows_loaded`. |
-| ETL-08 | A pipeline run that raises an exception during load records `status='failed'` with a non-null `error_message` and `error_traceback`. The `pipeline_runs` record is committed even when the load transaction rolled back. |
-| ETL-09 | In `replace` mode, if an error occurs after TRUNCATE but before INSERT commits, the target table still contains its original rows (the load transaction rolled back). |
-| ETL-10 | `db.etl.run(pipeline)` returns a `RunResult` with `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, and `error` fields. |
-| ETL-11 | `db.etl.history("my_pipeline")` returns a list of `RunResult` for all past runs of that pipeline, ordered newest-first. |
-| ETL-12 | `await async_db.etl.run(pipeline)` and `await async_db.etl.history(name)` exist and produce equivalent results to sync versions. Both are enumerated in the existing `test_parity` harness. |
-| ETL-13 | `db.etl` returns an `ETLAccessor` instance. `async_db.etl` returns an `AsyncETLAccessor` instance. Both are lazy (created on first access). |
-| ETL-14 | The `pipeline_runs` table is created automatically on the first `db.etl.run()` call if it does not already exist. No user-run DDL is required. |
+### `RunResult` (etl.py)
+
+**Current fields (8):** `run_id`, `pipeline_name`, `status`, `rows_extracted`, `rows_loaded`, `started_at`, `finished_at`, `error`
+
+**New fields (2):** `watermark_used: Any | None`, `watermark_recorded: Any | None`
+
+- Both default to `None` for non-incremental pipelines — no caller breakage for existing users
+- `watermark_used`: the Python value extracted from the prior run's `watermark JSONB`, used as the `>` filter threshold
+- `watermark_recorded`: the Python value of `max(incremental_column)` stored in this run's `watermark JSONB`
+- `_row_to_result` must parse `pipeline_runs.watermark` (a JSONB dict) → extract `value` key → assign to both fields with appropriate semantics (used = prior watermark by definition, so `_row_to_result` cannot reconstruct `watermark_used` from the row alone; `watermark_used` must be passed into `_row_to_result` or carried separately)
+
+**Design note:** `_row_to_result` takes a row from the DB which only knows what was recorded, not what was used as the filter. The runner must capture `watermark_used` before the run and pass it alongside the completed row. Two options: (a) add `watermark_used` as a parameter to `_row_to_result`, or (b) build `RunResult` inline in `run()` for the incremental path. Option (a) preserves the existing `_fetch_run_result → _row_to_result` pipeline for non-incremental runs.
+
+### `history()` / `last_run()`
+
+No signature change. `RunResult` objects returned by these methods will have `watermark_used` and `watermark_recorded` populated if the run was incremental (non-null `pipeline_runs.watermark`), else `None`. No query changes — `ETL_LIST_RUNS` already does `SELECT *`.
+
+### `dry_run=True`
+
+**Current behavior:** extract + transform only, no load, no `pipeline_runs` row, returns `RunResult(status='dry_run', rows_loaded=0, run_id=None)`.
+
+**New behavior with `incremental_column`:**
+- Read last watermark from `pipeline_runs` on a read-only autocommit connection (if table exists; if not, treat as first run)
+- Apply the `>` filter in the extract
+- Compute `max(incremental_column)` from the extracted DataFrame
+- Return `RunResult(status='dry_run', rows_loaded=0, run_id=None, watermark_used=<last>, watermark_recorded=<would_be_max>)`
+- Write nothing (consistent with existing contract)
+
+### `ETL_UPDATE_RUN` (queries.py)
+
+**Current:** 7-parameter UPDATE (status, finished_at, rows_extracted, rows_loaded, error_message, error_traceback, run_id) — no watermark write.
+
+**New:** 8-parameter UPDATE adding `watermark = %s` as the 7th positional parameter (before `run_id`). Pass `None` for non-incremental runs — stores NULL, consistent with current state of all existing rows.
+
+### New `ETL_GET_LAST_WATERMARK` query (queries.py)
+
+```sql
+SELECT watermark
+FROM pipeline_runs
+WHERE pipeline_name = %s
+  AND status = 'success'
+  AND watermark IS NOT NULL
+ORDER BY finished_at DESC
+LIMIT 1
+```
+
+This is distinct from `ETL_GET_LAST_RUN` (which returns the most recent run regardless of status or watermark). Incremental runs must read from the most recent **successful** run that has a watermark.
 
 ---
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
-| --- | --- | --- | --- |
-| ETL-01 Pipeline dataclass | HIGH | LOW | P1 — foundational |
-| ETL-02 Extract from SQL/table | HIGH | LOW | P1 — composes existing |
-| ETL-03 Transform callable | HIGH | LOW | P1 — core contract |
-| ETL-04 Append load | HIGH | LOW | P1 — simplest load |
-| ETL-05 Replace load | HIGH | MEDIUM | P1 — idempotency |
-| ETL-06 Upsert load | HIGH | MEDIUM | P1 — idempotency |
-| ETL-07 pipeline\_runs table | HIGH | MEDIUM | P1 — observability |
-| ETL-08 Status lifecycle | HIGH | LOW | P1 — diagnostic |
-| ETL-09 Transactional load | HIGH | MEDIUM | P1 — data safety |
-| ETL-10 db.etl.run() | HIGH | MEDIUM | P1 — entry point |
-| ETL-11 db.etl.history() | MEDIUM | LOW | P1 — usability |
-| ETL-12 Async parity | HIGH | MEDIUM | P1 — core value |
-| ETL-13 ETLAccessor | MEDIUM | LOW | P1 — pattern |
-| ETL-14 Auto-create table | HIGH | LOW | P1 — zero-config |
-| Transform chain | MEDIUM | LOW | P2 — ergonomic |
-| dry\_run mode | MEDIUM | LOW | P2 — DX |
-| last\_run() | LOW | LOW | P2 — convenience |
-| GeoDataFrame load | LOW | MEDIUM | P3 — niche |
+|---------|------------|---------------------|----------|
+| ETL-INC-01 Pipeline.incremental_column | HIGH | LOW | P1 — entry point |
+| ETL-INC-02 First-run full load | HIGH | LOW | P1 — correctness |
+| ETL-INC-03 Exclusive `>` filter | HIGH | MEDIUM | P1 — core mechanism |
+| ETL-INC-04 Record watermark | HIGH | LOW | P1 — state persistence |
+| ETL-INC-05 Empty-batch handling | HIGH | LOW | P1 — correctness |
+| ETL-INC-06 RunResult watermark fields | MEDIUM | LOW | P1 — observability |
+| ETL-INC-07 history() watermark fields | MEDIUM | LOW | P1 — falls out of INC-06 |
+| ETL-INC-08 dry_run incremental | MEDIUM | LOW | P1 — testing workflow |
+| ETL-INC-09 Backfill docs | MEDIUM | NONE | P1 — essential escape hatch |
+| ETL-INC-10 Async parity | HIGH | MEDIUM | P1 — core value |
+
+All items are P1. There are no P2/P3 items — the incremental feature is only useful when all parts of the state loop are correct.
 
 ---
 
-## Ecosystem Reference: How Lightweight Tools Solve This
+## Ecosystem Reference
 
-| Design Decision | petl | dlt | Airflow dag\_run | This runner |
-| --- | --- | --- | --- | --- |
-| Pipeline definition | Table-chain composition | `dlt.pipeline(name, destination)` | `@dag` + `@task` decorator | `Pipeline` dataclass — explicit, inspectable |
-| Transform signature | `row -> row` iterator | `@dlt.transformer` generator | `@task` callable | `Callable[[pd.DataFrame], pd.DataFrame]` |
-| No-op transform | Identity by default | No source = no transform | Empty task | `transform=None` skips step |
-| Load mode: replace | `petl.todb(table, create=True)` | `write_disposition='replace'` | DAG re-run clears old | `load_mode='replace'` — TRUNCATE+INSERT in single tx |
-| Load mode: upsert | `petl.mergetodb(key=...)` | `write_disposition='merge'` + `primary_key` | Custom task | `load_mode='upsert'` + `conflict_columns=[...]` |
-| Run tracking | None built-in | `_dlt_loads` table: load\_id, schema\_name, status, inserted\_at | `dag_run` table: dag\_id, run\_id, start\_date, end\_date, state | `pipeline_runs`: run\_id UUID, pipeline\_name, started\_at, finished\_at, status, rows\_extracted, rows\_loaded, error\_message, error\_traceback |
-| Status lifecycle | N/A | 0=complete, other=incomplete | queued / running / success / failed | `running` → `success` / `failed` |
-| Transactional load | No (row-by-row) | Destination-dependent | Task-level commit | TRUNCATE+INSERT in single tx (replace mode) |
-| Async support | No | No native async | No (Celery workers) | Yes — `async_db.etl.*` via `asyncio.to_thread` for transforms |
+| Design Decision | dlt | Fivetran / Matillion / ADF | This library |
+|----------------|-----|---------------------------|--------------|
+| Watermark field | `@dlt.resource(incremental=dlt.sources.incremental("col"))` | Cursor field config per connector | `Pipeline.incremental_column` declarative field |
+| Default boundary | `>=` (inclusive) — pairs with content-hash dedup | `>` (exclusive) — standard HWM | `>` (exclusive) — simpler, no hash state |
+| State storage | Pipeline state file or DB table | Connector-managed | `pipeline_runs.watermark JSONB` (already exists) |
+| First run | Full load | Full sync | Full load (NULL watermark → no filter) |
+| Empty batch | Success, state unchanged | Success | Success, watermark copied from prior run |
+| Reset / backfill | `--full-refresh` flag | Manual resync button | Delete `pipeline_runs` rows, next run is full load |
+| Dry run | Not a primary concept | Not applicable | `dry_run=True` reads watermark + applies filter + returns would-be max |
 
 ---
 
 ## Sources
 
-- [petl documentation](https://petl.readthedocs.io/latest/)
-- [dlt load dispositions](https://dlthub.com/docs/general-usage/incremental-loading)
-- [dlt destination tables](https://dlthub.com/docs/general-usage/destination-tables)
-- [dlt architecture explainer](https://dlthub.com/docs/reference/explainers/how-dlt-works)
-- [Airflow dag\_run schema](https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dag-run.html)
-- [Idempotency patterns in ETL](https://medium.com/@iamanjlikaur/ensuring-idempotency-in-data-ingestion-pipelines-33301cf917fb)
-- [asyncio.to\_thread with pandas](https://stlplaces.com/blog/how-to-use-asyncio-with-pandas-dataframe)
-- pycopg existing API: `pycopg/database.py`, `pycopg/async_database.py`, `pycopg/spatial.py`
+- [dlt Cursor-based incremental loading](https://dlthub.com/docs/general-usage/incremental/cursor)
+- [dlt Incremental loading overview](https://dlthub.com/docs/general-usage/incremental-loading)
+- [Matillion ETL: Incremental / High Water Mark loading](https://docs.matillion.com/metl/docs/2506598/)
+- [ETLworks: Change Replication using HWM](https://support.etlworks.com/hc/en-us/articles/360014718933-Change-Replication-using-High-Watermark-HWM)
+- [Fivetran: Building efficient data pipelines with incremental updates](https://www.fivetran.com/blog/building-efficient-data-pipelines-with-incremental-updates)
+- [Microsoft FastTrack: Robust data ingestion with high-watermarking](https://techcommunity.microsoft.com/t5/fasttrack-for-azure/robust-data-ingestion-with-high-watermarking/ba-p/3707480)
+- pycopg codebase: `pycopg/etl.py`, `pycopg/queries.py`
 - pycopg project context: `.planning/PROJECT.md`
 
 ---
 
-*Feature landscape for: pycopg v0.5.0 ETL Pipeline Runner*
-*Researched: 2026-06-14*
-*Confidence: HIGH on table-stakes scope (clear codebase anchor + consistent ecosystem evidence); MEDIUM on exact ecosystem API shapes (ETL framework docs vary; petl/dlt behave differently; patterns verified across multiple sources)*
+*Feature landscape for: pycopg v0.7.0 Incremental ETL*
+*Researched: 2026-06-19*
+*Confidence: HIGH on table-stakes scope (clear codebase anchor + consistent ecosystem evidence); HIGH on boundary decision (> vs >= — multiple independent sources converge on > as standard HWM pattern; dlt's >= is explicitly paired with deduplication that pycopg does not implement)*
