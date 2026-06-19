@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
 status: planning
-last_updated: "2026-06-19"
-last_activity: 2026-06-19
+stopped_at: Roadmap created — 5 phases (25-29), 17/17 requirements mapped
+last_updated: "2026-06-19T18:45:32.023Z"
+last_activity: 2026-06-19 — Roadmap created for v0.7.0 (5 phases, 17 requirements mapped)
 progress:
   total_phases: 5
   completed_phases: 0
@@ -34,6 +35,7 @@ Progress: [░░░░░░░░░░] 0%
 ## Performance Metrics
 
 **Gates (v0.6.0 baseline):**
+
 - Coverage ratchet: ≥94% (measured 95.64% at v0.6.0 ship)
 - interrogate: gate ≥95 (measured 100%)
 - `-W error::DeprecationWarning`: green (will stay green after alias removal — no stubs left)
@@ -53,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 ### Decisions
 
 Locked scope decisions (cadrage 2026-06-19, see PROJECT.md):
+
 - Watermark via `incremental_column` only (no callbacks); high-water mark = `max(col)` from raw batch before transforms
 - `incremental_column` + `load_mode` ∈ {append, replace} forbidden at construction (`ValueError`)
 - First run (no watermark) = full load then record `max(col)`; advance only on successful load

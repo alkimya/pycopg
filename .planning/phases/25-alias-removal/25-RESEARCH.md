@@ -554,7 +554,7 @@ Step 2.5: SKIPPED (not a rename/refactor/migration phase in the rename sense —
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `aliases.py` be deleted before or after the stubs are removed?**
    - What we know: Both `database.py` and `async_database.py` import `from pycopg.aliases import deprecated_alias`. As long as any stub or import remains, deleting `aliases.py` causes `ImportError`.
