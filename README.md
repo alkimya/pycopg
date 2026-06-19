@@ -73,18 +73,35 @@ db = Database.create("myapp", user="admin", password="secret")
 db = Database.create_from_env("myapp")
 ```
 
+## Accessor Namespaces
+
+pycopg organizes database operations into typed accessor namespaces:
+
+| Accessor | Access | Methods |
+| -------- | ------ | ------- |
+| `db.schema.*` | DDL + introspection | `list_schemas`, `list_tables`, `table_info`, `create_index`, … (27 methods) |
+| `db.admin.*` | Roles & permissions | `create_role`, `grant`, `revoke`, `list_roles`, … (11 methods) |
+| `db.maint.*` | Maintenance | `size`, `vacuum`, `analyze`, `explain`, … (6 methods) |
+| `db.backup.*` | Backup & restore | `pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv` (4 methods) |
+| `db.timescale.*` | TimescaleDB | `create_hypertable`, `enable_compression`, `add_retention_policy`, … (6 methods) |
+| `db.spatial.*` | PostGIS helpers | `contains`, `within`, `intersects`, `create_spatial_index`, … (13 methods) |
+| `db.etl.*` | ETL pipelines | `run`, `history`, `last_run`, `init` (4 methods) |
+
+All accessors expose an identical async surface on `AsyncDatabase` (e.g. `async_db.admin.*`).
+Flat methods are deprecated as of v0.6.0; see [MIGRATION.md](MIGRATION.md).
+
 ## Core Features
 
 ### Database Exploration
 
 ```python
-db.list_schemas()           # ['public', 'app', ...]
-db.list_tables("public")    # ['users', 'orders', ...]
-db.table_info("users")      # Column details
-db.list_columns("users")    # ['id', 'name', 'email']
-db.columns_with_types("users") # [('id', 'integer'), ('name', 'text')]
-db.size()                   # '256 MB'
-db.table_sizes("public")    # Size of each table
+db.schema.list_schemas()           # ['public', 'app', ...]
+db.schema.list_tables("public")    # ['users', 'orders', ...]
+db.schema.table_info("users")      # Column details
+db.schema.list_columns("users")    # ['id', 'name', 'email']
+db.schema.columns_with_types("users") # [('id', 'integer'), ('name', 'text')]
+db.maint.size()                    # '256 MB'
+db.maint.table_sizes("public")     # Size of each table
 ```
 
 ### Query Execution
@@ -157,55 +174,55 @@ users_df = db.to_dataframe(sql="SELECT * FROM users WHERE age > :min_age", param
 
 ```python
 # Create users
-db.create_role("appuser", password="secret123", login=True)
-db.create_role("admin", password="secret", superuser=True)
+db.admin.create_role("appuser", password="secret123", login=True)
+db.admin.create_role("admin", password="secret", superuser=True)
 
 # Create group roles
-db.create_role("readonly", login=False)
-db.create_role("analyst", password="secret", in_roles=["readonly"])
+db.admin.create_role("readonly", login=False)
+db.admin.create_role("analyst", password="secret", in_roles=["readonly"])
 
 # Grant privileges
-db.grant("SELECT", "users", "readonly")
-db.grant("ALL", "orders", "appuser")
-db.grant("SELECT", "ALL TABLES", "readonly", schema="public")
-db.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
+db.admin.grant("SELECT", "users", "readonly")
+db.admin.grant("ALL", "orders", "appuser")
+db.admin.grant("SELECT", "ALL TABLES", "readonly", schema="public")
+db.admin.grant("USAGE", "myschema", "appuser", object_type="SCHEMA")
 
 # Revoke privileges
-db.revoke("INSERT", "users", "readonly")
+db.admin.revoke("INSERT", "users", "readonly")
 
 # Role management
-db.grant_role("readonly", "analyst")
-db.alter_role("appuser", password="newpassword")
-db.list_roles()
-db.list_role_grants("appuser")
+db.admin.grant_role("readonly", "analyst")
+db.admin.alter_role("appuser", password="newpassword")
+db.admin.list_roles()
+db.admin.list_role_grants("appuser")
 ```
 
 ## Backup & Restore
 
 ```python
 # Full backup (custom format - compressed)
-db.pg_dump("backup.dump")
+db.backup.pg_dump("backup.dump")
 
 # SQL format
-db.pg_dump("backup.sql", format="plain")
+db.backup.pg_dump("backup.sql", format="plain")
 
 # Schema only
-db.pg_dump("schema.sql", format="plain", schema_only=True)
+db.backup.pg_dump("schema.sql", format="plain", schema_only=True)
 
 # Specific tables
-db.pg_dump("users.dump", tables=["users", "profiles"])
+db.backup.pg_dump("users.dump", tables=["users", "profiles"])
 
 # Parallel backup (directory format)
-db.pg_dump("backup_dir", format="directory", jobs=4)
+db.backup.pg_dump("backup_dir", format="directory", jobs=4)
 
 # Restore
-db.pg_restore("backup.dump")
-db.pg_restore("backup.dump", clean=True)  # Drop and recreate
-db.pg_restore("backup_dir", jobs=4)       # Parallel restore
+db.backup.pg_restore("backup.dump")
+db.backup.pg_restore("backup.dump", clean=True)  # Drop and recreate
+db.backup.pg_restore("backup_dir", jobs=4)        # Parallel restore
 
 # CSV export/import
-db.copy_to_csv("users", "users.csv")
-db.copy_from_csv("users", "users.csv")
+db.backup.copy_to_csv("users", "users.csv")
+db.backup.copy_from_csv("users", "users.csv")
 ```
 
 ## Async Support
@@ -269,67 +286,66 @@ await db.from_geodataframe(gdf, "parcels_copy", spatial_index=True)
 
 ```python
 # Maintenance
-await db.vacuum("users", analyze=True)
-await db.analyze("orders")
+await db.maint.vacuum("users", analyze=True)
+await db.maint.analyze("orders")
 
 # Query analysis
-plan = await db.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
+plan = await db.maint.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
 
 # Indexes
-await db.create_index("users", "email", unique=True)
-await db.drop_index("idx_users_email")
+await db.schema.create_index("users", "email", unique=True)
+await db.schema.drop_index("idx_users_email")
 
 # Tables
-await db.create_table("logs", {"id": "SERIAL PRIMARY KEY", "message": "TEXT"})
-await db.drop_table("temp_data")
+await db.schema.drop_table("temp_data")
 ```
 
 ### Async Backup Operations
 
 ```python
 # Full backup
-await db.pg_dump("backup.dump")
-await db.pg_dump("backup.sql", format="plain")
+await db.backup.pg_dump("backup.dump")
+await db.backup.pg_dump("backup.sql", format="plain")
 
 # Restore
-await db.pg_restore("backup.dump")
+await db.backup.pg_restore("backup.dump")
 
 # CSV export/import
-await db.copy_to_csv("users", "users.csv")
-await db.copy_from_csv("users", "users.csv")
+await db.backup.copy_to_csv("users", "users.csv")
+await db.backup.copy_from_csv("users", "users.csv")
 ```
 
 ### Async Role Management
 
 ```python
 # Create roles
-await db.create_role("analyst", password="secret", login=True)
-await db.create_role("readonly", login=False)
+await db.admin.create_role("analyst", password="secret", login=True)
+await db.admin.create_role("readonly", login=False)
 
 # Grant/revoke privileges
-await db.grant("SELECT", "users", "readonly")
-await db.grant("ALL", "orders", "analyst")
-await db.revoke("INSERT", "users", "readonly")
+await db.admin.grant("SELECT", "users", "readonly")
+await db.admin.grant("ALL", "orders", "analyst")
+await db.admin.revoke("INSERT", "users", "readonly")
 
 # Role membership
-await db.grant_role("readonly", "analyst")
+await db.admin.grant_role("readonly", "analyst")
 ```
 
 ### Async PostGIS & TimescaleDB
 
 ```python
 # PostGIS: Spatial indexes
-await db.create_spatial_index("parcels", "geometry")
+await db.spatial.create_spatial_index("parcels", "geometry")
 
 # TimescaleDB: Hypertables
-await db.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
+await db.timescale.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
 
 # TimescaleDB: Compression
-await db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
-await db.add_compression_policy("events", compress_after="30 days")
+await db.timescale.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
+await db.timescale.add_compression_policy("events", compress_after="30 days")
 
 # TimescaleDB: Retention
-await db.add_retention_policy("logs", drop_after="90 days")
+await db.timescale.add_retention_policy("logs", drop_after="90 days")
 ```
 
 ## Connection Pooling
@@ -516,7 +532,7 @@ Migrations are tracked in `schema_migrations` table with version, name, and appl
 import geopandas as gpd
 
 # Ensure PostGIS is installed
-db.create_extension("postgis")
+db.schema.create_extension("postgis")
 
 # Create spatial table
 gdf = gpd.read_file("parcels.geojson")
@@ -536,59 +552,59 @@ db.execute("""
 
 ```python
 # Ensure TimescaleDB is installed
-db.create_extension("timescaledb")
+db.schema.create_extension("timescaledb")
 
 # Create hypertable
-db.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
+db.timescale.create_hypertable("events", "timestamp", chunk_time_interval="1 week")
 
 # Enable compression
-db.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
-db.add_compression_policy("events", compress_after="30 days")
+db.timescale.enable_compression("events", segment_by="device_id", order_by="timestamp DESC")
+db.timescale.add_compression_policy("events", compress_after="30 days")
 
 # Data retention
-db.add_retention_policy("logs", drop_after="90 days")
+db.timescale.add_retention_policy("logs", drop_after="90 days")
 
 # Query hypertables
-db.list_hypertables()
+db.timescale.list_hypertables()
 ```
 
 ## Schema & Table Management
 
 ```python
 # Schemas
-db.create_schema("app")
-db.drop_schema("old_schema", cascade=True)
+db.schema.create_schema("app")
+db.schema.drop_schema("old_schema", cascade=True)
 
 # Tables
-db.drop_table("users")
-db.truncate_table("logs")
+db.schema.drop_table("users")
+db.schema.truncate_table("logs")
 
 # Indexes
-db.create_index("users", "email", unique=True)
-db.create_index("products", ["category", "price"])
-db.create_index("documents", "content", method="gin")
+db.schema.create_index("users", "email", unique=True)
+db.schema.create_index("products", ["category", "price"])
+db.schema.create_index("documents", "content", method="gin")
 
 # Constraints
-db.add_primary_key("users", "id")
-db.add_foreign_key("orders", "user_id", "users", "id", on_delete="CASCADE")
-db.add_unique_constraint("users", "email")
+db.schema.add_primary_key("users", "id")
+db.schema.add_foreign_key("orders", "user_id", "users", "id", on_delete="CASCADE")
+db.schema.add_unique_constraint("users", "email")
 ```
 
 ## Database Administration
 
 ```python
 # Create/drop databases
-db.create_database("myapp", owner="appuser")
-db.drop_database("olddb")
-db.database_exists("myapp")
-db.list_databases()
+db.schema.create_database("myapp", owner="appuser")
+db.schema.drop_database("olddb")
+db.schema.database_exists("myapp")
+db.schema.list_databases()
 
 # Maintenance
-db.vacuum("users", analyze=True)
-db.analyze("users")
+db.maint.vacuum("users", analyze=True)
+db.maint.analyze("users")
 
 # Query analysis
-plan = db.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
+plan = db.maint.explain("SELECT * FROM users WHERE email = %s", ["test@example.com"])
 print("\n".join(plan))
 ```
 
