@@ -4,8 +4,8 @@ milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
 status: verifying
 stopped_at: Phase 24 Plan 02 complete
-last_updated: "2026-06-19T12:02:09.345Z"
-last_activity: 2026-06-19 -- Phase 24 Plan 02 complete (CHANGELOG + MIGRATION + exports)
+last_updated: "2026-06-19T12:09:27.762Z"
+last_activity: 2026-06-19
 progress:
   total_phases: 4
   completed_phases: 4
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-17)
 
 ## Current Position
 
-Phase: 24 (exports-docs-release-v0-6-0) — EXECUTING
-Plan: 3 of 3
+Phase: 24
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-19 -- Phase 24 Plan 02 complete (CHANGELOG + MIGRATION + exports)
+Last activity: 2026-06-19
 
 Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
 
