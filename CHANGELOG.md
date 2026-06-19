@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - TBD
+
+### Breaking
+
+All 56 flat method names on `Database` and `AsyncDatabase` that were deprecated in v0.6.0
+are permanently removed. Calling any removed flat name (e.g. `db.create_hypertable`,
+`db.list_tables`, `db.vacuum`) now raises `AttributeError` with no warning and no delegation.
+
+**Migration:** Replace each flat call with its accessor-namespaced equivalent.
+See [MIGRATION.md](MIGRATION.md#migration-guide-v060--v070) for the complete flat-name →
+accessor-path table covering all 56 removed names
+(timescale 6 / admin 11 / backup 4 / maint 6 / schema 27 / spatial 2).
+
 ## [0.6.0] - 2026-06-19
 
 ### Added

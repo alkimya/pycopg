@@ -1,3 +1,112 @@
+# Migration Guide: v0.6.0 → v0.7.0
+
+This guide helps you upgrade from pycopg 0.6.0 to 0.7.0. Version 0.7.0 permanently
+removes the 56 flat method names that were deprecated in v0.6.0. Calling any removed
+flat name now raises `AttributeError` immediately — there is no warning and no delegation.
+
+## Breaking Changes: Flat API Names Removed
+
+All 56 flat methods on `Database` and `AsyncDatabase` that emitted `DeprecationWarning`
+in v0.6.0 are **permanently removed** in v0.7.0. They now raise `AttributeError`.
+
+**Before (v0.6.0) — emitted DeprecationWarning; now raises AttributeError:**
+```python
+db.create_hypertable("events", "time")   # AttributeError in v0.7.0
+db.create_role("appuser", login=True)    # AttributeError in v0.7.0
+db.list_tables()                         # AttributeError in v0.7.0
+```
+
+**After (v0.7.0) — use the accessor path:**
+```python
+db.timescale.create_hypertable("events", "time")
+db.admin.create_role("appuser", login=True)
+db.schema.list_tables()
+```
+
+## Complete Flat-Name → Accessor-Path Removal Table
+
+All 56 flat names removed in v0.7.0 and their accessor replacements.
+Use this table to find the correct path for each removed name.
+
+| Flat name (removed in v0.7.0) | Accessor path (use this) |
+| ----------------------------- | ------------------------ |
+| `db.add_compression_policy` | `db.timescale.add_compression_policy` |
+| `db.add_retention_policy` | `db.timescale.add_retention_policy` |
+| `db.create_hypertable` | `db.timescale.create_hypertable` |
+| `db.enable_compression` | `db.timescale.enable_compression` |
+| `db.hypertable_info` | `db.timescale.hypertable_info` |
+| `db.list_hypertables` | `db.timescale.list_hypertables` |
+| `db.alter_role` | `db.admin.alter_role` |
+| `db.create_role` | `db.admin.create_role` |
+| `db.drop_role` | `db.admin.drop_role` |
+| `db.grant` | `db.admin.grant` |
+| `db.grant_role` | `db.admin.grant_role` |
+| `db.list_role_grants` | `db.admin.list_role_grants` |
+| `db.list_role_members` | `db.admin.list_role_members` |
+| `db.list_roles` | `db.admin.list_roles` |
+| `db.revoke` | `db.admin.revoke` |
+| `db.revoke_role` | `db.admin.revoke_role` |
+| `db.role_exists` | `db.admin.role_exists` |
+| `db.copy_from_csv` | `db.backup.copy_from_csv` |
+| `db.copy_to_csv` | `db.backup.copy_to_csv` |
+| `db.pg_dump` | `db.backup.pg_dump` |
+| `db.pg_restore` | `db.backup.pg_restore` |
+| `db.analyze` | `db.maint.analyze` |
+| `db.explain` | `db.maint.explain` |
+| `db.size` | `db.maint.size` |
+| `db.table_size` | `db.maint.table_size` |
+| `db.table_sizes` | `db.maint.table_sizes` |
+| `db.vacuum` | `db.maint.vacuum` |
+| `db.add_foreign_key` | `db.schema.add_foreign_key` |
+| `db.add_primary_key` | `db.schema.add_primary_key` |
+| `db.add_unique_constraint` | `db.schema.add_unique_constraint` |
+| `db.columns_with_types` | `db.schema.columns_with_types` |
+| `db.create_database` | `db.schema.create_database` |
+| `db.create_extension` | `db.schema.create_extension` |
+| `db.create_index` | `db.schema.create_index` |
+| `db.create_schema` | `db.schema.create_schema` |
+| `db.database_exists` | `db.schema.database_exists` |
+| `db.drop_database` | `db.schema.drop_database` |
+| `db.drop_extension` | `db.schema.drop_extension` |
+| `db.drop_index` | `db.schema.drop_index` |
+| `db.drop_schema` | `db.schema.drop_schema` |
+| `db.drop_table` | `db.schema.drop_table` |
+| `db.has_extension` | `db.schema.has_extension` |
+| `db.list_columns` | `db.schema.list_columns` |
+| `db.list_constraints` | `db.schema.list_constraints` |
+| `db.list_databases` | `db.schema.list_databases` |
+| `db.list_extensions` | `db.schema.list_extensions` |
+| `db.list_indexes` | `db.schema.list_indexes` |
+| `db.list_schemas` | `db.schema.list_schemas` |
+| `db.list_tables` | `db.schema.list_tables` |
+| `db.row_count` | `db.schema.row_count` |
+| `db.schema_exists` | `db.schema.schema_exists` |
+| `db.table_exists` | `db.schema.table_exists` |
+| `db.table_info` | `db.schema.table_info` |
+| `db.truncate_table` | `db.schema.truncate_table` |
+| `db.create_spatial_index` | `db.spatial.create_spatial_index` |
+| `db.list_geometry_columns` | `db.spatial.list_geometry_columns` |
+
+**Total: 56 removed names** (timescale 6 / admin 11 / backup 4 / maint 6 / schema 27 / spatial 2).
+All `async_db.*` flat names are identical (same 56, same accessor paths with `async_db` prefix).
+
+## Upgrade Checklist
+
+- [ ] Search codebase for any of the 56 removed flat names and replace with accessor paths
+- [ ] If you call `db.create_extension(...)` or `db.list_tables(...)` anywhere, update now
+- [ ] Run your test suite with `python -W error::AttributeError` to catch any missed calls
+- [ ] Run `uv run pytest tests/ -x -q -o addopts=""` to verify compatibility
+
+## Getting Help
+
+If you encounter issues during migration:
+
+1. Check that you're using a supported Python version (3.11+)
+2. Review the [CHANGELOG.md](CHANGELOG.md) for the full list of changes
+3. Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
+
+---
+
 # Migration Guide: v0.5.0 → v0.6.0
 
 This guide helps you upgrade from pycopg 0.5.0 to 0.6.0. Version 0.6.0 introduces
