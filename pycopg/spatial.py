@@ -963,7 +963,7 @@ _VALID_INTO = ("rows", "gdf")
 
 #: Exact PostGIS guard message (mirrors ``from_geodataframe``).
 _POSTGIS_GUARD_MSG = (
-    "PostGIS extension not installed. Run db.create_extension('postgis')"
+    "PostGIS extension not installed. Run db.schema.create_extension('postgis')"
 )
 
 
