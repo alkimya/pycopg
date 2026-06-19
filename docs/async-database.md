@@ -258,29 +258,29 @@ All schema exploration methods are available asynchronously.
 
 ```python
 # Schemas
-schemas = await db.list_schemas()
-exists = await db.schema_exists("app")
-await db.create_schema("new_schema")
+schemas = await db.schema.list_schemas()
+exists = await db.schema.schema_exists("app")
+await db.schema.create_schema("new_schema")
 
 # Tables
-tables = await db.list_tables("public")
-exists = await db.table_exists("users")
-info = await db.table_info("users")  # Column details
+tables = await db.schema.list_tables("public")
+exists = await db.schema.table_exists("users")
+info = await db.schema.table_info("users")  # Column details
 # Returns: column_name, data_type, is_nullable, column_default, etc.
 
 # Lightweight column introspection
-cols = await db.list_columns("users")
+cols = await db.schema.list_columns("users")
 # ['id', 'name', 'email']
 
-types = await db.columns_with_types("users")
+types = await db.schema.columns_with_types("users")
 # [('id', 'integer'), ('name', 'text')]
 
-count = await db.row_count("users")
+count = await db.schema.row_count("users")
 
 # Extensions
-extensions = await db.list_extensions()
-has_postgis = await db.has_extension("postgis")
-await db.create_extension("uuid-ossp")
+extensions = await db.schema.list_extensions()
+has_postgis = await db.schema.has_extension("postgis")
+await db.schema.create_extension("uuid-ossp")
 
 # Roles
 roles = await db.list_roles()
@@ -335,22 +335,22 @@ await db.create_table("products", {
 await db.drop_table("old_table")
 
 # Create index
-await db.create_index("products", "name", unique=True)
+await db.schema.create_index("products", "name", unique=True)
 
 # Drop index
-await db.drop_index("products_name_idx")
+await db.schema.drop_index("products_name_idx")
 
 # List indexes
-indexes = await db.list_indexes("products")
+indexes = await db.schema.list_indexes("products")
 
 # List constraints
-constraints = await db.list_constraints("products")
+constraints = await db.schema.list_constraints("products")
 
 # Drop schema with cascade
-await db.drop_schema("old_schema", cascade=True)
+await db.schema.drop_schema("old_schema", cascade=True)
 
 # Get table sizes
-sizes = await db.table_sizes("public")
+sizes = await db.schema.table_sizes("public")
 # Returns list of dicts with table names and sizes
 ```
 
@@ -360,7 +360,7 @@ Database maintenance operations are fully async.
 
 ```python
 # Vacuum table (with analyze)
-await db.vacuum("large_table", analyze=True)
+await db.maint.vacuum("large_table", analyze=True)
 
 # Analyze table statistics
 await db.analyze("products")
@@ -381,16 +381,16 @@ Backup operations use `asyncio.create_subprocess_exec` internally to run pg_dump
 
 ```python
 # Dump database to file (custom format)
-await db.pg_dump("backup.dump")
+await db.backup.pg_dump("backup.dump")
 
 # Restore database from file
-await db.pg_restore("backup.dump", clean=True)
+await db.backup.pg_restore("backup.dump", clean=True)
 
 # Export table to CSV
-rows_exported = await db.copy_to_csv("users", "users.csv")
+rows_exported = await db.backup.copy_to_csv("users", "users.csv")
 
 # Import table from CSV
-rows_imported = await db.copy_from_csv("users", "users.csv")
+rows_imported = await db.backup.copy_from_csv("users", "users.csv")
 ```
 
 > **Note:** pg_dump and pg_restore require the PostgreSQL client tools to be installed on the system.
@@ -401,10 +401,10 @@ Create and drop databases asynchronously.
 
 ```python
 # Create new database
-await db.create_database("analytics", owner="analyst")
+await db.schema.create_database("analytics", owner="analyst")
 
 # Drop database
-await db.drop_database("old_db")
+await db.schema.drop_database("old_db")
 ```
 
 > **Note:** These operations require autocommit mode and appropriate privileges.
@@ -415,32 +415,32 @@ Full role and privilege management asynchronously.
 
 ```python
 # Create role with password
-await db.create_role("appuser", password="secret123", login=True)
+await db.admin.create_role("appuser", password="secret123", login=True)
 
 # Drop role
-await db.drop_role("old_user")
+await db.admin.drop_role("old_user")
 
 # Alter role password
-await db.alter_role("appuser", password="newsecret")
+await db.admin.alter_role("appuser", password="newsecret")
 
 # Grant table privileges
-await db.grant("SELECT", "users", "appuser")
-await db.grant("INSERT,UPDATE", "orders", "appuser")
+await db.admin.grant("SELECT", "users", "appuser")
+await db.admin.grant("INSERT,UPDATE", "orders", "appuser")
 
 # Revoke privileges
-await db.revoke("DELETE", "users", "appuser")
+await db.admin.revoke("DELETE", "users", "appuser")
 
 # Grant role membership
-await db.grant_role("admin", "appuser", with_admin=False)
+await db.admin.grant_role("admin", "appuser", with_admin=False)
 
 # Revoke role membership
-await db.revoke_role("admin", "appuser")
+await db.admin.revoke_role("admin", "appuser")
 
 # List role members
-members = await db.list_role_members("admin")
+members = await db.admin.list_role_members("admin")
 
 # List role grants
-grants = await db.list_role_grants("appuser")
+grants = await db.admin.list_role_grants("appuser")
 ```
 
 ## PostGIS Operations
@@ -462,26 +462,26 @@ TimescaleDB hypertable and policy management asynchronously.
 
 ```python
 # Create hypertable
-await db.create_hypertable("metrics", "timestamp", chunk_time_interval="1 day")
+await db.timescale.create_hypertable("metrics", "timestamp", chunk_time_interval="1 day")
 
 # Enable compression
-await db.enable_compression(
+await db.timescale.enable_compression(
     "metrics",
     segment_by="device_id",
     order_by="timestamp DESC"
 )
 
 # Add compression policy
-await db.add_compression_policy("metrics", compress_after="7 days")
+await db.timescale.add_compression_policy("metrics", compress_after="7 days")
 
 # Add retention policy
-await db.add_retention_policy("metrics", drop_after="90 days")
+await db.timescale.add_retention_policy("metrics", drop_after="90 days")
 
 # List hypertables
-hypertables = await db.list_hypertables()
+hypertables = await db.timescale.list_hypertables()
 
 # Get hypertable info
-info = await db.hypertable_info("metrics")
+info = await db.timescale.hypertable_info("metrics")
 ```
 
 ## Complete Example

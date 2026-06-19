@@ -23,8 +23,8 @@ async_db = AsyncDatabase.from_env()
 await async_db.admin.create_role("appuser", password="secret123", login=True)
 ```
 
-> **Note:** The flat `db.*` methods (e.g. `db.create_role`) are deprecated as of
-> v0.6.0 and will be removed in v0.7.0. Use `db.admin.*` instead.
+> **Note:** The flat `db.*` methods (e.g. `db.create_role`) were removed in v0.7.0.
+> Use `db.admin.*` instead.
 > See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
 
 ## Creating Roles

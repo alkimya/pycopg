@@ -15,10 +15,10 @@ from pycopg import Database
 db = Database.from_env()
 
 # Enable PostGIS extension
-db.create_extension("postgis")
+db.schema.create_extension("postgis")
 
 # Verify installation
-if db.has_extension("postgis"):
+if db.schema.has_extension("postgis"):
     print("PostGIS is ready")
 ```
 
@@ -109,10 +109,10 @@ db.create_spatial_index("parcels", "geometry", schema="geo")
 
 ```python
 # GIST index for geometry
-db.create_index("parcels", "geometry", method="gist")
+db.schema.create_index("parcels", "geometry", method="gist")
 
 # GIN index for JSONB properties
-db.create_index("parcels", "properties", method="gin")
+db.schema.create_index("parcels", "properties", method="gin")
 ```
 
 ## Listing Geometry Columns
@@ -304,8 +304,8 @@ from pycopg import Database
 db = Database.from_env()
 
 # Ensure PostGIS is available
-if not db.has_extension("postgis"):
-    db.create_extension("postgis")
+if not db.schema.has_extension("postgis"):
+    db.schema.create_extension("postgis")
 
 # Load and store data
 parcels = gpd.read_file("parcels.geojson")

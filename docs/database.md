@@ -184,7 +184,7 @@ pycopg provides a `db.schema.*` (and `async_db.schema.*`) accessor namespace for
 and introspection, and `db.maint.*` for maintenance operations.
 
 > **Note:** The flat `db.*` DDL and maintenance methods (e.g. `db.list_schemas`,
-> `db.vacuum`) are deprecated as of v0.6.0 and will be removed in v0.7.0.
+> `db.vacuum`) were removed in v0.7.0.
 > Use `db.schema.*` and `db.maint.*` instead.
 > See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
 

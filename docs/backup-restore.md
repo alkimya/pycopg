@@ -23,8 +23,8 @@ async_db = AsyncDatabase.from_env()
 await async_db.backup.pg_dump("backup.dump")
 ```
 
-> **Note:** The flat `db.*` methods (e.g. `db.pg_dump`) are deprecated as of
-> v0.6.0 and will be removed in v0.7.0. Use `db.backup.*` instead.
+> **Note:** The flat `db.*` methods (e.g. `db.pg_dump`) were removed in v0.7.0.
+> Use `db.backup.*` instead.
 > See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
 
 ## pg_dump

@@ -49,9 +49,9 @@ from pycopg import Database
 db = Database.from_env()
 
 # Explore
-print(db.list_schemas())
-print(db.list_tables("public"))
-print(db.size())
+print(db.schema.list_schemas())
+print(db.schema.list_tables("public"))
+print(db.maint.size())
 
 # Query
 users = db.execute("SELECT * FROM users WHERE active = %s", [True])

@@ -31,8 +31,8 @@ async_db = AsyncDatabase.from_env()
 await async_db.timescale.create_hypertable("events", "time")
 ```
 
-> **Note:** The flat `db.*` methods (e.g. `db.create_hypertable`) are deprecated as of
-> v0.6.0 and will be removed in v0.7.0. Use `db.timescale.*` instead.
+> **Note:** The flat `db.*` methods (e.g. `db.create_hypertable`) were removed in v0.7.0.
+> Use `db.timescale.*` instead.
 > See [MIGRATION.md](https://github.com/alkimya/pycopg/blob/main/MIGRATION.md) for the complete name mapping.
 
 ## Setup

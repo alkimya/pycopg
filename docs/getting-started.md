@@ -84,10 +84,10 @@ db = Database.create(
 
 ```python
 # Explore database
-schemas = db.list_schemas()       # ['public', 'app', ...]
-tables = db.list_tables()         # ['users', 'orders', ...]
-columns = db.table_info("users")  # Column details
-size = db.size()                  # '256 MB'
+schemas = db.schema.list_schemas()       # ['public', 'app', ...]
+tables = db.schema.list_tables()         # ['users', 'orders', ...]
+columns = db.schema.table_info("users")  # Column details
+size = db.maint.size()                   # '256 MB'
 
 # Execute queries
 users = db.execute("SELECT * FROM users WHERE active = %s", [True])
