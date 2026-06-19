@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: planning
+status: executing
 stopped_at: Roadmap created — 5 phases (25-29), 17/17 requirements mapped
-last_updated: "2026-06-19T18:45:32.023Z"
-last_activity: 2026-06-19 — Roadmap created for v0.7.0 (5 phases, 17 requirements mapped)
+last_updated: "2026-06-19T20:42:35.589Z"
+last_activity: 2026-06-19 -- Phase 25 execution started
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 25 ready to plan (Alias Removal)
+**Current focus:** Phase 25 — alias-removal
 
 ## Current Position
 
-Phase: 25 of 29 (Alias Removal)
-Plan: —
-Status: Ready to plan Phase 25
-Last activity: 2026-06-19 — Roadmap created for v0.7.0 (5 phases, 17 requirements mapped)
+Phase: 25 (alias-removal) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-19 -- Phase 25 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0%
 | 27. Incremental ETL — Run-Log Integration | TBD | 0 | Not started |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | TBD | 0 | Not started |
 | 29. Release v0.7.0 | TBD | 0 | Not started |
+| Phase 25-alias-removal P01 | 2 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,7 +84,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-19
+Last session: 2026-06-19T20:42:35.578Z
 Stopped at: Roadmap created — 5 phases (25-29), 17/17 requirements mapped
 Resume file: None
 Next action: `/gsd-plan-phase 25`
