@@ -903,7 +903,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         # Ensure PostGIS is available
         if not await self.schema.has_extension("postgis"):
             raise ExtensionNotAvailable(
-                "PostGIS extension not installed. Run db.create_extension('postgis')"
+                "PostGIS extension not installed. Run db.schema.create_extension('postgis')"
             )
 
         # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
