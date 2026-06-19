@@ -20,31 +20,33 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Current Milestone: v0.6.0 Réorganisation en accessors
+## Next Milestone Goals
+
+v0.6.0 shipped (see Current State above). Suite prévue (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) :
+
+- **v0.7.0** — suppression des alias dépréciés introduits en v0.6.0 (ALIAS-RM-01 ; un cycle de dépréciation = une version, trivial car la vraie logique vit déjà dans les accessors) + ETL incrémental (watermarks sur la colonne `pipeline_runs.watermark JSONB` réservée en v0.5.0).
+- **v0.8.0** — TimescaleDB avancé (continuous aggregates, `time_bucket`/gapfill, `show_chunks`/`drop_chunks`, `add_dimension`) sous le `db.timescale.*` créé en v0.6.0.
+- **v0.9.0** — CRUD ergonomique + introspection enrichie ; moment naturel pour carver un `db.meta.*` depuis `db.schema.*` si ça le mérite.
+- **v1.0.0** — spatial v2.
+
+Démarrer le prochain milestone via `/gsd-new-milestone` (la numérotation des phases continue depuis la Phase 24).
+
+<details>
+<summary>v0.6.0 milestone goal & locked decisions (shipped — historical reference)</summary>
 
 **Goal:** Regrouper les ~54 méthodes publiques à plat de `Database`/`AsyncDatabase` sous 5 accessors lazy (`db.timescale/admin/schema/maint/backup.*`), avec alias rétro-compatibles + `DeprecationWarning`, en gardant le cœur transactionnel à plat — sur le pattern déjà éprouvé `db.spatial.*` (v0.4.0) et `db.etl.*` (v0.5.0). Assainir avant d'étendre : ce milestone **déménage l'existant**, il n'ajoute aucun nouveau pouvoir.
 
-**Target features:**
-- `db.timescale.*` (6 méthodes — hypertables, compression, retention/compression policies)
-- `db.admin.*` (12 méthodes — rôles & permissions)
-- `db.schema.*` (~26 méthodes — DDL, introspection, extensions, contraintes, index ; un seul bloc)
-- `db.maint.*` (6 méthodes — size, vacuum, analyze, explain)
-- `db.backup.*` (4 méthodes — pg_dump/pg_restore, copy CSV)
-
-**Locked decisions (D-SCOPE-1..4, voir `.planning/v0.6.0-SCOPE.md`):**
+**Locked decisions (D-SCOPE-1..4, voir `.planning/milestones/v0.6.0-ROADMAP.md`):**
 - **D-SCOPE-1** — Transition = alias mince + `DeprecationWarning` pointant vers le nouveau chemin ; suppression des alias planifiée pour v0.7.0. Zéro rupture brutale (lib publiée sur PyPI).
 - **D-SCOPE-2** — La vraie implémentation vit **dans** l'accessor ; l'ancien `db.*` devient le wrapper qui warn + délègue. Supprimer la dette en v0.7.0 = effacer un bloc d'alias.
-- **D-SCOPE-3** — Les 5 accessors en **un seul milestone** (~5-6 phases ; travail mécanique répétitif validé en phase 1 puis répliqué).
+- **D-SCOPE-3** — Les 5 accessors en **un seul milestone** (travail mécanique répétitif validé en phase 1 puis répliqué).
 - **D-SCOPE-4** — Parité sync/async obligatoire (Core Value) ; `test_parity` enregistre les 5 nouveaux accessors.
 
-**Open questions résolues au cadrage (2026-06-17):**
-- `db.schema.*` reste **un seul bloc** (DDL + introspection) — cohérent avec spatial/etl qui groupent par domaine et non par type d'opération ; un éventuel `db.meta.*` se carve plus tard (v0.9.0) sur surface propre si ça vaut le coup.
-- Méthodes **DataFrame** (`to_dataframe`/`from_dataframe`/`*_geodataframe`) → restent **à plat** sur `db.*` (usage quotidien).
-- `create_spatial_index` / `list_geometry_columns` → rejoignent **`db.spatial.*`** (cohérence thématique PostGIS).
+**Open questions résolues au cadrage (2026-06-17):** `db.schema.*` reste un seul bloc (DDL + introspection) ; méthodes DataFrame restent à plat sur `db.*` ; `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`.
 
-**Reste à plat sur `db.*` (cœur transactionnel — ne pas déménager):** `create`, `create_from_env`, `engine`, `connect`, `cursor`, `transaction`, `session`, `in_session`, `execute`, `execute_many`, `insert_many`, `upsert_many`, `stream`, `notify`, `insert_batch`, `copy_insert`, `fetch_one`, `fetch_val`, les méthodes DataFrame, et les accessors existants (`spatial`, `etl`).
+**Reste à plat sur `db.*` (cœur transactionnel — non déménagé):** `create`, `create_from_env`, `engine`, `connect`, `cursor`, `transaction`, `session`, `in_session`, `execute`, `execute_many`, `insert_many`, `upsert_many`, `stream`, `notify`, `insert_batch`, `copy_insert`, `fetch_one`, `fetch_val`, les méthodes DataFrame, et les accessors existants (`spatial`, `etl`).
 
-Suite prévue (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : v0.7.0 suppression des alias + ETL incrémental → v0.8.0 TimescaleDB avancé → v0.9.0 CRUD/introspection → v1.0.0 spatial v2.
+</details>
 
 ## Requirements
 
@@ -90,12 +92,18 @@ Suite prévue (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : v0.7.0 su
 - ✓ Run tracking via `pipeline_runs` (status/counts/timing/errors), autocommit-isolated from the load transaction, auto-created or explicit `init()` — v0.5.0 (ETL-07..09, ETL-14)
 - ✓ `RunResult` query surface: `run()` returns `RunResult`, `history()`, `last_run()`, `dry_run=True` — v0.5.0 (ETL-10, ETL-11, ETL-15, ETL-17)
 - ✓ Full sync/async ETL parity (`AsyncETLAccessor`, lazy `db.etl`/`async_db.etl`, `asyncio.to_thread` transforms, `TestEtlParity`) — v0.5.0 (ETL-12, ETL-13)
+- ✓ `@deprecated_alias` decorator (sync + async) — uniform `DeprecationWarning` + correct `stacklevel`, delegates to accessor; the single shared mechanism for the whole deprecation cycle — v0.6.0 (REORG-01)
+- ✓ 5 lazy accessors carved from the monolith: `db.timescale.*` (6), `db.admin.*` (11), `db.maint.*` (6), `db.backup.*` (4), `db.schema.*` (27) — bodies moved verbatim, validators preserved, full sync/async parity — v0.6.0 (TS-01, ADM-01, MNT-01, BKP-01, SCH-01)
+- ✓ `create_spatial_index` / `list_geometry_columns` relocated to `db.spatial.*` for PostGIS thematic coherence — v0.6.0 (SCH-02)
+- ✓ 56 backward-compatible flat aliases on each of `Database`/`AsyncDatabase` (warn + delegate, removal scheduled v0.7.0); internal call-sites rewritten through accessors; zero breaking change — v0.6.0 (REORG-02)
+- ✓ `test_parity` registers all 5 new accessors (7-pair `ACCESSOR_PAIRS`); coverage ratchet held ≥94% (95.64%) with per-alias warn+delegate tests + green `-W error` gate — v0.6.0 (REORG-03, REORG-04)
+- ✓ Accessor classes exported in `__all__`; README + Sphinx document `db.X.*`; CHANGELOG `[0.6.0]` + 56-row MIGRATION guide note the deprecation cycle — v0.6.0 (REORG-05)
 
 ### Active
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-v0.6.0 — Réorganisation en accessors (5 accessors lazy + alias dépréciés). Full REQ-ID list in REQUIREMENTS.md.
+(None — v0.6.0 shipped. Next milestone scope defined via `/gsd-new-milestone`; planned next: v0.7.0 alias removal + ETL incremental — see `.planning/FUTURE-MILESTONES.md`.)
 
 ### Out of Scope
 
@@ -113,24 +121,25 @@ v0.6.0 — Réorganisation en accessors (5 accessors lazy + alias dépréciés).
 
 ## Context
 
-Shipped v0.5.0 (2026-06-15). ETL added `pycopg/etl.py` (~+800 LOC lib over v0.4.0) plus tests; milestone diff was +15,458 / −82 across 69 files.
-Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend. Zero new runtime deps in v0.5.0.
-Test coverage: 94.26% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
-Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live (incl. `docs/etl.md`).
+Shipped v0.6.0 (2026-06-19). Pure internal refactor — no new runtime power. Added `pycopg/aliases.py` + 5 accessor modules (`timescale.py`, `admin.py`, `maint.py`, `backup.py`, `schema.py`, ~3,800 LOC) carved from the `Database`/`AsyncDatabase` monolith; 56 flat methods on each class became `@deprecated_alias` stubs (112 total); 2 spatial methods relocated to `db.spatial.*`. Zero new runtime dependencies.
+Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend.
+Test coverage: 95.64% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
+Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; README "Accessor Namespaces" overview + 56-row MIGRATION v0.5→v0.6 guide.
 
 **Known tech debt:**
 
 - **2 pre-existing flaky full-suite DB tests** (`TestAsyncIntegration::test_async_transaction_fix`, `TestPostGISErrorHandling::test_create_spatial_index_name_parameter`) — `UndefinedTable` fixture-isolation bug in the spatial/integration suites, NOT ETL code; fail identically in isolation; did not affect the coverage threshold. Worth a fixture-isolation fix in a future cleanup. (See STATE.md Deferred Items.)
 - Coverage-95 stretch still deferred — gate honest at 94 (measured 94.26%); remaining ~1pt is DB/IO paths structurally out of scope.
 - `TableNotFound` exported in `__all__` but has no internal raise site (user-`except` only) — benign.
-- `CLAUDE.md` "Version" line still reads v0.3.1 (stale) — actual shipped is v0.5.0; cosmetic doc lag.
-- Nyquist: some release/tooling/doc phases `nyquist_compliant: false` by design (smoke/manual-verified).
-- Database class remains monolithic — acceptable; duplication killed via base.py/queries.py wiring.
+- `CLAUDE.md` "Version" line still reads v0.5.0 (stale) — actual shipped is v0.6.0; cosmetic doc lag.
+- Nyquist: phases 22–24 VALIDATION.md left `draft`/`nyquist_compliant: false` (verified PASSED via VERIFICATION.md; missing formal sign-off, not a coverage gap — see STATE.md Deferred Items).
+- **WR-01 (v0.6.0):** deprecated `*args/**kwargs` alias stubs erase public method signatures in IDEs/autocomplete on this `py.typed` package — accepted milestone-wide; self-resolves at v0.7.0 alias removal.
+- Database class is no longer a flat monolith — public surface is now organized under accessors (`spatial`/`etl`/`timescale`/`admin`/`maint`/`backup`/`schema`) with the transactional core kept flat by design.
 
-**Resolved in v0.5.0:**
+**Resolved in v0.6.0:**
 
-- ETL pipeline runner delivered end-to-end (ETL-01..17) on top of the spatial/DataFrame helpers; `pipeline_runs` watermark column reserved for v0.6.0 incremental support.
-- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0 live on PyPI.
+- The flat-monolith API surface (~54 public methods) regrouped under 5 new lazy accessors + 2 spatial relocations, all backward-compatible via deprecated aliases (REORG-01..05, TS/ADM/MNT/BKP/SCH-01, SCH-02).
+- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0, v0.6.0 live on PyPI.
 
 **Still deferred to a future milestone:**
 - API-01: Named parameter support (:name syntax)
@@ -140,8 +149,9 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 - API-05: Savepoint support (nested transactions)
 - API-06: Sync result streaming
 - ARCH-02: Dynamic connection pool sizing
-- ETL incremental/CDC watermarks — deferred to v0.6.0; v0.5.0's `pipeline_runs` table is designed so watermarks slot on additively
-- ETL cross-DB transfer and DataFrame/CSV/parquet source/sink — deferred; v0.5.0 is same-DB only
+- ETL incremental/CDC watermarks — deferred to v0.7.0 (ETL-INC-01); v0.5.0's `pipeline_runs.watermark JSONB` is designed so watermarks slot on additively
+- ETL cross-DB transfer and DataFrame/CSV/parquet source/sink — deferred; ETL is same-DB only
+- Removal of the v0.6.0 deprecated flat aliases — scheduled v0.7.0 (ALIAS-RM-01); one deprecation cycle = one version
 
 ## Constraints
 
@@ -183,10 +193,18 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.4.0 (P11): measure coverage before raising the ratchet gate (D-08) | Never freeze an unmet threshold | ✓ Good — measured 91.61% then flipped 80→90 |
 | v0.5.0: ETL architecture mirrors `spatial.py` (lazy accessor + pure builders) | Proven pattern; keeps monolith from growing; testable builders | ✓ Good — `ETLAccessor`/`AsyncETLAccessor` lazy under `db.etl`/`async_db.etl` |
 | v0.5.0: run-log writes on a dedicated `connect(autocommit=True)`, isolated from the load txn | A failed/rolled-back load must still record a `failed` run row | ✓ Good — run rows commit on every path, incl. active `db.session()` (ETL-08/09) |
-| v0.5.0: reserve a nullable `watermark JSONB` column, always NULL | Lets v0.6.0 incremental support slot on with no breaking migration | — Pending — validated additively in v0.6.0 |
+| v0.5.0: reserve a nullable `watermark JSONB` column, always NULL | Lets incremental support slot on with no breaking migration | — Pending — incremental ETL moved to v0.7.0 (ETL-INC-01); column still reserved |
 | v0.5.0: same-DB only; Python-callable transforms (not SQL-only) | Scope control; leans on existing pandas/geopandas integration | ✓ Good — cross-DB/file sinks cleanly deferred |
 | v0.5.0: async transforms via `asyncio.to_thread` (D-/SC-2) | Sync transform callables must not block the event loop | ✓ Good — behavioral test proves non-blocking dispatch |
 | v0.5.0: PyPI publish human-gated at the irreversible step | Supply-chain publish needs maintainer sign-off | ✓ Good — executor stopped at the boundary; published after explicit approval |
+| v0.6.0: transition via thin deprecated alias + `DeprecationWarning`, not a hard break (D-SCOPE-1) | Published PyPI lib; zero brutal breakage; clean API still the core value | ✓ Good — 56 aliases warn+delegate, removal scheduled v0.7.0, no caller broken |
+| v0.6.0: real logic lives in the accessor; old `db.*` becomes the wrapper (D-SCOPE-2) | Makes v0.7.0 alias removal a single-block deletion with no logic touched | ✓ Good — `@deprecated_alias` decorator centralizes warn+delegate; bodies moved verbatim |
+| v0.6.0: all 5 accessors in one milestone (D-SCOPE-3) | Mechanical repetitive work — validate the pattern at Phase 21, replicate Phases 22-24 | ✓ Good — pattern proved once, replicated cleanly across admin/maint/backup/schema |
+| v0.6.0: sync/async parity enforced for every accessor (D-SCOPE-4) | Core value; a method moved on one side but not the other would break parity | ✓ Good — 7-pair `ACCESSOR_PAIRS`, `test_accessor_parity` green both directions |
+| v0.6.0: `db.schema.*` kept as one block, not split into `db.meta.*` | Group by domain (like spatial/etl), not by operation type; carve later on clean surface | ✓ Good — single 27-method accessor; `db.meta.*` carve reconsidered at v0.9.0 |
+| v0.6.0: DataFrame methods + transactional core stay flat on `db.*` | Daily-use / core API; accessors are for thematic method families | ✓ Good — `execute`/`session`/`to_dataframe`/… unchanged |
+| v0.6.0: `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`, not `db.schema.*` | Thematic PostGIS coherence over DDL grouping | ✓ Good — relocated verbatim; PostGIS guard now also covers the deprecated flat path (D-06) |
+| v0.6.0: deprecated stubs use `(*args, **kwargs)` signatures (WR-01) | Single uniform decorator beats 56 hand-copied signature wrappers | ⚠️ Revisit — erases IDE signatures on `py.typed`; accepted milestone-wide, self-resolves at v0.7.0 removal |
 
 ## Evolution
 
@@ -223,5 +241,7 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-19 — Phase 24 complete + milestone v0.6.0 "Réorganisation en accessors" SHIPPED. Phase 24 (final, REORG-05) delivered the docs+release work on top of Phases 21–23's accessor migration: the 5 accessor classes + async variants exported from top-level `pycopg`; README "Accessor Namespaces" overview + accessor-path rewrites; 5 `automodule` blocks; the 4 per-topic prose pages on accessor paths with v0.7.0 deprecation notices; CHANGELOG `[0.6.0]` (Added/Deprecated/Changed) + prepended MIGRATION v0.5→v0.6 guide (56-name table, 1:1 with `@deprecated_alias` stubs); version bumped in pyproject.toml + docs/conf.py; v0.6.0 tagged + published to PyPI via OIDC (human-gated); clean-venv import smoke confirmed. VERIFICATION PASSED 4/4; code review clean (docs/release phase, no source logic). Current State → v0.6.0. Open: PROJECT.md "Requirements" not yet collapsed + ROADMAP/REQUIREMENTS not yet archived → run `/gsd-complete-milestone v0.6.0`.*
 
 *Last updated: 2026-06-17 — milestone v0.6.0 "Réorganisation en accessors" started via `/gsd-new-milestone`. Goal: regrouper les ~54 méthodes publiques à plat de `Database`/`AsyncDatabase` sous 5 accessors lazy (`db.timescale/admin/schema/maint/backup.*`) avec alias dépréciés (D-SCOPE-1..4 verrouillés en discussion, voir `.planning/v0.6.0-SCOPE.md`). 3 questions ouvertes du scope tranchées au cadrage : `db.schema.*` reste un seul bloc, DataFrame reste à plat, spatial-index → `db.spatial.*`. Cœur transactionnel reste à plat. Active set to the réorg scope. Phase numbering continues from Phase 21. Suite validée (FUTURE-MILESTONES) : v0.7.0 alias removal + ETL incrémental → v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2.*
+
+*Last updated: 2026-06-19 — milestone v0.6.0 "Réorganisation en accessors" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.6.0 (already done at phase close); all 11 v0.6.0 requirements (REORG-01..05, TS/ADM/MNT/BKP/SCH-01, SCH-02) moved to Validated; Active emptied; "Current Milestone" reframed as "Next Milestone Goals" (v0.7.0 alias removal + ETL incremental → v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2), v0.6.0 goal/decisions collapsed to historical reference; Context refreshed (95.64% coverage, 5 new accessor modules ~3,800 LOC, WR-01 tech debt recorded); 8 v0.6.0 Key Decisions outcomes added (D-SCOPE-1..4 + 4 scoping calls). ROADMAP collapsed + REQUIREMENTS/audit archived to `milestones/v0.6.0-*`. Milestone audit passed (11/11 reqs, integration clean). Next: `/gsd-new-milestone`.*
 
 *Last updated: 2026-06-17 — Phase 21 "Infrastructure & Timescale Accessor" complete (3/3 plans, verification PASSED 4/4). Le pattern alias+accessor est désormais établi de bout en bout et prouvé : `pycopg/aliases.py` (`@deprecated_alias` — `stacklevel=2`, branche `iscoroutinefunction`, sans eval/exec, réutilisé tel quel par les Phases 22-24) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 méthodes déplacées verbatim avec `self.`→`self._db.`). `db.timescale.*` / `async_db.timescale.*` câblés en propriétés lazy (cache `_timescale`, miroir de `_spatial`/`_etl`) ; les 6 méthodes plates sync + 6 async sont des stubs `@deprecated_alias` qui warn + délèguent (zéro breaking change). Registre data-driven `ACCESSOR_PAIRS` + `test_accessor_parity` (sync↔async), `test_timescale_aliases.py` (warn+delegate par alias), 27 call-sites migrés. Gates : suite complète 994 passants (2 échecs DB pré-existants connus), `-W error::DeprecationWarning` vert (295), coverage 94.46% (ratchet ≥94 tenu). Revue de code : 0 critique, 4 warnings advisory (notamment WR-01 : signatures `(*args, **kwargs)` dégradant le typage statique sur ce package `py.typed` ; WR-02 : README/docs documentent encore l'API plate dépréciée). REORG-01/02/03/04 + TS-01 validés. Next : Phase 22 (Admin, Maint & Backup accessors).*

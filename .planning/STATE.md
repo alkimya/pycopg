@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.6.0
 milestone_name: — Réorganisation en accessors
-status: verifying
+status: Awaiting next milestone
 stopped_at: Phase 24 Plan 02 complete
-last_updated: "2026-06-19T12:09:27.762Z"
-last_activity: 2026-06-19
+last_updated: "2026-06-19T14:06:15.837Z"
+last_activity: 2026-06-19 — Milestone v0.6.0 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -21,16 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-17)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 24 — exports-docs-release-v0-6-0
+**Current focus:** Planning next milestone (v0.7.0 — alias removal / ALIAS-RM-01)
 
 ## Current Position
 
-Phase: 24
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-19
-
-Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans complete)
+Phase: Milestone v0.6.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-19 — Milestone v0.6.0 completed and archived
 
 ## Performance Metrics
 
@@ -39,16 +37,14 @@ Progress: 0/4 phases complete [░░░░░░░░░░] 0% (9/10 plans co
 - Coverage ratchet: 94 (measured 94.26%); gate stays at --cov-fail-under=94
 - interrogate: 100% (gate ≥ 95)
 
-**By Phase (v0.6.0):**
+**By Phase (v0.6.0 — all complete):**
 
 | Phase | Plans | Complete | Status |
 |-------|-------|----------|--------|
-| 21. Infrastructure & Timescale Accessor | TBD | 0 | Not started |
-| 22. Admin, Maint & Backup Accessors | TBD | 0 | Not started |
-| 23. Schema Accessor & Spatial Relocation | 4 | 3 | Executing (Plans 01-03 done) |
-| 24. Exports, Docs & Release v0.6.0 | TBD | 0 | Not started |
-| Phase 23 P04 | 45m | 4 tasks | 12 files |
-| Phase 24 P03 | 15min | 3 tasks | 0 files |
+| 21. Infrastructure & Timescale Accessor | 3 | 3 | Complete |
+| 22. Admin, Maint & Backup Accessors | 3 | 3 | Complete |
+| 23. Schema Accessor & Spatial Relocation | 4 | 4 | Complete |
+| 24. Exports, Docs & Release v0.6.0 | 3 | 3 | Complete |
 
 ## Accumulated Context
 
@@ -94,6 +90,19 @@ None.
 
 - 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — UndefinedTable fixture-isolation bug, not v0.6.0 code; use `-o addopts=""` for targeted runs.
 
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-06-19:
+
+| Category | Item | Status |
+|----------|------|--------|
+| nyquist | Phase 22 VALIDATION.md left `draft` / `nyquist_compliant: false` | deferred — verified PASSED via VERIFICATION.md; optional `/gsd-validate-phase 22` |
+| nyquist | Phase 23 VALIDATION.md left `draft` / `nyquist_compliant: false` | deferred — verified PASSED via VERIFICATION.md; optional `/gsd-validate-phase 23` |
+| nyquist | Phase 24 VALIDATION.md left `draft` / `nyquist_compliant: false` | deferred — verified PASSED via VERIFICATION.md; optional `/gsd-validate-phase 24` |
+| tech_debt | WR-01: deprecated `*args/**kwargs` alias stubs erase IDE signatures | accepted milestone-wide; self-resolves at v0.7.0 alias removal (ALIAS-RM-01) |
+| tech_debt | IN-02: `ExtensionNotAvailable` message may still name flat `db.create_extension(...)` | cosmetic; resolves at v0.7.0 |
+| tech_debt | WR-02: dead `has_extension`/`role_exists` monkeypatches in `test_sql_injection.py` async fixture | housekeeping; tests pass 92/92 |
+
 ## Session Continuity
 
 Last session: 2026-06-19T12:02:09.338Z
@@ -103,4 +112,4 @@ Next action: Execute Phase 24 Plan 03 (version bump + gates + release)
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 24` Plan 03 to bump version, run release gates, build artifacts, and publish v0.6.0 to PyPI (human checkpoint required before publish).
+- Start the next milestone with /gsd-new-milestone

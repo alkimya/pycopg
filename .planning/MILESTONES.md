@@ -1,5 +1,23 @@
 # Milestones
 
+## v0.6.0 Réorganisation en accessors (Shipped: 2026-06-19)
+
+**Phases completed:** 4 phases (21–24), 13 plans, 24 tasks
+
+**Delivered:** A pure internal refactor that regrouped ~56 flat methods on `Database`/`AsyncDatabase` into 5 new lazy accessors — `db.timescale.*`, `db.admin.*`, `db.maint.*`, `db.backup.*`, `db.schema.*` — and relocated the 2 spatial-index methods to `db.spatial.*`. Every old flat name keeps working as a backward-compatible deprecated alias (removal scheduled v0.7.0); zero breaking change. Shipped to PyPI under the held ≥94% coverage ratchet with full sync/async parity.
+
+**Key accomplishments:**
+
+- `@deprecated_alias` decorator (`pycopg/aliases.py`, sync + async) — the single shared warn-and-delegate mechanism for the whole deprecation cycle, making v0.7.0 alias removal a one-block deletion (D-SCOPE-2).
+- 5 new lazy accessors carved from the monolith (`timescale` 6, `admin` 11, `maint` 6, `backup` 4, `schema` 27 methods) with all SQL bodies moved verbatim and security validators preserved; `create_spatial_index`/`list_geometry_columns` relocated to `db.spatial.*` for PostGIS thematic coherence.
+- 56 backward-compatible flat aliases on each of `Database`/`AsyncDatabase` (112 stubs total) — zero breaking change for existing callers, all internal call-sites rewritten to route through accessors (no spurious user-facing warnings).
+- Full sync/async parity enforced via a 7-pair `ACCESSOR_PAIRS` registry in `test_parity.py`; coverage held at 95.64% with per-alias warn+delegate tests and a green `-W error::DeprecationWarning` gate at 1030+ unit tests.
+- Release wiring complete: 10 accessor classes in `__all__`, README Accessor Namespaces table, 5 Sphinx automodule blocks (green `-W` build), CHANGELOG `[0.6.0]`, 56-row v0.5→v0.6 MIGRATION guide; v0.6.0 tagged and published to PyPI via GitHub OIDC, clean-venv install smoke-tested.
+
+**Known deferred items at close:** Nyquist VALIDATION.md left in `draft` (`nyquist_compliant: false`) for phases 22–24 (verified PASSED via VERIFICATION.md regardless — missing formal sign-off, not a coverage gap); carry-forward WR-01 (deprecated `*args/**kwargs` stubs erase IDE signatures — accepted milestone-wide, self-resolves at v0.7.0 alias removal). See STATE.md → Deferred Items.
+
+---
+
 ## v0.5.0 ETL Pipeline Runner (Shipped: 2026-06-15)
 
 **Phases completed:** 5 phases (16–20), 13 plans, 18 tasks

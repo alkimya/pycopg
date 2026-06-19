@@ -6,19 +6,21 @@
 - ✅ **v0.3.1 Security Hotfix** — injections SQL corrigées (shipped PyPI 2026-06-06)
 - ✅ **v0.4.0 Quality & Spatial Helpers** — Phases 9-15 (shipped 2026-06-14)
 - ✅ **v0.5.0 ETL Pipeline Runner** — Phases 16-20 (shipped 2026-06-15)
-- 🔄 **v0.6.0 Réorganisation en accessors** — Phases 21-24 (in progress)
+- ✅ **v0.6.0 Réorganisation en accessors** — Phases 21-24 (shipped 2026-06-19)
 
 ## Phases
 
-### v0.6.0 — Réorganisation en accessors
+<details>
+<summary>✅ v0.6.0 Réorganisation en accessors (Phases 21-24) — SHIPPED 2026-06-19</summary>
 
-- [x] **Phase 21: Infrastructure & Timescale Accessor** (3 plans) - Deliver `@deprecated_alias` decorator + prove the full pattern end-to-end with the timescale accessor (6 methods) (completed 2026-06-17)
-  - [x] 21-01-PLAN.md — Create `pycopg/aliases.py` (`@deprecated_alias`) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 methods moved verbatim)
-  - [x] 21-02-PLAN.md — Wire `db.timescale`/`async_db.timescale` lazy properties + replace the 6 flat methods with deprecated stubs + `__init__.py` exports
-  - [x] 21-03-PLAN.md — Alias warn+delegate tests (D-09), `ACCESSOR_PAIRS` parity registry (D-10), migrate 27 call-sites (D-08), no-noise + coverage gate
-- [x] **Phase 22: Admin, Maint & Backup Accessors** - Replicate the proven pattern across the three smaller accessors (12 + 6 + 4 methods) (completed 2026-06-17)
-- [x] **Phase 23: Schema Accessor & Spatial Relocation** - Migrate the largest block (~26 DDL/introspection methods) and relocate the 2 spatial-index methods to `db.spatial.*` (completed 2026-06-17)
-- [x] **Phase 24: Exports, Docs & Release v0.6.0** - Wire `__init__.py` exports, README/Sphinx/CHANGELOG/MIGRATION, version bump, tag + PyPI publish (completed 2026-06-19)
+- [x] Phase 21: Infrastructure & Timescale Accessor (3/3 plans) — `@deprecated_alias` decorator + timescale accessor (pattern proof) — completed 2026-06-17
+- [x] Phase 22: Admin, Maint & Backup Accessors (3/3 plans) — 3 smaller accessors (11 + 6 + 4 methods) — completed 2026-06-17
+- [x] Phase 23: Schema Accessor & Spatial Relocation (4/4 plans) — schema (27 methods) + 2 spatial methods → `db.spatial.*` — completed 2026-06-17
+- [x] Phase 24: Exports, Docs & Release v0.6.0 (3/3 plans) — exports + README/Sphinx/CHANGELOG/MIGRATION + tag + PyPI publish — completed 2026-06-19
+
+Full details: [milestones/v0.6.0-ROADMAP.md](milestones/v0.6.0-ROADMAP.md) · Requirements: [milestones/v0.6.0-REQUIREMENTS.md](milestones/v0.6.0-REQUIREMENTS.md) · Audit: [milestones/v0.6.0-MILESTONE-AUDIT.md](milestones/v0.6.0-MILESTONE-AUDIT.md)
+
+</details>
 
 <details>
 <summary>✅ v0.5.0 ETL Pipeline Runner (Phases 16-20) — SHIPPED 2026-06-15</summary>
@@ -63,116 +65,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 </details>
 
-## Phase Details
-
-### Phase 21: Infrastructure & Timescale Accessor
-
-**Goal**: Users calling `db.timescale.*` get a working timescale accessor, and callers still using the old flat `db.create_hypertable(...)` etc. get a `DeprecationWarning` naming the new path — the full alias + accessor pattern is established and all future phases replicate it mechanically
-**Depends on**: Phase 20 (v0.5.0 shipped)
-**Requirements**: REORG-01, REORG-02, REORG-03, REORG-04, TS-01
-**Success Criteria** (what must be TRUE):
-
-  1. Calling `db.timescale.create_hypertable(...)` (and all 5 other timescale methods) returns the same result as before
-  2. Calling the old flat `db.create_hypertable(...)` still works AND emits a `DeprecationWarning` with a message pointing to `db.timescale.create_hypertable`
-  3. `test_parity` passes with the timescale accessor registered for both sync and async surfaces
-  4. A dedicated test asserts each alias both warns (with the correct message) and delegates correctly; the existing test suite runs without DeprecationWarning noise breaking any `-W error` gate; coverage stays ≥94%**Plans**: 3 plans (3 waves)
-
-**Wave 1**
-
-- [x] 21-01-PLAN.md — `aliases.py` decorator + `timescale.py` accessors (wave 1) — REORG-01, TS-01
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 21-02-PLAN.md — lazy properties + deprecated stubs + exports (wave 2) — REORG-02, TS-01
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 21-03-PLAN.md — alias/parity tests + 27-call-site migration + gates (wave 3) — REORG-02/03/04, TS-01
-
-### Phase 22: Admin, Maint & Backup Accessors
-
-**Goal**: Users can access `db.admin.*`, `db.maint.*`, and `db.backup.*` with all methods working, and the 22 legacy flat names on `db.*` all warn and delegate — three accessors delivered in one phase using the pattern already validated in Phase 21
-**Depends on**: Phase 21
-**Requirements**: ADM-01, MNT-01, BKP-01
-**Success Criteria** (what must be TRUE):
-
-  1. Calling `db.admin.create_role(...)`, `db.maint.vacuum(...)`, `db.backup.pg_dump(...)` (and all remaining methods in those 3 accessors) returns the same results as the old flat calls
-  2. Each of the 22 legacy flat names (`db.create_role`, `db.vacuum`, `db.pg_dump`, etc.) still works and emits a `DeprecationWarning` naming the new accessor path
-  3. `test_parity` passes with all three new accessors registered (sync and async)
-  4. Coverage stays ≥94% with alias warn+delegate tests in place
-
-**Plans**: 3 plans
-Plans:
-**Wave 1**
-
-- [x] 22-01-PLAN.md — Create admin.py/maint.py/backup.py accessor modules (move 21 method bodies verbatim, sync + async)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 22-02-PLAN.md — Wire lazy properties + 21 @deprecated_alias stubs on Database/AsyncDatabase + __init__.py exports
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 22-03-PLAN.md — DB-free alias tests + ACCESSOR_PAIRS registry + call-site migration + gates (coverage ≥94%, -W error)
-
-### Phase 23: Schema Accessor & Spatial Relocation
-
-**Goal**: Users can access all ~26 DDL/introspection methods under `db.schema.*`, and the 2 spatial-index methods (`create_spatial_index`, `list_geometry_columns`) land under `db.spatial.*` — the largest accessor block is migrated and the PostGIS surface is made thematically complete
-**Depends on**: Phase 22
-**Requirements**: SCH-01, SCH-02
-**Success Criteria** (what must be TRUE):
-
-  1. Calling `db.schema.create_database(...)`, `db.schema.list_tables()`, `db.schema.create_index(...)` (and all ~26 schema methods) returns the same results as before
-  2. Calling `db.spatial.create_spatial_index(...)` and `db.spatial.list_geometry_columns()` works; the old flat `db.create_spatial_index(...)` and `db.list_geometry_columns()` still work and emit `DeprecationWarning` pointing to `db.spatial.*`
-  3. All ~28 legacy flat schema+spatial-relocation names warn and delegate; no existing caller is silently broken
-  4. `test_parity` passes with the schema accessor registered (sync and async); coverage stays ≥94%
-
-**Plans**: 4 plans (4 waves)
-
-**Wave 1**
-
-- [x] 23-01-PLAN.md — Create `pycopg/schema.py` (`SchemaAccessor`/`AsyncSchemaAccessor`, 27 schema bodies moved verbatim, D-04 rewrite) — SCH-01
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 23-02-PLAN.md — `_schema` cache + lazy `schema` property + 27 @deprecated_alias("schema.<m>") stubs (sync+async) + `__init__.py` export — SCH-01
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 23-03-PLAN.md — Spatial relocation: move `create_spatial_index`/`list_geometry_columns` into Spatial accessors + 2 stubs + spatial ACCESSOR_PAIRS + spatial alias tests + atomic rewrite of the 8 D-05 DataFrame call-sites — SCH-02
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 23-04-PLAN.md — Schema track tests: `test_schema_aliases.py` (27×2) + schema ACCESSOR_PAIRS + migrate test call-sites to `db.schema.*` + hold gates (full suite, coverage ≥94%, -W error) — SCH-01
-
-**UI hint**: no
-
-### Phase 24: Exports, Docs & Release v0.6.0
-
-**Goal**: The 5 new accessor classes are publicly importable from `pycopg`, fully documented in README and Sphinx, with a CHANGELOG entry and MIGRATION note for the deprecation cycle, and v0.6.0 is tagged and published to PyPI
-**Depends on**: Phase 23
-**Requirements**: REORG-05
-**Success Criteria** (what must be TRUE):
-
-  1. `from pycopg import TimescaleAccessor, AdminAccessor, SchemaAccessor, MaintAccessor, BackupAccessor` (and async variants) succeeds — all are in `__all__`
-  2. The README lists the `db.X.*` accessor surfaces with their method names; Sphinx/RTD builds cleanly (`-W` green) with each accessor documented
-  3. CHANGELOG has an `[Unreleased]` / `[0.6.0]` entry noting the new accessor paths and the deprecation cycle (removal in v0.7.0); MIGRATION.md instructs callers how to update from flat names
-  4. `pip install pycopg==0.6.0` installs the release; `python -c "from pycopg import Database; db = Database.from_env(); print(db.timescale)"` works in a clean venv
-
-**Plans**: 3 plans (2 waves)
-
-**Wave 1** *(parallel — no file overlap)*
-
-- [x] 24-01-PLAN.md — README Namespaces overview + accessor-path rewrite of 4 prose pages + 5 automodule blocks (api-autodoc.md) under a green Sphinx `-W` build — REORG-05
-- [x] 24-02-PLAN.md — CHANGELOG `[0.6.0]` entry + prepend v0.5→v0.6 MIGRATION guide (56-name table) + exports smoke-test verify — REORG-05
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 24-03-PLAN.md — Version bump (pyproject.toml + docs/conf.py) + uv lock + three gates + build + human-sign-off PyPI publish + tag + manual clean-venv smoke — REORG-05
-
 ## Progress
-
-**Execution Order:** 21 → 22 → 23 → 24
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
