@@ -10,7 +10,7 @@ from psycopg.rows import dict_row
 
 from pycopg import AsyncDatabase, Database, queries
 from pycopg.etl import ETLAccessor, Pipeline, RunResult
-from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError
+from pycopg.exceptions import ETLError, ETLTargetNotFoundError, ETLTransformError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1370,6 +1370,245 @@ class TestRunResultSurface:
         assert r.status == "success"
         assert r.rows_extracted == 0
         assert r.rows_loaded == 0
+
+    # -----------------------------------------------------------------------
+    # Phase 27 — incremental watermark integration tests (SC-1..SC-4 / D-04 / D-06)
+    # -----------------------------------------------------------------------
+
+    def test_first_run_records_watermark(self, db, cleanup_pipeline_runs, etl_src):
+        """SC-1/ETL-INC-02: first incremental run persists max(col) as non-NULL watermark."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (1, 'a'), (5, 'b'), (3, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm1_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_first_run",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            result = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+        rows = db.execute(
+            "SELECT watermark FROM pipeline_runs WHERE run_id = %s",
+            [result.run_id],
+        )
+        row = rows[0]
+        assert row["watermark"] == {"type": "int", "value": 5}
+        assert db.etl._read_watermark("wm_first_run") == 5
+
+    def test_failed_run_does_not_advance_watermark(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """SC-2/ETL-INC-06: failed run leaves watermark NULL; _read_watermark returns prior W0."""
+        # Seed a prior successful run with W0
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (10, 'x')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm2_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p_seed = Pipeline(
+                name="wm_fail_test",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            db.etl.run(p_seed)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+        w0 = db.etl._read_watermark("wm_fail_test")
+        assert w0 == 10
+
+        # Induce a deterministic failure using the _start_run + transaction harness
+        db.etl.init()
+        failed_run_id = db.etl._start_run("wm_fail_test")
+        try:
+            with db.transaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")  # no-op inside txn
+                raise RuntimeError("forced load failure")
+        except RuntimeError:
+            db.etl._end_run(
+                failed_run_id,
+                "failed",
+                0,
+                0,
+                error_message="forced load failure",
+                error_traceback=traceback.format_exc(),
+            )
+
+        # The failed row must have status='failed' and watermark IS NULL
+        frows = db.execute(
+            "SELECT status, watermark FROM pipeline_runs WHERE run_id = %s",
+            [failed_run_id],
+        )
+        assert frows[0]["status"] == "failed"
+        assert frows[0]["watermark"] is None
+        # _read_watermark must still return the prior success watermark W0
+        assert db.etl._read_watermark("wm_fail_test") == w0
+
+    def test_empty_batch_preserves_watermark(self, db, cleanup_pipeline_runs, etl_src):
+        """SC-3/ETL-INC-05: empty batch leaves watermark NULL; _read_watermark returns prior W0."""
+        # Seed a prior successful run with W0
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (7, 'y')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm3_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p_seed = Pipeline(
+                name="wm_empty_test",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            db.etl.run(p_seed)
+            w0 = db.etl._read_watermark("wm_empty_test")
+            assert w0 == 7
+
+            # Run with empty source (0 rows)
+            p_empty = Pipeline(
+                name="wm_empty_test",
+                source="SELECT 1 AS id, 'z' AS val WHERE FALSE",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            empty_result = db.etl.run(p_empty)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        erows = db.execute(
+            "SELECT status, rows_loaded, watermark FROM pipeline_runs WHERE run_id = %s",
+            [empty_result.run_id],
+        )
+        assert erows[0]["status"] == "success"
+        assert erows[0]["rows_loaded"] == 0
+        assert erows[0]["watermark"] is None
+        # Prior watermark must be preserved
+        assert db.etl._read_watermark("wm_empty_test") == w0
+
+    @pytest.mark.parametrize(
+        "source_sql, col, col_ddl, expected_type_tag",
+        [
+            (
+                "SELECT 42 AS qty, 'a' AS tag",
+                "qty",
+                "qty INTEGER PRIMARY KEY, tag TEXT",
+                "int",
+            ),
+            (
+                "SELECT 'omega' AS label, 1 AS n",
+                "label",
+                "label TEXT PRIMARY KEY, n INTEGER",
+                "str",
+            ),
+            (
+                "SELECT TIMESTAMPTZ '2026-01-02 12:00:00.123456+02:00' AS ts, 'x' AS tag",
+                "ts",
+                "ts TIMESTAMPTZ PRIMARY KEY, tag TEXT",
+                "datetime",
+            ),
+        ],
+    )
+    def test_watermark_jsonb_roundtrip(
+        self,
+        db,
+        cleanup_pipeline_runs,
+        source_sql,
+        col,
+        col_ddl,
+        expected_type_tag,
+    ):
+        """SC-4/ETL-INC-10: watermark round-trips through JSONB for int/str/timestamp."""
+        import pandas as pd
+
+        # Extract the raw batch to compute the coerced max for comparison
+        raw_df = db.to_dataframe(sql=source_sql)
+        m = raw_df[col].max()
+        if isinstance(m, pd.Timestamp):
+            expected_value = m.to_pydatetime()
+        elif isinstance(m, str):
+            expected_value = str(m)
+        else:
+            expected_value = int(m)
+
+        # Fresh target table with a PK on the watermark column + a non-conflict
+        # column so the upsert SET clause is non-empty (SQL validity requirement).
+        tbl = f"etl_wm_rt_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" ({col_ddl})',
+            autocommit=True,
+        )
+        pipe_name = f"wm_roundtrip_{col}"
+        try:
+            p = Pipeline(
+                name=pipe_name,
+                source=source_sql,
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=[col],
+                incremental_column=col,
+            )
+            result = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        wm_row = db.execute(
+            "SELECT watermark FROM pipeline_runs WHERE run_id = %s",
+            [result.run_id],
+        )[0]
+        assert wm_row["watermark"]["type"] == expected_type_tag
+        decoded = db.etl._read_watermark(pipe_name)
+        assert decoded == expected_value
+        if expected_type_tag == "datetime":
+            # Offset and microseconds must be preserved in the stored ISO string
+            stored_iso = wm_row["watermark"]["value"]
+            assert "." in stored_iso  # microseconds present
+            assert decoded.tzinfo is not None  # tz-aware
+
+    def test_read_watermark_none_first_run(self, db, cleanup_pipeline_runs):
+        """D-04: _read_watermark returns None when no qualifying success row exists."""
+        db.etl.init()
+        assert db.etl._read_watermark("no_such_pipeline_xzq99") is None
+
+    def test_incremental_column_missing_raises_etlerror(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """D-06: missing incremental_column in extracted batch raises ETLError, not KeyError."""
+        p = Pipeline(
+            name="wm_missing_col",
+            source="SELECT 1 AS id",
+            target=etl_table,
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="missing_col",
+        )
+        with pytest.raises(ETLError, match="missing_col"):
+            db.etl.run(p)
 
 
 # ---------------------------------------------------------------------------
