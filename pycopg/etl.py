@@ -69,6 +69,40 @@ def _validate_load_mode(load_mode: str) -> None:
         )
 
 
+def _validate_incremental(incremental_column: str | None, load_mode: str) -> None:
+    """Validate the ``incremental_column`` / ``load_mode`` combination.
+
+    Parameters
+    ----------
+    incremental_column : str or None
+        Watermark column name, or ``None`` for a non-incremental pipeline.
+        ``None`` short-circuits — both checks are skipped (D-15).
+    load_mode : str
+        Load strategy. Incremental loads require ``"upsert"``;
+        ``"append"`` and ``"replace"`` are forbidden (D-16).
+
+    Raises
+    ------
+    ValueError
+        If ``incremental_column`` is set and ``load_mode`` is ``"append"``
+        or ``"replace"`` (the forbidden-combo intent error, checked first).
+    InvalidIdentifier
+        If ``incremental_column`` is not a valid SQL identifier (D-15).
+    """
+    # Non-incremental pipelines skip both checks (D-15 short-circuit).
+    if incremental_column is None:
+        return
+    # Forbidden combo (intent error) is reported before the identifier
+    # syntax check (D-15 order).
+    if load_mode in ("append", "replace"):
+        raise ValueError(
+            f"incremental_column requires load_mode='upsert' (got {load_mode!r}); "
+            "'append' and 'replace' are forbidden with incremental loads because "
+            "upsert guarantees idempotency (ETL-INC-01)"
+        )
+    validate_identifiers(incremental_column)
+
+
 @dataclass(frozen=True)
 class Pipeline:
     """Declarative ETL pipeline descriptor.
@@ -116,6 +150,14 @@ class Pipeline:
         materialization. Phase 18 wires this as ``LIMIT %s`` in the
         extract query. ``extract_batch_size`` streaming is deferred to
         v0.6.0. If provided, must be a positive integer (D-11).
+    incremental_column : str or None, optional
+        Watermark column for incremental extraction (ETL-INC-01). ``None``
+        (default) = full-load pipeline. When set it must be a valid SQL
+        identifier and ``load_mode`` must be ``"upsert"`` — ``"append"``
+        and ``"replace"`` are rejected at construction (D-16). The column
+        is expected to hold a monotonic, non-decreasing watermark (an
+        aware ``datetime`` if it is a timestamp); this contract is
+        documented, not enforced, in this layer (D-03). Default ``None``.
 
     Raises
     ------
@@ -126,6 +168,9 @@ class Pipeline:
     ValueError
         If ``extract_limit`` is a non-positive integer (D-11, Claude's
         Discretion guard — prevents silent OOM misdirection).
+    ValueError
+        If ``incremental_column`` is set and ``load_mode`` is not
+        ``"upsert"`` (D-16, ETL-INC-01).
 
     Examples
     --------
@@ -152,6 +197,7 @@ class Pipeline:
     schema: str = "public"
     transform: Callable | list[Callable] | None = None
     extract_limit: int | None = None
+    incremental_column: str | None = None
 
     def __post_init__(self) -> None:
         """Validate and normalize fields at construction time.
@@ -161,8 +207,9 @@ class Pipeline:
         ValueError
             If ``conflict_columns`` is passed as a bare string,
             ``load_mode`` is invalid (D-06), ``upsert`` is requested
-            without ``conflict_columns`` (D-07), or ``extract_limit`` is
-            not a positive integer (D-11).
+            without ``conflict_columns`` (D-07), ``extract_limit`` is
+            not a positive integer (D-11), or ``incremental_column`` is
+            set with a non-``upsert`` ``load_mode`` (D-16).
         """
         # Reject a bare string before normalization: a str is iterable, so
         # tuple("user_id") would silently explode into per-character columns
@@ -179,6 +226,9 @@ class Pipeline:
             object.__setattr__(self, "conflict_columns", tuple(self.conflict_columns))
         # Validate load_mode first (D-06).
         _validate_load_mode(self.load_mode)
+        # Validate incremental_column / load_mode combo + identifier
+        # (D-14/D-15/D-16/D-17) — after load_mode, before the upsert check.
+        _validate_incremental(self.incremental_column, self.load_mode)
         # Require conflict_columns when upsert is selected (D-07).
         if self.load_mode == "upsert" and not self.conflict_columns:
             raise ValueError(
