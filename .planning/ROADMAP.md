@@ -168,7 +168,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 25. Alias Removal | v0.7.0 | 5/5 | Complete    | 2026-06-19 |
-| 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete   | 2026-06-20 |
+| 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete    | 2026-06-20 |
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 0/TBD | Not started | - |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 0/TBD | Not started | - |
 | 29. Release v0.7.0 | v0.7.0 | 0/TBD | Not started | - |
