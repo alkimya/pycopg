@@ -30,7 +30,7 @@ Additive watermark-based incremental loading on the v0.5.0 ETL runner. The `pipe
 - The new watermark is read from the last **successful** run's row and persisted only on a **successful** load; a failed load must not advance it; an empty batch preserves the prior watermark (never writes NULL).
 - Full sync/async parity (Core Value).
 
-- [ ] **ETL-INC-01**: User can declare `Pipeline(incremental_column="updated_at", ...)`; identifier is validated; construction raises `ValueError` for `incremental_column` with `load_mode` ∈ {append, replace} (incremental requires `upsert`)
+- [x] **ETL-INC-01**: User can declare `Pipeline(incremental_column="updated_at", ...)`; identifier is validated; construction raises `ValueError` for `incremental_column` with `load_mode` ∈ {append, replace} (incremental requires `upsert`)
 - [ ] **ETL-INC-02**: On the first run of an incremental pipeline (no prior successful watermark), `db.etl.run()` performs a full load and records `max(incremental_column)` as the new watermark on success
 - [ ] **ETL-INC-03**: On subsequent runs, extraction applies `WHERE incremental_column > last_watermark` (exclusive); SQL-string sources are wrapped as `SELECT * FROM (<sql>) <alias> WHERE …`, table sources get the WHERE appended; the watermark value is always passed as a `%s` parameter (never interpolated)
 - [ ] **ETL-INC-04**: After a successful load, `max(incremental_column)` is computed from the raw extracted batch (before the transform chain) and recorded; if the watermark column is absent from the extract, a clear `ETL*` error is raised (not a bare `KeyError`)
@@ -85,7 +85,7 @@ Which phases cover which requirements. Filled during roadmap creation.
 | ALIAS-RM-02 | Phase 25 | Complete |
 | ALIAS-RM-03 | Phase 25 | Complete |
 | ALIAS-RM-04 | Phase 25 | Complete |
-| ETL-INC-01 | Phase 26 | Pending |
+| ETL-INC-01 | Phase 26 | Complete |
 | ETL-INC-02 | Phase 27 | Pending |
 | ETL-INC-03 | Phase 28 | Pending |
 | ETL-INC-04 | Phase 28 | Pending |
