@@ -9,6 +9,7 @@ from pycopg import queries
 from pycopg.etl import (
     Pipeline,
     RunResult,
+    _build_incremental_extract_sql,
     _build_insert_sql,
     _build_upsert_sql,
     _is_sql_source,
@@ -534,6 +535,95 @@ class TestEtlBuilders:
         assert f"transform step {i}" in str(err)
         assert f"'{lbl}'" in str(err)
         assert "ValueError" in str(err)
+
+
+class TestBuildIncrementalExtractSql:
+    """DB-free tests for _build_incremental_extract_sql (D-06..D-13)."""
+
+    def test_table_source_with_watermark(self):
+        """Table source + watermark appends WHERE col > %s (D-09)."""
+        wm = datetime(2026, 1, 1, tzinfo=UTC)
+        sql, params = _build_incremental_extract_sql(
+            "raw_events", "updated_at", "public", wm
+        )
+        assert sql == "SELECT * FROM public.raw_events WHERE updated_at > %s"
+        assert params == [wm]
+
+    def test_sql_source_with_watermark_wraps_subquery(self):
+        """SQL-string source + watermark wraps in a subquery with the reserved alias (D-06/D-07)."""
+        wm = 42
+        sql, params = _build_incremental_extract_sql(
+            "SELECT a, b FROM t", "id", "public", wm
+        )
+        assert "_pycopg_inc" in sql
+        assert "(SELECT a, b FROM t)" in sql
+        assert sql.rstrip().endswith("WHERE id > %s")
+        assert params == [wm]
+        # T-26-01: the watermark value is never interpolated into the SQL.
+        assert "42" not in sql
+
+    def test_sql_source_trailing_semicolon_stripped(self):
+        """A trailing ';' and whitespace are stripped before wrapping (D-08)."""
+        wm = 7
+        sql, params = _build_incremental_extract_sql("SELECT 1;  ", "id", "public", wm)
+        assert "(SELECT 1)" in sql
+        assert ";" not in sql.split("_pycopg_inc")[0]
+        assert params == [wm]
+
+    def test_table_source_watermark_none_full_select(self):
+        """watermark=None on a table source returns a full SELECT with [] params (D-12)."""
+        sql, params = _build_incremental_extract_sql("events", "ts", "public", None)
+        assert sql == "SELECT * FROM public.events"
+        assert params == []
+        assert "WHERE" not in sql
+        assert "%s" not in sql
+
+    def test_sql_source_watermark_none_full_select(self):
+        """watermark=None on a SQL source returns a full unfiltered SELECT with [] params (D-12)."""
+        sql, params = _build_incremental_extract_sql(
+            "SELECT a FROM t", "id", "public", None
+        )
+        assert params == []
+        assert "WHERE" not in sql
+        assert "%s" not in sql
+
+    def test_custom_schema_honored(self):
+        """A custom schema is honored for table sources (D-09)."""
+        wm = 1
+        sql, params = _build_incremental_extract_sql(
+            "events", "ts", "analytics", wm
+        )
+        assert sql == "SELECT * FROM analytics.events WHERE ts > %s"
+        assert params == [wm]
+
+    def test_invalid_column_raises(self):
+        """A bad column identifier raises InvalidIdentifier before any SQL (T-26-02)."""
+        with pytest.raises(InvalidIdentifier):
+            _build_incremental_extract_sql("events", "bad-col!", "public", 1)
+
+    def test_invalid_table_source_raises(self):
+        """A bad table source raises InvalidIdentifier (T-26-02)."""
+        with pytest.raises(InvalidIdentifier):
+            _build_incremental_extract_sql("bad-table!", "ts", "public", 1)
+
+    def test_invalid_schema_raises(self):
+        """A bad schema raises InvalidIdentifier (T-26-02)."""
+        with pytest.raises(InvalidIdentifier):
+            _build_incremental_extract_sql("events", "ts", "bad-schema!", 1)
+
+    def test_uses_exclusive_boundary(self):
+        """The filter uses '>' (exclusive), never '>=' (REQUIREMENTS Out-of-Scope)."""
+        sql, _ = _build_incremental_extract_sql("events", "ts", "public", 1)
+        assert ">=" not in sql
+        assert "> %s" in sql
+
+    def test_returns_two_tuple(self):
+        """Return value is a (str, list) 2-tuple (D-13)."""
+        result = _build_incremental_extract_sql("events", "ts", "public", 1)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert isinstance(result[0], str)
+        assert isinstance(result[1], list)
 
 
 class TestRowToResult:
