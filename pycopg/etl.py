@@ -35,7 +35,11 @@ import pandas as pd
 from psycopg.rows import dict_row
 
 from pycopg import queries
-from pycopg.exceptions import ETLTargetNotFoundError, ETLTransformError  # noqa: F401
+from pycopg.exceptions import (  # noqa: F401
+    ETLError,
+    ETLTargetNotFoundError,
+    ETLTransformError,
+)
 from pycopg.utils import validate_identifiers
 
 if TYPE_CHECKING:
@@ -567,6 +571,88 @@ def _build_incremental_extract_sql(
         return sql, [watermark]
     validate_identifiers(source, schema)
     return f"SELECT * FROM {schema}.{source} WHERE {column} > %s", [watermark]
+
+
+#: Watermark types that can be stored in the typed JSONB envelope (D-04).
+_WATERMARK_SUPPORTED = "{datetime, int, str}"
+
+
+def _encode_watermark(value) -> dict:
+    """Encode a watermark scalar into a typed JSONB envelope (D-01).
+
+    Pure builder — no ``self``, no I/O, no DB connection.  Returns a BARE
+    ``dict`` of the form ``{"type": ..., "value": ...}`` (D-05); the
+    ``psycopg.types.json.Jsonb`` adapter wrap is a Phase-27 write-site
+    concern, not done here.  ``datetime`` is serialized via
+    :meth:`datetime.isoformat` with NO UTC normalization, so the stored
+    offset and microseconds are preserved verbatim (D-02).
+
+    The supported allowlist is exactly ``{datetime, int, str}`` (D-04).
+    ``bool`` is rejected *before* the ``int`` branch (it is an ``int``
+    subclass — same trap guarded for ``extract_limit``).
+
+    Parameters
+    ----------
+    value : datetime or int or str
+        Watermark scalar to encode.
+
+    Returns
+    -------
+    dict
+        Typed envelope ``{"type": "datetime"|"int"|"str", "value": ...}``.
+
+    Raises
+    ------
+    ETLError
+        If ``value`` is not one of the supported types (e.g. ``bool``,
+        ``float``, ``Decimal``); the message names the unsupported type and
+        lists the supported set (D-04).
+    """
+    # bool is an int subclass — reject it before the int branch (D-04).
+    if isinstance(value, bool):
+        raise ETLError(
+            f"unsupported watermark type {type(value).__name__!r}; "
+            f"supported types are {_WATERMARK_SUPPORTED}"
+        )
+    if isinstance(value, datetime):
+        return {"type": "datetime", "value": value.isoformat()}
+    if isinstance(value, int):
+        return {"type": "int", "value": value}
+    if isinstance(value, str):
+        return {"type": "str", "value": value}
+    raise ETLError(
+        f"unsupported watermark type {type(value).__name__!r}; "
+        f"supported types are {_WATERMARK_SUPPORTED}"
+    )
+
+
+def _decode_watermark(envelope: dict):
+    """Decode a typed JSONB envelope back to the original watermark scalar.
+
+    Pure function — no ``self``, no I/O.  Mirrors the dict→typed
+    reconstruction of :func:`_row_to_result`.  Reads the ``type`` tag and
+    rebuilds the exact Python type written by :func:`_encode_watermark`;
+    ``datetime`` is rebuilt via :meth:`datetime.fromisoformat`, preserving
+    the offset and microseconds (D-02).
+
+    Parameters
+    ----------
+    envelope : dict
+        Typed envelope as returned by :func:`_encode_watermark` (the plain
+        ``dict`` psycopg yields when reading a JSONB column).
+
+    Returns
+    -------
+    datetime or int or str
+        The reconstructed watermark scalar.
+    """
+    tag = envelope["type"]
+    value = envelope["value"]
+    if tag == "datetime":
+        return datetime.fromisoformat(value)
+    if tag == "int":
+        return int(value)
+    return str(value)
 
 
 def _step_label(fn: object) -> str:
