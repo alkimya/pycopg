@@ -590,9 +590,7 @@ class TestBuildIncrementalExtractSql:
     def test_custom_schema_honored(self):
         """A custom schema is honored for table sources (D-09)."""
         wm = 1
-        sql, params = _build_incremental_extract_sql(
-            "events", "ts", "analytics", wm
-        )
+        sql, params = _build_incremental_extract_sql("events", "ts", "analytics", wm)
         assert sql == "SELECT * FROM analytics.events WHERE ts > %s"
         assert params == [wm]
 

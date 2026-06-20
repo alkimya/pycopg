@@ -500,6 +500,75 @@ def _build_upsert_sql(
     return _build_insert_sql(table, columns, rows, schema, on_conflict=on_conflict)
 
 
+#: Reserved subquery alias for the SQL-string incremental-extract wrap (D-07).
+#: Underscore-prefixed for collision safety; deterministic and greppable in logs.
+_PYCOPG_INC_ALIAS = "_pycopg_inc"
+
+
+def _build_incremental_extract_sql(
+    source: str,
+    column: str,
+    schema: str = "public",
+    watermark=None,
+) -> tuple[str, list]:
+    """Build the watermark-filtered incremental extract SQL.
+
+    Pure builder — no ``self``, no I/O, no DB connection.  Dispatches on
+    the source kind via :func:`_is_sql_source` (D-11): a SQL-string source
+    is wrapped in a subquery aliased ``_pycopg_inc`` (D-06/D-07); a table
+    source gets a ``WHERE`` clause appended (D-09).  The watermark value is
+    ALWAYS emitted as a single ``%s`` placeholder appended to the params
+    list — never f-string interpolated (D-10, T-26-01).  Identifiers
+    (``column``, and ``source``/``schema`` for table sources) are validated
+    before any interpolation (T-26-02).
+
+    When ``watermark is None`` (first run or no prior watermark) a full,
+    unfiltered SELECT is returned with an empty params list (D-12).  The
+    boundary is exclusive (``>``), matching the REQUIREMENTS contract.
+
+    Parameters
+    ----------
+    source : str
+        Source table name or a SQL SELECT/WITH statement string. Classified
+        via :func:`_is_sql_source`.
+    column : str
+        Watermark column name. Must be a valid SQL identifier; emitted bare
+        after validation (D-10).
+    schema : str, optional
+        Schema for a table source, by default ``"public"``. Ignored for a
+        SQL-string source. Must be a valid SQL identifier.
+    watermark : optional
+        High-water mark value, or ``None`` for a full unfiltered extract
+        (D-12). When set it is the single ``%s`` parameter.
+
+    Returns
+    -------
+    tuple of (str, list)
+        The extract SQL string and a params list containing the watermark
+        as its only element (or ``[]`` when ``watermark is None``).
+
+    Raises
+    ------
+    InvalidIdentifier
+        If ``column`` (always) or ``source``/``schema`` (table source) is
+        not a valid SQL identifier (T-26-02).
+    """
+    validate_identifiers(column)
+    if watermark is None:
+        if _is_sql_source(source):
+            return source, []
+        validate_identifiers(source, schema)
+        return f"SELECT * FROM {schema}.{source}", []
+    if _is_sql_source(source):
+        # Right-strip whitespace, a single trailing ';', then whitespace
+        # again before wrapping (D-08 hygiene — no SQL parser).
+        clean = source.rstrip().rstrip(";").rstrip()
+        sql = f"SELECT * FROM ({clean}) {_PYCOPG_INC_ALIAS} WHERE {column} > %s"
+        return sql, [watermark]
+    validate_identifiers(source, schema)
+    return f"SELECT * FROM {schema}.{source} WHERE {column} > %s", [watermark]
+
+
 def _step_label(fn: object) -> str:
     """Return a human-readable label for a transform step function.
 
