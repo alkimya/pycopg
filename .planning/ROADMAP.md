@@ -72,7 +72,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 - [x] **Phase 25: Alias Removal** — Hard-remove 56 `@deprecated_alias` stubs from `Database`/`AsyncDatabase`, update tests and docs, close carried-forward WR-01/IN-02 debt (completed 2026-06-19)
 - [x] **Phase 26: Incremental ETL — Pure Layer** — `Pipeline.incremental_column` field with construction-time guards, pure SQL builders for watermark filtering, encode/decode functions (completed 2026-06-20)
-- [ ] **Phase 27: Incremental ETL — Run-Log Integration** — `_read_watermark` helper, success-only `_end_run(watermark=)` path, JSONB round-trip verification, no-advance-on-failure invariant
+- [x] **Phase 27: Incremental ETL — Run-Log Integration** — `_read_watermark` helper, success-only `_end_run(watermark=)` path, JSONB round-trip verification, no-advance-on-failure invariant (completed 2026-06-20)
 - [ ] **Phase 28: Incremental ETL — Extract, RunResult & Async Parity** — wire incremental filter into `run()` extract, `RunResult.watermark_used/recorded`, `dry_run` support, `AsyncETLAccessor` mirror, `TestEtlParity`, incremental docs
 - [ ] **Phase 29: Release v0.7.0** — CHANGELOG finalized, MIGRATION v0.6→v0.7 complete, version bump, Sphinx `-W` clean, gates, tag + PyPI publish
 
@@ -134,7 +134,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Plans**: 1 plan
 
-- [ ] 27-01-PLAN.md — Wire watermark through the sync run-log layer (SQL constants + `_read_watermark`/`_end_run(watermark=)`/`run()` max(col) capture + 6 live-DB integration tests)
+- [x] 27-01-PLAN.md — Wire watermark through the sync run-log layer (SQL constants + `_read_watermark`/`_end_run(watermark=)`/`run()` max(col) capture + 6 live-DB integration tests)
 
 ### Phase 28: Incremental ETL — Extract, RunResult & Async Parity
 
@@ -171,7 +171,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 |-------|-----------|----------------|--------|-----------|
 | 25. Alias Removal | v0.7.0 | 5/5 | Complete    | 2026-06-19 |
 | 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete    | 2026-06-20 |
-| 27. Incremental ETL — Run-Log Integration | v0.7.0 | 0/TBD | Not started | - |
+| 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete   | 2026-06-20 |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 0/TBD | Not started | - |
 | 29. Release v0.7.0 | v0.7.0 | 0/TBD | Not started | - |
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |

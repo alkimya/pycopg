@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: planned
-stopped_at: Phase 27 planning complete
-last_updated: "2026-06-20T14:07:47.126Z"
-last_activity: 2026-06-20 -- Phase 27 planning complete
+status: verifying
+stopped_at: Completed 27-01-PLAN.md
+last_updated: "2026-06-20T14:36:34.636Z"
+last_activity: 2026-06-20 -- Phase 27 execution started
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 40
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
+  percent: 60
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 27 — incremental-etl-run-log-integration (ready to execute)
+**Current focus:** Phase 27 — incremental-etl-run-log-integration
 
 ## Current Position
 
-Phase: 27
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-20 -- Phase 27 planning complete
+Phase: 27 (incremental-etl-run-log-integration) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-06-20 -- Phase 27 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 25-alias-removal P04 | 2 | 2 tasks | 3 files |
 | Phase 25-alias-removal P05 | 15min | 2 tasks | 10 files |
 | Phase 26 P01 | 4min | 3 tasks | 2 files |
+| Phase 27 P01 | 18min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,11 @@ Locked scope decisions (cadrage 2026-06-19, see PROJECT.md):
 - Alias removal = hard remove (one cycle already served in v0.6.0) + MIGRATION + Breaking CHANGELOG
 
 Open question resolved in REQUIREMENTS.md: `append` + `incremental_column` is **forbidden** (locked).
+
+- [Phase ?]: Dedicated ETL_UPDATE_RUN_WATERMARK constant — failed/empty paths structurally incapable of setting watermark column
+- [Phase ?]: D-07 call-site coercion (int/to_pydatetime/str) at run() before _encode_watermark; encoder stays frozen
+- [Phase ?]: _read_watermark exists and tested in Phase 27 but NOT yet applied as WHERE extract filter — Phase 28 (ETL-INC-03)
+- [Phase ?]: WR-01/WR-02 decode hardening deferred to Phase 28 — Phase 27 data is provably well-formed
 
 ### Pending Todos
 
@@ -88,7 +94,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-20T13:46:24.909Z
-Stopped at: Phase 27 context gathered
-Resume file: .planning/phases/27-incremental-etl-run-log-integration/27-CONTEXT.md
+Last session: 2026-06-20T14:36:34.629Z
+Stopped at: Completed 27-01-PLAN.md
+Resume file: None
 Next action: `/gsd-execute-phase 25` (plan 25-05: MIGRATION.md + CHANGELOG [0.7.0] + docs code examples)
