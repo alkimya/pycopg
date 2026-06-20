@@ -299,3 +299,25 @@ ETL_GET_RUN = """
     FROM pipeline_runs
     WHERE run_id = %s
 """
+
+ETL_GET_LAST_WATERMARK = """
+    SELECT watermark
+    FROM pipeline_runs
+    WHERE pipeline_name = %s
+      AND status = 'success'
+      AND watermark IS NOT NULL
+    ORDER BY started_at DESC
+    LIMIT 1
+"""
+
+ETL_UPDATE_RUN_WATERMARK = """
+    UPDATE pipeline_runs
+    SET status = %s,
+        finished_at = %s,
+        rows_extracted = %s,
+        rows_loaded = %s,
+        error_message = %s,
+        error_traceback = %s,
+        watermark = %s
+    WHERE run_id = %s
+"""
