@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: verifying
-stopped_at: Phase 26 context gathered
+status: ready
+stopped_at: Phase 26 complete — ready for Phase 27
 last_updated: "2026-06-20T11:33:33.511Z"
 last_activity: 2026-06-20
 progress:
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 26 — incremental-etl-pure-layer
+**Current focus:** Phase 27 — incremental-etl-run-log-integration (next)
 
 ## Current Position
 
 Phase: 27
 Plan: Not started
-Status: Phase complete — ready for verification
+Status: Phase 26 complete & verified (passed) — ready to start Phase 27
 Last activity: 2026-06-20
 
 Progress: [░░░░░░░░░░] 0%
@@ -44,8 +44,8 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Complete | Status |
 |-------|-------|----------|--------|
-| 25. Alias Removal | TBD | 0 | Not started |
-| 26. Incremental ETL — Pure Layer | TBD | 0 | Not started |
+| 25. Alias Removal | 5 | 5 | ✓ Complete |
+| 26. Incremental ETL — Pure Layer | 1 | 1 | ✓ Complete |
 | 27. Incremental ETL — Run-Log Integration | TBD | 0 | Not started |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | TBD | 0 | Not started |
 | 29. Release v0.7.0 | TBD | 0 | Not started |
