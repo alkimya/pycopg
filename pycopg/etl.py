@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from pycopg import queries
 from pycopg.exceptions import (  # noqa: F401
@@ -799,6 +800,7 @@ class ETLAccessor:
         rows_loaded: int,
         error_message: str | None = None,
         error_traceback: str | None = None,
+        watermark: dict | None = None,
     ) -> None:
         """Update a ``pipeline_runs`` row with final status and metrics.
 
@@ -812,6 +814,14 @@ class ETLAccessor:
         Use the literal ``'failed'`` status string for failures — the
         CHECK constraint only accepts ``'running'``, ``'success'``, and
         ``'failed'`` (D-07).
+
+        When *watermark* is not ``None`` the dedicated
+        :data:`~pycopg.queries.ETL_UPDATE_RUN_WATERMARK` constant is
+        used and the already-encoded envelope dict is bound via
+        :class:`psycopg.types.json.Jsonb` at the write site (D-05).
+        The failed and empty-batch callers pass no *watermark*, so the
+        ``watermark`` column stays ``NULL`` (no-advance-on-failure /
+        empty-batch-preserves invariants — ETL-INC-05/06).
 
         Parameters
         ----------
@@ -828,6 +838,13 @@ class ETLAccessor:
         error_traceback : str or None, optional
             Full traceback string (e.g. from ``traceback.format_exc()``),
             by default ``None``.
+        watermark : dict or None, optional
+            Already-encoded watermark envelope dict (output of
+            :func:`_encode_watermark`), by default ``None``.  When
+            provided the ``watermark`` JSONB column is updated via
+            :data:`~pycopg.queries.ETL_UPDATE_RUN_WATERMARK`; when
+            ``None`` the existing :data:`~pycopg.queries.ETL_UPDATE_RUN`
+            is used and the column stays ``NULL`` (ETL-INC-06).
 
         Returns
         -------
@@ -835,18 +852,33 @@ class ETLAccessor:
         """
         with self._db.connect(autocommit=True) as conn:
             with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute(
-                    queries.ETL_UPDATE_RUN,
-                    [
-                        status,
-                        datetime.now(UTC),
-                        rows_extracted,
-                        rows_loaded,
-                        error_message,
-                        error_traceback,
-                        run_id,
-                    ],
-                )
+                if watermark is None:
+                    cur.execute(
+                        queries.ETL_UPDATE_RUN,
+                        [
+                            status,
+                            datetime.now(UTC),
+                            rows_extracted,
+                            rows_loaded,
+                            error_message,
+                            error_traceback,
+                            run_id,
+                        ],
+                    )
+                else:
+                    cur.execute(
+                        queries.ETL_UPDATE_RUN_WATERMARK,
+                        [
+                            status,
+                            datetime.now(UTC),
+                            rows_extracted,
+                            rows_loaded,
+                            error_message,
+                            error_traceback,
+                            Jsonb(watermark),
+                            run_id,
+                        ],
+                    )
 
     def _fetch_run_result(self, run_id: int) -> RunResult:
         """Re-SELECT the ``pipeline_runs`` row for *run_id* and return a ``RunResult``.
@@ -924,6 +956,46 @@ class ETLAccessor:
                 cur.execute(queries.ETL_GET_LAST_RUN, [name])
                 row = cur.fetchone()
         return _row_to_result(row) if row is not None else None
+
+    def _read_watermark(self, name: str):
+        """Return the last successful, non-NULL watermark for a pipeline, or None.
+
+        Reads one row from ``pipeline_runs`` via
+        :data:`~pycopg.queries.ETL_GET_LAST_WATERMARK` on a dedicated
+        autocommit connection with the ``dict_row`` factory (mirrors the
+        :meth:`last_run` autocommit pattern).  The ``status = 'success'
+        AND watermark IS NOT NULL`` predicate (D-03) means failed runs and
+        empty-batch successes are automatically skipped — the prior
+        successful watermark is returned with no copy-forward write.
+
+        The ``watermark`` JSONB column yields a plain Python ``dict`` which
+        is passed straight to the frozen :func:`_decode_watermark` helper
+        to reconstruct the typed scalar.
+
+        **Phase 27 note:** this method exists and is tested here but is NOT
+        yet applied as an extract filter — the ``WHERE col > last_watermark``
+        wiring is Phase 28 (ETL-INC-03).
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name to query (bound as a ``%s`` parameter — no
+            identifier interpolation).
+
+        Returns
+        -------
+        datetime or int or str or None
+            The decoded last successful, non-NULL watermark scalar, or
+            ``None`` when no qualifying success row exists (first run or
+            never-succeeded-with-watermark — D-04).
+        """
+        with self._db.connect(autocommit=True) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(queries.ETL_GET_LAST_WATERMARK, [name])
+                row = cur.fetchone()
+        if row is None or row["watermark"] is None:
+            return None
+        return _decode_watermark(row["watermark"])
 
     def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
         """Execute a full extract → transform → load pipeline run.
@@ -1108,6 +1180,34 @@ class ETLAccessor:
             rows_extracted = len(df)
 
             # ------------------------------------------------------------------
+            # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
+            # Capture max(col) from the RAW batch BEFORE the transform chain
+            # (D-02: transforms may rename/drop the column).  Only when
+            # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
+            # to plain Python types so _encode_watermark's strict allowlist is
+            # satisfied (D-07 resolved by call-site coercion — do NOT reopen
+            # _encode_watermark).
+            # ------------------------------------------------------------------
+            raw_watermark = None
+            col = pipeline.incremental_column
+            if col is not None:
+                if col not in df.columns:
+                    raise ETLError(
+                        f"incremental_column {col!r} not found in extracted batch "
+                        f"columns {list(df.columns)} (ETL-INC-04)"
+                    )  # D-06 — clear ETLError, not a bare KeyError
+                if len(df):  # guard: max() on empty df is NaN
+                    m = df[col].max()
+                    if isinstance(m, pd.Timestamp):
+                        raw_watermark = (
+                            m.to_pydatetime()
+                        )  # plain datetime, offset preserved
+                    elif isinstance(m, str):
+                        raw_watermark = str(m)  # normalize numpy.str_ → str
+                    else:
+                        raw_watermark = int(m)  # numpy.int64 → plain int
+
+            # ------------------------------------------------------------------
             # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
             # ------------------------------------------------------------------
             transform = pipeline.transform
@@ -1207,7 +1307,8 @@ class ETLAccessor:
             )
             raise
 
-        self._end_run(run_id, "success", rows_extracted, rows_loaded)
+        wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
+        self._end_run(run_id, "success", rows_extracted, rows_loaded, watermark=wm_env)
         return self._fetch_run_result(run_id)
 
 
@@ -1617,7 +1718,9 @@ class AsyncETLAccessor:
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
             # ------------------------------------------------------------------
-            exists = await self._db.schema.table_exists(pipeline.target, pipeline.schema)
+            exists = await self._db.schema.table_exists(
+                pipeline.target, pipeline.schema
+            )
 
             if pipeline.load_mode in ("append", "upsert") and not exists:
                 raise ETLTargetNotFoundError(
