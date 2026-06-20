@@ -1,7 +1,7 @@
 """Tests for pycopg.etl — DB-free Pipeline + builder tests."""
 
 import functools
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -12,6 +12,8 @@ from pycopg.etl import (
     _build_incremental_extract_sql,
     _build_insert_sql,
     _build_upsert_sql,
+    _decode_watermark,
+    _encode_watermark,
     _is_sql_source,
     _row_to_result,
     _step_label,
@@ -20,7 +22,7 @@ from pycopg.etl import (
     build_init_sql,
     build_truncate_sql,
 )
-from pycopg.exceptions import ETLTransformError, InvalidIdentifier
+from pycopg.exceptions import ETLError, ETLTransformError, InvalidIdentifier
 
 
 class TestPipeline:
@@ -622,6 +624,83 @@ class TestBuildIncrementalExtractSql:
         assert len(result) == 2
         assert isinstance(result[0], str)
         assert isinstance(result[1], list)
+
+
+class TestEncodeDecodeWatermark:
+    """DB-free tests for _encode_watermark / _decode_watermark (D-01..D-05)."""
+
+    def _aware_dt(self):
+        """Return a tz-aware datetime with microseconds and a non-UTC offset."""
+        return datetime(
+            2024, 3, 1, 12, 0, 0, 123456, tzinfo=timezone(timedelta(hours=2))
+        )
+
+    def test_encode_datetime_shape(self):
+        """A tz-aware datetime encodes to an isoformat string envelope (D-02)."""
+        dt = self._aware_dt()
+        env = _encode_watermark(dt)
+        assert env == {
+            "type": "datetime",
+            "value": "2024-03-01T12:00:00.123456+02:00",
+        }
+
+    def test_encode_int_shape(self):
+        """An int encodes to {'type': 'int', 'value': <int>}."""
+        assert _encode_watermark(42) == {"type": "int", "value": 42}
+
+    def test_encode_str_shape(self):
+        """A str encodes to {'type': 'str', 'value': <str>}."""
+        assert _encode_watermark("2024-01-01") == {
+            "type": "str",
+            "value": "2024-01-01",
+        }
+
+    def test_encode_returns_bare_dict(self):
+        """_encode_watermark returns a plain dict, NOT a Jsonb instance (D-05)."""
+        result = _encode_watermark(42)
+        assert isinstance(result, dict)
+        assert type(result).__name__ != "Jsonb"
+
+    def test_encode_bool_raises_etlerror(self):
+        """bool is excluded from the allowlist before the int branch (D-04)."""
+        with pytest.raises(ETLError) as exc_info:
+            _encode_watermark(True)
+        msg = str(exc_info.value)
+        assert "bool" in msg
+        assert "datetime" in msg and "int" in msg and "str" in msg
+
+    def test_encode_float_raises_etlerror(self):
+        """float is not supported in v0.7.0 (D-04)."""
+        with pytest.raises(ETLError, match="float"):
+            _encode_watermark(3.14)
+
+    def test_roundtrip_datetime(self):
+        """datetime round-trips losslessly with tzinfo + microseconds preserved (D-02)."""
+        dt = self._aware_dt()
+        decoded = _decode_watermark(_encode_watermark(dt))
+        assert decoded == dt
+        assert decoded.tzinfo is not None
+        assert decoded.utcoffset() == timedelta(hours=2)
+        assert decoded.microsecond == 123456
+
+    def test_roundtrip_int(self):
+        """int round-trips without type drift."""
+        decoded = _decode_watermark(_encode_watermark(42))
+        assert decoded == 42
+        assert isinstance(decoded, int)
+
+    def test_roundtrip_str(self):
+        """str round-trips without type drift."""
+        decoded = _decode_watermark(_encode_watermark("hello"))
+        assert decoded == "hello"
+        assert isinstance(decoded, str)
+
+    def test_decode_accepts_plain_dict(self):
+        """_decode_watermark accepts the plain dict psycopg returns from a JSONB read."""
+        assert _decode_watermark({"type": "int", "value": 7}) == 7
+        assert _decode_watermark(
+            {"type": "datetime", "value": "2024-03-01T12:00:00+00:00"}
+        ) == datetime(2024, 3, 1, 12, 0, 0, tzinfo=UTC)
 
 
 class TestRowToResult:
