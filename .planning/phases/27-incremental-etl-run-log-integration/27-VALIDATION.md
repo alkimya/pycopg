@@ -1,8 +1,8 @@
 ---
 phase: 27
 slug: incremental-etl-run-log-integration
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-20
 ---
@@ -38,14 +38,14 @@ created: 2026-06-20
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (SC-1) | TBD | TBD | ETL-INC-02 | — | N/A | integration | `... -k first_run_records_watermark ...` | ❌ W0 | ⬜ pending |
-| (SC-2) | TBD | TBD | ETL-INC-06 | — | Failed load leaves `watermark IS NULL`; no advance | integration | `... -k failed_run_does_not_advance_watermark ...` | ❌ W0 | ⬜ pending |
-| (SC-3) | TBD | TBD | ETL-INC-05 | — | Empty batch preserves prior; never writes NULL | integration | `... -k empty_batch_preserves_watermark ...` | ❌ W0 | ⬜ pending |
-| (SC-4) | TBD | TBD | ETL-INC-10 | — | N/A | integration | `... -k watermark_jsonb_roundtrip ...` | ❌ W0 | ⬜ pending |
-| (D-04) | TBD | TBD | ETL-INC-02 | — | `_read_watermark` → `None` on first run | integration | `... -k read_watermark_none_first_run ...` | ❌ W0 | ⬜ pending |
-| (D-06) | TBD | TBD | ETL-INC-02 | — | Missing column → `ETLError`, not `KeyError` | integration | `... -k incremental_column_missing_raises_etlerror ...` | ❌ W0 | ⬜ pending |
+| (SC-1) | 27-01 | 1 | ETL-INC-02 | — | N/A | integration | `... -k first_run_records_watermark ...` | ❌ W0 | ⬜ pending |
+| (SC-2) | 27-01 | 1 | ETL-INC-06 | — | Failed load leaves `watermark IS NULL`; no advance | integration | `... -k failed_run_does_not_advance_watermark ...` | ❌ W0 | ⬜ pending |
+| (SC-3) | 27-01 | 1 | ETL-INC-05 | — | Empty batch preserves prior; never writes NULL | integration | `... -k empty_batch_preserves_watermark ...` | ❌ W0 | ⬜ pending |
+| (SC-4) | 27-01 | 1 | ETL-INC-10 | — | N/A | integration | `... -k watermark_jsonb_roundtrip ...` | ❌ W0 | ⬜ pending |
+| (D-04) | 27-01 | 1 | ETL-INC-02 | — | `_read_watermark` → `None` on first run | integration | `... -k read_watermark_none_first_run ...` | ❌ W0 | ⬜ pending |
+| (D-06) | 27-01 | 1 | ETL-INC-02 | — | Missing column → `ETLError`, not `KeyError` | integration | `... -k incremental_column_missing_raises_etlerror ...` | ❌ W0 | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky · Task IDs/Plan/Wave assigned by planner.*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
 ---
 

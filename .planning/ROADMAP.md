@@ -133,6 +133,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   4. Watermark values for timestamp, integer, and text columns survive a full round-trip through `pipeline_runs.watermark JSONB` without type drift (typed envelope via `Jsonb()`)
 
 **Plans**: 1 plan
+
 - [ ] 27-01-PLAN.md — Wire watermark through the sync run-log layer (SQL constants + `_read_watermark`/`_end_run(watermark=)`/`run()` max(col) capture + 6 live-DB integration tests)
 
 ### Phase 28: Incremental ETL — Extract, RunResult & Async Parity
