@@ -14,6 +14,7 @@ from pycopg.etl import (
     _is_sql_source,
     _row_to_result,
     _step_label,
+    _validate_incremental,
     _validate_load_mode,
     build_init_sql,
     build_truncate_sql,
@@ -123,6 +124,73 @@ class TestPipeline:
         """A bool extract_limit raises ValueError (bool is an int subclass)."""
         with pytest.raises(ValueError, match="extract_limit"):
             Pipeline(name="x", source="t", target="u", extract_limit=True)
+
+    def test_incremental_column_default_none(self):
+        """incremental_column defaults to None (non-incremental pipeline)."""
+        p = Pipeline(name="x", source="t", target="u")
+        assert p.incremental_column is None
+
+    def test_incremental_column_stored_with_upsert(self):
+        """incremental_column is stored when load_mode='upsert' (ROADMAP SC-1 / D-17)."""
+        p = Pipeline(
+            name="p",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=("id",),
+            incremental_column="updated_at",
+        )
+        assert p.incremental_column == "updated_at"
+
+    def test_incremental_column_append_raises_valueerror(self):
+        """incremental_column with load_mode='append' raises ValueError (ROADMAP SC-2 / D-16)."""
+        with pytest.raises(ValueError, match="upsert"):
+            Pipeline(
+                name="p",
+                source="t",
+                target="u",
+                load_mode="append",
+                incremental_column="updated_at",
+            )
+
+    def test_incremental_column_replace_raises_valueerror(self):
+        """incremental_column with load_mode='replace' raises ValueError (ROADMAP SC-2 / D-16)."""
+        with pytest.raises(ValueError, match="upsert"):
+            Pipeline(
+                name="p",
+                source="t",
+                target="u",
+                load_mode="replace",
+                incremental_column="updated_at",
+            )
+
+    def test_incremental_column_bad_identifier_raises(self):
+        """A bad incremental_column identifier raises InvalidIdentifier (D-15)."""
+        with pytest.raises(InvalidIdentifier):
+            Pipeline(
+                name="p",
+                source="t",
+                target="u",
+                load_mode="upsert",
+                conflict_columns=("id",),
+                incremental_column="bad-col!",
+            )
+
+    def test_garbage_load_mode_reported_before_incremental(self):
+        """A garbage load_mode reports 'must be one of' first (D-17 ordering proof).
+
+        ``_validate_load_mode`` runs before ``_validate_incremental`` in
+        ``__post_init__``, so the load_mode error wins even when an
+        ``incremental_column`` is also supplied.
+        """
+        with pytest.raises(ValueError, match="must be one of"):
+            Pipeline(
+                name="p",
+                source="t",
+                target="u",
+                load_mode="bogus",
+                incremental_column="updated_at",
+            )
 
     def test_frozen_dataclass(self):
         """Pipeline is frozen — attribute assignment raises FrozenInstanceError."""
@@ -258,6 +326,53 @@ class TestValidateLoadMode:
         """An invalid load_mode string raises ValueError."""
         with pytest.raises(ValueError, match="load_mode"):
             _validate_load_mode("truncate")
+
+
+class TestValidateIncremental:
+    """DB-free tests for the _validate_incremental module helper (D-14..D-16)."""
+
+    def test_none_short_circuits(self):
+        """incremental_column=None returns None — both checks skipped (D-15)."""
+        assert _validate_incremental(None, "append") is None
+        assert _validate_incremental(None, "upsert") is None
+
+    def test_upsert_passes(self):
+        """A valid identifier with load_mode='upsert' passes (D-16)."""
+        assert _validate_incremental("updated_at", "upsert") is None
+
+    def test_append_raises_valueerror(self):
+        """load_mode='append' with an incremental_column raises ValueError (D-16)."""
+        with pytest.raises(ValueError, match="upsert"):
+            _validate_incremental("col", "append")
+
+    def test_replace_raises_valueerror(self):
+        """load_mode='replace' with an incremental_column raises ValueError (D-16)."""
+        with pytest.raises(ValueError, match="upsert"):
+            _validate_incremental("col", "replace")
+
+    def test_message_cites_requirement_and_modes(self):
+        """The forbidden-combo message names the modes and cites ETL-INC-01 (D-16)."""
+        with pytest.raises(ValueError) as exc_info:
+            _validate_incremental("col", "append")
+        msg = str(exc_info.value)
+        assert "upsert" in msg
+        assert "append" in msg
+        assert "replace" in msg
+        assert "ETL-INC-01" in msg
+
+    def test_combo_checked_before_identifier(self):
+        """The forbidden-combo ValueError is raised before the identifier check (D-15).
+
+        A bad identifier with a forbidden mode still reports the combo
+        ValueError (intent error first), not InvalidIdentifier.
+        """
+        with pytest.raises(ValueError, match="upsert"):
+            _validate_incremental("bad-col!", "append")
+
+    def test_bad_identifier_raises_invalid_identifier(self):
+        """A bad identifier with load_mode='upsert' raises InvalidIdentifier (D-15)."""
+        with pytest.raises(InvalidIdentifier):
+            _validate_incremental("bad col", "upsert")
 
 
 class TestEtlBuilders:
