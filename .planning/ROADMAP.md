@@ -114,7 +114,11 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   3. Pure builder functions produce correct SQL: a SQL-string source is wrapped as `SELECT * FROM (<sql>) <alias> WHERE col > %s`; a table source gets `WHERE col > %s` appended; the watermark value is always a `%s` parameter, never interpolated
   4. `_encode_watermark` / `_decode_watermark` round-trip correctly for `datetime` (with tz), `int`, and `str` values without type drift — verified by DB-free unit tests
 
-**Plans**: TBD
+**Plans**: 1 plan (1 wave)
+
+**Wave 1**
+
+- [ ] 26-01-PLAN.md — incremental_column field + _validate_incremental guard, _build_incremental_extract_sql watermark-filter builder, _encode_watermark/_decode_watermark JSONB envelope (all DB-free) (wave 1)
 
 ### Phase 27: Incremental ETL — Run-Log Integration
 
@@ -164,7 +168,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 25. Alias Removal | v0.7.0 | 5/5 | Complete    | 2026-06-19 |
-| 26. Incremental ETL — Pure Layer | v0.7.0 | 0/TBD | Not started | - |
+| 26. Incremental ETL — Pure Layer | v0.7.0 | 0/1 | Not started | - |
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 0/TBD | Not started | - |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 0/TBD | Not started | - |
 | 29. Release v0.7.0 | v0.7.0 | 0/TBD | Not started | - |
