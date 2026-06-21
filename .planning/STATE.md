@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: executing
+status: verifying
 stopped_at: Completed 28-02-PLAN.md
-last_updated: "2026-06-21T17:34:19Z"
+last_updated: "2026-06-21T17:41:34.273Z"
 last_activity: 2026-06-21 -- Phase 28 Plan 02 complete (async ETL parity)
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
-  percent: 65
+  completed_plans: 10
+  percent: 80
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 
 ## Current Position
 
-Phase: 28 (incremental-etl-extract-runresult-async-parity) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-06-21 -- Phase 28 Plan 02 complete (async ETL parity)
+Phase: 28 (incremental-etl-extract-runresult-async-parity) — COMPLETE
+Plan: 3 of 3 (complete)
+Status: Phase complete — ready for Phase 29
+Last activity: 2026-06-21 -- Phase 28 Plan 03 complete (ETL-INC-12 docs)
 
-Progress: [██████░░░░] 65%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -82,6 +82,9 @@ Open question resolved in REQUIREMENTS.md: `append` + `incremental_column` is **
 - [Phase 28-02]: Async _do_extract + _read_watermark as methods (matching sync); verbatim capture block not factored — WR-02 fix remains auditable in both places
 - [Phase 28-02]: ETL-INC-04 guard text tested via exact string equality in async tests (not regex) — provides byte-for-byte parity proof (D-A3)
 - [Phase 28-02]: ETL-INC-11 CLOSED — full sync/async incremental watermark parity achieved
+- [Phase 28-03]: D-A4 honored: ## Incremental loading section added to docs/etl.md covering all 7 required points (ETL-INC-12)
+- [Phase 28-03]: D-A5 honored: no reset_watermark() API — manual SQL only; initial_watermark deferred v0.8.0
+- [Phase 28-03]: Sphinx -W gate clean — Phase 29 release gate passes
 
 ### Pending Todos
 
@@ -102,7 +105,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21T17:34:19Z
-Stopped at: Completed 28-02-PLAN.md
+Last session: 2026-06-21T17:48:00Z
+Stopped at: Completed 28-03-PLAN.md
 Resume file: None
-Next action: Execute 28-03-PLAN.md (ETL-INC-12: docs — incremental loading section in docs/etl.md)
+Next action: Phase 29 — Release v0.7.0 (version bump, CHANGELOG, MIGRATION, PyPI)

@@ -41,7 +41,7 @@ Additive watermark-based incremental loading on the v0.5.0 ETL runner. The `pipe
 - [x] **ETL-INC-09**: `dry_run=True` on an incremental pipeline reads the last watermark and computes the would-be filter and new max, writing no `pipeline_runs` row, and returns `watermark_used`/`watermark_recorded` for inspection
 - [x] **ETL-INC-10**: The watermark value round-trips correctly through `pipeline_runs.watermark JSONB` for timestamp, integer, and text watermark columns (typed envelope; no timezone/precision drift), with zero new runtime dependencies
 - [ ] **ETL-INC-11**: Full sync/async parity — `AsyncETLAccessor` mirrors the entire incremental surface; `TestEtlParity` is extended to cover it
-- [ ] **ETL-INC-12**: Backfill/reset workflow is documented (re-run as full load) and a `docs/etl.md` section + docstrings describe incremental usage, the watermark-column requirements (monotonic, non-decreasing), and the upsert requirement
+- [x] **ETL-INC-12**: Backfill/reset workflow is documented (re-run as full load) and a `docs/etl.md` section + docstrings describe incremental usage, the watermark-column requirements (monotonic, non-decreasing), and the upsert requirement
 
 ### Release
 
@@ -96,7 +96,7 @@ Which phases cover which requirements. Filled during roadmap creation.
 | ETL-INC-09 | Phase 28 | Complete |
 | ETL-INC-10 | Phase 27 | Complete |
 | ETL-INC-11 | Phase 28 | Pending |
-| ETL-INC-12 | Phase 28 | Pending |
+| ETL-INC-12 | Phase 28 | Complete |
 | REL-07 | Phase 29 | Pending |
 
 **Coverage:**
