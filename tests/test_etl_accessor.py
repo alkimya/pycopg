@@ -1754,6 +1754,275 @@ class TestRunResultSurface:
         assert rows[0]["watermark"] is None  # confirm stored NULL
         assert result.watermark_recorded is None
 
+    # -----------------------------------------------------------------------
+    # Phase 28 Task 2 — filtered extract + RunResult fields + incremental dry_run
+    # (ETL-INC-03 / ETL-INC-07 / ETL-INC-09 / SC-1 / D-A2)
+    # -----------------------------------------------------------------------
+
+    def test_incremental_first_run_watermark_used_none(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """ETL-INC-07: first incremental run has watermark_used=None (no prior watermark)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (3, 'a'), (7, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_first_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_first_used",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            result = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+        assert result.watermark_used is None  # first run — no prior watermark
+        assert result.watermark_recorded == 7  # max(id)
+
+    def test_incremental_second_run_pulls_only_new_rows(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """ETL-INC-03: second run extracts only rows with col > prior watermark."""
+        # First run: seed rows 1, 3, 5 → watermark = 5
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (1, 'a'), (3, 'b'), (5, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_2nd_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_second_run",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            result1 = db.etl.run(p)
+            assert result1.watermark_recorded == 5
+
+            # Insert rows below (2) and above (6, 8) the prior watermark
+            db.execute(
+                f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (2, 'below'), (6, 'new1'), (8, 'new2')",
+                autocommit=True,
+            )
+            result2 = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # Only rows with id > 5 should have been extracted
+        assert result2.rows_extracted == 2  # ids 6 and 8
+        assert result2.watermark_used == 5  # floor from first run
+        assert result2.watermark_recorded == 8  # new max
+
+    def test_incremental_watermark_as_bound_param(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """SC-1 / T-28-01: watermark value is a bound param, never interpolated into SQL."""
+        from unittest.mock import patch
+
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (10, 'x')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_param_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_param_check",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            db.etl.run(p)  # first run, watermark=10
+
+            # Capture the second run's to_dataframe call to inspect params
+            captured_calls = []
+            original_to_dataframe = db.to_dataframe
+
+            def spy_to_dataframe(**kwargs):
+                captured_calls.append(kwargs)
+                return original_to_dataframe(**kwargs)
+
+            with patch.object(db, "to_dataframe", side_effect=spy_to_dataframe):
+                db.etl.run(p)  # second run — should use wm=10 as bound param
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # The second-run call should have bound the watermark as a param (not in SQL text)
+        assert len(captured_calls) >= 1
+        last_call = captured_calls[-1]
+        params = last_call.get("params") or {}
+        sql = last_call.get("sql", "")
+        assert "wm" in params, "watermark must be a bound param 'wm'"
+        assert str(10) not in sql, "watermark value must not appear in SQL text"
+
+    def test_incremental_run_result_watermark_fields(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """ETL-INC-07: first run watermark_used=None/recorded=max; second run watermark_used=prior."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (2, 'a'), (9, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_fields_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_result_fields",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            r1 = db.etl.run(p)
+            # Insert new rows above watermark
+            db.execute(
+                f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (15, 'c')",
+                autocommit=True,
+            )
+            r2 = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        assert r1.watermark_used is None
+        assert r1.watermark_recorded == 9
+        assert r2.watermark_used == 9  # prior recorded
+        assert r2.watermark_recorded == 15
+
+    def test_incremental_history_surfaces_watermark_recorded(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """ETL-INC-08: history()/last_run() surface watermark_recorded, watermark_used=None."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (4, 'a'), (12, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_hist_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_hist_surface",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            r = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        hist = db.etl.history("wm_hist_surface")
+        last = db.etl.last_run("wm_hist_surface")
+        assert len(hist) == 1
+        assert hist[0].watermark_recorded == r.watermark_recorded
+        assert hist[0].watermark_used is None  # stored rows always None
+        assert last is not None
+        assert last.watermark_recorded == r.watermark_recorded
+        assert last.watermark_used is None
+
+    def test_incremental_dry_run_applies_filter_and_sets_watermark_fields(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """ETL-INC-09: dry_run on incremental pipeline reads prior watermark, filters, reports fields, no row written."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (1, 'a'), (5, 'b'), (10, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_dry_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_dry_inc",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            db.etl.run(p)  # first real run: watermark = 10
+            prior_wm = db.etl._read_watermark("wm_dry_inc")
+            assert prior_wm == 10
+
+            # Insert new rows
+            db.execute(
+                f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (15, 'd'), (20, 'e')",
+                autocommit=True,
+            )
+
+            # Count pipeline_runs before dry_run
+            count_before = db.execute("SELECT COUNT(*) AS n FROM pipeline_runs")[0]["n"]
+            dry_result = db.etl.run(p, dry_run=True)
+            count_after = db.execute("SELECT COUNT(*) AS n FROM pipeline_runs")[0]["n"]
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        assert dry_result.status == "dry_run"
+        assert dry_result.run_id is None
+        assert dry_result.rows_extracted == 2  # only ids 15, 20 (above watermark 10)
+        assert dry_result.watermark_used == 10
+        assert dry_result.watermark_recorded == 20  # max of filtered batch
+        assert count_after == count_before  # no new pipeline_runs row
+
+    def test_incremental_dry_run_empty_filtered_batch(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """ETL-INC-09: dry_run when filtered batch is empty has watermark_recorded=None."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (100, 'z')",
+            autocommit=True,
+        )
+        tbl = f"etl_wm_drye_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_dry_empty",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            db.etl.run(p)  # watermark = 100 — no rows above this
+            dry_result = db.etl.run(p, dry_run=True)  # no new rows above 100
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        assert dry_result.watermark_used == 100
+        assert dry_result.watermark_recorded is None  # empty filtered batch
+        assert dry_result.rows_extracted == 0
+
 
 # ---------------------------------------------------------------------------
 # Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run

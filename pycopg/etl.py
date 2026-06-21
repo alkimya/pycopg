@@ -28,6 +28,7 @@ import asyncio
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import replace as dc_replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -1020,6 +1021,91 @@ class ETLAccessor:
             return None
         return _decode_watermark(row["watermark"])
 
+    def _do_extract(
+        self,
+        pipeline: Pipeline,
+        watermark,
+    ) -> pd.DataFrame:
+        """Run the watermark-filtered extract step for *pipeline*.
+
+        Single shared extract path used by both the ``dry_run`` fork and the
+        real run path — prevents the two forks from drifting in their filter
+        logic (D-A2a).
+
+        When ``pipeline.incremental_column`` is set, reads the watermark
+        floor and applies ``WHERE col > :wm`` via
+        :func:`_build_incremental_extract_sql`; the watermark value is
+        always a named bound parameter (never f-string interpolated —
+        SC-1 / T-28-01).  When ``watermark is None`` the builder returns a
+        full unfiltered SELECT (first run, D-12).
+
+        When ``pipeline.incremental_column`` is ``None``, falls back to the
+        existing non-incremental extract behaviour.
+
+        ``extract_limit`` is applied as a LIMIT subquery wrapping the
+        filtered SQL so the watermark bind remains a named parameter.
+
+        Parameters
+        ----------
+        pipeline : Pipeline
+            The pipeline descriptor.
+        watermark : datetime or int or str or None
+            The filter floor returned by :meth:`_read_watermark`, or
+            ``None`` for a non-incremental pipeline or first run.
+
+        Returns
+        -------
+        pd.DataFrame
+            The extracted batch.
+        """
+        if pipeline.incremental_column is not None:
+            # Incremental path: build filtered SQL with bound watermark param.
+            # The builder emits %s positional; reconcile to :wm named bind
+            # for to_dataframe (which uses SQLAlchemy text() + named params).
+            sql, _params = _build_incremental_extract_sql(
+                pipeline.source,
+                pipeline.incremental_column,
+                pipeline.schema,
+                watermark=watermark,
+            )
+            if _params:
+                # Replace the single positional %s with a named :wm bind
+                sql = sql.replace("%s", ":wm", 1)
+                params: dict = {"wm": _params[0]}
+            else:
+                params = {}
+            if pipeline.extract_limit is not None:
+                # Wrap as subquery so LIMIT applies to the filtered result
+                # and the :wm bind is still valid in the inner query
+                sql = f"SELECT * FROM ({sql}) _etl_lim LIMIT :lim"
+                params["lim"] = pipeline.extract_limit
+            return self._db.to_dataframe(sql=sql, params=params or None)
+
+        # Non-incremental path — unchanged from original extract block
+        if _is_sql_source(pipeline.source):
+            if pipeline.extract_limit is not None:
+                return self._db.to_dataframe(
+                    sql=(
+                        f"SELECT * FROM ({pipeline.source}) AS _etl_sub" f" LIMIT :lim"
+                    ),
+                    params={"lim": pipeline.extract_limit},
+                )
+            return self._db.to_dataframe(sql=pipeline.source)
+        else:
+            validate_identifiers(pipeline.source, pipeline.schema)
+            if pipeline.extract_limit is not None:
+                return self._db.to_dataframe(
+                    sql=(
+                        f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
+                        f" LIMIT :lim"
+                    ),
+                    params={"lim": pipeline.extract_limit},
+                )
+            return self._db.to_dataframe(
+                table=pipeline.source,
+                schema=pipeline.schema,
+            )
+
     def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
         """Execute a full extract → transform → load pipeline run.
 
@@ -1102,35 +1188,42 @@ class ETLAccessor:
             started_at = datetime.now(UTC)
             rows_extracted = 0
 
-            # Extract (same as normal path)
-            if _is_sql_source(pipeline.source):
-                if pipeline.extract_limit is not None:
-                    df = self._db.to_dataframe(
-                        sql=(
-                            f"SELECT * FROM ({pipeline.source}) AS _etl_sub"
-                            f" LIMIT :lim"
-                        ),
-                        params={"lim": pipeline.extract_limit},
-                    )
-                else:
-                    df = self._db.to_dataframe(sql=pipeline.source)
-            else:
-                validate_identifiers(pipeline.source, pipeline.schema)
-                if pipeline.extract_limit is not None:
-                    df = self._db.to_dataframe(
-                        sql=(
-                            f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
-                            f" LIMIT :lim"
-                        ),
-                        params={"lim": pipeline.extract_limit},
-                    )
-                else:
-                    df = self._db.to_dataframe(
-                        table=pipeline.source,
-                        schema=pipeline.schema,
-                    )
+            # Read prior watermark (None on first run or non-incremental) — D-A2
+            dry_wm = (
+                self._read_watermark(name)
+                if pipeline.incremental_column is not None
+                else None
+            )
 
+            # Shared filtered extract (D-A2a) — same path as real run
+            df = self._do_extract(pipeline, dry_wm)
             rows_extracted = len(df)
+
+            # Capture would-be watermark from RAW filtered batch (D-A2)
+            dry_raw_watermark = None
+            dry_col = pipeline.incremental_column
+            if dry_col is not None:
+                if dry_col not in df.columns:
+                    raise ETLError(
+                        f"incremental_column {dry_col!r} not found in extracted batch "
+                        f"columns {list(df.columns)} (ETL-INC-04)"
+                    )
+                if len(df):
+                    m = df[dry_col].max()
+                    if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
+                        dry_raw_watermark = None
+                    elif isinstance(m, pd.Timestamp):
+                        dry_raw_watermark = m.to_pydatetime()
+                    elif isinstance(m, str):
+                        dry_raw_watermark = str(m)
+                    elif pd.api.types.is_float(m):
+                        raise ETLError(
+                            f"incremental_column {dry_col!r} has float dtype; float "
+                            f"watermarks are not supported (cast to INTEGER or "
+                            f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
+                        )
+                    else:
+                        dry_raw_watermark = int(m)
 
             # Transform chain (same as normal path)
             transform = pipeline.transform
@@ -1161,6 +1254,8 @@ class ETLAccessor:
                 started_at=started_at,
                 finished_at=finished_at,
                 error=None,
+                watermark_used=dry_wm,
+                watermark_recorded=dry_raw_watermark,
             )
 
         self.init()
@@ -1168,37 +1263,18 @@ class ETLAccessor:
         rows_extracted = 0
         rows_loaded = 0
 
+        # Read prior watermark before extract (None on first run or non-incremental)
+        wm = (
+            self._read_watermark(name)
+            if pipeline.incremental_column is not None
+            else None
+        )
+
         try:
             # ------------------------------------------------------------------
-            # 1. EXTRACT
+            # 1. EXTRACT (shared filtered path — D-A2a)
             # ------------------------------------------------------------------
-            if _is_sql_source(pipeline.source):
-                if pipeline.extract_limit is not None:
-                    df = self._db.to_dataframe(
-                        sql=(
-                            f"SELECT * FROM ({pipeline.source}) AS _etl_sub"
-                            f" LIMIT :lim"
-                        ),
-                        params={"lim": pipeline.extract_limit},
-                    )
-                else:
-                    df = self._db.to_dataframe(sql=pipeline.source)
-            else:
-                # table source — validate identifiers before interpolation (T-18-04)
-                validate_identifiers(pipeline.source, pipeline.schema)
-                if pipeline.extract_limit is not None:
-                    df = self._db.to_dataframe(
-                        sql=(
-                            f"SELECT * FROM {pipeline.schema}.{pipeline.source}"
-                            f" LIMIT :lim"
-                        ),
-                        params={"lim": pipeline.extract_limit},
-                    )
-                else:
-                    df = self._db.to_dataframe(
-                        table=pipeline.source,
-                        schema=pipeline.schema,
-                    )
+            df = self._do_extract(pipeline, wm)
 
             rows_extracted = len(df)
 
@@ -1351,7 +1427,12 @@ class ETLAccessor:
 
         wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
         self._end_run(run_id, "success", rows_extracted, rows_loaded, watermark=wm_env)
-        return self._fetch_run_result(run_id)
+        # Fetch the stored result (watermark_recorded comes via _row_to_result),
+        # then inject watermark_used (per-run input, never stored — D-A1).
+        result = self._fetch_run_result(run_id)
+        if wm is not None or pipeline.incremental_column is not None:
+            result = dc_replace(result, watermark_used=wm)
+        return result
 
 
 class AsyncETLAccessor:
