@@ -160,7 +160,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 28-02-PLAN.md — Async 1:1 port: async `_read_watermark`, `_end_run(watermark=)`, async `run()` filtered extract + verbatim capture + record + incremental `dry_run`, async tests, structural parity (ETL-INC-11 + async mirror of -03/-04/-07/-08/-09)
+- [x] 28-02-PLAN.md — Async 1:1 port: async `_read_watermark`, `_end_run(watermark=)`, async `run()` filtered extract + verbatim capture + record + incremental `dry_run`, async tests, structural parity (ETL-INC-11 + async mirror of -03/-04/-07/-08/-09)
 - [ ] 28-03-PLAN.md — Docs: `## Incremental loading` section in `docs/etl.md` (worked upsert example, watermark requirements, RunResult fields, dry_run preview, manual backfill/reset) (ETL-INC-12)
 
 ### Phase 29: Release v0.7.0
@@ -183,7 +183,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 25. Alias Removal | v0.7.0 | 5/5 | Complete    | 2026-06-19 |
 | 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete    | 2026-06-20 |
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete   | 2026-06-20 |
-| 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 1/3 | In Progress|  |
+| 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 2/3 | In Progress|  |
 | 29. Release v0.7.0 | v0.7.0 | 0/TBD | Not started | - |
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |

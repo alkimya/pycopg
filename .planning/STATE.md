@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
 status: executing
-stopped_at: Completed 28-01-PLAN.md
-last_updated: "2026-06-21T17:23:49.019Z"
-last_activity: 2026-06-21 -- Phase 28 execution started
+stopped_at: Completed 28-02-PLAN.md
+last_updated: "2026-06-21T17:34:19Z"
+last_activity: 2026-06-21 -- Phase 28 Plan 02 complete (async ETL parity)
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 10
-  completed_plans: 8
-  percent: 60
+  completed_plans: 9
+  percent: 65
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-06-19)
 ## Current Position
 
 Phase: 28 (incremental-etl-extract-runresult-async-parity) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-06-21 -- Phase 28 execution started
+Last activity: 2026-06-21 -- Phase 28 Plan 02 complete (async ETL parity)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████░░░░] 65%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 26 P01 | 4min | 3 tasks | 2 files |
 | Phase 27 P01 | 18min | 3 tasks | 3 files |
 | Phase 28 P01 | 13min | 3 tasks | 2 files |
+| Phase 28 P02 | 26min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,9 @@ Open question resolved in REQUIREMENTS.md: `append` + `incremental_column` is **
 - [Phase ?]: _do_extract() shared helper as single watermark-aware extract path — prevents dry_run/real-path drift (D-A2a)
 - [Phase ?]: Builder %s positional -> :wm named bind reconciliation for to_dataframe (SC-1/T-28-01)
 - [Phase ?]: RunResult.watermark_used=None for stored rows (never persisted); watermark_recorded decoded from pipeline_runs.watermark (D-A1)
+- [Phase 28-02]: Async _do_extract + _read_watermark as methods (matching sync); verbatim capture block not factored — WR-02 fix remains auditable in both places
+- [Phase 28-02]: ETL-INC-04 guard text tested via exact string equality in async tests (not regex) — provides byte-for-byte parity proof (D-A3)
+- [Phase 28-02]: ETL-INC-11 CLOSED — full sync/async incremental watermark parity achieved
 
 ### Pending Todos
 
@@ -98,7 +102,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21T17:23:49.012Z
-Stopped at: Completed 28-01-PLAN.md
+Last session: 2026-06-21T17:34:19Z
+Stopped at: Completed 28-02-PLAN.md
 Resume file: None
-Next action: `/gsd-plan-phase 28` — Phase 28 context gathered (ETL-INC-03/-04/-07/-08/-09/-11/-12: extract filter + RunResult watermark fields + dry_run + async parity + docs)
+Next action: Execute 28-03-PLAN.md (ETL-INC-12: docs — incremental loading section in docs/etl.md)
