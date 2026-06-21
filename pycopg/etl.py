@@ -281,6 +281,17 @@ class RunResult:
     error : str or None
         Short error message from ``pipeline_runs.error_message``; ``None``
         on success or dry run (D-03).
+    watermark_used : datetime or int or str or None
+        The filter floor applied to this run — the watermark value read
+        before extract, used as the ``WHERE col > wm`` bound (D-A1).
+        ``None`` for non-incremental pipelines and for stored rows
+        surfaced by ``history()`` / ``last_run()`` (where the per-run
+        input is never persisted).
+    watermark_recorded : datetime or int or str or None
+        The new high-water mark persisted for this run — decoded from
+        ``pipeline_runs.watermark`` (D-A1).  ``None`` for
+        non-incremental pipelines and when no watermark was stored
+        (e.g. empty batch, failed run, or NULL in ``pipeline_runs``).
     """
 
     run_id: int | None
@@ -291,6 +302,8 @@ class RunResult:
     started_at: datetime
     finished_at: datetime
     error: str | None
+    watermark_used: datetime | int | str | None = None
+    watermark_recorded: datetime | int | str | None = None
 
 
 def _is_sql_source(source: str) -> bool:
@@ -689,7 +702,12 @@ def _row_to_result(row: dict) -> RunResult:
     """Map a ``dict_row`` from ``pipeline_runs`` to a :class:`RunResult`.
 
     Pure function — no I/O, no ``self``.  Maps ``error_message -> error``
-    and drops ``error_traceback`` and ``watermark`` (D-10).
+    and drops ``error_traceback`` (D-10).  Maps ``watermark`` ->
+    ``watermark_recorded`` via a NULL guard: when the stored column is
+    ``NULL`` sets ``watermark_recorded=None``; otherwise decodes via the
+    frozen :func:`_decode_watermark` helper.  ``watermark_used`` is always
+    ``None`` for stored rows — it is a per-run input that is never
+    persisted (D-A1).
 
     Parameters
     ----------
@@ -701,6 +719,9 @@ def _row_to_result(row: dict) -> RunResult:
     RunResult
         Immutable snapshot of the run.
     """
+    wm_recorded = (
+        None if row["watermark"] is None else _decode_watermark(row["watermark"])
+    )
     return RunResult(
         run_id=row["run_id"],
         pipeline_name=row["pipeline_name"],
@@ -710,6 +731,8 @@ def _row_to_result(row: dict) -> RunResult:
         started_at=row["started_at"],
         finished_at=row["finished_at"],
         error=row["error_message"],
+        watermark_used=None,
+        watermark_recorded=wm_recorded,
     )
 
 

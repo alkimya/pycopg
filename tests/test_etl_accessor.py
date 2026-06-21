@@ -1685,6 +1685,75 @@ class TestRunResultSurface:
         # Prior success watermark must be preserved
         assert db.etl._read_watermark("wm_allnull_test") == w0
 
+    # -----------------------------------------------------------------------
+    # Phase 28 — RunResult watermark surface (ETL-INC-07 / ETL-INC-08 / D-A1)
+    # -----------------------------------------------------------------------
+
+    def test_non_incremental_run_watermark_fields_none(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """D-A1: non-incremental run() returns watermark_used=None and watermark_recorded=None."""
+        p = Pipeline(
+            name="wm_noninc_fields",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p)
+        assert result.watermark_used is None
+        assert result.watermark_recorded is None
+
+    def test_non_incremental_history_watermark_fields_none(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """D-A1: history() rows for a non-incremental pipeline have watermark_used/recorded=None."""
+        p = Pipeline(
+            name="wm_noninc_hist",
+            source="SELECT 1 AS id, 'b' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p)
+        hist = db.etl.history("wm_noninc_hist")
+        assert len(hist) == 1
+        assert hist[0].watermark_used is None
+        assert hist[0].watermark_recorded is None
+
+    def test_non_incremental_last_run_watermark_fields_none(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """D-A1: last_run() for a non-incremental pipeline has watermark_used/recorded=None."""
+        p = Pipeline(
+            name="wm_noninc_last",
+            source="SELECT 1 AS id, 'c' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        db.etl.run(p)
+        last = db.etl.last_run("wm_noninc_last")
+        assert last is not None
+        assert last.watermark_used is None
+        assert last.watermark_recorded is None
+
+    def test_row_to_result_maps_null_watermark_to_none(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """D-A1a: _row_to_result of a stored non-incremental row gives watermark_recorded=None."""
+        p = Pipeline(
+            name="wm_row_null",
+            source="SELECT 1 AS id, 'd' AS val",
+            target=etl_table,
+            load_mode="replace",
+        )
+        result = db.etl.run(p)
+        # Non-incremental run stores watermark=NULL; _row_to_result must map it to None
+        rows = db.execute(
+            "SELECT watermark FROM pipeline_runs WHERE run_id = %s",
+            [result.run_id],
+        )
+        assert rows[0]["watermark"] is None  # confirm stored NULL
+        assert result.watermark_recorded is None
+
 
 # ---------------------------------------------------------------------------
 # Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run
