@@ -149,8 +149,19 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   4. `db.etl.run(pipeline, dry_run=True)` on an incremental pipeline reads the last watermark and computes `watermark_used` and `watermark_recorded` without writing any `pipeline_runs` row
   5. `async_db.etl.run(pipeline)` mirrors the full incremental surface; `TestEtlParity` passes with incremental methods included; `docs/etl.md` has an incremental section describing watermark-column requirements, the upsert requirement, and the backfill/reset workflow
 
+> **SC-5 fact correction (planning 2026-06-21):** `TestEtlParity` was **removed** (`tests/test_parity.py:516`). ETL parity is now `test_accessor_parity` over `ACCESSOR_PAIRS` (structural — automatic once both accessors expose the same public surface) + async integration tests mirroring the sync ones (behavioral). Do **not** restore a `TestEtlParity` class; `tests/test_parity.py` stays green/unmodified.
+
 **UI hint**: no
-**Plans**: TBD
+**Plans**: 3 plans (2 waves)
+
+**Wave 1**
+
+- [ ] 28-01-PLAN.md — Sync wiring: `RunResult.watermark_used/recorded` + `_row_to_result` mapping + shared filtered-extract path + sync `run()` real path + incremental `dry_run` + sync tests (ETL-INC-03/-04/-07/-08/-09)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 28-02-PLAN.md — Async 1:1 port: async `_read_watermark`, `_end_run(watermark=)`, async `run()` filtered extract + verbatim capture + record + incremental `dry_run`, async tests, structural parity (ETL-INC-11 + async mirror of -03/-04/-07/-08/-09)
+- [ ] 28-03-PLAN.md — Docs: `## Incremental loading` section in `docs/etl.md` (worked upsert example, watermark requirements, RunResult fields, dry_run preview, manual backfill/reset) (ETL-INC-12)
 
 ### Phase 29: Release v0.7.0
 
