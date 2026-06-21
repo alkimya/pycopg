@@ -1871,8 +1871,13 @@ class TestRunResultSurface:
         last_call = captured_calls[-1]
         params = last_call.get("params") or {}
         sql = last_call.get("sql", "")
+        # The watermark VALUE travels as a bound param, and the SQL carries the
+        # ``:wm`` placeholder rather than the interpolated value. Asserting on the
+        # placeholder (not "10" not in sql) is robust to random table-name hex
+        # suffixes that can incidentally contain the digit string.
         assert "wm" in params, "watermark must be a bound param 'wm'"
-        assert str(10) not in sql, "watermark value must not appear in SQL text"
+        assert params["wm"] == 10, "the watermark value must be carried in the params"
+        assert ":wm" in sql, "SQL must reference the watermark via the :wm bind"
 
     def test_incremental_run_result_watermark_fields(
         self, db, cleanup_pipeline_runs, etl_src
@@ -2619,8 +2624,13 @@ class TestAsyncRunResultSurface:
         last_call = captured_calls[-1]
         params = last_call.get("params") or {}
         sql = last_call.get("sql", "")
+        # The watermark VALUE travels as a bound param, and the SQL carries the
+        # ``:wm`` placeholder rather than the interpolated value. Asserting on the
+        # placeholder (not "10" not in sql) is robust to random table-name hex
+        # suffixes that can incidentally contain the digit string.
         assert "wm" in params, "watermark must be a bound param 'wm'"
-        assert str(10) not in sql, "watermark value must not appear in SQL text"
+        assert params["wm"] == 10, "the watermark value must be carried in the params"
+        assert ":wm" in sql, "SQL must reference the watermark via the :wm bind"
 
     async def test_async_incremental_run_result_watermark_fields(
         self, async_db, cleanup_async_pipeline_runs, async_etl_src
