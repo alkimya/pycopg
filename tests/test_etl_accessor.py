@@ -1610,6 +1610,81 @@ class TestRunResultSurface:
         with pytest.raises(ETLError, match="missing_col"):
             db.etl.run(p)
 
+    def test_float_incremental_column_raises_etlerror(self, db, cleanup_pipeline_runs):
+        """WR-01: float incremental_column raises ETLError (no silent truncation)."""
+        tbl = f"etl_wmf_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, score NUMERIC)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="wm_float_col",
+                # NUMERIC column read by pandas as float64; max() would be
+                # silently truncated by int() — must fail loud instead.
+                source="SELECT 1 AS id, 99.99::float8 AS score",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="score",
+            )
+            with pytest.raises(ETLError, match="float"):
+                db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+    def test_all_null_incremental_column_preserves_watermark(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """WR-02: an all-NULL incremental column records no watermark (no crash), prior W0 preserved."""
+        # Seed a prior successful run with W0 = 7
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (7, 'seed')",
+            autocommit=True,
+        )
+        tbl = f"etl_wmn_{uuid.uuid4().hex[:8]}"
+        # Target carries a `wm` column so the all-NULL batch below loads cleanly;
+        # `val` lets the seed run upsert a non-conflict column.
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT, wm INTEGER)',
+            autocommit=True,
+        )
+        try:
+            p_seed = Pipeline(
+                name="wm_allnull_test",
+                source=f'SELECT id, val FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            db.etl.run(p_seed)
+            w0 = db.etl._read_watermark("wm_allnull_test")
+            assert w0 == 7
+
+            # A non-empty batch whose incremental_column (wm) is entirely NULL:
+            # df[wm].max() is NaN — must NOT crash; records no watermark.
+            p_null = Pipeline(
+                name="wm_allnull_test",
+                source="SELECT 2 AS id, NULL::integer AS wm",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="wm",
+            )
+            result = db.etl.run(p_null)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        nrows = db.execute(
+            "SELECT status, watermark FROM pipeline_runs WHERE run_id = %s",
+            [result.run_id],
+        )
+        assert nrows[0]["status"] == "success"
+        assert nrows[0]["watermark"] is None
+        # Prior success watermark must be preserved
+        assert db.etl._read_watermark("wm_allnull_test") == w0
+
 
 # ---------------------------------------------------------------------------
 # Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run

@@ -957,7 +957,7 @@ class ETLAccessor:
                 row = cur.fetchone()
         return _row_to_result(row) if row is not None else None
 
-    def _read_watermark(self, name: str):
+    def _read_watermark(self, name: str) -> datetime | int | str | None:
         """Return the last successful, non-NULL watermark for a pipeline, or None.
 
         Reads one row from ``pipeline_runs`` via
@@ -1198,12 +1198,27 @@ class ETLAccessor:
                     )  # D-06 — clear ETLError, not a bare KeyError
                 if len(df):  # guard: max() on empty df is NaN
                     m = df[col].max()
-                    if isinstance(m, pd.Timestamp):
+                    if pd.isna(m):
+                        # All values NULL (NaN/NaT) — record no watermark for
+                        # this run, same as the empty-batch path; the prior
+                        # successful watermark is preserved.  Must precede the
+                        # is_float branch below: NaN is itself a float.
+                        raw_watermark = None
+                    elif isinstance(m, pd.Timestamp):
                         raw_watermark = (
                             m.to_pydatetime()
                         )  # plain datetime, offset preserved
                     elif isinstance(m, str):
                         raw_watermark = str(m)  # normalize numpy.str_ → str
+                    elif pd.api.types.is_float(m):
+                        # float/Decimal columns have no defined watermark
+                        # semantics — int() would silently truncate (99.99 → 99)
+                        # and regress the watermark.  Fail loud (D-06 contract).
+                        raise ETLError(
+                            f"incremental_column {col!r} has float dtype; float "
+                            f"watermarks are not supported (cast to INTEGER or "
+                            f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
+                        )
                     else:
                         raw_watermark = int(m)  # numpy.int64 → plain int
 
@@ -1234,7 +1249,11 @@ class ETLAccessor:
                 df.astype(object).where(pd.notnull(df), None).to_dict(orient="records")
             )
 
-            # Empty DataFrame: no load needed; record success with 0 rows_loaded
+            # No rows to load (empty extract, or transforms dropped every row):
+            # record success with 0 rows_loaded and NO watermark — even if a
+            # raw_watermark was captured above, a no-load run must not advance
+            # the watermark.  The prior successful watermark is preserved by
+            # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
             if not rows:
                 self._end_run(run_id, "success", rows_extracted, 0)
                 return self._fetch_run_result(run_id)
