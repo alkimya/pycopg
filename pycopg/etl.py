@@ -1521,6 +1521,7 @@ class AsyncETLAccessor:
         rows_loaded: int,
         error_message: str | None = None,
         error_traceback: str | None = None,
+        watermark: dict | None = None,
     ) -> None:
         """Update a ``pipeline_runs`` row with final status and metrics.
 
@@ -1528,6 +1529,14 @@ class AsyncETLAccessor:
         ``async with self._db.connect(autocommit=True)`` (D-04), ensuring
         the UPDATE commits even when the load transaction rolled back
         (D-05/ETL-08/ETL-09).
+
+        When *watermark* is not ``None`` the dedicated
+        :data:`~pycopg.queries.ETL_UPDATE_RUN_WATERMARK` constant is used
+        and the already-encoded envelope dict is bound via
+        :class:`psycopg.types.json.Jsonb` at the write site (D-05).
+        The failed and empty-batch callers pass no *watermark*, so the
+        ``watermark`` column stays ``NULL`` (no-advance-on-failure /
+        empty-batch-preserves invariants — ETL-INC-05/06).
 
         Parameters
         ----------
@@ -1543,6 +1552,13 @@ class AsyncETLAccessor:
             Short error description, by default ``None``.
         error_traceback : str or None, optional
             Full traceback string, by default ``None``.
+        watermark : dict or None, optional
+            Already-encoded watermark envelope dict (output of
+            :func:`_encode_watermark`), by default ``None``.  When
+            provided the ``watermark`` JSONB column is updated via
+            :data:`~pycopg.queries.ETL_UPDATE_RUN_WATERMARK`; when
+            ``None`` the existing :data:`~pycopg.queries.ETL_UPDATE_RUN`
+            is used and the column stays ``NULL`` (ETL-INC-06).
 
         Returns
         -------
@@ -1550,18 +1566,33 @@ class AsyncETLAccessor:
         """
         async with self._db.connect(autocommit=True) as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
-                await cur.execute(
-                    queries.ETL_UPDATE_RUN,
-                    [
-                        status,
-                        datetime.now(UTC),
-                        rows_extracted,
-                        rows_loaded,
-                        error_message,
-                        error_traceback,
-                        run_id,
-                    ],
-                )
+                if watermark is None:
+                    await cur.execute(
+                        queries.ETL_UPDATE_RUN,
+                        [
+                            status,
+                            datetime.now(UTC),
+                            rows_extracted,
+                            rows_loaded,
+                            error_message,
+                            error_traceback,
+                            run_id,
+                        ],
+                    )
+                else:
+                    await cur.execute(
+                        queries.ETL_UPDATE_RUN_WATERMARK,
+                        [
+                            status,
+                            datetime.now(UTC),
+                            rows_extracted,
+                            rows_loaded,
+                            error_message,
+                            error_traceback,
+                            Jsonb(watermark),
+                            run_id,
+                        ],
+                    )
 
     async def _fetch_run_result(self, run_id: int) -> RunResult:
         """Re-SELECT the ``pipeline_runs`` row for *run_id* and return a ``RunResult``.
@@ -1636,6 +1667,42 @@ class AsyncETLAccessor:
                 await cur.execute(queries.ETL_GET_LAST_RUN, [name])
                 row = await cur.fetchone()
         return _row_to_result(row) if row is not None else None
+
+    async def _read_watermark(self, name: str) -> datetime | int | str | None:
+        """Return the last successful, non-NULL watermark for a pipeline, or None.
+
+        Reads one row from ``pipeline_runs`` via
+        :data:`~pycopg.queries.ETL_GET_LAST_WATERMARK` on a dedicated
+        autocommit connection with the ``dict_row`` factory (mirrors the
+        :meth:`last_run` autocommit pattern).  The ``status = 'success'
+        AND watermark IS NOT NULL`` predicate means failed runs and
+        empty-batch successes are automatically skipped — the prior
+        successful watermark is returned with no copy-forward write.
+
+        The ``watermark`` JSONB column yields a plain Python ``dict`` which
+        is passed straight to the frozen :func:`_decode_watermark` helper
+        to reconstruct the typed scalar.
+
+        Parameters
+        ----------
+        name : str
+            Pipeline name to query (bound as a ``%s`` parameter — no
+            identifier interpolation).
+
+        Returns
+        -------
+        datetime or int or str or None
+            The decoded last successful, non-NULL watermark scalar, or
+            ``None`` when no qualifying success row exists (first run or
+            never-succeeded-with-watermark).
+        """
+        async with self._db.connect(autocommit=True) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
+                await cur.execute(queries.ETL_GET_LAST_WATERMARK, [name])
+                row = await cur.fetchone()
+        if row is None or row["watermark"] is None:
+            return None
+        return _decode_watermark(row["watermark"])
 
     async def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
         """Execute a full async extract → transform → load pipeline run.
