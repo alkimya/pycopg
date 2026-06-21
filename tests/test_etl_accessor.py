@@ -2117,6 +2117,22 @@ async def cleanup_async_pipeline_runs(db_config):
         pass
 
 
+@pytest.fixture
+async def async_etl_src(db_config):
+    """Create a fresh ETL source table via async connection; drop on teardown."""
+    tbl = f"etl_asrc_{uuid.uuid4().hex[:8]}"
+    adb = AsyncDatabase(db_config)
+    await adb.execute(
+        f'CREATE TABLE public."{tbl}" (id INTEGER, val TEXT)',
+        autocommit=True,
+    )
+    yield tbl
+    await adb.execute(
+        f'DROP TABLE IF EXISTS public."{tbl}" CASCADE',
+        autocommit=True,
+    )
+
+
 class TestAsyncRunResultSurface:
     """Behavioral async parity tests for async_db.etl (ETL-12/ETL-13, SC-1..SC-4).
 
@@ -2463,3 +2479,492 @@ class TestAsyncRunResultSurface:
             ["asc_exc"],
         )
         assert rows[0]["status"] == "failed"
+
+    # -----------------------------------------------------------------------
+    # Phase 28 — async incremental ETL parity tests (ETL-INC-03/04/07/08/09/11)
+    # Mirrors the sync tests in TestRunResultSurface; D-A3 strict parity.
+    # -----------------------------------------------------------------------
+
+    async def test_async_non_incremental_run_watermark_fields_none(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """D-A1: async non-incremental run() returns watermark_used=None and watermark_recorded=None."""
+        p = Pipeline(
+            name="awm_noninc_fields",
+            source="SELECT 1 AS id, 'a' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+        )
+        result = await async_db.etl.run(p)
+        assert result.watermark_used is None
+        assert result.watermark_recorded is None
+
+    async def test_async_incremental_first_run_watermark_used_none(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """ETL-INC-07: first async incremental run has watermark_used=None (no prior watermark)."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (3, 'a'), (7, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_first_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_first_used",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            result = await async_db.etl.run(p)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+        assert result.watermark_used is None  # first run — no prior watermark
+        assert result.watermark_recorded == 7  # max(id)
+
+    async def test_async_incremental_second_run_pulls_only_new_rows(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """ETL-INC-03: async second run extracts only rows with col > prior watermark."""
+        # First run: seed rows 1, 3, 5 → watermark = 5
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (1, 'a'), (3, 'b'), (5, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_2nd_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_second_run",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            result1 = await async_db.etl.run(p)
+            assert result1.watermark_recorded == 5
+
+            # Insert rows below (2) and above (6, 8) the prior watermark
+            await async_db.execute(
+                f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (2, 'below'), (6, 'new1'), (8, 'new2')",
+                autocommit=True,
+            )
+            result2 = await async_db.etl.run(p)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        # Only rows with id > 5 should have been extracted
+        assert result2.rows_extracted == 2  # ids 6 and 8
+        assert result2.watermark_used == 5  # floor from first run
+        assert result2.watermark_recorded == 8  # new max
+
+    async def test_async_incremental_watermark_as_bound_param(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """SC-1 / T-28-A1: async watermark value is a bound param, never interpolated into SQL."""
+        from unittest.mock import patch
+
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (10, 'x')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_param_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_param_check",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            await async_db.etl.run(p)  # first run, watermark=10
+
+            # Capture the second run's to_dataframe call to inspect params
+            captured_calls = []
+            original_to_dataframe = async_db.to_dataframe
+
+            async def spy_to_dataframe(**kwargs):
+                captured_calls.append(kwargs)
+                return await original_to_dataframe(**kwargs)
+
+            with patch.object(async_db, "to_dataframe", side_effect=spy_to_dataframe):
+                await async_db.etl.run(
+                    p
+                )  # second run — should use wm=10 as bound param
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        # The second-run call should have bound the watermark as a param (not in SQL text)
+        assert len(captured_calls) >= 1
+        last_call = captured_calls[-1]
+        params = last_call.get("params") or {}
+        sql = last_call.get("sql", "")
+        assert "wm" in params, "watermark must be a bound param 'wm'"
+        assert str(10) not in sql, "watermark value must not appear in SQL text"
+
+    async def test_async_incremental_run_result_watermark_fields(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """ETL-INC-07: async first run watermark_used=None/recorded=max; second run watermark_used=prior."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (2, 'a'), (9, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_fields_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_result_fields",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            r1 = await async_db.etl.run(p)
+            # Insert new rows above watermark
+            await async_db.execute(
+                f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (15, 'c')",
+                autocommit=True,
+            )
+            r2 = await async_db.etl.run(p)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert r1.watermark_used is None
+        assert r1.watermark_recorded == 9
+        assert r2.watermark_used == 9  # prior recorded
+        assert r2.watermark_recorded == 15
+
+    async def test_async_incremental_history_surfaces_watermark_recorded(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """ETL-INC-08: async history()/last_run() surface watermark_recorded, watermark_used=None."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (4, 'a'), (12, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_hist_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_hist_surface",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            r = await async_db.etl.run(p)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        hist = await async_db.etl.history("awm_hist_surface")
+        last = await async_db.etl.last_run("awm_hist_surface")
+        assert len(hist) == 1
+        assert hist[0].watermark_recorded == r.watermark_recorded
+        assert hist[0].watermark_used is None  # stored rows always None
+        assert last is not None
+        assert last.watermark_recorded == r.watermark_recorded
+        assert last.watermark_used is None
+
+    async def test_async_incremental_dry_run_applies_filter_and_sets_watermark_fields(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """ETL-INC-09: async dry_run on incremental pipeline reads prior watermark, filters, reports fields, no row written."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (1, 'a'), (5, 'b'), (10, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_dry_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_dry_inc",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            await async_db.etl.run(p)  # first real run: watermark = 10
+            prior_wm = await async_db.etl._read_watermark("awm_dry_inc")
+            assert prior_wm == 10
+
+            # Insert new rows
+            await async_db.execute(
+                f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (15, 'd'), (20, 'e')",
+                autocommit=True,
+            )
+
+            # Count pipeline_runs before dry_run
+            count_before = (
+                await async_db.execute("SELECT COUNT(*) AS n FROM pipeline_runs")
+            )[0]["n"]
+            dry_result = await async_db.etl.run(p, dry_run=True)
+            count_after = (
+                await async_db.execute("SELECT COUNT(*) AS n FROM pipeline_runs")
+            )[0]["n"]
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert dry_result.status == "dry_run"
+        assert dry_result.run_id is None
+        assert dry_result.rows_extracted == 2  # only ids 15, 20 (above watermark 10)
+        assert dry_result.watermark_used == 10
+        assert dry_result.watermark_recorded == 20  # max of filtered batch
+        assert count_after == count_before  # no new pipeline_runs row
+
+    async def test_async_incremental_dry_run_empty_filtered_batch(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """ETL-INC-09: async dry_run when filtered batch is empty has watermark_recorded=None."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (100, 'z')",
+            autocommit=True,
+        )
+        tbl = f"etl_awm_drye_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_dry_empty",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            await async_db.etl.run(p)  # watermark = 100 — no rows above this
+            dry_result = await async_db.etl.run(
+                p, dry_run=True
+            )  # no new rows above 100
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert dry_result.watermark_used == 100
+        assert dry_result.watermark_recorded is None  # empty filtered batch
+        assert dry_result.rows_extracted == 0
+
+    async def test_async_incremental_tz_aware_offset_preserved_second_run(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """ETL-INC-07 / D-A3: async tz-aware datetime watermark offset is preserved on second-run filter and watermark_recorded."""
+        ts1_sql = "TIMESTAMPTZ '2026-01-10 10:00:00.000000+02:00'"
+        ts2_sql = "TIMESTAMPTZ '2026-01-20 15:30:00.123456+02:00'"
+
+        tbl = f"etl_atz_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (ts TIMESTAMPTZ PRIMARY KEY, tag TEXT)',
+            autocommit=True,
+        )
+        pipe_name = f"awm_tz_second_{uuid.uuid4().hex[:8]}"
+        try:
+            # First run: load row with ts1 as watermark
+            p = Pipeline(
+                name=pipe_name,
+                source=f"SELECT {ts1_sql} AS ts, 'first' AS tag",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["ts"],
+                incremental_column="ts",
+            )
+            r1 = await async_db.etl.run(p)
+            assert r1.watermark_recorded is not None
+            assert r1.watermark_recorded.tzinfo is not None
+
+            # Second run: source has both ts1 and ts2; filter should exclude ts1
+            p2 = Pipeline(
+                name=pipe_name,
+                source=f"SELECT {ts1_sql} AS ts, 'first' AS tag UNION ALL SELECT {ts2_sql}, 'second'",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["ts"],
+                incremental_column="ts",
+            )
+            r2 = await async_db.etl.run(p2)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        # watermark_used = ts1; only ts2 extracted
+        assert r2.rows_extracted == 1
+        assert r2.watermark_used is not None
+        assert r2.watermark_used.tzinfo is not None  # tz preserved on filter floor
+        # utcoffset intact (no UTC normalization)
+        assert r2.watermark_used.utcoffset() == r1.watermark_recorded.utcoffset()
+        assert r2.watermark_recorded is not None
+        assert (
+            r2.watermark_recorded.tzinfo is not None
+        )  # tz preserved on new high-water
+        # microseconds preserved on watermark_recorded
+        assert r2.watermark_recorded.microsecond == 123456
+
+    # -----------------------------------------------------------------------
+    # ETL-INC-04 async guard parity tests (D-A3: byte-for-byte ETLError text)
+    # -----------------------------------------------------------------------
+
+    async def test_async_incremental_column_missing_raises_etlerror(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """D-06 / D-A3: async missing incremental_column raises ETLError with identical message to sync."""
+        p = Pipeline(
+            name="awm_missing_col",
+            source="SELECT 1 AS id",
+            target=async_etl_table,
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="missing_col",
+        )
+        with pytest.raises(ETLError, match="missing_col"):
+            await async_db.etl.run(p)
+
+        # Assert the message text is byte-for-byte identical to sync (D-A3)
+        try:
+            await async_db.etl.run(p)
+        except ETLError as exc:
+            async_msg = str(exc)
+        expected_msg = (
+            "incremental_column 'missing_col' not found in extracted batch "
+            "columns ['id'] (ETL-INC-04)"
+        )
+        assert async_msg == expected_msg, (
+            f"ETLError message must be byte-for-byte identical to sync.\n"
+            f"Got:      {async_msg!r}\n"
+            f"Expected: {expected_msg!r}"
+        )
+
+    async def test_async_float_incremental_column_raises_etlerror(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """WR-01 / D-A3: async float incremental_column raises ETLError with identical message to sync."""
+        tbl = f"etl_awmf_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, score NUMERIC)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="awm_float_col",
+                source="SELECT 1 AS id, 99.99::float8 AS score",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="score",
+            )
+            with pytest.raises(ETLError, match="float"):
+                await async_db.etl.run(p)
+
+            # Assert the message text is byte-for-byte identical to sync (D-A3)
+            from pycopg.etl import _WATERMARK_SUPPORTED
+
+            try:
+                await async_db.etl.run(p)
+            except ETLError as exc:
+                async_msg = str(exc)
+            expected_msg = (
+                f"incremental_column 'score' has float dtype; float "
+                f"watermarks are not supported (cast to INTEGER or "
+                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
+            )
+            assert async_msg == expected_msg, (
+                f"ETLError message must be byte-for-byte identical to sync.\n"
+                f"Got:      {async_msg!r}\n"
+                f"Expected: {expected_msg!r}"
+            )
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+    async def test_async_all_null_incremental_column_preserves_watermark(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """WR-02 / D-A3: async all-NULL incremental column records no watermark (no crash), prior W0 preserved."""
+        # Seed a prior successful run with W0 = 7
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (7, 'seed')",
+            autocommit=True,
+        )
+        tbl = f"etl_awmn_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT, wm INTEGER)',
+            autocommit=True,
+        )
+        try:
+            p_seed = Pipeline(
+                name="awm_allnull_test",
+                source=f'SELECT id, val FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+            )
+            await async_db.etl.run(p_seed)
+            w0 = await async_db.etl._read_watermark("awm_allnull_test")
+            assert w0 == 7
+
+            # A non-empty batch whose incremental_column (wm) is entirely NULL:
+            # df[wm].max() is NaN — must NOT crash; records no watermark.
+            p_null = Pipeline(
+                name="awm_allnull_test",
+                source="SELECT 2 AS id, NULL::integer AS wm",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="wm",
+            )
+            result = await async_db.etl.run(p_null)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        nrows = await async_db.execute(
+            "SELECT status, watermark FROM pipeline_runs WHERE run_id = %s",
+            [result.run_id],
+        )
+        assert nrows[0]["status"] == "success"
+        assert nrows[0]["watermark"] is None
+        # Prior success watermark must be preserved
+        assert await async_db.etl._read_watermark("awm_allnull_test") == w0
