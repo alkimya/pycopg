@@ -97,4 +97,4 @@ None.
 Last session: 2026-06-21T15:23:30.887Z
 Stopped at: Phase 28 context gathered
 Resume file: .planning/phases/28-incremental-etl-extract-runresult-async-parity/28-CONTEXT.md
-Next action: `/gsd-execute-phase 25` (plan 25-05: MIGRATION.md + CHANGELOG [0.7.0] + docs code examples)
+Next action: `/gsd-plan-phase 28` — Phase 28 context gathered (ETL-INC-03/-04/-07/-08/-09/-11/-12: extract filter + RunResult watermark fields + dry_run + async parity + docs)
