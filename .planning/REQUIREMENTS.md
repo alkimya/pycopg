@@ -32,13 +32,13 @@ Additive watermark-based incremental loading on the v0.5.0 ETL runner. The `pipe
 
 - [x] **ETL-INC-01**: User can declare `Pipeline(incremental_column="updated_at", ...)`; identifier is validated; construction raises `ValueError` for `incremental_column` with `load_mode` ∈ {append, replace} (incremental requires `upsert`)
 - [x] **ETL-INC-02**: On the first run of an incremental pipeline (no prior successful watermark), `db.etl.run()` performs a full load and records `max(incremental_column)` as the new watermark on success
-- [ ] **ETL-INC-03**: On subsequent runs, extraction applies `WHERE incremental_column > last_watermark` (exclusive); SQL-string sources are wrapped as `SELECT * FROM (<sql>) <alias> WHERE …`, table sources get the WHERE appended; the watermark value is always passed as a `%s` parameter (never interpolated)
-- [ ] **ETL-INC-04**: After a successful load, `max(incremental_column)` is computed from the raw extracted batch (before the transform chain) and recorded; if the watermark column is absent from the extract, a clear `ETL*` error is raised (not a bare `KeyError`)
+- [x] **ETL-INC-03**: On subsequent runs, extraction applies `WHERE incremental_column > last_watermark` (exclusive); SQL-string sources are wrapped as `SELECT * FROM (<sql>) <alias> WHERE …`, table sources get the WHERE appended; the watermark value is always passed as a `%s` parameter (never interpolated)
+- [x] **ETL-INC-04**: After a successful load, `max(incremental_column)` is computed from the raw extracted batch (before the transform chain) and recorded; if the watermark column is absent from the extract, a clear `ETL*` error is raised (not a bare `KeyError`)
 - [x] **ETL-INC-05**: An empty incremental batch records a successful run with `rows_loaded=0` and preserves the prior watermark (does not write NULL, does not trigger a full reload next run)
 - [x] **ETL-INC-06**: The watermark is read from the last **successful** run for that pipeline and persisted only on the success path; a failed load records a `failed` run whose watermark does not advance
-- [ ] **ETL-INC-07**: `RunResult` exposes `watermark_used` (the filter floor applied this run) and `watermark_recorded` (the new high-water mark persisted); both are `None` for non-incremental pipelines
-- [ ] **ETL-INC-08**: `history()` and `last_run()` surface the recorded watermark for past runs
-- [ ] **ETL-INC-09**: `dry_run=True` on an incremental pipeline reads the last watermark and computes the would-be filter and new max, writing no `pipeline_runs` row, and returns `watermark_used`/`watermark_recorded` for inspection
+- [x] **ETL-INC-07**: `RunResult` exposes `watermark_used` (the filter floor applied this run) and `watermark_recorded` (the new high-water mark persisted); both are `None` for non-incremental pipelines
+- [x] **ETL-INC-08**: `history()` and `last_run()` surface the recorded watermark for past runs
+- [x] **ETL-INC-09**: `dry_run=True` on an incremental pipeline reads the last watermark and computes the would-be filter and new max, writing no `pipeline_runs` row, and returns `watermark_used`/`watermark_recorded` for inspection
 - [x] **ETL-INC-10**: The watermark value round-trips correctly through `pipeline_runs.watermark JSONB` for timestamp, integer, and text watermark columns (typed envelope; no timezone/precision drift), with zero new runtime dependencies
 - [ ] **ETL-INC-11**: Full sync/async parity — `AsyncETLAccessor` mirrors the entire incremental surface; `TestEtlParity` is extended to cover it
 - [ ] **ETL-INC-12**: Backfill/reset workflow is documented (re-run as full load) and a `docs/etl.md` section + docstrings describe incremental usage, the watermark-column requirements (monotonic, non-decreasing), and the upsert requirement
@@ -87,13 +87,13 @@ Which phases cover which requirements. Filled during roadmap creation.
 | ALIAS-RM-04 | Phase 25 | Complete |
 | ETL-INC-01 | Phase 26 | Complete |
 | ETL-INC-02 | Phase 27 | Complete |
-| ETL-INC-03 | Phase 28 | Pending |
-| ETL-INC-04 | Phase 28 | Pending |
+| ETL-INC-03 | Phase 28 | Complete |
+| ETL-INC-04 | Phase 28 | Complete |
 | ETL-INC-05 | Phase 27 | Complete |
 | ETL-INC-06 | Phase 27 | Complete |
-| ETL-INC-07 | Phase 28 | Pending |
-| ETL-INC-08 | Phase 28 | Pending |
-| ETL-INC-09 | Phase 28 | Pending |
+| ETL-INC-07 | Phase 28 | Complete |
+| ETL-INC-08 | Phase 28 | Complete |
+| ETL-INC-09 | Phase 28 | Complete |
 | ETL-INC-10 | Phase 27 | Complete |
 | ETL-INC-11 | Phase 28 | Pending |
 | ETL-INC-12 | Phase 28 | Pending |

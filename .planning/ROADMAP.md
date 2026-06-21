@@ -156,7 +156,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 28-01-PLAN.md — Sync wiring: `RunResult.watermark_used/recorded` + `_row_to_result` mapping + shared filtered-extract path + sync `run()` real path + incremental `dry_run` + sync tests (ETL-INC-03/-04/-07/-08/-09)
+- [x] 28-01-PLAN.md — Sync wiring: `RunResult.watermark_used/recorded` + `_row_to_result` mapping + shared filtered-extract path + sync `run()` real path + incremental `dry_run` + sync tests (ETL-INC-03/-04/-07/-08/-09)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -183,7 +183,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 25. Alias Removal | v0.7.0 | 5/5 | Complete    | 2026-06-19 |
 | 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete    | 2026-06-20 |
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete   | 2026-06-20 |
-| 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 0/TBD | Not started | - |
+| 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 1/3 | In Progress|  |
 | 29. Release v0.7.0 | v0.7.0 | 0/TBD | Not started | - |
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
