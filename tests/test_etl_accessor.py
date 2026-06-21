@@ -2023,6 +2023,60 @@ class TestRunResultSurface:
         assert dry_result.watermark_recorded is None  # empty filtered batch
         assert dry_result.rows_extracted == 0
 
+    def test_incremental_tz_aware_offset_preserved_second_run(
+        self, db, cleanup_pipeline_runs
+    ):
+        """ETL-INC-07 / D-A2: tz-aware datetime watermark offset is preserved on second-run filter and watermark_recorded."""
+        # Source: two tz-aware timestamps; first run records ts1 as watermark
+        ts1_sql = "TIMESTAMPTZ '2026-01-10 10:00:00.000000+02:00'"
+        ts2_sql = "TIMESTAMPTZ '2026-01-20 15:30:00.123456+02:00'"
+
+        tbl = f"etl_tz_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (ts TIMESTAMPTZ PRIMARY KEY, tag TEXT)',
+            autocommit=True,
+        )
+        pipe_name = f"wm_tz_second_{uuid.uuid4().hex[:8]}"
+        try:
+            # First run: load row with ts1 as watermark
+            p = Pipeline(
+                name=pipe_name,
+                source=f"SELECT {ts1_sql} AS ts, 'first' AS tag",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["ts"],
+                incremental_column="ts",
+            )
+            r1 = db.etl.run(p)
+            assert r1.watermark_recorded is not None
+            assert r1.watermark_recorded.tzinfo is not None
+
+            # Second run: source has both ts1 and ts2; filter should exclude ts1
+            p2 = Pipeline(
+                name=pipe_name,
+                source=f"SELECT {ts1_sql} AS ts, 'first' AS tag UNION ALL SELECT {ts2_sql}, 'second'",
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["ts"],
+                incremental_column="ts",
+            )
+            r2 = db.etl.run(p2)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # watermark_used = ts1; only ts2 extracted
+        assert r2.rows_extracted == 1
+        assert r2.watermark_used is not None
+        assert r2.watermark_used.tzinfo is not None  # tz preserved on filter floor
+        # utcoffset intact (no UTC normalization)
+        assert r2.watermark_used.utcoffset() == r1.watermark_recorded.utcoffset()
+        assert r2.watermark_recorded is not None
+        assert (
+            r2.watermark_recorded.tzinfo is not None
+        )  # tz preserved on new high-water
+        # microseconds preserved on watermark_recorded
+        assert r2.watermark_recorded.microsecond == 123456
+
 
 # ---------------------------------------------------------------------------
 # Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run
