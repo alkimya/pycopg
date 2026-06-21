@@ -723,8 +723,8 @@ class TestRowToResult:
         base.update(overrides)
         return base
 
-    def test_maps_all_8_fields(self):
-        """_row_to_result maps all 8 RunResult fields from a pipeline_runs row (D-10/SC-1)."""
+    def test_maps_all_fields(self):
+        """_row_to_result maps the RunResult fields from a pipeline_runs row (D-10/D-A1/SC-1)."""
         row = self._sample_row()
         result = _row_to_result(row)
         assert result.run_id == 7
@@ -735,6 +735,10 @@ class TestRowToResult:
         assert result.started_at == datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
         assert result.finished_at == datetime(2026, 1, 1, 0, 0, 5, tzinfo=UTC)
         assert result.error is None
+        # NULL watermark column -> watermark_recorded is None; watermark_used is
+        # always None for stored rows (it is a per-run input, never persisted) (D-A1).
+        assert result.watermark_used is None
+        assert result.watermark_recorded is None
 
     def test_error_message_renamed_to_error(self):
         """DB column error_message is exposed on RunResult as 'error' (D-03/D-10)."""
@@ -748,11 +752,26 @@ class TestRowToResult:
         result = _row_to_result(row)
         assert not hasattr(result, "error_traceback")
 
-    def test_watermark_dropped(self):
-        """watermark is not a field on RunResult — dropped by mapper (D-04/D-10)."""
-        row = self._sample_row(watermark={"cursor": "2026-01-01"})
+    def test_watermark_recorded_decoded(self):
+        """A non-NULL watermark envelope is decoded onto watermark_recorded (D-A1).
+
+        Phase 28 changed the D-04/D-10 contract: ``_row_to_result`` no longer
+        drops ``watermark`` — it maps the stored typed envelope to
+        ``watermark_recorded`` via the frozen :func:`_decode_watermark`, while
+        ``watermark_used`` stays ``None`` for stored rows.
+        """
+        wm = datetime(2026, 1, 1, tzinfo=UTC)
+        row = self._sample_row(watermark=_encode_watermark(wm))
         result = _row_to_result(row)
-        assert not hasattr(result, "watermark")
+        assert result.watermark_recorded == wm
+        assert result.watermark_used is None
+
+    def test_null_watermark_recorded_is_none(self):
+        """A NULL watermark column maps to watermark_recorded=None (NULL guard, D-A1)."""
+        row = self._sample_row(watermark=None)
+        result = _row_to_result(row)
+        assert result.watermark_recorded is None
+        assert result.watermark_used is None
 
     def test_result_is_frozen(self):
         """RunResult is a frozen dataclass — attribute assignment raises (D-01)."""
