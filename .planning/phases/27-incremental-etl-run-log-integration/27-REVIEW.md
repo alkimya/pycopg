@@ -12,7 +12,13 @@ findings:
   warning: 3
   info: 1
   total: 4
-status: issues_found
+status: resolved
+resolved_in: 4fe3403
+resolution_note: >
+  All 4 findings fixed in follow-up commit 4fe3403. WR-01 (float-reject
+  ETLError) and WR-02 (pd.isna -> no watermark) fixed with 2 live-DB
+  regression tests; WR-03 documented; IN-01 return annotation added.
+  Full suite 1155 passed, coverage 95.37%, gates green.
 ---
 
 # Phase 27: Code Review Report
@@ -20,7 +26,16 @@ status: issues_found
 **Reviewed:** 2026-06-20
 **Depth:** standard (Phase 27 additive diff only — commits cfe8f1e, 7e96a4a, 682de82)
 **Files Reviewed:** 3
-**Status:** issues_found
+**Status:** resolved (all 4 findings fixed in commit 4fe3403)
+
+> **Resolution (2026-06-21):** WR-01, WR-02, WR-03, and IN-01 were all fixed
+> in follow-up commit `4fe3403`. WR-01 now raises `ETLError` for float columns
+> (via `pd.api.types.is_float`); WR-02 records no watermark on an all-NULL
+> column (via `pd.isna(m)`); WR-03's deliberate no-advance is documented;
+> `_read_watermark` gained its `-> datetime | int | str | None` annotation.
+> Two live-DB regression tests added (`test_float_incremental_column_raises_etlerror`,
+> `test_all_null_incremental_column_preserves_watermark`). Original findings
+> retained below for the record.
 
 ## Summary
 
