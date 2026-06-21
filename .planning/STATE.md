@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: verifying
-stopped_at: Completed 28-02-PLAN.md
+status: phase_complete
+stopped_at: Phase 28 complete + verified (3/3 plans, 7/7 reqs)
 last_updated: "2026-06-21T17:41:34.273Z"
-last_activity: 2026-06-21 -- Phase 28 Plan 02 complete (async ETL parity)
+last_activity: 2026-06-21 -- Phase 28 complete + verified (incremental ETL extract + RunResult + async parity + docs)
 progress:
   total_phases: 5
   completed_phases: 4
