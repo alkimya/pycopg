@@ -192,15 +192,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 25. Alias Removal | v0.7.0 | 5/5 | Complete    | 2026-06-19 |
-| 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete    | 2026-06-20 |
-| 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete   | 2026-06-20 |
-| 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete   | 2026-06-21 |
-| 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete    | 2026-06-22 |
-| 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
-| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete    | 2026-06-17 |
-| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 3/3 | Complete    | 2026-06-19 |
 | 1. Bug Fixes & Foundation | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 2. AsyncDatabase DataFrame Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
 | 3. AsyncDatabase Admin/Backup Parity | v0.3.0 | 2/2 | Complete | 2026-02-11 |
@@ -221,3 +212,12 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 18. Load Modes & Extract | v0.5.0 | 3/3 | Complete | 2026-06-15 |
 | 19. Sync Runner & Query Surface | v0.5.0 | 3/3 | Complete | 2026-06-15 |
 | 20. Async Parity, Wiring & Release | v0.5.0 | 3/3 | Complete | 2026-06-15 |
+| 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete | 2026-06-17 |
+| 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete | 2026-06-17 |
+| 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete | 2026-06-17 |
+| 24. Exports, Docs & Release v0.6.0 | v0.6.0 | 3/3 | Complete | 2026-06-19 |
+| 25. Alias Removal | v0.7.0 | 5/5 | Complete | 2026-06-19 |
+| 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete | 2026-06-20 |
+| 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete | 2026-06-20 |
+| 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete | 2026-06-21 |
+| 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
