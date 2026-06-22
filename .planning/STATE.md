@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: Phase 30 planned — ready to execute (`/gsd-execute-phase 30`)
-stopped_at: Phase 30 planned (3 plans, 3 waves)
-last_updated: "2026-06-22T17:00:00.000Z"
-last_activity: 2026-06-22 — Phase 30 planned (3 plans / 3 waves, plan-checker PASSED)
+status: executing
+stopped_at: Phase 30 planned (3 plans / 3 waves, plan-checker PASSED)
+last_updated: "2026-06-22T16:49:16.584Z"
+last_activity: 2026-06-22 -- Phase 30 execution started
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** v0.8.0 TimescaleDB avancé — Phase 30 planned (3 plans / 3 waves), ready to execute.
+**Current focus:** Phase 30 — chunk-management-partitioning
 
 ## Current Position
 
-Phase: 30 (planned, not started)
-Plan: 3 plans (30-01, 30-02, 30-03) across 3 waves
-Status: Phase 30 planned — ready to execute (`/gsd-execute-phase 30`)
-Last activity: 2026-06-22 — Phase 30 planned (plan-checker PASSED, no blockers)
+Phase: 30 (chunk-management-partitioning) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-22 -- Phase 30 execution started
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Last activity: 2026-06-22 — Phase 30 planned (plan-checker PASSED, no blockers
 | 31. Continuous Aggregate Lifecycle | ? | 0 | Not started |
 | 32. Query Helpers & Parity Verification | ? | 0 | Not started |
 | 33. Release v0.8.0 | ? | 0 | Not started |
+| Phase 30 P01 | 210 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -103,7 +104,7 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-22T17:00:00.000Z
+Last session: 2026-06-22T16:49:16.576Z
 Stopped at: Phase 30 planned (3 plans / 3 waves, plan-checker PASSED)
 Resume file: .planning/phases/30-chunk-management-partitioning/30-01-PLAN.md
 Next action: Execute Phase 30 — `/gsd-execute-phase 30`

@@ -108,7 +108,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 **Plans**: 3 plans (2 implementation waves over 3 sequential waves due to shared `timescale.py`)
 **Wave 1**
 
-- [ ] 30-01-PLAN.md — Foundation: `TimescaleError` exception + `TSDB_SHOW_CHUNKS` SQL constant + new `tests/test_timescale.py` scaffold (sync/async skip-fixtures + Wave 0 stubs) [wave 1]
+- [x] 30-01-PLAN.md — Foundation: `TimescaleError` exception + `TSDB_SHOW_CHUNKS` SQL constant + new `tests/test_timescale.py` scaffold (sync/async skip-fixtures + Wave 0 stubs) [wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -208,7 +208,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete | 2026-06-20 |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete | 2026-06-21 |
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
-| 30. Chunk Management & Partitioning | v0.8.0 | 0/3 | Planned | - |
+| 30. Chunk Management & Partitioning | v0.8.0 | 1/3 | In Progress|  |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 0/? | Not started | - |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 0/? | Not started | - |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |

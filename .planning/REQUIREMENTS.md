@@ -8,7 +8,9 @@
 Requirements for milestone v0.8.0. Each maps to exactly one roadmap phase. All methods live on
 both `TimescaleAccessor` (sync) and `AsyncTimescaleAccessor` (async) under `db.timescale.*` /
 `async_db.timescale.*`, following the established pure-builder + `validate_identifiers` + `%s`-params
+
 + lazy-accessor + sync/async-parity contract. Target baseline: **TimescaleDB 2.x**. Zero new runtime
+
 dependencies. Coverage ratchet held ≥94% (baseline 95.11%).
 
 ### Chunk Management & Partitioning
@@ -72,8 +74,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 | ----------- | ----- | ------ |
-| TS-ADV-04 | Phase 30 | Pending |
-| TS-ADV-05 | Phase 30 | Pending |
+| TS-ADV-04 | Phase 30 | Complete |
+| TS-ADV-05 | Phase 30 | Complete |
 | TS-ADV-08 | Phase 30 | Pending |
 | TS-ADV-09 | Phase 30 | Pending |
 | TS-ADV-01 | Phase 31 | Pending |
