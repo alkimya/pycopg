@@ -174,7 +174,19 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   2. All quality gates pass: coverage ≥ 94%, `interrogate ≥ 95%`, Sphinx `-W` clean, `-W error::DeprecationWarning` green (no stubs left to fire)
   3. CHANGELOG `[0.7.0]` contains a `Breaking` entry (alias removal, with pointer to MIGRATION) and an `Added` entry (incremental ETL); MIGRATION v0.6→v0.7 is complete with the 56-name flat→accessor table and incremental usage notes
 
-**Plans**: TBD
+**Plans**: 3 plans (3 waves)
+
+**Wave 1**
+
+- [ ] 29-01-PLAN.md — Version bump (pyproject.toml + docs/conf.py) + CHANGELOG [0.7.0] Added/date + MIGRATION incremental note (wave 1)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 29-02-PLAN.md — Run all quality gates green: coverage ≥94, interrogate ≥95, Sphinx -W, -W error::DeprecationWarning (wave 2)
+
+**Wave 3** *(human-gated; blocked on Wave 2)*
+
+- [ ] 29-03-PLAN.md — Commit + uv build, tag v0.7.0 + GitHub Release (OIDC publish), clean-venv pip install smoke (wave 3)
 
 ## Progress
 
