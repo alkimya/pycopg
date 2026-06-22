@@ -598,54 +598,457 @@ class TestDropChunksLive:
             await async_ts_db.execute(f"DROP TABLE IF EXISTS {table}")
 
 
-class TestAddDimensionStub:
-    """Wave 0 stubs for add_dimension (TS-ADV-08).  Replaced in Plan 03."""
+# =============================================================================
+# add_dimension — mock SQL-shape unit tests (Layer 2, authoritative, no live DB)
+# =============================================================================
 
-    @pytest.mark.xfail(
-        reason="Wave 0 scaffold — add_dimension implemented in Plan 03", strict=False
-    )
-    def test_add_dimension_by_hash(self, ts_db):
-        """add_dimension by_hash form succeeds on TSDB 2.28."""
-        raise NotImplementedError("Plan 03 will implement this test")
 
-    @pytest.mark.xfail(
-        reason="Wave 0 scaffold — add_dimension implemented in Plan 03", strict=False
-    )
+class TestAddDimensionMock:
+    """Mock SQL-shape unit tests for add_dimension (sync + async, no live DB)."""
+
+    def test_add_dimension_hash_sql_shape(self, config):
+        """add_dimension hash form generates by_hash('device_id', 4) SQL."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.add_dimension("events", "device_id", partition_type="hash", number_partitions=4)
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert "by_hash('device_id', 4)" in sql
+        assert "if_not_exists => true" in sql
+        assert "add_dimension('public.events'" in sql
+
+    def test_add_dimension_range_sql_shape(self, config):
+        """add_dimension range form generates by_range('ts2', INTERVAL '7 days') SQL."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.add_dimension("events", "ts2", partition_type="range", chunk_interval="7 days")
+
+        sql = db.execute.call_args[0][0]
+        assert "by_range('ts2', INTERVAL '7 days')" in sql
+        assert "if_not_exists => true" in sql
+
+    def test_add_dimension_hash_without_number_partitions_raises(self, config):
+        """add_dimension hash without number_partitions raises ValueError (no DB call)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ValueError, match="number_partitions"):
+            db.timescale.add_dimension("events", "device_id", partition_type="hash")
+
+        db.execute.assert_not_called()
+
+    def test_add_dimension_hash_with_chunk_interval_raises(self, config):
+        """add_dimension hash with chunk_interval raises ValueError (no DB call)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ValueError, match="chunk_interval"):
+            db.timescale.add_dimension(
+                "events", "device_id", partition_type="hash",
+                number_partitions=4, chunk_interval="7 days"
+            )
+
+        db.execute.assert_not_called()
+
+    def test_add_dimension_range_without_chunk_interval_raises(self, config):
+        """add_dimension range without chunk_interval raises ValueError (no DB call)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ValueError, match="chunk_interval"):
+            db.timescale.add_dimension("events", "ts2", partition_type="range")
+
+        db.execute.assert_not_called()
+
+    def test_add_dimension_range_with_number_partitions_raises(self, config):
+        """add_dimension range with number_partitions raises ValueError (no DB call)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ValueError, match="number_partitions"):
+            db.timescale.add_dimension(
+                "events", "ts2", partition_type="range",
+                chunk_interval="7 days", number_partitions=4
+            )
+
+        db.execute.assert_not_called()
+
+    def test_add_dimension_db_error_reraises_as_timescale_error(self, config):
+        """add_dimension re-raises a DB error as TimescaleError (if_not_exists=False)."""
+        from psycopg import DatabaseError
+
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        # Simulate TS160 duplicate-dimension error (surfaces as DatabaseError subclass).
+        db.execute = MagicMock(side_effect=DatabaseError('column "device_id" is already a dimension'))
+
+        with pytest.raises(TimescaleError, match="add_dimension failed"):
+            db.timescale.add_dimension(
+                "events", "device_id", partition_type="hash",
+                number_partitions=4, if_not_exists=False
+            )
+
+    async def test_add_dimension_async_hash_sql_shape(self, config):
+        """Async add_dimension hash form awaits guard + execute; correct SQL shape."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.add_dimension(
+            "events", "device_id", partition_type="hash", number_partitions=4
+        )
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert "by_hash('device_id', 4)" in sql
+        assert "if_not_exists => true" in sql
+
+    async def test_add_dimension_async_range_sql_shape(self, config):
+        """Async add_dimension range form generates by_range SQL."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.add_dimension(
+            "events", "ts2", partition_type="range", chunk_interval="7 days"
+        )
+
+        sql = db.execute.call_args[0][0]
+        assert "by_range('ts2', INTERVAL '7 days')" in sql
+
+    async def test_add_dimension_async_mutual_exclusivity_raises(self, config):
+        """Async add_dimension ValueError fires before any await (D-07)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+
+        with pytest.raises(ValueError, match="number_partitions"):
+            await db.timescale.add_dimension(
+                "events", "device_id", partition_type="hash"
+            )
+
+        db.execute.assert_not_called()
+
+    async def test_add_dimension_async_db_error_reraises_as_timescale_error(self, config):
+        """Async add_dimension re-raises a DB error as TimescaleError."""
+        from psycopg import DatabaseError
+
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(
+            side_effect=DatabaseError('column "device_id" is already a dimension')
+        )
+
+        with pytest.raises(TimescaleError, match="add_dimension failed"):
+            await db.timescale.add_dimension(
+                "events", "device_id", partition_type="hash",
+                number_partitions=4, if_not_exists=False
+            )
+
+
+# =============================================================================
+# add_reorder_policy — mock SQL-shape unit tests (authoritative per D-12)
+# =============================================================================
+
+
+class TestAddReorderPolicyMock:
+    """Mock SQL-shape unit tests for add_reorder_policy (sync + async, no live DB).
+
+    These are the AUTHORITATIVE assertions for TS-ADV-09 per D-12 because the
+    Apache-licensed local/CI build raises FeatureNotSupported on live calls.
+    """
+
+    def test_add_reorder_policy_sql_shape(self, config):
+        """add_reorder_policy generates correct SQL with if_not_exists flag."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.add_reorder_policy("events", "idx_events_ts")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert "add_reorder_policy(" in sql
+        assert "idx_events_ts" in sql
+        assert "if_not_exists => true" in sql
+        assert "public.events" in sql
+
+    def test_add_reorder_policy_no_extension_raises(self, config):
+        """add_reorder_policy raises ExtensionNotAvailable when extension absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
+            db.timescale.add_reorder_policy("events", "idx_events_ts")
+
+        db.execute.assert_not_called()
+
+    async def test_add_reorder_policy_async_sql_shape(self, config):
+        """Async add_reorder_policy awaits guard + execute; correct SQL shape."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.add_reorder_policy("events", "idx_events_ts")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert "add_reorder_policy(" in sql
+        assert "idx_events_ts" in sql
+        assert "if_not_exists => true" in sql
+
+    async def test_add_reorder_policy_async_no_extension_raises(self, config):
+        """Async add_reorder_policy raises ExtensionNotAvailable when extension absent."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+
+        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
+            await db.timescale.add_reorder_policy("events", "idx_events_ts")
+
+        db.execute.assert_not_called()
+
+
+# =============================================================================
+# add_dimension — live-DB integration tests (Layer 1, gated by ts_db)
+# =============================================================================
+
+
+class TestAddDimensionLive:
+    """Live-DB integration tests for add_dimension (TS-ADV-08)."""
+
+    def test_add_dimension_by_hash_succeeds(self, ts_db):
+        """add_dimension by_hash registers a hash dimension on a populated hypertable."""
+        table = f"_test_addhash_{uuid.uuid4().hex[:8]}"
+        try:
+            _make_hypertable(ts_db, table, days=2)
+            # Add a hash dimension — should succeed on non-empty hypertable (D-08 reshape).
+            ts_db.timescale.add_dimension(
+                table, "val", partition_type="hash", number_partitions=2
+            )
+            # Verify the dimension appears in the info view.
+            rows = ts_db.execute(
+                "SELECT column_name, dimension_type "
+                "FROM timescaledb_information.dimensions "
+                f"WHERE hypertable_name = '{table}'"
+            )
+            col_names = [r["column_name"] for r in rows]
+            assert "val" in col_names
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    def test_add_dimension_by_range_succeeds(self, ts_db):
+        """add_dimension by_range registers a range dimension on a populated hypertable."""
+        table = f"_test_addrange_{uuid.uuid4().hex[:8]}"
+        try:
+            # Create a table with an extra timestamp column to partition by range.
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+            ts_db.execute(
+                f"""
+                CREATE TABLE {table} (
+                    ts TIMESTAMPTZ NOT NULL,
+                    ts2 TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+            ts_db.timescale.create_hypertable(
+                table, "ts", chunk_time_interval="1 day", if_not_exists=True
+            )
+            ts_db.execute(
+                f"INSERT INTO {table} (ts, ts2) VALUES (now(), now())"
+            )
+            ts_db.timescale.add_dimension(
+                table, "ts2", partition_type="range", chunk_interval="7 days"
+            )
+            rows = ts_db.execute(
+                "SELECT column_name "
+                "FROM timescaledb_information.dimensions "
+                f"WHERE hypertable_name = '{table}'"
+            )
+            col_names = [r["column_name"] for r in rows]
+            assert "ts2" in col_names
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    def test_add_dimension_duplicate_if_not_exists_false_raises_timescale_error(self, ts_db):
+        """add_dimension with if_not_exists=False raises TimescaleError on duplicate (D-08)."""
+        table = f"_test_dupedim_{uuid.uuid4().hex[:8]}"
+        try:
+            _make_hypertable(ts_db, table, days=2)
+            # Add the dimension once.
+            ts_db.timescale.add_dimension(
+                table, "val", partition_type="hash",
+                number_partitions=2, if_not_exists=True
+            )
+            # A second call with if_not_exists=False should raise TimescaleError.
+            with pytest.raises(TimescaleError):
+                ts_db.timescale.add_dimension(
+                    table, "val", partition_type="hash",
+                    number_partitions=2, if_not_exists=False
+                )
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
     def test_add_dimension_mutual_exclusivity_raises(self, ts_db):
-        """add_dimension raises ValueError on hash/range param mismatch."""
-        raise NotImplementedError("Plan 03 will implement this test")
+        """add_dimension ValueError fires before DB (pure Python, no connection needed)."""
+        with pytest.raises(ValueError, match="number_partitions"):
+            ts_db.timescale.add_dimension(
+                "any_table", "col", partition_type="hash"
+            )
 
-    @pytest.mark.xfail(
-        reason="Wave 0 scaffold — add_dimension implemented in Plan 03", strict=False
-    )
-    async def test_add_dimension_async(self, async_ts_db):
-        """async add_dimension mirrors sync behavior."""
-        raise NotImplementedError("Plan 03 will implement this test")
+    async def test_add_dimension_async_hash_succeeds(self, async_ts_db):
+        """Async add_dimension by_hash registers dimension on a populated hypertable."""
+        table = f"_test_async_addhash_{uuid.uuid4().hex[:8]}"
+        try:
+            from pycopg import Database
+
+            sync_db = Database(async_ts_db.config)
+            _make_hypertable(sync_db, table, days=2)
+
+            await async_ts_db.timescale.add_dimension(
+                table, "val", partition_type="hash", number_partitions=2
+            )
+            rows = await async_ts_db.execute(
+                "SELECT column_name "
+                "FROM timescaledb_information.dimensions "
+                f"WHERE hypertable_name = '{table}'"
+            )
+            col_names = [r["column_name"] for r in rows]
+            assert "val" in col_names
+        finally:
+            await async_ts_db.execute(f"DROP TABLE IF EXISTS {table}")
 
 
-class TestAddReorderPolicyStub:
-    """Wave 0 stubs for add_reorder_policy (TS-ADV-09).  Replaced in Plan 03."""
+# =============================================================================
+# add_reorder_policy — live-DB integration tests (Layer 1, license-tolerant)
+# =============================================================================
 
-    @pytest.mark.xfail(
-        reason="Wave 0 scaffold — add_reorder_policy implemented in Plan 03",
-        strict=False,
-    )
+
+class TestAddReorderPolicyLive:
+    """Live-DB integration tests for add_reorder_policy (TS-ADV-09, D-12).
+
+    The local/CI TSDB runs under the Apache license, so add_reorder_policy
+    raises FeatureNotSupported.  The live call is wrapped in try/except to
+    tolerate that.  The authoritative SQL assertion lives in TestAddReorderPolicyMock.
+    """
+
     def test_add_reorder_policy_live(self, ts_db):
-        """add_reorder_policy (live test tolerates FeatureNotSupported, D-12)."""
-        raise NotImplementedError("Plan 03 will implement this test")
+        """add_reorder_policy live: tolerates FeatureNotSupported on Apache builds (D-12)."""
+        table = f"_test_reorder_{uuid.uuid4().hex[:8]}"
+        try:
+            _make_hypertable(ts_db, table, days=2)
+            # Create an index to reorder by.
+            index_name = f"idx_{table}_ts"
+            ts_db.execute(f"CREATE INDEX {index_name} ON {table} (ts)")
 
-    @pytest.mark.xfail(
-        reason="Wave 0 scaffold — add_reorder_policy SQL-shape mock in Plan 03",
-        strict=False,
-    )
-    async def test_add_reorder_policy_sql_shape(self, config):
-        """Mock SQL-shape unit test for add_reorder_policy (authoritative per D-12)."""
-        raise NotImplementedError("Plan 03 will implement this test")
+            try:
+                ts_db.timescale.add_reorder_policy(table, index_name)
+                # On Community builds: verify the job was registered.
+                rows = ts_db.execute(
+                    "SELECT job_id, proc_name "
+                    "FROM timescaledb_information.jobs "
+                    "WHERE hypertable_name = %s AND proc_name = 'policy_reorder'",
+                    [table],
+                )
+                assert len(rows) >= 1
+            except FeatureNotSupported:
+                # Apache license — expected on local/CI.
+                pass
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
 
-    @pytest.mark.xfail(
-        reason="Wave 0 scaffold — add_reorder_policy async mirror in Plan 03",
-        strict=False,
-    )
-    async def test_add_reorder_policy_async(self, async_ts_db):
-        """async add_reorder_policy mirrors sync behavior."""
-        raise NotImplementedError("Plan 03 will implement this test")
+    async def test_add_reorder_policy_async_live(self, async_ts_db):
+        """Async add_reorder_policy live: tolerates FeatureNotSupported on Apache builds."""
+        table = f"_test_async_reorder_{uuid.uuid4().hex[:8]}"
+        try:
+            from pycopg import Database
+
+            sync_db = Database(async_ts_db.config)
+            _make_hypertable(sync_db, table, days=2)
+            index_name = f"idx_{table}_ts"
+            sync_db.execute(f"CREATE INDEX {index_name} ON {table} (ts)")
+
+            try:
+                await async_ts_db.timescale.add_reorder_policy(table, index_name)
+                # On Community builds: verify the job was registered.
+                rows = await async_ts_db.execute(
+                    "SELECT job_id "
+                    "FROM timescaledb_information.jobs "
+                    "WHERE hypertable_name = %s AND proc_name = 'policy_reorder'",
+                    [table],
+                )
+                assert len(rows) >= 1
+            except FeatureNotSupported:
+                pass
+        finally:
+            await async_ts_db.execute(f"DROP TABLE IF EXISTS {table}")
