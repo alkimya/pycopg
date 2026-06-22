@@ -106,25 +106,37 @@ type guard), and `test_accessor_parity` coverage of the 3 new methods.
   `%s` / validated intervals per the established pattern.
 
 ### Test strategy (carried-forward Apache-license constraint)
-- **D-09 [policy tests: mock-authoritative + license-tolerant — Phase-30 D-12 carry-forward]:**
-  Local/CI TimescaleDB reports `timescaledb.license = apache`. **Carry-forward concern from
-  Phase 30 confirmed in STATE.md:** the Apache-license `FeatureNotSupported` (SQLSTATE `0A000`)
-  constraint that applied to `add_reorder_policy` **also applies to
-  `add_continuous_aggregate_policy`** (background-job/scheduler feature). Therefore: the
-  **mock SQL-shape unit test is the authoritative assertion** for the generated policy SQL; the
-  **live integration test wraps the call in `try/except FeatureNotSupported: pass`**; the
-  `timescaledb_information.jobs` job-row assertion + `CALL run_job(job_id)` exercise only on a
-  Community-licensed build and stay green/tolerated locally + CI (mirror Phase 30's pattern,
-  `tests/test_database_integration.py` ~lines 866-878 and the Phase-30 reorder-policy test).
-  **`create` + `refresh` are NOT license-gated** — they run on any TSDB 2.x build, so their live
-  tests assert real materialization (view in `timescaledb_information.continuous_aggregates`,
-  materialized rows appear after refresh).
-- **D-10 [autocommit isolation must be proven live]:** ROADMAP success criteria #1/#2 require
-  proving the autocommit seam isolates create/refresh from an enclosing transaction. Live tests
-  must: (#1) call `create_continuous_aggregate` **after** a prior `db.execute("SELECT 1")` in the
-  same session and confirm it still succeeds; (#2) call `refresh_continuous_aggregate` **from
-  inside a `db.session()` context** and confirm the autocommit connection bypasses the session
-  transaction and the materialized rows appear. New tests extend `tests/test_timescale.py`
+- **D-09 [REVISED 2026-06-23 after Phase-31 targeted research live-verification + user ack — ALL 3 methods mock-authoritative + license-tolerant]:**
+  Local/CI TimescaleDB reports `timescaledb.license = apache` on **build 2.28.0**. Phase-31
+  research **live-verified** (vs the Phase-30 *assumption*) that continuous aggregates are a
+  **Community/TSL-only feature in their entirety** — **all three** methods raise
+  `psycopg.errors.FeatureNotSupported` (SQLSTATE `0A000`) on the Apache build, not just the policy:
+  `CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)`, `CALL refresh_continuous_aggregate(...)`,
+  **and** `SELECT add_continuous_aggregate_policy(...)`. The original D-09 claim that "`create` +
+  `refresh` are NOT license-gated … live tests assert real materialization" is **FALSE on the
+  local/CI build** and is superseded. **Resolution (user-acked 2026-06-23):** *all three* methods
+  follow the Phase-30 `add_reorder_policy` pattern — the **mock SQL-shape unit test is the
+  authoritative assertion** for each generated statement; the **live integration test wraps each
+  call in `try/except FeatureNotSupported: pass`** so it stays green/tolerated on Apache and asserts
+  real materialization (`timescaledb_information.continuous_aggregates` row; materialized rows
+  appear after refresh; `timescaledb_information.jobs` job row + `CALL run_job(job_id)`) **only on a
+  Community-licensed build**. Mirror `tests/test_database_integration.py` ~lines 866-878 and the
+  Phase-30 reorder-policy test. The license error must **propagate** to the caller (no swallow in
+  the method body), exactly like `add_reorder_policy`.
+- **D-10 [REVISED 2026-06-23 — autocommit isolation proven STRUCTURALLY, not via materialization]:**
+  ROADMAP success criteria #1/#2 require proving the autocommit seam isolates create/refresh from an
+  enclosing transaction. Because the cagg never materializes on Apache (D-09 revised), the
+  materialization-dependent proofs cannot complete on the local/CI build. **Resolution
+  (user-acked 2026-06-23):** prove isolation **structurally**:
+  (a) **Mock-level (authoritative, license-independent):** assert `create`/`refresh` open a
+  `connect(autocommit=True)` connection and execute on it — i.e. they do **not** route through the
+  session-aware `self._db.execute()` path. This is the real guarantee.
+  (b) **Live-level (license-tolerant, observable part):** wrap in `try/except FeatureNotSupported` —
+  call `create_continuous_aggregate` after a prior `db.execute("SELECT 1")` in the same session, and
+  call `refresh_continuous_aggregate` from inside a `db.session()` context, confirming the seam raises
+  **only** the license error (`0A000`) and **not** a transaction-block error (`25001`/active-txn) —
+  proving the autocommit connection bypassed the enclosing transaction. On a Community build these
+  same tests assert real materialization. New tests extend `tests/test_timescale.py`
   (Phase-30 `ts_db` / `async_ts_db` skip-fixtures).
 
 ### Claude's Discretion
