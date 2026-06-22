@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
 status: completed
-stopped_at: Phase 30 complete (all 3 plans, full suite 1239 passed incl. 13 code-review-fix regression tests, parity 7/7, coverage 94.98%)
-last_updated: "2026-06-22T18:43:12.761Z"
+stopped_at: Phase 31 context gathered
+last_updated: "2026-06-22T21:31:59.286Z"
 last_activity: 2026-06-22
 progress:
   total_phases: 4
@@ -106,9 +106,9 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-22T19:00:00Z
-Stopped at: Phase 30 complete (all 3 plans, 46 tests green, TS-ADV-10 confirmed, coverage 94.96%)
-Resume file: None (phase complete — start Phase 31 planning)
+Last session: 2026-06-22T21:31:59.276Z
+Stopped at: Phase 31 context gathered
+Resume file: .planning/phases/31-continuous-aggregate-lifecycle/31-CONTEXT.md
 Next action: /gsd-discuss-phase 31 (Continuous Aggregate Lifecycle)
 
 ## Operator Next Steps
