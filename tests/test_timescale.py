@@ -89,14 +89,12 @@ def _make_hypertable(db, table_name, days=5):
     ``days`` chunks with a 1-day chunk interval.  Returns the table name.
     """
     db.execute(f"DROP TABLE IF EXISTS {table_name}")
-    db.execute(
-        f"""
+    db.execute(f"""
         CREATE TABLE {table_name} (
             ts TIMESTAMPTZ NOT NULL,
             val DOUBLE PRECISION
         )
-        """
-    )
+        """)
     db.timescale.create_hypertable(
         table_name, "ts", chunk_time_interval="1 day", if_not_exists=True
     )
@@ -125,7 +123,9 @@ class TestShowChunksMock:
         mock_schema = MagicMock(spec=SchemaAccessor)
         mock_schema.has_extension = MagicMock(return_value=True)
         db._schema = mock_schema
-        db.execute = MagicMock(return_value=[{"chunk_name": "_timescaledb_internal._hyper_1_1_chunk"}])
+        db.execute = MagicMock(
+            return_value=[{"chunk_name": "_timescaledb_internal._hyper_1_1_chunk"}]
+        )
 
         result = db.timescale.show_chunks("events")
 
@@ -203,7 +203,9 @@ class TestShowChunksMock:
         db._schema = mock_schema
         db.execute = MagicMock()
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
             db.timescale.show_chunks("events")
 
         db.execute.assert_not_called()
@@ -216,7 +218,9 @@ class TestShowChunksMock:
         mock_schema = MagicMock(spec=AsyncSchemaAccessor)
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
-        db.execute = AsyncMock(return_value=[{"chunk_name": "_timescaledb_internal._hyper_1_1_chunk"}])
+        db.execute = AsyncMock(
+            return_value=[{"chunk_name": "_timescaledb_internal._hyper_1_1_chunk"}]
+        )
 
         result = await db.timescale.show_chunks("events")
 
@@ -253,7 +257,9 @@ class TestShowChunksMock:
         db._schema = mock_schema
         db.execute = AsyncMock()
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
             await db.timescale.show_chunks("events")
 
         db.execute.assert_not_called()
@@ -452,9 +458,9 @@ class TestShowChunksLive:
             seqs = [chunk_seq(c) for c in chunks]
             # The sequence of chunk IDs must be strictly ascending
             # (oldest chunk was created first, so has the smallest ID).
-            assert seqs == sorted(seqs), (
-                f"Chunks not in ascending-ID order (oldest-first): {seqs}"
-            )
+            assert seqs == sorted(
+                seqs
+            ), f"Chunks not in ascending-ID order (oldest-first): {seqs}"
         finally:
             ts_db.execute(f"DROP TABLE IF EXISTS {table}")
 
@@ -517,7 +523,9 @@ class TestDropChunksLive:
             before_count = len(ts_db.timescale.show_chunks(table))
             assert before_count >= 1
 
-            dry_result = ts_db.timescale.drop_chunks(table, older_than="1 day", dry_run=True)
+            dry_result = ts_db.timescale.drop_chunks(
+                table, older_than="1 day", dry_run=True
+            )
 
             after_count = len(ts_db.timescale.show_chunks(table))
             # Dry run must not change the chunk count.
@@ -556,17 +564,20 @@ class TestDropChunksLive:
         try:
             _make_hypertable(ts_db, table, days=5)
 
-            dry_result = ts_db.timescale.drop_chunks(table, older_than="1 day", dry_run=True)
+            dry_result = ts_db.timescale.drop_chunks(
+                table, older_than="1 day", dry_run=True
+            )
 
             if len(dry_result) >= 2:
+
                 def chunk_seq(name):
                     parts = name.split("_")
                     return int(parts[-2])
 
                 seqs = [chunk_seq(c) for c in dry_result]
-                assert seqs == sorted(seqs), (
-                    f"drop_chunks returned list not oldest-first: {seqs}"
-                )
+                assert seqs == sorted(
+                    seqs
+                ), f"drop_chunks returned list not oldest-first: {seqs}"
         finally:
             ts_db.execute(f"DROP TABLE IF EXISTS {table}")
 
@@ -587,9 +598,7 @@ class TestDropChunksLive:
 
             # Real drop via async.
             all_chunks_before = await async_ts_db.timescale.show_chunks(table)
-            dropped = await async_ts_db.timescale.drop_chunks(
-                table, older_than="1 day"
-            )
+            dropped = await async_ts_db.timescale.drop_chunks(table, older_than="1 day")
             all_chunks_after = await async_ts_db.timescale.show_chunks(table)
 
             assert set(dropped).issubset(set(all_chunks_before))
@@ -616,7 +625,9 @@ class TestAddDimensionMock:
         db._schema = mock_schema
         db.execute = MagicMock(return_value=[])
 
-        db.timescale.add_dimension("events", "device_id", partition_type="hash", number_partitions=4)
+        db.timescale.add_dimension(
+            "events", "device_id", partition_type="hash", number_partitions=4
+        )
 
         mock_schema.has_extension.assert_called_once_with("timescaledb")
         sql = db.execute.call_args[0][0]
@@ -634,7 +645,9 @@ class TestAddDimensionMock:
         db._schema = mock_schema
         db.execute = MagicMock(return_value=[])
 
-        db.timescale.add_dimension("events", "ts2", partition_type="range", chunk_interval="7 days")
+        db.timescale.add_dimension(
+            "events", "ts2", partition_type="range", chunk_interval="7 days"
+        )
 
         sql = db.execute.call_args[0][0]
         assert "by_range('ts2', INTERVAL '7 days')" in sql
@@ -667,8 +680,11 @@ class TestAddDimensionMock:
 
         with pytest.raises(ValueError, match="chunk_interval"):
             db.timescale.add_dimension(
-                "events", "device_id", partition_type="hash",
-                number_partitions=4, chunk_interval="7 days"
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=4,
+                chunk_interval="7 days",
             )
 
         db.execute.assert_not_called()
@@ -700,8 +716,11 @@ class TestAddDimensionMock:
 
         with pytest.raises(ValueError, match="number_partitions"):
             db.timescale.add_dimension(
-                "events", "ts2", partition_type="range",
-                chunk_interval="7 days", number_partitions=4
+                "events",
+                "ts2",
+                partition_type="range",
+                chunk_interval="7 days",
+                number_partitions=4,
             )
 
         db.execute.assert_not_called()
@@ -717,12 +736,17 @@ class TestAddDimensionMock:
         mock_schema.has_extension = MagicMock(return_value=True)
         db._schema = mock_schema
         # Simulate TS160 duplicate-dimension error (surfaces as DatabaseError subclass).
-        db.execute = MagicMock(side_effect=DatabaseError('column "device_id" is already a dimension'))
+        db.execute = MagicMock(
+            side_effect=DatabaseError('column "device_id" is already a dimension')
+        )
 
         with pytest.raises(TimescaleError, match="add_dimension failed"):
             db.timescale.add_dimension(
-                "events", "device_id", partition_type="hash",
-                number_partitions=4, if_not_exists=False
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=4,
+                if_not_exists=False,
             )
 
     async def test_add_dimension_async_hash_sql_shape(self, config):
@@ -778,7 +802,9 @@ class TestAddDimensionMock:
 
         db.execute.assert_not_called()
 
-    async def test_add_dimension_async_db_error_reraises_as_timescale_error(self, config):
+    async def test_add_dimension_async_db_error_reraises_as_timescale_error(
+        self, config
+    ):
         """Async add_dimension re-raises a DB error as TimescaleError."""
         from psycopg import DatabaseError
 
@@ -794,8 +820,11 @@ class TestAddDimensionMock:
 
         with pytest.raises(TimescaleError, match="add_dimension failed"):
             await db.timescale.add_dimension(
-                "events", "device_id", partition_type="hash",
-                number_partitions=4, if_not_exists=False
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=4,
+                if_not_exists=False,
             )
 
 
@@ -840,7 +869,9 @@ class TestAddReorderPolicyMock:
         db._schema = mock_schema
         db.execute = MagicMock()
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
             db.timescale.add_reorder_policy("events", "idx_events_ts")
 
         db.execute.assert_not_called()
@@ -873,7 +904,9 @@ class TestAddReorderPolicyMock:
         db._schema = mock_schema
         db.execute = AsyncMock()
 
-        with pytest.raises(ExtensionNotAvailable, match="TimescaleDB extension not installed"):
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
             await db.timescale.add_reorder_policy("events", "idx_events_ts")
 
         db.execute.assert_not_called()
@@ -913,20 +946,16 @@ class TestAddDimensionLive:
         try:
             # Create a table with an extra timestamp column to partition by range.
             ts_db.execute(f"DROP TABLE IF EXISTS {table}")
-            ts_db.execute(
-                f"""
+            ts_db.execute(f"""
                 CREATE TABLE {table} (
                     ts TIMESTAMPTZ NOT NULL,
                     ts2 TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
-                """
-            )
+                """)
             ts_db.timescale.create_hypertable(
                 table, "ts", chunk_time_interval="1 day", if_not_exists=True
             )
-            ts_db.execute(
-                f"INSERT INTO {table} (ts, ts2) VALUES (now(), now())"
-            )
+            ts_db.execute(f"INSERT INTO {table} (ts, ts2) VALUES (now(), now())")
             ts_db.timescale.add_dimension(
                 table, "ts2", partition_type="range", chunk_interval="7 days"
             )
@@ -940,21 +969,29 @@ class TestAddDimensionLive:
         finally:
             ts_db.execute(f"DROP TABLE IF EXISTS {table}")
 
-    def test_add_dimension_duplicate_if_not_exists_false_raises_timescale_error(self, ts_db):
+    def test_add_dimension_duplicate_if_not_exists_false_raises_timescale_error(
+        self, ts_db
+    ):
         """add_dimension with if_not_exists=False raises TimescaleError on duplicate (D-08)."""
         table = f"_test_dupedim_{uuid.uuid4().hex[:8]}"
         try:
             _make_hypertable(ts_db, table, days=2)
             # Add the dimension once.
             ts_db.timescale.add_dimension(
-                table, "val", partition_type="hash",
-                number_partitions=2, if_not_exists=True
+                table,
+                "val",
+                partition_type="hash",
+                number_partitions=2,
+                if_not_exists=True,
             )
             # A second call with if_not_exists=False should raise TimescaleError.
             with pytest.raises(TimescaleError):
                 ts_db.timescale.add_dimension(
-                    table, "val", partition_type="hash",
-                    number_partitions=2, if_not_exists=False
+                    table,
+                    "val",
+                    partition_type="hash",
+                    number_partitions=2,
+                    if_not_exists=False,
                 )
         finally:
             ts_db.execute(f"DROP TABLE IF EXISTS {table}")
@@ -962,9 +999,7 @@ class TestAddDimensionLive:
     def test_add_dimension_mutual_exclusivity_raises(self, ts_db):
         """add_dimension ValueError fires before DB (pure Python, no connection needed)."""
         with pytest.raises(ValueError, match="number_partitions"):
-            ts_db.timescale.add_dimension(
-                "any_table", "col", partition_type="hash"
-            )
+            ts_db.timescale.add_dimension("any_table", "col", partition_type="hash")
 
     async def test_add_dimension_async_hash_succeeds(self, async_ts_db):
         """Async add_dimension by_hash registers dimension on a populated hypertable."""
