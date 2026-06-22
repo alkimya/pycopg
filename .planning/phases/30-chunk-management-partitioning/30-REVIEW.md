@@ -13,7 +13,8 @@ findings:
   warning: 4
   info: 4
   total: 8
-status: issues_found
+status: resolved
+resolution: "WR-01/WR-02/WR-03/WR-04 + IN-04 fixed in commit 1325f29 (narrowed add_dimension except to DatabaseError, validated number_partitions, rejected non-str/non-datetime chunk bounds, +13 regression tests). IN-01 (stale pycopg.aliases docstring), IN-02 (capture-not-confirm, no fix needed), IN-03 (fragile chunk_seq helper) deferred."
 ---
 
 # Phase 30: Code Review Report
