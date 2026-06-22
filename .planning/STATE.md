@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: verifying
-stopped_at: Completed 29-03-PLAN.md — v0.7.0 released to PyPI
-last_updated: "2026-06-22T12:45:43.081Z"
-last_activity: 2026-06-22 -- Phase 29 execution started
+status: completed
+stopped_at: Phase 29 complete — v0.7.0 released to PyPI
+last_updated: "2026-06-22T12:57:48.962Z"
+last_activity: 2026-06-22
 progress:
   total_phases: 5
   completed_phases: 5
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 29 — release-v0-7-0
+**Current focus:** Milestone v0.7.0 shipped — next: `/gsd-complete-milestone v0.7.0`
 
 ## Current Position
 
-Phase: 29 (release-v0-7-0) — COMPLETE
-Plan: 3 of 3
+Phase: 29 (complete — final phase of v0.7.0)
+Plan: All 3 plans complete
 Status: All plans complete — v0.7.0 released to PyPI
-Last activity: 2026-06-22 -- Phase 29 plan 03 complete, v0.7.0 published
+Last activity: 2026-06-22
 
 Progress: [██████████] 100%
 
