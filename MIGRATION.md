@@ -97,6 +97,27 @@ All `async_db.*` flat names are identical (same 56, same accessor paths with `as
 - [ ] Run your test suite with `python -W error::AttributeError` to catch any missed calls
 - [ ] Run `uv run pytest tests/ -x -q -o addopts=""` to verify compatibility
 
+## New in v0.7.0: Incremental ETL
+
+v0.7.0 adds optional watermark-based incremental loading to the ETL pipeline runner. It is
+**additive and non-breaking**: existing pipelines are unaffected. The `pipeline_runs.watermark`
+column was already reserved in v0.5.0 — no schema migration is required.
+
+To opt in, set `incremental_column` on a `Pipeline` and use `load_mode="upsert"`:
+
+```python
+Pipeline(
+    source="events",
+    target="events_copy",
+    load_mode="upsert",
+    conflict_columns=["id"],
+    incremental_column="created_at",
+)
+```
+
+See [docs/etl.md](docs/etl.md) for the full incremental loading guide, including worked
+examples, watermark-column requirements, and backfill/reset instructions.
+
 ## Getting Help
 
 If you encounter issues during migration:
