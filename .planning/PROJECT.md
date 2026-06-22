@@ -2,17 +2,22 @@
 
 ## What This Is
 
-A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.5.0 it offers full sync/async feature parity, PostGIS spatial helpers (`db.spatial.*` / `async_db.spatial.*`), a declarative ETL pipeline runner (`db.etl.*` / `async_db.etl.*`) with run tracking and idempotent loads, numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
+A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.7.0 it offers full sync/async feature parity, an accessor-organized public surface (`db.spatial/etl/timescale/admin/maint/backup/schema.*`) with a flat transactional core, PostGIS spatial helpers, a declarative ETL pipeline runner with run tracking, idempotent loads and **watermark-based incremental loading** (`Pipeline.incremental_column`), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
 
 ## Core Value
 
 Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-## Current State — v0.6.0 SHIPPED 2026-06-19
+## Current State — v0.7.0 SHIPPED 2026-06-22
 
-**Latest shipped:** v0.6.0 "Réorganisation en accessors" — published to PyPI (`pip install pycopg==0.6.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.6.0`). All 4 phases (21–24) verified passed; Phase 24 VERIFICATION PASSED 4/4 (REORG-05); the 5 new accessors + async variants exported from `pycopg`, README/Sphinx/CHANGELOG/MIGRATION updated, version bumped in both sources, clean-venv import smoke confirmed. Gates at ship: coverage 95.64% (ratchet ≥94 held), interrogate ≥95, Sphinx `-W` clean.
+**Latest shipped:** v0.7.0 "Alias Removal + Incremental ETL" — published to PyPI (`pip install pycopg==0.7.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.7.0`). All 5 phases (25–29) verified passed; the 56 deprecated flat aliases hard-removed from both classes (surface is now accessor-only), watermark-based incremental ETL wired end-to-end in sync + async, CHANGELOG `[0.7.0]` Breaking/Added + MIGRATION v0.6→v0.7 (56-name table) finalized, version bumped in both sources, clean-venv import smoke confirmed. Gates at ship: coverage 95.11% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green (no stubs left to fire).
 
-**Delivered in v0.6.0:** the ~54 flat public methods on `Database`/`AsyncDatabase` regrouped under 5 lazy accessors — `db.timescale.*` (6), `db.admin.*` (11), `db.schema.*` (27), `db.maint.*` (6), `db.backup.*` (4) — plus the 2 spatial-index methods relocated to `db.spatial.*`, all with full sync/async parity (`TimescaleAccessor` … `AsyncSchemaAccessor` exported from top-level `pycopg`). 56 legacy flat names kept as `@deprecated_alias` stubs emitting `DeprecationWarning` (removal scheduled v0.7.0), documented in a prepended MIGRATION.md v0.5→v0.6 guide. Transactional core (`execute`/`session`/`to_dataframe`/…) intentionally stays flat. No new runtime power — pure reorganization.
+**Delivered in v0.7.0:**
+
+- **Alias removal (breaking):** all 56 `@deprecated_alias` flat stubs removed from each of `Database`/`AsyncDatabase` (112 total), `pycopg/aliases.py` + 6 warn+delegate test files deleted; any removed flat name now raises plain `AttributeError`; new 114-test `test_alias_removal.py`. Closed carried-forward WR-01 (IDE signature erasure on this `py.typed` package) and IN-02 (13 stale `create_extension` error-message/guard sites). One deprecation cycle (served in v0.6.0) honored.
+- **Incremental ETL (additive):** new `Pipeline.incremental_column` field (identifier-validated; `+ load_mode ∈ {append, replace}` forbidden at construction — incremental requires `upsert`). On the first run, full load + records `max(col)`; on subsequent runs, `WHERE col > last_watermark` (exclusive, `%s`-parameterized) applied to extract; high-water mark computed from the **raw** batch before transforms; advances only on success; empty batch preserves the prior watermark (never NULL). `RunResult` gains `watermark_used`/`watermark_recorded`; `history()`/`last_run()` surface them; `dry_run` previews the filter without writing a run row; typed JSONB envelope round-trips int/str/datetime with zero new deps. Full sync/async parity (ETL-INC-11). The `pipeline_runs.watermark JSONB` column reserved in v0.5.0 is now in use — no breaking migration.
+
+**Previously shipped (v0.6.0):** the ~54 flat public methods on `Database`/`AsyncDatabase` regrouped under 5 lazy accessors — `db.timescale.*` (6), `db.admin.*` (11), `db.schema.*` (27), `db.maint.*` (6), `db.backup.*` (4) — plus the 2 spatial-index methods relocated to `db.spatial.*`, all with full sync/async parity. Shipped with backward-compatible deprecated aliases (now removed in v0.7.0). Transactional core (`execute`/`session`/`to_dataframe`/…) intentionally stays flat.
 
 **Previously shipped (v0.5.0):** declarative ETL pipeline runner under `db.etl.*` / `async_db.etl.*` — inspectable `Pipeline` frozen dataclass; run-tracking via `pipeline_runs` with structural autocommit isolation; three load modes (append/replace/upsert); SQL/table extract + transform chains; an 8-field `RunResult` plus `history()`/`last_run()`/`dry_run`; full sync/async parity. Zero new runtime dependencies.
 
@@ -20,23 +25,27 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Current Milestone: v0.7.0 Alias Removal + Incremental ETL
+## Next Milestone Goals: v0.8.0 TimescaleDB avancé *(candidate — not yet started)*
 
-**Goal:** Solder la dette de dépréciation de v0.6.0 (retirer les 56 alias plats) et livrer l'ETL incrémental (watermarks CDC) — la suite logique de v0.5.0, déjà à moitié préparée via la colonne `pipeline_runs.watermark JSONB` réservée (toujours NULL aujourd'hui → ajout additif, pas de migration cassante).
+**Goal (provisoire, à confirmer au `/gsd-new-milestone`):** livrer les fonctionnalités phares time-series qui manquent au socle actuel, posées proprement dans le `db.timescale.*` créé en v0.6.0 : **continuous aggregates**, `time_bucket` / `time_bucket_gapfill`, `show_chunks` / `drop_chunks`, `add_dimension`, `reorder_policy`. Sur le pattern builder-pur + accessor déjà éprouvé (spatial, etl, accessors), parité sync/async obligatoire (Core Value). Phase numbering continues from Phase 29 (v0.8.0 démarre à la Phase 30).
 
-**Target features:**
+Suite validée après v0.8.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : **v0.9.0** CRUD ergonomique + introspection → **v1.0.0** spatial v2 + stabilisation API.
 
-- **Alias removal (ALIAS-RM-01)** — supprimer les 56 stubs `@deprecated_alias` sur `Database`/`AsyncDatabase` (112 au total) ; la vraie logique vit déjà dans les accessors (D-SCOPE-2 → suppression = effacement d'un bloc). Met à jour `test_parity`/tests d'alias ; CHANGELOG `[0.7.0]` **Breaking** + MIGRATION v0.6→v0.7 listant les 56 → chemins accessor. Solde la dette WR-01 (signatures IDE) et IN-02 (messages d'erreur sur chemin plat).
-- **ETL incrémental (ETL-INC-01)** — nouveau champ `incremental_column` sur `Pipeline` (déclaratif : dérive le filtre `col > last_watermark` et enregistre `max(col)` comme nouveau high-water mark). Sources SQL enveloppées en `SELECT * FROM (<sql>) sub WHERE col > %s`. Premier run (sans watermark) = chargement complet puis `max(col)` stocké dans `pipeline_runs.watermark JSONB`. Compatible `load_mode` ∈ {append, upsert} ; `incremental_column` + `replace` **interdit** à la construction. Parité sync/async obligatoire (Core Value).
+<details>
+<summary>v0.7.0 milestone goal & locked decisions (shipped 2026-06-22 — historical reference)</summary>
 
-**Locked scope decisions (cadrage 2026-06-19) :**
-- Watermark déclaratif via `incremental_column` (pas de callback) ; high-water mark = `max(col)` du batch extrait.
-- Sources SQL-string : wrap subquery + WHERE (la colonne watermark doit figurer dans le SELECT).
-- Premier run = full load puis record `max(col)`.
-- Incrémental réservé à `load_mode` ∈ {append, upsert} ; `replace` interdit avec `incremental_column`.
+**Goal:** Solder la dette de dépréciation de v0.6.0 (retirer les 56 alias plats — ALIAS-RM-01) et livrer l'ETL incrémental (watermarks CDC — ETL-INC-01), via la colonne `pipeline_runs.watermark JSONB` réservée en v0.5.0 (ajout additif, pas de migration cassante).
+
+**Locked scope decisions (cadrage 2026-06-19):**
+
+- Watermark déclaratif via `incremental_column` (pas de callback) ; high-water mark = `max(col)` du batch extrait **avant transforms** ; opérateur `>` exclusif.
+- Sources SQL-string : wrap subquery + WHERE (`SELECT * FROM (<sql>) sub WHERE col > %s`, la colonne watermark doit figurer dans le SELECT) ; watermark toujours passé en `%s`.
+- Premier run = full load puis record `max(col)` ; avance uniquement sur succès ; batch vide préserve le watermark (jamais NULL).
+- Incrémental requiert `load_mode="upsert"` ; `append` **et** `replace` interdits à la construction (`ValueError`).
 - Suppression d'alias = hard remove (un cycle de dépréciation déjà servi en v0.6.0) + MIGRATION v0.6→v0.7 + note Breaking au CHANGELOG.
+- `initial_watermark` (borne du premier run) reporté en v0.8.0 ; zéro nouvelle dépendance runtime.
 
-Suite prévue après v0.7.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : **v0.8.0** TimescaleDB avancé → **v0.9.0** CRUD ergonomique + introspection → **v1.0.0** spatial v2. Numérotation des phases continue depuis la Phase 24 (v0.7.0 démarre à la Phase 25).
+</details>
 
 <details>
 <summary>v0.6.0 milestone goal & locked decisions (shipped — historical reference)</summary>
@@ -105,15 +114,23 @@ Suite prévue après v0.7.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre valid�
 - ✓ 56 backward-compatible flat aliases on each of `Database`/`AsyncDatabase` (warn + delegate, removal scheduled v0.7.0); internal call-sites rewritten through accessors; zero breaking change — v0.6.0 (REORG-02)
 - ✓ `test_parity` registers all 5 new accessors (7-pair `ACCESSOR_PAIRS`); coverage ratchet held ≥94% (95.64%) with per-alias warn+delegate tests + green `-W error` gate — v0.6.0 (REORG-03, REORG-04)
 - ✓ Accessor classes exported in `__all__`; README + Sphinx document `db.X.*`; CHANGELOG `[0.6.0]` + 56-row MIGRATION guide note the deprecation cycle — v0.6.0 (REORG-05)
+- ✓ 56 deprecated flat aliases hard-removed from `Database`/`AsyncDatabase` (112 stubs); `aliases.py` deleted; removed names raise plain `AttributeError`; `test_parity`/`ACCESSOR_PAIRS` green — v0.7.0 (ALIAS-RM-01, ALIAS-RM-02)
+- ✓ MIGRATION v0.6→v0.7 section with 1:1 flat→accessor table for all 56 names; CHANGELOG `[0.7.0]` Breaking entry — v0.7.0 (ALIAS-RM-03)
+- ✓ Carried-forward debt closed by removal: WR-01 (IDE signature erasure on `py.typed` package) + IN-02 (stale flat-name error messages/guards) — v0.7.0 (ALIAS-RM-04)
+- ✓ `Pipeline.incremental_column` (identifier-validated; `+ append/replace` forbidden at construction — incremental requires `upsert`) — v0.7.0 (ETL-INC-01)
+- ✓ First-run full load records `max(col)`; subsequent runs apply `WHERE col > last_watermark` (exclusive, `%s`-parameterized; SQL sources subquery-wrapped) — v0.7.0 (ETL-INC-02, ETL-INC-03)
+- ✓ High-water mark computed from the raw batch before transforms; missing watermark column raises a clear `ETL*` error (not bare `KeyError`) — v0.7.0 (ETL-INC-04)
+- ✓ Empty batch records `success`/`rows_loaded=0` and preserves the prior watermark (never NULL); watermark read from last successful run, persisted only on success; failed run does not advance — v0.7.0 (ETL-INC-05, ETL-INC-06)
+- ✓ `RunResult.watermark_used`/`watermark_recorded` (None for non-incremental); `history()`/`last_run()` surface them; `dry_run` previews the filter without writing a run row — v0.7.0 (ETL-INC-07, ETL-INC-08, ETL-INC-09)
+- ✓ Typed JSONB envelope round-trips timestamp/integer/text watermarks without drift, zero new runtime deps — v0.7.0 (ETL-INC-10)
+- ✓ Full sync/async incremental parity (`AsyncETLAccessor` mirrors the surface, covered by `test_accessor_parity`); `docs/etl.md` incremental section + backfill/reset workflow documented — v0.7.0 (ETL-INC-11, ETL-INC-12)
+- ✓ v0.7.0 released to PyPI via OIDC: version bumped (2 sources), gates green (cov 95.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tagged, clean-venv smoke confirmed — v0.7.0 (REL-07)
 
 ### Active
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-v0.7.0 "Alias Removal + Incremental ETL" — see `.planning/REQUIREMENTS.md` for full REQ-ID list.
-
-- [ ] **ALIAS-RM-01**: Remove the 56 deprecated flat aliases from `Database`/`AsyncDatabase` (hard remove + MIGRATION v0.6→v0.7 + Breaking CHANGELOG note)
-- [ ] **ETL-INC-01**: Incremental ETL via `Pipeline.incremental_column` (watermark on `pipeline_runs.watermark JSONB`), append/upsert only, full sync/async parity
+*None — v0.7.0 shipped; next milestone (v0.8.0 TimescaleDB avancé) scope is defined at `/gsd-new-milestone`.*
 
 ### Out of Scope
 
@@ -131,27 +148,32 @@ v0.7.0 "Alias Removal + Incremental ETL" — see `.planning/REQUIREMENTS.md` for
 
 ## Context
 
-Shipped v0.6.0 (2026-06-19). Pure internal refactor — no new runtime power. Added `pycopg/aliases.py` + 5 accessor modules (`timescale.py`, `admin.py`, `maint.py`, `backup.py`, `schema.py`, ~3,800 LOC) carved from the `Database`/`AsyncDatabase` monolith; 56 flat methods on each class became `@deprecated_alias` stubs (112 total); 2 spatial methods relocated to `db.spatial.*`. Zero new runtime dependencies.
+Shipped v0.7.0 (2026-06-22). Breaking + additive: hard-removed the 56 deprecated flat aliases (deleted `pycopg/aliases.py` + 6 warn+delegate test files; ~31 code files changed, +2,860 / −1,959 vs v0.6.0) and added watermark-based incremental ETL on the existing `etl.py` (new `Pipeline.incremental_column` field, `_build_incremental_extract_sql` builder, typed-JSONB `_encode/_decode_watermark` envelope, `_read_watermark`/`_do_extract` helpers, `RunResult.watermark_used/recorded`, sync + async). The `pipeline_runs.watermark JSONB` column reserved in v0.5.0 is now in use — no breaking migration. Zero new runtime dependencies.
 Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend.
-Test coverage: 95.64% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
-Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; README "Accessor Namespaces" overview + 56-row MIGRATION v0.5→v0.6 guide.
+Codebase: ~13,327 LOC lib + ~15,690 LOC tests.
+Test coverage: 95.11% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
+Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; `docs/etl.md` incremental-loading section; MIGRATION v0.6→v0.7 guide (56-name flat→accessor table + incremental notes).
 
 **Known tech debt:**
 
 - **2 pre-existing flaky full-suite DB tests** (`TestAsyncIntegration::test_async_transaction_fix`, `TestPostGISErrorHandling::test_create_spatial_index_name_parameter`) — `UndefinedTable` fixture-isolation bug in the spatial/integration suites, NOT ETL code; fail identically in isolation; did not affect the coverage threshold. Worth a fixture-isolation fix in a future cleanup. (See STATE.md Deferred Items.)
-- Coverage-95 stretch still deferred — gate honest at 94 (measured 94.26%); remaining ~1pt is DB/IO paths structurally out of scope.
+- New (v0.7.0): one ~2.7% flaky bound-param test surfaced during Phase 28 (orchestrator-fixed); watch for re-flake. (See RETROSPECTIVE.md.)
+- Coverage-95 stretch still deferred — gate honest at 94 (measured 95.11% at v0.7.0 ship); remaining headroom is DB/IO paths structurally out of scope.
 - `TableNotFound` exported in `__all__` but has no internal raise site (user-`except` only) — benign.
-- `CLAUDE.md` "Version" line still reads v0.5.0 (stale) — actual shipped is v0.6.0; cosmetic doc lag.
+- `CLAUDE.md` "Version" line still reads v0.5.0 (stale) — actual shipped is v0.7.0; cosmetic doc lag (carried since v0.6.0).
 - Nyquist: phases 22–24 VALIDATION.md left `draft`/`nyquist_compliant: false` (verified PASSED via VERIFICATION.md; missing formal sign-off, not a coverage gap — see STATE.md Deferred Items).
-- **WR-01 (v0.6.0):** deprecated `*args/**kwargs` alias stubs erase public method signatures in IDEs/autocomplete on this `py.typed` package — accepted milestone-wide; self-resolves at v0.7.0 alias removal.
-- Database class is no longer a flat monolith — public surface is now organized under accessors (`spatial`/`etl`/`timescale`/`admin`/`maint`/`backup`/`schema`) with the transactional core kept flat by design.
+- Database class is organized under accessors (`spatial`/`etl`/`timescale`/`admin`/`maint`/`backup`/`schema`) with the transactional core kept flat by design; the public surface is now accessor-only (no flat aliases).
 
-**Resolved in v0.6.0:**
+**Resolved in v0.7.0:**
 
-- The flat-monolith API surface (~54 public methods) regrouped under 5 new lazy accessors + 2 spatial relocations, all backward-compatible via deprecated aliases (REORG-01..05, TS/ADM/MNT/BKP/SCH-01, SCH-02).
-- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0, v0.6.0 live on PyPI.
+- The 56 deprecated flat aliases removed (one deprecation cycle served in v0.6.0); public surface is accessor-only (ALIAS-RM-01..04). Closed WR-01 (IDE signature erasure) and IN-02 (stale flat-name error messages) — both carried forward from v0.6.0.
+- Watermark-based incremental ETL delivered end-to-end at full sync/async parity (ETL-INC-01..12); the v0.5.0-reserved `watermark JSONB` column wired with no breaking migration.
+- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0, v0.6.0, v0.7.0 live on PyPI.
 
 **Still deferred to a future milestone:**
+
+- v0.8.0 (next candidate): TimescaleDB avancé — continuous aggregates, `time_bucket`/`time_bucket_gapfill`, `show_chunks`/`drop_chunks`, `add_dimension`, `reorder_policy`.
+- ETL incremental follow-ups: `initial_watermark` first-run bound (ETL-INC-F01), configurable `>=`/lookback boundary (ETL-INC-F02), multi-column watermarks (ETL-INC-F03), advisory-lock concurrency (ETL-INC-F04), CDC/WAL change capture (ETL-INC-F05) — all deferred to v0.8.0+.
 - API-01: Named parameter support (:name syntax)
 - API-02: Connection health checks
 - API-03: Structured logging
@@ -159,9 +181,7 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 - API-05: Savepoint support (nested transactions)
 - API-06: Sync result streaming
 - ARCH-02: Dynamic connection pool sizing
-- ETL incremental/CDC watermarks — deferred to v0.7.0 (ETL-INC-01); v0.5.0's `pipeline_runs.watermark JSONB` is designed so watermarks slot on additively
 - ETL cross-DB transfer and DataFrame/CSV/parquet source/sink — deferred; ETL is same-DB only
-- Removal of the v0.6.0 deprecated flat aliases — scheduled v0.7.0 (ALIAS-RM-01); one deprecation cycle = one version
 
 ## Constraints
 
@@ -203,7 +223,6 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.4.0 (P11): measure coverage before raising the ratchet gate (D-08) | Never freeze an unmet threshold | ✓ Good — measured 91.61% then flipped 80→90 |
 | v0.5.0: ETL architecture mirrors `spatial.py` (lazy accessor + pure builders) | Proven pattern; keeps monolith from growing; testable builders | ✓ Good — `ETLAccessor`/`AsyncETLAccessor` lazy under `db.etl`/`async_db.etl` |
 | v0.5.0: run-log writes on a dedicated `connect(autocommit=True)`, isolated from the load txn | A failed/rolled-back load must still record a `failed` run row | ✓ Good — run rows commit on every path, incl. active `db.session()` (ETL-08/09) |
-| v0.5.0: reserve a nullable `watermark JSONB` column, always NULL | Lets incremental support slot on with no breaking migration | — Pending — incremental ETL moved to v0.7.0 (ETL-INC-01); column still reserved |
 | v0.5.0: same-DB only; Python-callable transforms (not SQL-only) | Scope control; leans on existing pandas/geopandas integration | ✓ Good — cross-DB/file sinks cleanly deferred |
 | v0.5.0: async transforms via `asyncio.to_thread` (D-/SC-2) | Sync transform callables must not block the event loop | ✓ Good — behavioral test proves non-blocking dispatch |
 | v0.5.0: PyPI publish human-gated at the irreversible step | Supply-chain publish needs maintainer sign-off | ✓ Good — executor stopped at the boundary; published after explicit approval |
@@ -214,7 +233,14 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.6.0: `db.schema.*` kept as one block, not split into `db.meta.*` | Group by domain (like spatial/etl), not by operation type; carve later on clean surface | ✓ Good — single 27-method accessor; `db.meta.*` carve reconsidered at v0.9.0 |
 | v0.6.0: DataFrame methods + transactional core stay flat on `db.*` | Daily-use / core API; accessors are for thematic method families | ✓ Good — `execute`/`session`/`to_dataframe`/… unchanged |
 | v0.6.0: `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`, not `db.schema.*` | Thematic PostGIS coherence over DDL grouping | ✓ Good — relocated verbatim; PostGIS guard now also covers the deprecated flat path (D-06) |
-| v0.6.0: deprecated stubs use `(*args, **kwargs)` signatures (WR-01) | Single uniform decorator beats 56 hand-copied signature wrappers | ⚠️ Revisit — erases IDE signatures on `py.typed`; accepted milestone-wide, self-resolves at v0.7.0 removal |
+| v0.6.0: deprecated stubs use `(*args, **kwargs)` signatures (WR-01) | Single uniform decorator beats 56 hand-copied signature wrappers | ✓ Resolved — aliases removed in v0.7.0; IDE signature erasure gone, surface is accessor-only with full type info |
+| v0.7.0: hard-remove the 56 aliases (no second deprecation cycle) | One deprecation cycle = one version; cycle already served in v0.6.0; real logic lives in accessors (D-SCOPE-2 → one-block deletion) | ✓ Good — `aliases.py` deleted, removed names raise plain `AttributeError`, MIGRATION + Breaking CHANGELOG shipped, no caller silently broken |
+| v0.7.0: incremental ETL declarative via `Pipeline.incremental_column` (no callbacks) | Inspectable, mirrors the frozen-dataclass `Pipeline` design; derives the filter + high-water mark from one field | ✓ Good — field validated at construction, `WHERE col > %s` derived, `max(col)` recorded |
+| v0.7.0: incremental requires `upsert`; `append` AND `replace` forbidden at construction | Non-unique watermark columns silently drop boundary rows under `append`; `replace` truncates the whole target — only `upsert` is idempotent | ✓ Good — `ValueError` at construction for both forbidden combos, tested both sides |
+| v0.7.0: high-water mark = `max(col)` from the RAW batch before transforms; advance only on success; empty batch preserves prior watermark | Watermark must reflect what was actually extracted from source, independent of transform reshaping; never regress or write NULL | ✓ Good — invariants proven on live DB (first-run/empty/failed paths) |
+| v0.7.0: typed JSONB envelope for the watermark (`_encode`/`_decode`), zero new deps | `pipeline_runs.watermark JSONB` (reserved v0.5.0) must round-trip int/str/datetime without tz/precision drift | ✓ Good — reserved column now in use, no breaking migration, round-trip verified for all 3 types |
+| v0.7.0: `RunResult.watermark_used/recorded` (None for non-incremental) + incremental `dry_run` preview | Surface the filter floor + new high-water mark for inspection without writing a run row | ✓ Good — both fields on `RunResult`/`history()`/`last_run()`; `dry_run` previews without persisting |
+| v0.5.0: reserve a nullable `watermark JSONB` column, always NULL | Lets incremental support slot on with no breaking migration | ✓ Good — incremental ETL shipped v0.7.0 (ETL-INC-*) using exactly this column; no breaking migration needed |
 
 ## Evolution
 
@@ -257,3 +283,5 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-19 — milestone v0.7.0 "Alias Removal + Incremental ETL" started via `/gsd-new-milestone`. Goal: solder la dette de dépréciation v0.6.0 (hard-remove des 56 alias plats — ALIAS-RM-01) + livrer l'ETL incrémental (watermarks CDC via `pipeline_runs.watermark JSONB` réservée en v0.5.0 — ETL-INC-01). Scope locked au cadrage : watermark déclaratif via `incremental_column` (pas de callback), high-water mark = `max(col)` du batch, sources SQL enveloppées (subquery + WHERE), premier run = full load puis record, incrémental réservé à `load_mode` ∈ {append, upsert} (`replace` interdit), suppression d'alias = hard remove + MIGRATION v0.6→v0.7 + note Breaking. Active set au scope v0.7.0. Phase numbering continues from Phase 25. Suite validée (FUTURE-MILESTONES) : v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2.*
 
 *Last updated: 2026-06-17 — Phase 21 "Infrastructure & Timescale Accessor" complete (3/3 plans, verification PASSED 4/4). Le pattern alias+accessor est désormais établi de bout en bout et prouvé : `pycopg/aliases.py` (`@deprecated_alias` — `stacklevel=2`, branche `iscoroutinefunction`, sans eval/exec, réutilisé tel quel par les Phases 22-24) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 méthodes déplacées verbatim avec `self.`→`self._db.`). `db.timescale.*` / `async_db.timescale.*` câblés en propriétés lazy (cache `_timescale`, miroir de `_spatial`/`_etl`) ; les 6 méthodes plates sync + 6 async sont des stubs `@deprecated_alias` qui warn + délèguent (zéro breaking change). Registre data-driven `ACCESSOR_PAIRS` + `test_accessor_parity` (sync↔async), `test_timescale_aliases.py` (warn+delegate par alias), 27 call-sites migrés. Gates : suite complète 994 passants (2 échecs DB pré-existants connus), `-W error::DeprecationWarning` vert (295), coverage 94.46% (ratchet ≥94 tenu). Revue de code : 0 critique, 4 warnings advisory (notamment WR-01 : signatures `(*args, **kwargs)` dégradant le typage statique sur ce package `py.typed` ; WR-02 : README/docs documentent encore l'API plate dépréciée). REORG-01/02/03/04 + TS-01 validés. Next : Phase 22 (Admin, Maint & Backup accessors).*
+
+*Last updated: 2026-06-22 — milestone v0.7.0 "Alias Removal + Incremental ETL" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.7.0 (incremental ETL + accessor-only surface); Current State → v0.7.0 SHIPPED, v0.6.0 demoted to "Previously shipped"; all 17 v0.7.0 requirements (ALIAS-RM-01..04, ETL-INC-01..12, REL-07) moved to Validated; Active emptied; "Current Milestone" reframed as "Next Milestone Goals" (v0.8.0 TimescaleDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2), v0.7.0 goal/decisions collapsed to historical reference; Context refreshed (95.11% coverage, ~13,327 lib + ~15,690 test LOC, WR-01/IN-02 resolved by removal, incremental follow-ups F01-F05 deferred); 8 v0.7.0 Key Decisions outcomes added + WR-01 flipped ⚠️→✓ Resolved + watermark-JSONB Pending→✓ Good. ROADMAP collapsed + REQUIREMENTS archived to `milestones/v0.7.0-*`. Pre-flight: open-artifact audit clean, 17/17 requirements complete. Next: `/gsd-new-milestone` (v0.8.0).*

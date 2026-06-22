@@ -1,5 +1,36 @@
 # Milestones
 
+## v0.7.0 Alias Removal + Incremental ETL (Shipped: 2026-06-22)
+
+**Phases completed:** 5 phases (25–29), 13 plans, 20 tasks
+
+**Delivered:** A breaking-plus-additive release — the 56 deprecated flat aliases (one deprecation cycle served in v0.6.0) hard-removed from both `Database`/`AsyncDatabase` so the public surface is accessor-only, plus watermark-based incremental ETL via the new `Pipeline.incremental_column` field, wiring the `pipeline_runs.watermark JSONB` column reserved since v0.5.0 (no breaking migration). First run = full load + record `max(col)`; subsequent runs apply exclusive `WHERE col > watermark`; advances only on success, never writes NULL; full sync/async parity. Shipped to PyPI under the held ≥94% coverage ratchet, zero new runtime dependencies.
+
+**Key accomplishments:**
+
+- Hard-delete `pycopg/aliases.py` and 6 warn+delegate alias test files; add 114-test `test_alias_removal.py` proving all 56 removed flat names raise `AttributeError` on Database/AsyncDatabase plus WR-01 inspect assertions.
+- Closed remaining IN-02 sites — 13 guard strings in spatial.py (1) and timescale.py (12) now reference `db.schema.create_extension`, and the stale alias-routing comment in test_sql_injection.py is corrected.
+- MIGRATION.md v0.6→v0.7 section with 56-row removal table + CHANGELOG [0.7.0] Breaking entry + 10 stale flat-name code examples and 4 deprecation notes corrected across docs/
+- DB-free incremental-ETL foundation in pycopg/etl.py: a validated `Pipeline.incremental_column` field, the `_build_incremental_extract_sql` watermark-filter builder (subquery-wrap or WHERE-append, watermark always a `%s` param), and the typed-JSONB-envelope `_encode_watermark`/`_decode_watermark` serializers — 5 new symbols, 34 co-located unit tests, zero new deps.
+- Watermark persistence wired through sync run-log: _read_watermark + _end_run(watermark=) + max(col) capture with JSONB roundtrip proven for int/str/datetime via 6 live-DB tests
+- Watermark filter loop closed sync-side: `_read_watermark` + `_build_incremental_extract_sql` + `_end_run(watermark=)` finally connected via shared `_do_extract()` helper; `RunResult` gains `watermark_used`/`watermark_recorded`; incremental `dry_run` applies identical filter and reports both fields without writing a run row
+- Full async incremental watermark surface ported 1:1 from sync: `_read_watermark` + `_do_extract` + verbatim capture block + `dry_run` watermark fields, closing ETL-INC-11 (sync/async parity); `test_accessor_parity` green and unmodified
+- `## Incremental loading` section added to `docs/etl.md` covering watermark-column requirements, upsert constraint, first-run vs subsequent-run semantics, `RunResult.watermark_used`/`watermark_recorded` field docs, `dry_run` preview behavior, and manual SQL backfill/reset workflow (D-A4, D-A5); Sphinx `-W` gate confirmed clean
+- All 4 v0.7.0 quality gates green — pytest 95.11% coverage, interrogate 100%, Sphinx -W clean, zero DeprecationWarnings on import.
+- pycopg 0.7.0 tagged, published to PyPI via OIDC trusted publishing, and verified via clean-venv pip install — REL-07 and Success Criterion 1 satisfied
+
+**Stats:**
+
+- Lines changed: ~2,860 insertions, ~1,959 deletions across ~31 code files (excl. `.planning/`)
+- Codebase: ~13,327 LOC lib + ~15,690 LOC tests
+- Timeline: 2026-06-19 → 2026-06-22 (~3 days), 96 commits in window
+- Gates at ship: coverage 95.11% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green
+- Git range: `v0.6.0` → tag `v0.7.0`
+
+**Known deferred items at close:** 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter` — fixture-isolation, not v0.7.0 code) + one ~2.7% flaky bound-param test surfaced in Phase 28; Nyquist VALIDATION.md left `draft` for phases 22–24 (verified PASSED via VERIFICATION.md); incremental ETL follow-ups ETL-INC-F01..F05 (`initial_watermark`, configurable boundary, multi-column, advisory-lock concurrency, CDC) deferred to v0.8.0+. See STATE.md → Deferred Items.
+
+---
+
 ## v0.6.0 Réorganisation en accessors (Shipped: 2026-06-19)
 
 **Phases completed:** 4 phases (21–24), 13 plans, 24 tasks

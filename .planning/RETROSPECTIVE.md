@@ -154,6 +154,58 @@
 
 ---
 
+## Milestone: v0.7.0 — Alias Removal + Incremental ETL
+
+**Shipped:** 2026-06-22
+**Phases:** 5 (25–29) | **Plans:** 13 | **Tasks:** 20
+
+### What Was Built
+
+- **Alias removal (Phase 25):** hard-deleted all 56 `@deprecated_alias` stubs from each of `Database`/`AsyncDatabase` (112 total) by text-pattern (stubs were interleaved with real methods, so line-range deletion was unsafe); deleted `pycopg/aliases.py` + 6 warn+delegate test files; added a 114-test `test_alias_removal.py` proving every removed name raises plain `AttributeError` + WR-01 `inspect` assertions; closed 13 IN-02 guard/error-message sites.
+- **Incremental ETL — pure layer (Phase 26):** validated `Pipeline.incremental_column` field, `_build_incremental_extract_sql` (subquery-wrap / WHERE-append, watermark always `%s`), typed-JSONB `_encode_watermark`/`_decode_watermark`; 5 symbols, 34 DB-free tests, zero new deps.
+- **Run-log integration (Phase 27):** `_read_watermark` reads the last *successful* run; success-only `_end_run(watermark=)`; `max(col)` capture; JSONB round-trip proven for int/str/datetime on live DB; no-advance-on-failure + empty-batch-preserves invariants.
+- **Extract, RunResult & async parity (Phase 28):** wired the filter into `run()` via a shared `_do_extract()` helper (prevents dry_run/real-path drift); `RunResult.watermark_used/recorded`; incremental `dry_run`; full async 1:1 mirror closing ETL-INC-11; `docs/etl.md` incremental section.
+- **Release (Phase 29):** version bump (2 sources), CHANGELOG Breaking/Added, MIGRATION v0.6→v0.7 (56-name table + incremental notes), 4 gates green (cov 95.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tag `v0.7.0` + PyPI publish via OIDC, clean-venv smoke.
+
+### What Worked
+
+- **D-SCOPE-2 paid off exactly as designed.** Because v0.6.0 put the real logic in the accessors and made each flat name a thin warn+delegate wrapper, v0.7.0's removal was the promised "delete one block" — the breaking change carried zero logic risk, and the 114-test `test_alias_removal.py` turned "the surface is now accessor-only" into a hard, enumerated invariant.
+- **The reserved `watermark JSONB` column made incremental ETL fully additive.** The v0.5.0 forward-compat bet (column reserved, always NULL) meant incremental loading shipped with **no breaking migration** — the typed envelope just started populating an existing column.
+- **Layered phase decomposition (pure → run-log → extract/parity) kept each step DB-free-testable or live-DB-provable in isolation.** The pure builders (Phase 26) were unit-tested without a DB; the invariants (Phase 27) were proven on live DB before the extract loop (Phase 28) ever wired them together — bugs surfaced at the layer that owned them.
+- **The shared `_do_extract()` helper structurally prevented dry_run/real-path drift** — the same watermark-aware extract path serves both, so a `dry_run` preview can never diverge from what a real run would filter.
+- **Code review caught two REAL latent bugs in `run()` coercion** (Phase 27: float-truncation, NaN-not-`ETLError`) that tests had missed — the `pd.isna`-before-`is_float` ordering lesson came directly from that review and is now encoded.
+
+### What Was Inefficient
+
+- **Ran sequential-on-main again (4th milestone running for this pattern).** Per project memory, phases executed inline on `main` rather than via worktrees — avoided the wrong-base recovery tax but left executor parallelism unused. Local `main` ran far ahead of `origin` the whole milestone (79+ commits) without issue, but it's an accumulating divergence.
+- **STATE.md drift required hand-fixing on essentially every phase (6+ times this milestone).** `phase.complete`/`milestone.complete` repeatedly left STATE.md frontmatter or a stale "Next action" line that didn't match reality; the `milestone.complete` CLI also couldn't update one STATE.md field at close (format mismatch warning).
+- **Shared-mapper changes needed full `test_etl.py` + `test_etl_accessor.py` re-runs to catch stragglers.** Phase 28 left 3 issues executors missed (a stale `KeyError`-type regression test, a new ~2.7% flaky bound-param test, an ETL-INC-11 req-drift) that only a full ETL-suite run surfaced post-merge — now the standing rule after any shared-mapper edit.
+- **Decode-hardening (WR-01/WR-02) was deferred phase-to-phase (26→27→28) and ultimately judged unreachable** with own-written envelopes — defensible, but it rode along as open carry-forward for three phases before being closed.
+
+### Patterns Established
+
+- **A deprecation removal is "delete the wrapper block + enumerate the AttributeErrors in one test file"** — the clean back-half of the v0.6.0 `@deprecated_alias` pattern; `test_alias_removal.py` is the template.
+- **Reserve-the-column forward-compat delivers a breaking-free feature one milestone later** — proven end-to-end (v0.5.0 reserve → v0.7.0 use); worth doing whenever a future additive feature is foreseeable.
+- **Single shared extract/transform helper for dry-run and real paths** — `_do_extract()` makes preview/execute divergence structurally impossible.
+- **`pd.isna()` must precede any `is_float`/numeric coercion check** — NaN is a float; this ordering is now a fixed rule in `run()` coercion.
+- **After any change to a shared mapper/builder, run the full module test files (not just the targeted tests)** before declaring a phase done.
+
+### Key Lessons
+
+1. **Forward-compat scaffolding is the highest-leverage thing a milestone can leave behind.** v0.5.0's one reserved column turned what could have been a breaking migration into a purely additive v0.7.0 feature. Look for these bets every milestone.
+2. **A breaking removal is low-risk only if the prior cycle set it up that way.** The hard part of ALIAS-RM was done in v0.6.0 (logic-in-accessor, warn+delegate wrappers); v0.7.0 just collected the payoff. Sequencing the deprecation cycle correctly is what made the break safe.
+3. **Code review earns its place even on well-tested code.** Two real coercion bugs survived the test suite and were caught only by review — for data-coercion paths (types crossing a DB boundary), an adversarial read is worth the cost.
+4. **STATE.md bookkeeping drift is now a confirmed multi-milestone tax** (hand-fixed 6+ times this milestone alone) — the file format the CLIs write and the format the close step expects have diverged; worth reconciling at the tooling level rather than hand-patching a seventh time.
+5. **The SUMMARY one-liner auto-extraction junk is now a four-milestone defect** (v0.4.0–v0.7.0) — though v0.7.0's extraction was mostly clean, the `Delivered`/`Stats`/`deferred` enrichment of the MILESTONES entry still had to be added by hand every time.
+
+### Cost Observations
+
+- Model mix: Opus for orchestration/planning/review, Sonnet for researchers/executors/verifier.
+- Sessions: spread across 2026-06-19 (Phase 25 + cadrage) → 2026-06-22 (Phases 26–29 + release + close).
+- Notable: ~3 days, 13 plans; the layered pure→integration→parity decomposition let each phase be small and independently provable, and the mature ETL/accessor patterns meant minimal design churn.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -164,6 +216,7 @@
 | v0.4.0 | 7 (9–15) | 36 | uv toolchain, coverage ratchet discipline, builder/accessor pattern, human-gated release |
 | v0.5.0 | 5 (16–20) | 13 | ETL pipeline runner via the spatial mirror pattern; structural run-log isolation; fenced reversible-prep + human-gated publish |
 | v0.6.0 | 4 (21–24) | 13 | Accessor reorg via `@deprecated_alias` + lazy accessors; prove-once-replicate-N; `-W error` as the load-bearing refactor gate; milestone audit restored |
+| v0.7.0 | 5 (25–29) | 13 | Alias hard-removal (delete-the-wrapper-block) + incremental ETL on the reserved `watermark JSONB`; layered pure→run-log→extract/parity decomposition; review caught real coercion bugs |
 
 ### Cumulative Quality
 
@@ -173,11 +226,14 @@
 | v0.4.0 | 22 (~749 tests) | 94.09% | Ratchet 70→80→90→92→94; numpydoc + interrogate gate |
 | v0.5.0 | 23 (~983 tests) | 94.26% | Ratchet held at 94 with new async ETL behavioral tests; interrogate 100% |
 | v0.6.0 | 30+ (~1100 tests) | 95.64% | Ratchet held at 94; +56 DB-free alias tests + 7-pair parity; `-W error::DeprecationWarning` green at 1030 unit tests; interrogate 100% |
+| v0.7.0 | 30+ (~1180 tests) | 95.11% | Ratchet held at 94; +114-test `test_alias_removal.py` (AttributeError + WR-01) + 34 DB-free incremental builder tests + live-DB watermark round-trips; `-W error::DeprecationWarning` green (no stubs left); interrogate 100% |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. **Real PostgreSQL beats mocks** for catching driver/DB interaction bugs (v0.3.0, v0.4.0, and v0.5.0 all surfaced latent bugs only real-DB tests caught).
 2. **Sync is the established core-value API; align async toward it** — enriching async never breaking sync kept the parity promise with zero sync breakage across all three milestones.
-3. **The builder/accessor mirror pattern compounds.** Established in v0.4.0 (spatial), reused wholesale in v0.5.0 (ETL), and in v0.6.0 it became the *target shape* the whole monolith was refactored toward — the most reusable architectural decision of the project, and it makes each new sync/async surface near-mechanical.
-4. **Recurring tooling taxes, now tracked across milestones:** (a) the SUMMARY one-liner auto-extraction emits junk "accomplishments" — confirmed in v0.4.0, v0.5.0, *and* v0.6.0 (three running); (b) manual REQUIREMENTS.md checkbox updates at close (v0.4.0 + v0.5.0) — sidestepped in v0.6.0 by running on `main` where the milestone CLI marks them. The worktree wrong-base tax (v0.4.0 + v0.5.0) did **not** recur in v0.6.0 because phases ran sequential-on-main by design — trading parallelism for zero recovery overhead is a viable mitigation in this environment.
-5. **Match execution mode to the work.** v0.6.0's mechanical, low-conflict refactor ran cleanly sequential-on-main; the worktree parallelization that caused two milestones of recovery pain was simply not needed. Reserve worktrees for genuinely parallel, file-disjoint work.
+3. **The builder/accessor mirror pattern compounds.** Established in v0.4.0 (spatial), reused wholesale in v0.5.0 (ETL), the *target shape* the v0.6.0 monolith was refactored toward, and in v0.7.0 it made the async incremental surface a near-mechanical 1:1 mirror of sync — the most reusable architectural decision of the project.
+4. **Forward-compat scaffolding pays off a milestone later.** v0.5.0 reserved a nullable `watermark JSONB` column (always NULL); v0.7.0 turned it into incremental ETL with **zero breaking migration**. The reserve-the-column bet is now a proven, repeatable pattern — make the cheap forward-compat move whenever a future additive feature is foreseeable.
+5. **A breaking removal is safe only if the prior deprecation cycle set it up.** v0.6.0's logic-in-accessor + warn+delegate wrappers (D-SCOPE-2) made v0.7.0's hard removal a one-block delete with zero logic risk; the enumerated `test_alias_removal.py` made "surface is accessor-only" a hard invariant. Sequence the deprecation cycle correctly and the break is mechanical.
+6. **Recurring tooling taxes, now tracked across milestones:** (a) the SUMMARY one-liner auto-extraction / MILESTONES enrichment-by-hand — confirmed v0.4.0–v0.7.0 (four running); (b) STATE.md bookkeeping drift requiring hand-fixes at phase/milestone close — acute in v0.6.0 and v0.7.0 (6+ hand-fixes in v0.7.0 alone), the CLI-written format and the close-step's expected format have diverged. Both are worth fixing at the tooling level. Manual REQUIREMENTS.md checkbox updates (v0.4.0 + v0.5.0) stayed sidestepped in v0.6.0/v0.7.0 by running on `main` where the milestone CLI marks them.
+7. **Match execution mode to the work; review data-coercion paths adversarially.** v0.6.0 and v0.7.0 both ran cleanly sequential-on-main (mechanical/low-conflict work) — reserve worktrees for genuinely parallel, file-disjoint work. Separately, v0.7.0's code review caught two real coercion bugs the test suite missed: for types crossing a DB boundary (`pd.isna` before `is_float`, float-vs-int), an adversarial read earns its cost.
