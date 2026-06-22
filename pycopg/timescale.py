@@ -12,6 +12,7 @@ as thin deprecated aliases (see :mod:`pycopg.aliases`) until v0.7.0.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pycopg import queries
@@ -21,6 +22,52 @@ from pycopg.utils import validate_identifier, validate_identifiers, validate_int
 if TYPE_CHECKING:
     from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
+
+
+def _build_chunk_bound_fragments(
+    older_than: str | datetime | None,
+    newer_than: str | datetime | None,
+) -> tuple[str, str, list]:
+    """Build SQL bound fragments and params list for show_chunks / drop_chunks.
+
+    Parameters
+    ----------
+    older_than : str or datetime or None
+        Chunks older than this bound.  A ``str`` is treated as a
+        PostgreSQL interval literal; a :class:`datetime` as an absolute
+        timestamptz cutoff; ``None`` omits the argument.
+    newer_than : str or datetime or None
+        Chunks newer than this bound.  Same type rules as ``older_than``.
+
+    Returns
+    -------
+    older_frag : str
+        SQL fragment for the ``older_than`` argument (empty string if None).
+    newer_frag : str
+        SQL fragment for the ``newer_than`` argument (empty string if None).
+    params : list
+        Bound parameter values, in older-then-newer order (D-02 footgun guard).
+    """
+    params: list = []
+    if older_than is None:
+        older_frag = ""
+    elif isinstance(older_than, str):
+        older_frag = ", older_than => %s::interval"
+        params.append(older_than)
+    else:
+        older_frag = ", older_than => %s"
+        params.append(older_than)
+
+    if newer_than is None:
+        newer_frag = ""
+    elif isinstance(newer_than, str):
+        newer_frag = ", newer_than => %s::interval"
+        params.append(newer_than)
+    else:
+        newer_frag = ", newer_than => %s"
+        params.append(newer_than)
+
+    return older_frag, newer_frag, params
 
 
 class TimescaleAccessor:
@@ -276,6 +323,161 @@ class TimescaleAccessor:
         )
         return result[0] if result else {}
 
+    def show_chunks(
+        self,
+        table: str,
+        older_than: str | datetime | None = None,
+        newer_than: str | datetime | None = None,
+        schema: str = "public",
+    ) -> list[str]:
+        """List chunks for a hypertable, sorted oldest-first by range start.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        older_than : str or datetime or None, optional
+            Return only chunks whose time range ends before this bound.
+            A ``str`` is treated as a PostgreSQL interval literal (e.g.
+            ``"30 days"``); a :class:`datetime` as an absolute timestamptz
+            cutoff.  ``None`` (default) imposes no upper-age filter.
+        newer_than : str or datetime or None, optional
+            Return only chunks whose time range starts after this bound.
+            Same type rules as ``older_than``.  ``None`` (default) imposes
+            no lower-age filter.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+
+        Returns
+        -------
+        list of str
+            Fully-qualified chunk names (e.g.
+            ``_timescaledb_internal._hyper_1_2_chunk``), sorted
+            oldest-first by ``range_start``.  Never sorted lexicographically
+            — use the DB-supplied order so ``_hyper_N_10`` sorts after
+            ``_hyper_N_9``.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        """
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+
+        older_frag, newer_frag, params = _build_chunk_bound_fragments(
+            older_than, newer_than
+        )
+        sql = queries.TSDB_SHOW_CHUNKS.format(
+            schema=schema,
+            table=table,
+            older_arg=older_frag,
+            newer_arg=newer_frag,
+        )
+        rows = self._db.execute(sql, params)
+        return [r["chunk_name"] for r in rows]
+
+    def drop_chunks(
+        self,
+        table: str,
+        older_than: str | datetime | None = None,
+        newer_than: str | datetime | None = None,
+        schema: str = "public",
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Drop chunks from a hypertable matching the given bounds.
+
+        Uses a capture-before-drop pattern: the matching chunk list is
+        retrieved first (while chunks still exist), then the drop is issued.
+        The returned list is always in oldest-first order, identical in shape
+        to :meth:`show_chunks`.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        older_than : str or datetime or None, optional
+            Drop only chunks whose time range ends before this bound.
+            A ``str`` is treated as a PostgreSQL interval literal (e.g.
+            ``"30 days"``); a :class:`datetime` as an absolute timestamptz
+            cutoff.
+        newer_than : str or datetime or None, optional
+            Drop only chunks whose time range starts after this bound.
+            Same type rules as ``older_than``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        dry_run : bool, optional
+            If ``True``, return the would-be-dropped chunk list without
+            actually dropping anything.  By default ``False``.
+
+        Returns
+        -------
+        list of str
+            Fully-qualified chunk names that were (or would be) dropped,
+            sorted oldest-first by ``range_start``.
+
+        Raises
+        ------
+        ValueError
+            If both ``older_than`` and ``newer_than`` are ``None`` — this
+            guard fires *before* any DB round-trip to prevent an accidental
+            full-table wipe.
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+
+        Notes
+        -----
+        **DESTRUCTIVE / IRREVERSIBLE.**  Dropped chunks cannot be recovered
+        unless you have a backup.  Always call with ``dry_run=True`` first to
+        inspect which chunks will be removed.
+        """
+        if older_than is None and newer_than is None:
+            raise ValueError(
+                "drop_chunks requires at least one of older_than or newer_than. "
+                "Passing both as None would drop ALL chunks — use show_chunks() "
+                "to inspect first, or pass an explicit bound."
+            )
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+
+        older_frag, newer_frag, params = _build_chunk_bound_fragments(
+            older_than, newer_than
+        )
+
+        # Capture the ordered preview list BEFORE dropping (rows vanish post-drop;
+        # drop_chunks() SRF returns text not regclass so the JOIN would fail).
+        capture_sql = queries.TSDB_SHOW_CHUNKS.format(
+            schema=schema,
+            table=table,
+            older_arg=older_frag,
+            newer_arg=newer_frag,
+        )
+        captured = self._db.execute(capture_sql, params)
+        chunk_list = [r["chunk_name"] for r in captured]
+
+        if dry_run:
+            return chunk_list
+
+        drop_sql = queries.TSDB_DROP_CHUNKS.format(
+            schema=schema,
+            table=table,
+            older_arg=older_frag,
+            newer_arg=newer_frag,
+        )
+        self._db.execute(drop_sql, params)
+        return chunk_list
+
 
 class AsyncTimescaleAccessor:
     """Async TimescaleDB helper namespace exposed as ``async_db.timescale``.
@@ -529,3 +731,158 @@ class AsyncTimescaleAccessor:
             [schema, table, schema, table],
         )
         return result[0] if result else {}
+
+    async def show_chunks(
+        self,
+        table: str,
+        older_than: str | datetime | None = None,
+        newer_than: str | datetime | None = None,
+        schema: str = "public",
+    ) -> list[str]:
+        """List chunks for a hypertable, sorted oldest-first by range start.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        older_than : str or datetime or None, optional
+            Return only chunks whose time range ends before this bound.
+            A ``str`` is treated as a PostgreSQL interval literal (e.g.
+            ``"30 days"``); a :class:`datetime` as an absolute timestamptz
+            cutoff.  ``None`` (default) imposes no upper-age filter.
+        newer_than : str or datetime or None, optional
+            Return only chunks whose time range starts after this bound.
+            Same type rules as ``older_than``.  ``None`` (default) imposes
+            no lower-age filter.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+
+        Returns
+        -------
+        list of str
+            Fully-qualified chunk names (e.g.
+            ``_timescaledb_internal._hyper_1_2_chunk``), sorted
+            oldest-first by ``range_start``.  Never sorted lexicographically
+            — use the DB-supplied order so ``_hyper_N_10`` sorts after
+            ``_hyper_N_9``.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        """
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+
+        older_frag, newer_frag, params = _build_chunk_bound_fragments(
+            older_than, newer_than
+        )
+        sql = queries.TSDB_SHOW_CHUNKS.format(
+            schema=schema,
+            table=table,
+            older_arg=older_frag,
+            newer_arg=newer_frag,
+        )
+        rows = await self._db.execute(sql, params)
+        return [r["chunk_name"] for r in rows]
+
+    async def drop_chunks(
+        self,
+        table: str,
+        older_than: str | datetime | None = None,
+        newer_than: str | datetime | None = None,
+        schema: str = "public",
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Drop chunks from a hypertable matching the given bounds.
+
+        Uses a capture-before-drop pattern: the matching chunk list is
+        retrieved first (while chunks still exist), then the drop is issued.
+        The returned list is always in oldest-first order, identical in shape
+        to :meth:`show_chunks`.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        older_than : str or datetime or None, optional
+            Drop only chunks whose time range ends before this bound.
+            A ``str`` is treated as a PostgreSQL interval literal (e.g.
+            ``"30 days"``); a :class:`datetime` as an absolute timestamptz
+            cutoff.
+        newer_than : str or datetime or None, optional
+            Drop only chunks whose time range starts after this bound.
+            Same type rules as ``older_than``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        dry_run : bool, optional
+            If ``True``, return the would-be-dropped chunk list without
+            actually dropping anything.  By default ``False``.
+
+        Returns
+        -------
+        list of str
+            Fully-qualified chunk names that were (or would be) dropped,
+            sorted oldest-first by ``range_start``.
+
+        Raises
+        ------
+        ValueError
+            If both ``older_than`` and ``newer_than`` are ``None`` — this
+            guard fires *before* any DB round-trip to prevent an accidental
+            full-table wipe.
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+
+        Notes
+        -----
+        **DESTRUCTIVE / IRREVERSIBLE.**  Dropped chunks cannot be recovered
+        unless you have a backup.  Always call with ``dry_run=True`` first to
+        inspect which chunks will be removed.
+        """
+        if older_than is None and newer_than is None:
+            raise ValueError(
+                "drop_chunks requires at least one of older_than or newer_than. "
+                "Passing both as None would drop ALL chunks — use show_chunks() "
+                "to inspect first, or pass an explicit bound."
+            )
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+
+        older_frag, newer_frag, params = _build_chunk_bound_fragments(
+            older_than, newer_than
+        )
+
+        # Capture the ordered preview list BEFORE dropping (rows vanish post-drop;
+        # drop_chunks() SRF returns text not regclass so the JOIN would fail).
+        capture_sql = queries.TSDB_SHOW_CHUNKS.format(
+            schema=schema,
+            table=table,
+            older_arg=older_frag,
+            newer_arg=newer_frag,
+        )
+        captured = await self._db.execute(capture_sql, params)
+        chunk_list = [r["chunk_name"] for r in captured]
+
+        if dry_run:
+            return chunk_list
+
+        drop_sql = queries.TSDB_DROP_CHUNKS.format(
+            schema=schema,
+            table=table,
+            older_arg=older_frag,
+            newer_arg=newer_frag,
+        )
+        await self._db.execute(drop_sql, params)
+        return chunk_list
