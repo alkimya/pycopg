@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 Phase: 31
 Plan: Not started
-Status: All 3 plans executed. Phase 30 complete. Next: Phase 31 (Continuous Aggregate Lifecycle)
+Status: Phase 31 context gathered (31-CONTEXT.md, D-01..D-10). Next: /gsd-plan-phase 31
 Last activity: 2026-06-22
 
 ## Performance Metrics
@@ -109,8 +109,8 @@ None — roadmap created, ready to plan.
 Last session: 2026-06-22T21:31:59.276Z
 Stopped at: Phase 31 context gathered
 Resume file: .planning/phases/31-continuous-aggregate-lifecycle/31-CONTEXT.md
-Next action: /gsd-discuss-phase 31 (Continuous Aggregate Lifecycle)
+Next action: /gsd-plan-phase 31 (Continuous Aggregate Lifecycle)
 
 ## Operator Next Steps
 
-- Plan Phase 31 with `/gsd-discuss-phase 31`
+- Plan Phase 31 with `/gsd-plan-phase 31`
