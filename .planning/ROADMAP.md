@@ -105,7 +105,11 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 4. User can call `db.timescale.add_reorder_policy("my_hypertable", "my_index")` and the generated SQL is asserted by a mock unit test; on a Community-licensed build the policy job row exists in `timescaledb_information.jobs` and `CALL run_job(job_id)` completes without error, while on an Apache-licensed build (local/CI) the live test tolerates `FeatureNotSupported` — *(2026-06-22: see Phase 30 CONTEXT D-12)*
 5. All four methods have async counterparts (`async_db.timescale.*`) verified by `test_accessor_parity`; coverage ratchet ≥94% holds
 
-**Plans**: TBD
+**Plans**: 3 plans (2 implementation waves over 3 sequential waves due to shared `timescale.py`)
+
+- [ ] 30-01-PLAN.md — Foundation: `TimescaleError` exception + `TSDB_SHOW_CHUNKS` SQL constant + new `tests/test_timescale.py` scaffold (sync/async skip-fixtures + Wave 0 stubs) [wave 1]
+- [ ] 30-02-PLAN.md — `show_chunks` + `drop_chunks` (sync + async): type-driven `%s` casts, oldest-first list, both-None ValueError, capture-before-drop dry_run [wave 2]
+- [ ] 30-03-PLAN.md — `add_dimension` + `add_reorder_policy` (sync + async): by_hash/by_range, mutual-excl ValueError, dup-dim→TimescaleError, license-tolerant reorder test, full parity + coverage gate [wave 3]
 
 **UI hint**: no
 
@@ -197,7 +201,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete | 2026-06-20 |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete | 2026-06-21 |
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
-| 30. Chunk Management & Partitioning | v0.8.0 | 0/? | Not started | - |
+| 30. Chunk Management & Partitioning | v0.8.0 | 0/3 | Planned | - |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 0/? | Not started | - |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 0/? | Not started | - |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |
