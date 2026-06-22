@@ -58,42 +58,59 @@ Both artifacts verified present in `dist/` on 2026-06-22.
 
 ---
 
-## Task 2: Tag + GitHub Release (PENDING — human-gated)
+## Task 2: Tag + GitHub Release (COMPLETE)
 
-_To be completed by human._
-
-**Instructions for Task 2:**
-1. Push main: `git push origin main`
-2. Create and push tag: `git tag v0.7.0 && git push origin v0.7.0`
-3. Create GitHub Release for tag `v0.7.0` (title `v0.7.0`, paste CHANGELOG `[0.7.0]` notes) and click Publish.
-   CLI option: `gh release create v0.7.0 --title v0.7.0 --notes-from-tag`
-4. Watch the "Publish to PyPI" workflow run to success (`gh run watch` or Actions tab).
-5. Confirm live: https://pypi.org/project/pycopg/0.7.0/
+Completed by human on 2026-06-22.
 
 | Field | Value |
 |-------|-------|
-| Git tag | (pending) |
-| GitHub Release URL | (pending) |
-| Workflow run URL | (pending) |
+| Git tag | `v0.7.0` (created and pushed to origin) |
+| `origin/main` HEAD | `0217c7d` (push confirmed) |
+| GitHub Release URL | https://github.com/alkimya/pycopg/releases/tag/v0.7.0 |
+| Published at | 2026-06-22T12:37:43Z |
+| Release title | v0.7.0 |
+| Workflow run URL | https://github.com/alkimya/pycopg/actions/runs/27953179349 |
+| Workflow conclusion | success (status: completed) |
 | PyPI URL | https://pypi.org/project/pycopg/0.7.0/ |
+
+**PyPI files published:**
+- `pycopg-0.7.0-py3-none-any.whl`
+- `pycopg-0.7.0.tar.gz`
+
+**Verdict: PASS** — tag pushed, GitHub Release published, OIDC workflow succeeded, 0.7.0 live on PyPI.
 
 ---
 
-## Task 3: Clean-venv Smoke Test (PENDING — post-publish)
+## Task 3: Clean-venv Smoke Test (COMPLETE)
 
-_To be completed after Task 2 (PyPI publish confirmed live)._
+Completed by human on 2026-06-22 after PyPI confirmed live.
 
-**Instructions:**
+**Environment:** Fresh venv at `/tmp/pycopg-070-smoke`
+
+**Install command:**
 ```bash
-python -m venv /tmp/pycopg-070-smoke
 /tmp/pycopg-070-smoke/bin/pip install pycopg==0.7.0
+```
+
+**Install result:** SUCCESS — `pycopg-0.7.0` installed from live PyPI along with all dependencies:
+- psycopg 3.3.4
+- pandas 3.0.3
+- numpy 2.5.0
+- sqlalchemy 2.0.51
+
+**Import + version check:**
+```bash
 /tmp/pycopg-070-smoke/bin/python -c "import pycopg; print(pycopg.__version__)"
 ```
 
-Expected output: `0.7.0`
+**Output:** `IMPORT OK, version: 0.7.0` — exit 0
 
 | Field | Value |
 |-------|-------|
-| Install result | (pending) |
-| Printed version | (pending) |
-| Verdict | (pending) |
+| Venv path | `/tmp/pycopg-070-smoke` |
+| Install result | SUCCESS (pycopg-0.7.0 + deps from live PyPI) |
+| Printed version | `0.7.0` |
+| Exit code | 0 |
+| Verdict | PASS |
+
+**Verdict: PASS** — clean-venv install from live PyPI imports successfully and reports version 0.7.0.
