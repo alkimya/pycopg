@@ -45,7 +45,7 @@ Additive watermark-based incremental loading on the v0.5.0 ETL runner. The `pipe
 
 ### Release
 
-- [ ] **REL-07**: v0.7.0 released — version bumped in both sources, CHANGELOG `[0.7.0]` (Breaking/Added) finalized, MIGRATION v0.6→v0.7 complete, Sphinx `-W` clean, coverage ratchet ≥94 held, `-W error::DeprecationWarning` green, tagged + published to PyPI via OIDC (human-gated), clean-venv import smoke confirmed
+- [x] **REL-07**: v0.7.0 released — version bumped in both sources, CHANGELOG `[0.7.0]` (Breaking/Added) finalized, MIGRATION v0.6→v0.7 complete, Sphinx `-W` clean, coverage ratchet ≥94 held, `-W error::DeprecationWarning` green, tagged + published to PyPI via OIDC (human-gated), clean-venv import smoke confirmed
 
 ## Future Requirements
 
@@ -97,7 +97,7 @@ Which phases cover which requirements. Filled during roadmap creation.
 | ETL-INC-10 | Phase 27 | Complete |
 | ETL-INC-11 | Phase 28 | Complete |
 | ETL-INC-12 | Phase 28 | Complete |
-| REL-07 | Phase 29 | Pending |
+| REL-07 | Phase 29 | Complete |
 
 **Coverage:**
 

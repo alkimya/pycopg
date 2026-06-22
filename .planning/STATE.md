@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.7.0
 milestone_name: Alias Removal + Incremental ETL
-status: ready to execute
-stopped_at: Planned Phase 29 (3 plans)
-last_updated: "2026-06-22T11:34:47.683Z"
-last_activity: 2026-06-22 -- Phase 29 planned (3 plans, REL-07; plan-checker PASSED)
+status: executing
+stopped_at: Completed 28-03-PLAN.md
+last_updated: "2026-06-22T12:22:07.915Z"
+last_activity: 2026-06-22 -- Phase 29 execution started
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
   percent: 80
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-19)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 29 — release-v0-7-0 (final phase of v0.7.0)
+**Current focus:** Phase 29 — release-v0-7-0
 
 ## Current Position
 
-Phase: 29 (release-v0-7-0) — PLANNED
-Plan: 0 of 3 (plans written, plan-checker PASSED)
+Phase: 29 (release-v0-7-0) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-22 -- Phase 29 planned (3 plans, REL-07)
+Last activity: 2026-06-22 -- Phase 29 execution started
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 85%
 
 ## Performance Metrics
 
@@ -48,7 +48,7 @@ Progress: [████████░░] 80%
 | 26. Incremental ETL — Pure Layer | 1 | 1 | ✓ Complete |
 | 27. Incremental ETL — Run-Log Integration | 1 | 1 | ✓ Complete |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | 3 | 3 | ✓ Complete |
-| 29. Release v0.7.0 | 3 | 0 | ◆ Planned |
+| 29. Release v0.7.0 | 3 | 1 | ◆ Executing |
 | Phase 25-alias-removal P01 | 2 | 2 tasks | 1 files |
 | Phase 25-alias-removal P02 | 2 | 2 tasks | 1 files |
 | Phase 25-alias-removal P04 | 2 | 2 tasks | 3 files |
@@ -57,6 +57,7 @@ Progress: [████████░░] 80%
 | Phase 27 P01 | 18min | 3 tasks | 3 files |
 | Phase 28 P01 | 13min | 3 tasks | 2 files |
 | Phase 28 P02 | 26min | 3 tasks | 2 files |
+| Phase 29 P01 | 92s | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -105,7 +106,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-06-21T17:48:00Z
-Stopped at: Completed 28-03-PLAN.md
+Last session: 2026-06-22T12:22:07.905Z
+Stopped at: Completed 29-01-PLAN.md
 Resume file: None
-Next action: Phase 29 — Release v0.7.0 (version bump, CHANGELOG, MIGRATION, PyPI)
+Next action: Phase 29 — Plan 02 (quality gates: cov/interrogate/sphinx-W/deprecation)
