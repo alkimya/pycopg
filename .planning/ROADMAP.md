@@ -74,7 +74,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 - [x] **Phase 26: Incremental ETL — Pure Layer** — `Pipeline.incremental_column` field with construction-time guards, pure SQL builders for watermark filtering, encode/decode functions (completed 2026-06-20)
 - [x] **Phase 27: Incremental ETL — Run-Log Integration** — `_read_watermark` helper, success-only `_end_run(watermark=)` path, JSONB round-trip verification, no-advance-on-failure invariant (completed 2026-06-20)
 - [x] **Phase 28: Incremental ETL — Extract, RunResult & Async Parity** — wire incremental filter into `run()` extract, `RunResult.watermark_used/recorded`, `dry_run` support, `AsyncETLAccessor` mirror, `TestEtlParity`, incremental docs (completed 2026-06-21)
-- [ ] **Phase 29: Release v0.7.0** — CHANGELOG finalized, MIGRATION v0.6→v0.7 complete, version bump, Sphinx `-W` clean, gates, tag + PyPI publish
+- [x] **Phase 29: Release v0.7.0** — CHANGELOG finalized, MIGRATION v0.6→v0.7 complete, version bump, Sphinx `-W` clean, gates, tag + PyPI publish (completed 2026-06-22)
 
 ## Phase Details
 
@@ -186,7 +186,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 3** *(human-gated; blocked on Wave 2)*
 
-- [ ] 29-03-PLAN.md — Commit + uv build, tag v0.7.0 + GitHub Release (OIDC publish), clean-venv pip install smoke (wave 3)
+- [x] 29-03-PLAN.md — Commit + uv build, tag v0.7.0 + GitHub Release (OIDC publish), clean-venv pip install smoke (wave 3)
 
 ## Progress
 
@@ -196,7 +196,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 26. Incremental ETL — Pure Layer | v0.7.0 | 1/1 | Complete    | 2026-06-20 |
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete   | 2026-06-20 |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete   | 2026-06-21 |
-| 29. Release v0.7.0 | v0.7.0 | 2/3 | In Progress|  |
+| 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete   | 2026-06-22 |
 | 21. Infrastructure & Timescale Accessor | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 22. Admin, Maint & Backup Accessors | v0.6.0 | 3/3 | Complete    | 2026-06-17 |
 | 23. Schema Accessor & Spatial Relocation | v0.6.0 | 4/4 | Complete    | 2026-06-17 |
