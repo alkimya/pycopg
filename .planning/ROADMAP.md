@@ -82,7 +82,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 ### v0.8.0 TimescaleDB avancé (Phases 30-33)
 
-- [ ] **Phase 30: Chunk Management & Partitioning** - Deliver `show_chunks`, `drop_chunks`, `add_dimension`, `add_reorder_policy` on both sync and async accessors using the pure-builder pattern with no new connection seams
+- [x] **Phase 30: Chunk Management & Partitioning** - Deliver `show_chunks`, `drop_chunks`, `add_dimension`, `add_reorder_policy` on both sync and async accessors using the pure-builder pattern with no new connection seams — completed 2026-06-22
 - [ ] **Phase 31: Continuous Aggregate Lifecycle** - Deliver the full `create_continuous_aggregate` + `refresh_continuous_aggregate` + `add_continuous_aggregate_policy` lifecycle on both accessors using the `connect(autocommit=True)` seam
 - [ ] **Phase 32: Query Helpers & Parity Verification** - Deliver `time_bucket` and `time_bucket_gapfill` query helpers with DataFrame/rows output, plus full TS-ADV-10 sync/async parity confirmation across all 9 new methods
 - [ ] **Phase 33: Release v0.8.0** - Docs, CHANGELOG, version bump, 4 quality gates, human-gated tag and PyPI publish
@@ -112,11 +112,11 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 30-02-PLAN.md — `show_chunks` + `drop_chunks` (sync + async): type-driven `%s` casts, oldest-first list, both-None ValueError, capture-before-drop dry_run [wave 2]
+- [x] 30-02-PLAN.md — `show_chunks` + `drop_chunks` (sync + async): type-driven `%s` casts, oldest-first list, both-None ValueError, capture-before-drop dry_run [wave 2] — completed 2026-06-22
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 30-03-PLAN.md — `add_dimension` + `add_reorder_policy` (sync + async): by_hash/by_range, mutual-excl ValueError, dup-dim→TimescaleError, license-tolerant reorder test, full parity + coverage gate [wave 3]
+- [x] 30-03-PLAN.md — `add_dimension` + `add_reorder_policy` (sync + async): by_hash/by_range, mutual-excl ValueError, dup-dim→TimescaleError, license-tolerant reorder test, full parity + coverage gate [wave 3] — completed 2026-06-22
 
 **UI hint**: no
 
@@ -208,7 +208,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 27. Incremental ETL — Run-Log Integration | v0.7.0 | 1/1 | Complete | 2026-06-20 |
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete | 2026-06-21 |
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
-| 30. Chunk Management & Partitioning | v0.8.0 | 2/3 | In Progress|  |
+| 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 0/? | Not started | - |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 0/? | Not started | - |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |

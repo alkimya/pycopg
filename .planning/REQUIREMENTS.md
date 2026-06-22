@@ -17,8 +17,8 @@ dependencies. Coverage ratchet held ≥94% (baseline 95.11%).
 
 + [ ] **TS-ADV-04**: User can list a hypertable's chunks via `db.timescale.show_chunks(table, older_than=None, newer_than=None, schema="public")`, returning `list[str]` of chunk names
 + [ ] **TS-ADV-05**: User can drop chunks via `db.timescale.drop_chunks(table, older_than=None, newer_than=None, schema="public", dry_run=False)`, returning the dropped chunk names; **safety: raises `ValueError` when both bounds are None** (prevents full-table wipe); **`dry_run=True` previews via `show_chunks` without deleting**; docstring marks the operation DESTRUCTIVE/IRREVERSIBLE
-+ [ ] **TS-ADV-08**: User can add a partitioning dimension via `db.timescale.add_dimension(table, column, partition_type="hash", number_partitions=None, chunk_interval=None, schema="public", if_not_exists=True)` using the TimescaleDB 2.x `by_hash`/`by_range` form; construction-time `ValueError` enforces the hash↔number_partitions / range↔chunk_interval mutual-exclusivity
-+ [ ] **TS-ADV-09**: User can add a chunk-reorder background policy via `db.timescale.add_reorder_policy(table, index_name, schema="public", if_not_exists=True)`
++ [x] **TS-ADV-08**: User can add a partitioning dimension via `db.timescale.add_dimension(table, column, partition_type="hash", number_partitions=None, chunk_interval=None, schema="public", if_not_exists=True)` using the TimescaleDB 2.x `by_hash`/`by_range` form; construction-time `ValueError` enforces the hash↔number_partitions / range↔chunk_interval mutual-exclusivity
++ [x] **TS-ADV-09**: User can add a chunk-reorder background policy via `db.timescale.add_reorder_policy(table, index_name, schema="public", if_not_exists=True)`
 
 ### Continuous Aggregates (full lifecycle)
 
@@ -76,8 +76,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ----------- | ----- | ------ |
 | TS-ADV-04 | Phase 30 | Complete |
 | TS-ADV-05 | Phase 30 | Complete |
-| TS-ADV-08 | Phase 30 | Pending |
-| TS-ADV-09 | Phase 30 | Pending |
+| TS-ADV-08 | Phase 30 | Complete |
+| TS-ADV-09 | Phase 30 | Complete |
 | TS-ADV-01 | Phase 31 | Pending |
 | TS-ADV-02 | Phase 31 | Pending |
 | TS-ADV-03 | Phase 31 | Pending |
@@ -94,4 +94,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-22*
-*Last updated: 2026-06-22 — traceability filled by roadmapper (Phases 30-33)*
+*Last updated: 2026-06-22 — Phase 30 complete; TS-ADV-04/05/08/09 marked complete*

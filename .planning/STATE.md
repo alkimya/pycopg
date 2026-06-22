@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
 status: executing
-stopped_at: Phase 30 Plan 02 complete — show_chunks + drop_chunks (sync + async, 24 tests green)
-last_updated: "2026-06-22T17:00:00Z"
-last_activity: 2026-06-22 -- Phase 30 Plan 02 executed (Wave 2)
+stopped_at: Phase 30 complete — all 3 plans done (show_chunks, drop_chunks, add_dimension, add_reorder_policy; 46 tests green; TS-ADV-10 parity confirmed)
+last_updated: "2026-06-22T19:00:00Z"
+last_activity: 2026-06-22 -- Phase 30 Plan 03 executed (Wave 3 — FINAL plan of phase)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 17
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 30 (chunk-management-partitioning) — EXECUTING
-Plan: 3 of 3 (next)
-Status: Plan 02 complete; ready for Plan 03 (add_dimension + add_reorder_policy)
-Last activity: 2026-06-22 -- Phase 30 Plan 02 executed (Wave 2)
+Phase: 30 (chunk-management-partitioning) — COMPLETE
+Plan: 3 of 3 (DONE — phase complete)
+Status: All 3 plans executed. Phase 30 complete. Next: Phase 31 (Continuous Aggregate Lifecycle)
+Last activity: 2026-06-22 -- Phase 30 Plan 03 executed (Wave 3 — FINAL)
 
 ## Performance Metrics
 
@@ -43,12 +43,13 @@ Last activity: 2026-06-22 -- Phase 30 Plan 02 executed (Wave 2)
 
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
-| 30. Chunk Management & Partitioning | 3 | 2 | In progress (Plan 03 remaining) |
+| 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
 | 31. Continuous Aggregate Lifecycle | ? | 0 | Not started |
 | 32. Query Helpers & Parity Verification | ? | 0 | Not started |
 | 33. Release v0.8.0 | ? | 0 | Not started |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
+| Phase 30 P03 | 1080 | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -105,11 +106,11 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-22T17:00:00Z
-Stopped at: Phase 30 Plan 02 complete (show_chunks + drop_chunks, 24 tests green, parity clean)
-Resume file: .planning/phases/30-chunk-management-partitioning/30-03-PLAN.md
-Next action: Execute Phase 30 Plan 03 — add_dimension + add_reorder_policy
+Last session: 2026-06-22T19:00:00Z
+Stopped at: Phase 30 complete (all 3 plans, 46 tests green, TS-ADV-10 confirmed, coverage 94.96%)
+Resume file: None (phase complete — start Phase 31 planning)
+Next action: /gsd-discuss-phase 31 (Continuous Aggregate Lifecycle)
 
 ## Operator Next Steps
 
-- Execute Phase 30 Plan 03 with `/gsd-execute-phase 30`
+- Plan Phase 31 with `/gsd-discuss-phase 31`
