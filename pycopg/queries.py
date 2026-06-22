@@ -259,7 +259,7 @@ HYPERTABLE_INFO = """
 # chunk names is intentionally AVOIDED (_hyper_N_10 sorts before _hyper_N_2).
 TSDB_SHOW_CHUNKS = (
     "SELECT c.chunk_schema || '.' || c.chunk_name AS chunk_name "
-    "FROM show_chunks('{{schema}}.{{table}}'{{older_arg}}{{newer_arg}}) AS sc "
+    "FROM show_chunks('{schema}.{table}'{older_arg}{newer_arg}) AS sc "
     "JOIN timescaledb_information.chunks c "
     "  ON format('%%I.%%I', c.chunk_schema, c.chunk_name)::regclass = sc "
     "ORDER BY c.range_start ASC"
@@ -269,7 +269,7 @@ TSDB_SHOW_CHUNKS = (
 # been captured via TSDB_SHOW_CHUNKS.  The schema/table and bound fragments
 # are interpolated identically; runtime VALUES bind as %s / %s::interval.
 TSDB_DROP_CHUNKS = (
-    "SELECT drop_chunks('{{schema}}.{{table}}'{{older_arg}}{{newer_arg}})"
+    "SELECT drop_chunks('{schema}.{table}'{older_arg}{newer_arg})"
 )
 
 # =============================================================================
