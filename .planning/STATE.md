@@ -2,9 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: planning
-last_updated: "2026-06-22"
-last_activity: 2026-06-22
+status: Roadmap created — ready for `/gsd-plan-phase 30`
+stopped_at: Phase 30 context gathered
+last_updated: "2026-06-22T15:36:01.272Z"
+last_activity: 2026-06-22 — Roadmap created for v0.8.0
 progress:
   total_phases: 4
   completed_phases: 0
@@ -94,9 +95,9 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-22 — roadmap for v0.8.0 created (Phases 30-33, 11/11 requirements mapped)
-Stopped at: ROADMAP.md + STATE.md written; REQUIREMENTS.md traceability filled
-Resume file: None
+Last session: 2026-06-22T15:36:01.265Z
+Stopped at: Phase 30 context gathered
+Resume file: .planning/phases/30-chunk-management-partitioning/30-CONTEXT.md
 Next action: Plan Phase 30 — `/gsd-plan-phase 30`
 
 ## Operator Next Steps
