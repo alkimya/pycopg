@@ -25,9 +25,24 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Next Milestone Goals: v0.8.0 TimescaleDB avancé *(candidate — not yet started)*
+## Current Milestone: v0.8.0 TimescaleDB avancé *(started 2026-06-22)*
 
-**Goal (provisoire, à confirmer au `/gsd-new-milestone`):** livrer les fonctionnalités phares time-series qui manquent au socle actuel, posées proprement dans le `db.timescale.*` créé en v0.6.0 : **continuous aggregates**, `time_bucket` / `time_bucket_gapfill`, `show_chunks` / `drop_chunks`, `add_dimension`, `reorder_policy`. Sur le pattern builder-pur + accessor déjà éprouvé (spatial, etl, accessors), parité sync/async obligatoire (Core Value). Phase numbering continues from Phase 29 (v0.8.0 démarre à la Phase 30).
+**Goal:** Livrer les fonctionnalités phares time-series qui manquent au socle actuel, posées proprement dans le `db.timescale.*` créé en v0.6.0 (qui n'a aujourd'hui que hypertable/compression/rétention) : **continuous aggregates** (cycle complet create + refresh manuel + policy auto-refresh), `time_bucket` / `time_bucket_gapfill` (helpers de requête), `show_chunks` / `drop_chunks`, `add_dimension`, `reorder_policy`. Sur le pattern builder-pur + accessor déjà éprouvé (spatial, etl, timescale-basics), parité sync/async obligatoire (Core Value), cible TimescaleDB 2.x. Phase numbering continues from Phase 29 (v0.8.0 démarre à la Phase 30).
+
+**Target features (sous `db.timescale.*` / `async_db.timescale.*`):**
+- **Continuous aggregates** — `create` + `refresh` manuel + policy auto-refresh (cycle complet, groupés)
+- **`time_bucket` / `time_bucket_gapfill`** — helpers de requête (builders SQL purs → DataFrame/rows, pattern spatial)
+- **`show_chunks` / `drop_chunks`** — inspection + gestion des chunks
+- **`add_dimension`** — partitionnement multi-dimensionnel des hypertables
+- **`reorder_policy`** — policy de réordonnancement des chunks
+
+**Locked scope decisions (cadrage 2026-06-22):**
+- **Cible TimescaleDB 2.x uniquement** — continuous aggregates matérialisées modernes, signatures `add_*_policy` actuelles ; 2.x documenté comme plancher (matche l'env de test local).
+- **Pattern builder-pur + accessor** — comme spatial/etl/timescale-basics : `validate_identifiers` d'abord, valeurs utilisateur en `%s`, builders purs `(sql, params)`, accessor lazy, parité sync/async vérifiée par `test_accessor_parity` (Core Value).
+- **continuous aggregates = cycle complet** — `create_continuous_aggregate` + `refresh_continuous_aggregate` (manuel) + `add_continuous_aggregate_policy` (auto-refresh) livrés ensemble.
+- **`time_bucket`/`time_bucket_gapfill` = helpers de requête**, pas du DDL/management : builders SQL purs renvoyant DataFrame/rows (et non `db.execute()` brut).
+- **Fence : TimescaleDB-only** — les follow-ups ETL incrémental (`initial_watermark` F01, F02–F05) restent reportés à un milestone ETL ultérieur (une famille de features par milestone).
+- **Zéro nouvelle dépendance runtime** ; cliquet de couverture maintenu ≥94% (baseline 95.11% depuis v0.7.0).
 
 Suite validée après v0.8.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : **v0.9.0** CRUD ergonomique + introspection → **v1.0.0** spatial v2 + stabilisation API.
 
@@ -130,7 +145,7 @@ Suite validée après v0.8.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre valid
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-*None — v0.7.0 shipped; next milestone (v0.8.0 TimescaleDB avancé) scope is defined at `/gsd-new-milestone`.*
+v0.8.0 "TimescaleDB avancé" — full REQ-ID list in REQUIREMENTS.md. Continuous aggregates (full lifecycle), `time_bucket`/`time_bucket_gapfill` query helpers, `show_chunks`/`drop_chunks`, `add_dimension`, `reorder_policy` — all under `db.timescale.*` at sync/async parity, TimescaleDB 2.x.
 
 ### Out of Scope
 
@@ -283,5 +298,7 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-19 — milestone v0.7.0 "Alias Removal + Incremental ETL" started via `/gsd-new-milestone`. Goal: solder la dette de dépréciation v0.6.0 (hard-remove des 56 alias plats — ALIAS-RM-01) + livrer l'ETL incrémental (watermarks CDC via `pipeline_runs.watermark JSONB` réservée en v0.5.0 — ETL-INC-01). Scope locked au cadrage : watermark déclaratif via `incremental_column` (pas de callback), high-water mark = `max(col)` du batch, sources SQL enveloppées (subquery + WHERE), premier run = full load puis record, incrémental réservé à `load_mode` ∈ {append, upsert} (`replace` interdit), suppression d'alias = hard remove + MIGRATION v0.6→v0.7 + note Breaking. Active set au scope v0.7.0. Phase numbering continues from Phase 25. Suite validée (FUTURE-MILESTONES) : v0.8.0 TSDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2.*
 
 *Last updated: 2026-06-17 — Phase 21 "Infrastructure & Timescale Accessor" complete (3/3 plans, verification PASSED 4/4). Le pattern alias+accessor est désormais établi de bout en bout et prouvé : `pycopg/aliases.py` (`@deprecated_alias` — `stacklevel=2`, branche `iscoroutinefunction`, sans eval/exec, réutilisé tel quel par les Phases 22-24) + `pycopg/timescale.py` (`TimescaleAccessor`/`AsyncTimescaleAccessor`, 6 méthodes déplacées verbatim avec `self.`→`self._db.`). `db.timescale.*` / `async_db.timescale.*` câblés en propriétés lazy (cache `_timescale`, miroir de `_spatial`/`_etl`) ; les 6 méthodes plates sync + 6 async sont des stubs `@deprecated_alias` qui warn + délèguent (zéro breaking change). Registre data-driven `ACCESSOR_PAIRS` + `test_accessor_parity` (sync↔async), `test_timescale_aliases.py` (warn+delegate par alias), 27 call-sites migrés. Gates : suite complète 994 passants (2 échecs DB pré-existants connus), `-W error::DeprecationWarning` vert (295), coverage 94.46% (ratchet ≥94 tenu). Revue de code : 0 critique, 4 warnings advisory (notamment WR-01 : signatures `(*args, **kwargs)` dégradant le typage statique sur ce package `py.typed` ; WR-02 : README/docs documentent encore l'API plate dépréciée). REORG-01/02/03/04 + TS-01 validés. Next : Phase 22 (Admin, Maint & Backup accessors).*
+
+*Last updated: 2026-06-22 — milestone v0.8.0 "TimescaleDB avancé" started via `/gsd-new-milestone`. Goal: livrer les features time-series phares manquantes sous `db.timescale.*` (qui n'a aujourd'hui que hypertable/compression/rétention) — continuous aggregates (cycle complet create+refresh+policy), `time_bucket`/`time_bucket_gapfill` (helpers de requête, builders SQL purs), `show_chunks`/`drop_chunks`, `add_dimension`, `reorder_policy`. Scope locked au cadrage (2026-06-22) : cible TimescaleDB 2.x uniquement, pattern builder-pur + accessor lazy (validate_identifiers + `%s`), parité sync/async obligatoire, continuous aggregates en cycle complet, time_bucket = helpers de requête (pas DDL), fence TimescaleDB-only (ETL follow-ups F01-F05 reportés à un milestone ETL ultérieur), zéro nouvelle dépendance. Active set au scope v0.8.0. Phase numbering continues from Phase 29 (v0.8.0 démarre à la Phase 30). Suite validée (FUTURE-MILESTONES) : v0.9.0 CRUD → v1.0.0 spatial v2.*
 
 *Last updated: 2026-06-22 — milestone v0.7.0 "Alias Removal + Incremental ETL" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.7.0 (incremental ETL + accessor-only surface); Current State → v0.7.0 SHIPPED, v0.6.0 demoted to "Previously shipped"; all 17 v0.7.0 requirements (ALIAS-RM-01..04, ETL-INC-01..12, REL-07) moved to Validated; Active emptied; "Current Milestone" reframed as "Next Milestone Goals" (v0.8.0 TimescaleDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2), v0.7.0 goal/decisions collapsed to historical reference; Context refreshed (95.11% coverage, ~13,327 lib + ~15,690 test LOC, WR-01/IN-02 resolved by removal, incremental follow-ups F01-F05 deferred); 8 v0.7.0 Key Decisions outcomes added + WR-01 flipped ⚠️→✓ Resolved + watermark-JSONB Pending→✓ Good. ROADMAP collapsed + REQUIREMENTS archived to `milestones/v0.7.0-*`. Pre-flight: open-artifact audit clean, 17/17 requirements complete. Next: `/gsd-new-milestone` (v0.8.0).*

@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.7.0
-milestone_name: Alias Removal + Incremental ETL
-status: Awaiting next milestone
-stopped_at: Completed 29-01-PLAN.md
-last_updated: "2026-06-22T13:14:47.931Z"
-last_activity: 2026-06-22 — Milestone v0.7.0 completed and archived
+milestone: v0.8.0
+milestone_name: TimescaleDB avancé
+status: planning
+last_updated: "2026-06-22T13:41:04.408Z"
+last_activity: 2026-06-22
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 13
-  completed_plans: 13
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: Milestone v0.7.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-22 — Milestone v0.7.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-22 — Milestone v0.8.0 started
 
 ## Performance Metrics
 
