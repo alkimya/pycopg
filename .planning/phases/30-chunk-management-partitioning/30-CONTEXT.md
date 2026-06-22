@@ -68,9 +68,17 @@ management** (that's Phase 31's CAGG work). All use the standard `self._db.execu
   range↔`chunk_interval` mutual exclusivity (`partition_type="hash"` requires `number_partitions`,
   forbids `chunk_interval`; `partition_type="range"` requires `chunk_interval`, forbids
   `number_partitions`) — raised before any DB round-trip.
-- **D-08:** On a **non-empty hypertable**, `add_dimension` surfaces a **clear pycopg-domain error**
-  (REQ TS-ADV-08 success criterion). Approach: **attempt the DDL, catch psycopg's failure,
-  re-raise as `TimescaleError`** — no extra pre-check round-trip.
+- **D-08 [RESHAPED 2026-06-22 — live-DB contradiction, user-confirmed A1]:** The original premise
+  ("on a non-empty hypertable `add_dimension` raises") is **FALSE on TSDB 2.28** — the modern
+  `by_hash`/`by_range` builder form **succeeds on a non-empty hypertable** (live-verified). There is
+  **no non-empty error to catch**. The reliably-catchable DB error is **duplicate-dimension**
+  (`column "..." is already a dimension`, SQLSTATE `TS160`). **Resolution (user-confirmed):**
+  `add_dimension` keeps the **attempt-DDL → catch psycopg failure → re-raise as `TimescaleError`**
+  shape, but the wrapped condition is the **duplicate-dimension** error, not non-empty. No extra
+  pre-check round-trip. Note: with `if_not_exists=True` a duplicate dimension does **not** error
+  (returns a NOTICE), so the `TimescaleError` path is exercised with `if_not_exists=False`. Catch
+  broadly (psycopg surfaces `TS160` as a generic `DatabaseError`/`OperationalError` subclass) and
+  re-wrap. See 30-RESEARCH.md "Finding 1" for live output.
 - **D-09:** Add **`class TimescaleError(PycopgError)`** to `pycopg/exceptions.py` — a **milestone-wide**
   TimescaleDB-domain error intended for reuse across Phases 31–32 (cagg lifecycle, etc.), not a
   single-use `HypertableNotEmpty`. This means **Phase 30 touches a third file**: `exceptions.py`
@@ -88,6 +96,15 @@ management** (that's Phase 31's CAGG work). All use the standard `self._db.execu
   SQL without a live DB; **live-DB integration tests** (gated by the `ts_db`/async-equivalent skip
   fixture) confirm real chunk listing/dropping, dimension registration, and the reorder-policy job
   row. `asyncio_mode = "auto"` is already set, so async tests need no per-test marker.
+- **D-12 [TS-ADV-09 verification, user-confirmed A2 2026-06-22 — Apache-license constraint]:** Local
+  and CI TimescaleDB report `timescaledb.license = apache`, under which `add_reorder_policy` raises
+  **`psycopg.errors.FeatureNotSupported`** (SQLSTATE `0A000`) — same as the existing v0.6.0
+  retention/compression policy tests. **Resolution:** the **mock SQL-shape unit test is the
+  authoritative assertion** for the generated `add_reorder_policy` SQL. The **live integration test
+  wraps the call in `try/except FeatureNotSupported: pass`** (mirror `tests/test_database_integration.py`
+  lines ~866–878). The `timescaledb_information.jobs` job-row assertion + `CALL run_job(job_id)` are
+  written **defensively** so they exercise only on a Community/`timescale`-licensed build and stay
+  green (skipped/tolerated) locally + CI. No infra change this phase. See 30-RESEARCH.md "Finding 2".
 
 ### Claude's Discretion
 - Exact `queries.py` constant names (research SUMMARY suggests `TSDB_SHOW_CHUNKS`,
