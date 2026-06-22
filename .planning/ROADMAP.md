@@ -135,7 +135,19 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 3. User can call `db.timescale.add_continuous_aggregate_policy("metrics_hourly", start_offset="7 days", end_offset="1 hour")` and confirm the policy job row exists in `timescaledb_information.jobs`; calling with `start_offset` interval shorter than `end_offset` raises `ValueError`; `CALL run_job(job_id)` executes without error
 4. All three methods have async counterparts with the correct `await` on the `has_extension` guard (no silent guard bypass); verified by `test_accessor_parity`
 
-**Plans**: TBD
+**Plans**: 3 plans (3 sequential waves — shared `pycopg/timescale.py` + `tests/test_timescale.py` force sequential ordering, one method end-to-end per plan)
+
+**Wave 1**
+
+- [ ] 31-01-PLAN.md — `create_continuous_aggregate` (sync + async) via the `connect(autocommit=True)` seam: `time_bucket(` ValueError, `materialized_only`/`with_no_data` flags, mock-authoritative + license-tolerant tests [wave 1]
+
+**Wave 2** *(blocked on Wave 1 — shared files)*
+
+- [ ] 31-02-PLAN.md — `refresh_continuous_aggregate` (sync + async) via the autocommit seam: `datetime|None`-only windows (str rejected, deliberate divergence from `drop_chunks`), both-None=full refresh, session-isolation proof [wave 2]
+
+**Wave 3** *(blocked on Wave 2 — shared files)*
+
+- [ ] 31-03-PLAN.md — `add_continuous_aggregate_policy` (sync + async) via plain `execute` (D-01) + `_check_offset_ordering` same-unit guard, `NULL`-for-None offsets, license-tolerant jobs/run_job test, full 3-method `test_accessor_parity` gate [wave 3]
 
 **UI hint**: no
 
@@ -209,6 +221,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete | 2026-06-21 |
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
-| 31. Continuous Aggregate Lifecycle | v0.8.0 | 0/? | Not started | - |
+| 31. Continuous Aggregate Lifecycle | v0.8.0 | 0/3 | Planned | - |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 0/? | Not started | - |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |
