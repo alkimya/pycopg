@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.7.0] - TBD
+## [0.7.0] - 2026-06-22
 
 ### Breaking
 
@@ -19,6 +19,27 @@ are permanently removed. Calling any removed flat name (e.g. `db.create_hypertab
 See [MIGRATION.md](MIGRATION.md#migration-guide-v060--v070) for the complete flat-name →
 accessor-path table covering all 56 removed names
 (timescale 6 / admin 11 / backup 4 / maint 6 / schema 27 / spatial 2).
+
+### Added
+
+- **Incremental ETL via watermark-based loading** — `Pipeline` now accepts an optional
+  `incremental_column` field. When set, `load_mode` must be `"upsert"` (append and replace
+  are rejected at construction with `ValueError`). Each run extracts only rows where
+  `incremental_column > <last watermark>`, using `max(incremental_column)` from the raw
+  extracted batch (before transforms) as the new high-water mark.
+- First run (no prior watermark) performs a full load then records `max(incremental_column)`.
+  Failed loads do not advance the watermark; empty batches preserve it unchanged.
+- Watermark persisted as a typed JSONB envelope in the already-reserved
+  `pipeline_runs.watermark` column — zero new runtime dependencies.
+- `RunResult.watermark_used` and `RunResult.watermark_recorded` fields surface the prior and
+  new watermarks for each run (also visible via `history()` and `last_run()`).
+- `dry_run=True` previews the incremental filter and the new `max(incremental_column)` without
+  writing a run row or advancing the watermark.
+- Full sync/async parity: `ETLAccessor` and `AsyncETLAccessor` implement identical incremental
+  behaviour.
+
+See [docs/etl.md](docs/etl.md) for the full incremental loading guide including worked
+examples, watermark-column requirements, and backfill/reset instructions.
 
 ## [0.6.0] - 2026-06-19
 
@@ -209,7 +230,8 @@ accessor-path table covering all 56 removed names
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/alkimya/pycopg/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alkimya/pycopg/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/alkimya/pycopg/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alkimya/pycopg/compare/v0.3.1...v0.4.0
