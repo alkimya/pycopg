@@ -1,343 +1,372 @@
 # Pitfalls Research
 
-**Domain:** Watermark-based incremental ETL added to pycopg v0.7.0 (`Pipeline.incremental_column`, `pipeline_runs.watermark JSONB`, append/upsert only)
-**Researched:** 2026-06-19
-**Confidence:** HIGH (pitfalls derived from direct code reading of `etl.py` and `queries.py`, cross-checked against the locked scope in PROJECT.md)
+**Domain:** TimescaleDB 2.x advanced feature wrapping in a psycopg 3 high-level Python library (pycopg v0.8.0)
+**Researched:** 2026-06-22
+**Confidence:** HIGH (MEDIUM for a few version-specific boundary claims noted inline)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Inclusive vs. Exclusive Boundary — The `>` vs `>=` Trade-Off
+### Pitfall 1: CREATE MATERIALIZED VIEW (Continuous Aggregate) Cannot Run Inside a Transaction Block
 
 **What goes wrong:**
 
-Two symmetrical failure modes sit on opposite sides of the same boundary operator.
+`CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)` fails with:
 
-Using `>=` re-loads the watermark row on every subsequent run. If the previous run's high-water mark was `2024-01-01 12:00:00`, the next run's filter `WHERE updated_at >= '2024-01-01 12:00:00'` re-extracts every row that matches that exact timestamp. With `load_mode="append"` this produces duplicates immediately. With `load_mode="upsert"` no duplicate rows are written, but the boundary row is re-processed in every run — an unnecessary at-least-once re-send that can cause side effects in transforms.
-
-Using `>` skips the re-processing but silently drops any source rows that committed at exactly the watermark timestamp. In a table with second-granularity `updated_at` and any kind of concurrent writes, multiple rows share the same max timestamp. The batch captured on run N has max `updated_at = T`. On run N+1, the filter `WHERE updated_at > T` silently discards all rows that were written at exactly time T but missed the run-N snapshot (late arrivals, concurrent commits not yet visible at extract time).
-
-**Why it happens:**
-
-The temptation is to implement `>` because it "avoids re-processing". It does, at the cost of losing boundary-timestamp rows that commit between the run's extract and its watermark advancement. The loss is silent: no error, no missing-row log, just a gap in the target table.
-
-**How to avoid:**
-
-Use `>` as the default and require `load_mode="upsert"` for any table with non-unique timestamps (at-least-once semantics: the boundary row is never skipped; if it is re-sent it is idempotent via ON CONFLICT). Document the trade-off explicitly:
-
-- `>` + `upsert`: at-least-once with idempotent re-processing. Correct and safe. Requires `conflict_columns`.
-- `>` + `append`: at-most-once. Correct only when the watermark column is strictly monotonic and unique across all rows (auto-increment ID). Unsafe for timestamp columns.
-- `>=` + `upsert`: also at-least-once safe but unnecessarily re-processes the boundary row on every run.
-- `>=` + `append`: always-duplicates. Reject at construction time (enforce: `incremental_column` + `load_mode="append"` raises `ValueError` unless the user explicitly opts into `append_incremental_unsafe=True`).
-
-Concretely: in `Pipeline.__post_init__`, add: if `incremental_column` is set and `load_mode == "append"`, raise `ValueError("incremental_column with load_mode='append' risks duplicates; use load_mode='upsert' or confirm idempotency via conflict_columns")`.
-
-The filter injected into the SQL source wrap must use `col > %s` (strict greater-than) and the docstring must explain the at-least-once contract for upsert.
-
-**Warning signs:**
-
-- Filter uses `>=` and `load_mode="append"` — re-processing every run doubles the target rows.
-- Filter uses `>` and `load_mode="append"` — silent data loss on any table with non-unique timestamps.
-- Tests do not include a scenario where two source rows share the same max timestamp; only one runs per test.
-
-**Phase to address:**
-
-Phase 25 (Pipeline incremental design and `__post_init__` validation). The `>` vs `>=` decision must be locked in the constructor validation and documented in the API docstring before any runner code is written. Add a test: two source rows at the same timestamp; verify both are captured by the next incremental run.
-
----
-
-### Pitfall 2: Low-Resolution or Non-Monotonic Watermark Column
-
-**What goes wrong:**
-
-The watermark is only as good as the column it tracks. Three common failure modes:
-
-1. **Second-granularity timestamps (`TIMESTAMP` without fractional seconds):** A batch completes at `12:00:00.500`. PostgreSQL stores the max as `12:00:00` (second boundary). New rows written at `12:00:00.800` (still the same second) are stored as `12:00:00`. Next run filter: `WHERE col > '12:00:00'` — those rows are included. Appears correct. But if the column is truly `TIMESTAMP(0)`, new rows at `12:00:00` are stored as `12:00:00`, and the filter `col > '12:00:00'` skips them silently.
-
-2. **Application-layer `updated_at` set by the client:** If the application inserts rows with `updated_at = datetime.now()` on the writer's clock and the writer machine has clock skew (even 1–2 seconds of NTP drift), a row written at wall-clock `T+1s` may arrive in PostgreSQL with `updated_at = T-0.5s`. The watermark from the previous run was `T`. Next run filter: `WHERE col > T` — the late-clock row at `T-0.5s` is silently skipped forever.
-
-3. **`updated_at` updated by application logic, not DB trigger:** Bulk update statements (`UPDATE table SET updated_at = now() WHERE ...`) are correct. But application code that forgets to set `updated_at` on an UPDATE leaves stale timestamps. The watermark never advances past those rows because the filter doesn't see them as new.
-
-**Why it happens:**
-
-Developers pick `updated_at` because it semantically means "last changed" without auditing whether the column is set reliably by a DB-level trigger or by fallible application code. Clock skew is invisible in development (same machine) and surfaces only in distributed production environments.
-
-**How to avoid:**
-
-Document clearly: `incremental_column` must be a column that is:
-- Set by a database-level `DEFAULT now()` or `BEFORE UPDATE` trigger (not application code).
-- Of type `TIMESTAMPTZ` with microsecond precision (not `TIMESTAMP(0)`).
-- Monotonically non-decreasing under inserts (can share values; must not go backwards).
-
-For integer/sequence watermarks (auto-increment `id`), the above constraints reduce to: must be strictly increasing per INSERT. Sequence columns are ideal watermark candidates.
-
-In the `Pipeline` docstring for `incremental_column`, list these constraints explicitly. pycopg cannot validate them at construction time (no schema introspection at pipeline-define time), but the docstring is the contract.
-
-**Warning signs:**
-
-- Watermark column is `TIMESTAMP` (no timezone, no fractional seconds).
-- `updated_at` is set by application code without a DB trigger fallback.
-- Test environment is single-machine (clock skew not observable); clock-skew scenarios not in the test suite.
-- Two consecutive incremental runs on a static dataset extract 0 rows but the target is known to be incomplete.
-
-**Phase to address:**
-
-Phase 25 (API design + docstring). The column contract belongs in `Pipeline.incremental_column` docstring. Add a test with an integer sequence watermark and a test with a `TIMESTAMPTZ` microsecond watermark; include a negative test where a source row has a timestamp 1 second before the current watermark and assert it is NOT re-extracted (proves the boundary semantics are as documented).
-
----
-
-### Pitfall 3: Advancing the Watermark on a Failed or Partially-Applied Load
-
-**What goes wrong:**
-
-The watermark is written to `pipeline_runs.watermark` as part of `_end_run`. If the watermark is written before confirming the load transaction committed — or if `_end_run` is called with `"success"` when the load raised an exception that was caught and swallowed — the next run starts from a watermark that skips rows whose load never completed. Those rows are silently dropped from the target forever.
-
-Looking at the current `_end_run` implementation: it runs on a dedicated autocommit connection, independent of the load transaction. This is correct for failure visibility (the failed run row commits even when the load rolls back) but requires care for the success path: the watermark must only be written AFTER the load transaction's `COMMIT` is confirmed. If the load transaction is inside `with self._db.session(): with self._db.transaction() as conn:` and the watermark is written in the `except` block by mistake, or if the code writes the watermark in `_end_run` before the `with` block exits, the watermark advances even when the load rolled back.
-
-Current code structure in `etl.py` (lines 994–1005):
 ```
-try:
-    ... load transaction ...
-except Exception as exc:
-    self._end_run(run_id, "failed", ...)  # <-- correct: failed path
-    raise
-
-self._end_run(run_id, "success", ...)  # <-- correct: only reached on success
-return self._fetch_run_result(run_id)
+ERROR: CREATE MATERIALIZED VIEW ... WITH DATA cannot be executed within a pipeline
 ```
 
-The pattern is correct for the non-incremental path. For the incremental path, the `max(col)` watermark value must be computed and passed to `_end_run` only on the success path, never on the failure path. The `except` block must pass `watermark=None` (or not update the watermark column at all).
+or (on some versions):
+
+```
+ERROR: REFRESH cannot run inside a transaction block
+```
+
+psycopg 3 opens an implicit transaction on every connection that is NOT in autocommit mode. Because `Database.execute()` (and every method that calls it) uses a normal connection, any call to `create_continuous_aggregate` through the standard path fires inside an implicit transaction and raises this error immediately.
 
 **Why it happens:**
 
-The `_end_run` function currently does not write the watermark column — `ETL_UPDATE_RUN` in `queries.py` (lines 270–279) does not include a `watermark = %s` SET clause. When watermark support is added, the temptation is to add `watermark = %s` to `ETL_UPDATE_RUN` and pass the computed watermark in every `_end_run` call. If the `except` path then passes the computed watermark (which was set before the exception), the watermark advances on failure.
+TimescaleDB's continuous aggregate DDL runs across two internal transactions: one to move the invalidation threshold and one to materialize. PostgreSQL's transaction machinery cannot enclose another BEGIN/COMMIT pair inside an open transaction, so TimescaleDB explicitly prohibits these calls inside a transaction context. The restriction has been present since TimescaleDB 1.3 and is a permanent, intentional constraint.
+
+The ETL accessor solved the identical problem for `pipeline_runs` writes by opening a dedicated `self._db.connect(autocommit=True)` connection per call. Continuous aggregate DDL needs exactly the same structural fix — a dedicated autocommit connection per call, NOT a route through `self._db.execute()`.
 
 **How to avoid:**
 
-Two design choices, either is safe:
+Every TimescaleDB DDL or management call that requires autocommit must open a fresh connection via `self._db.connect(autocommit=True)` instead of delegating to `self._db.execute()`. Concretely:
 
-Option A (recommended): Add `watermark` as a keyword argument to `_end_run(... watermark=None)`. On the success path, pass `watermark=json.dumps({"col": col_name, "value": serialized_value})`. On the failure path, always pass `watermark=None` (do not update the watermark column). The `ETL_UPDATE_RUN` query only sets `watermark` when the argument is non-None, or use a separate `ETL_UPDATE_RUN_WITH_WATERMARK` constant that includes `watermark = %s`.
+- `create_continuous_aggregate` — use `connect(autocommit=True)` for the `CREATE MATERIALIZED VIEW` statement.
+- `refresh_continuous_aggregate` — use `connect(autocommit=True)`.
+- `add_continuous_aggregate_policy` — stored procedure; also requires no enclosing transaction; use `connect(autocommit=True)` for consistency and safety.
+- `drop_continuous_aggregate` — `DROP MATERIALIZED VIEW` is DDL; same rule.
 
-Option B: Keep `ETL_UPDATE_RUN` unchanged (no watermark column); add a separate `ETL_SET_WATERMARK` query run only on the success path after `_end_run`. This makes the watermark write visibly separate from the status update.
+For the async accessor, psycopg 3's `AsyncConnection` property `autocommit` is read-only after construction. Use `autocommit=True` at `AsyncConnection.connect()` time, or call `await conn.set_autocommit(True)` immediately after opening the connection. Never attempt `conn.autocommit = True` on an already-open async connection.
 
-Either way: the test must verify that after a deliberately-failed load, the `pipeline_runs.watermark` for that run row is NULL, and the next successful run re-extracts the full delta from the previous successful watermark.
+The existing `TimescaleAccessor.create_hypertable` uses `self._db.execute()` (inside an implicit transaction). `create_hypertable` happens to work because it calls a stored procedure that uses `SPI_exec` internally without requiring a top-level autocommit context. Do NOT assume other new TimescaleDB calls follow the same pattern — verify each one by reading the TimescaleDB source or testing explicitly.
 
 **Warning signs:**
 
-- `_end_run` receives the computed watermark value in the `except` block as well as the success block.
-- `ETL_UPDATE_RUN` sets `watermark = %s` unconditionally and the caller passes the watermark from a pre-exception code path.
-- No test asserts that a failed incremental run does not advance the watermark.
+- `InFailedSqlTransaction` or `ActiveSqlTransaction` psycopg errors during tests.
+- The call works when called from a fresh Python process but fails when called after any other `db.*` call in the same session.
+- Integration test passes in isolation, fails when run after another test in a suite sharing a `db` instance.
 
 **Phase to address:**
 
-Phase 25 or 26 (whichever phase implements the runner + watermark write). This must be verified with a test: deliberately fail the load of an incremental pipeline; assert `pipeline_runs.watermark IS NULL` for the failed run row; assert the next successful run re-extracts rows from the pre-failure watermark.
+Continuous aggregate phase (Phase 30). Add an explicit autocommit guard in each affected method. Write a regression test that calls `create_continuous_aggregate` AFTER `db.execute("SELECT 1")` in the same session to prove the isolation works.
 
 ---
 
-### Pitfall 4: Snapshot Hazard — Computing max(col) From the Extracted Batch While Concurrent Writes Occur
+### Pitfall 2: refresh_continuous_aggregate Also Cannot Run Inside a Transaction Block
 
 **What goes wrong:**
 
-The incremental ETL sequence is:
-1. Read `last_watermark` from `pipeline_runs`.
-2. Extract: `SELECT * FROM source WHERE col > last_watermark`.
-3. Transform.
-4. Load.
-5. Compute new watermark: `max(col)` from the extracted DataFrame.
-6. Write new watermark to `pipeline_runs`.
+`refresh_continuous_aggregate(view, window_start, window_end)` raises:
 
-Between steps 2 and 6, concurrent transactions in the source table may INSERT new rows with `col` values between `last_watermark` and `new_watermark`. Those rows are NOT in the extracted DataFrame (they committed after the snapshot of step 2) but they ARE older than the new watermark. The next run filter `WHERE col > new_watermark` skips them silently — they are lost.
+```
+ERROR: REFRESH cannot run inside a transaction block
+```
 
-This is the fundamental "read committed snapshot hazard" in incremental ETL. It is unavoidable without a read-committed snapshot isolation or a CDC mechanism. The risk is proportional to:
-- Write throughput on the source table during the ETL window.
-- Duration of the extract step (longer = more concurrent commits sneak in).
+This is a separate issue from Pitfall 1 — the refresh is blocked even when the view was created correctly. Any refresh call routed through `self._db.execute()` hits this error.
 
-For pycopg's same-DB scope, the source and target are in the same PostgreSQL instance, and the extract uses psycopg 3 with `READ COMMITTED` (default). In READ COMMITTED, each statement sees a snapshot of rows committed before that statement began — not a consistent snapshot for the entire transaction. So concurrent commits during the extract are invisible to step 2 but have `col` values inside the `[last_watermark, new_watermark]` range.
+Additionally, data inserted inside an uncommitted client transaction is NOT visible to the refresh — the refresh reads only committed rows from the underlying hypertable. A test that inserts data and immediately calls refresh on the same connection (without committing first) will see an empty refresh result.
 
 **Why it happens:**
 
-Developers compute `new_watermark = df[incremental_column].max()` from the batch DataFrame and assume it is safe to use as the next filter boundary. This is correct only if the source table has no concurrent writes during the extract window — which is true in practice for batch-overnight ETL but false for any near-real-time pipeline.
+Same root cause as Pitfall 1: the refresh moves the materialization watermark in one transaction and applies aggregation in a second transaction. An enclosing client transaction block prevents this.
 
 **How to avoid:**
 
-Two mitigations (implement the first, document the second):
+Same structural solution: `connect(autocommit=True)` for every refresh call. Additionally, the test fixture must ensure that data is committed before the refresh is called. Use autocommit inserts in the test setup, or call `db.execute("COMMIT")` explicitly before calling refresh.
 
-1. **Compute the watermark from the DB, not the batch:** Instead of `df[col].max()`, run `SELECT max(col) FROM source WHERE col > last_watermark` as a separate query using a snapshot taken at the start of the run. Use `BEGIN ISOLATION LEVEL REPEATABLE READ` for the extract query so the snapshot is consistent. Then advance only to the max that was visible at the start of the run, not the running max at the time of step 5.
-
-   For v0.7.0's scope (no streaming, full-batch extract into DataFrame), this reduces to: capture `new_watermark = db.fetch_val("SELECT max({col}) FROM ...")` at the same time as (or before) the extract, using the same transaction snapshot. This requires the extract and the watermark-max query to share a transaction (not use `autocommit`).
-
-2. **Document the gap and recommend a safe-lag offset:** For append-only sources, document: "To avoid losing concurrent inserts at the boundary, set `watermark_lag_seconds=N` to advance the watermark to `max(col) - N seconds`. This causes each run to re-extract the last N seconds of data, which upsert mode handles idempotently."
-
-   For v0.7.0 MVP with upsert mode: the combination of `>` filter and idempotent upsert means boundary-row re-processing is safe. The snapshot hazard only causes data loss if a concurrent row's `col` value falls exactly in the gap between `last_watermark` and `max(extracted_batch_col)`. With upsert, those rows are loaded on the next run if they share the new watermark value (picked up by the `>=` window). Document this residual risk.
-
-**Warning signs:**
-
-- `new_watermark` is computed from `df[incremental_column].max()` with no consideration of concurrent transactions.
-- The extract uses a regular `to_dataframe` call (autocommit connection, READ COMMITTED) with no snapshot isolation.
-- No test simulates a concurrent insert between extract and watermark-advance.
-
-**Phase to address:**
-
-Phase 26 (runner implementation, watermark compute logic). Document the isolation level used and the residual gap. The MVP v0.7.0 may accept the gap with documentation; a future milestone can add snapshot isolation or `watermark_lag`.
-
----
-
-### Pitfall 5: NULLs in the Watermark Column
-
-**What goes wrong:**
-
-`df[incremental_column].max()` in pandas returns `NaN` (for numeric columns) or `NaT` (for datetime columns) when the column contains only NULL values. The NaN/NaT → None coercion (`df.astype(object).where(pd.notnull(df), None)`) is already applied to the loaded rows, but the watermark computation happens after this coercion on a potentially all-None column. `None` as a JSONB watermark means the next run reads `watermark IS NULL` and falls back to a full load — which is safe but may be unexpected.
-
-A more dangerous failure: if the source table has NULLs mixed with valid timestamps in `incremental_column`, the `max()` in pandas silently ignores NULLs and returns the non-NULL max. This is correct Python/pandas behavior but means NULL-valued rows are never included in the `col > last_watermark` filter (PostgreSQL `NULL > T` is `NULL`, which evaluates as `false` in a `WHERE` clause). Those rows are silently excluded from every incremental run.
-
-**Why it happens:**
-
-The watermark column is chosen by the user without verification that it is `NOT NULL`. NULL semantics in SQL WHERE clauses (`NULL > value` = `NULL`, not `TRUE`) mean NULL rows are invisible to the filter. Pandas `max()` silently drops NULLs when computing the watermark, so the code appears correct but the NULL rows are never loaded.
-
-**How to avoid:**
-
-1. At construction time, do not attempt to validate the column's nullability (schema introspection at define-time is overengineering for v0.7.0).
-2. At run time, after computing `watermark_value = df[incremental_column].max()`, check: `if pd.isna(watermark_value): raise ETLIncrementalError("incremental_column '{col}' produced a NULL watermark — column may be all-NULL or not present in the extracted batch")`.
-3. In the docstring: "The `incremental_column` must be `NOT NULL` in the source table. Rows with `NULL` in this column are excluded by the `WHERE col > %s` filter and will never be loaded incrementally."
-4. For the SQL source wrap, `SELECT * FROM (<sql>) sub WHERE col > %s` correctly excludes NULL-col rows (SQL NULL comparison returns NULL, not TRUE). This is the documented behavior, not a bug — but must be called out.
-
-**Warning signs:**
-
-- `incremental_column` points to a nullable column with no NOT NULL constraint in the source table.
-- The extracted DataFrame has `df[incremental_column].isna().any()` but no error is raised.
-- The watermark value stored in `pipeline_runs.watermark` is `null` (JSON null) after a run that extracted rows — indicates the watermark column was all-NULL in the batch.
-
-**Phase to address:**
-
-Phase 26 (runner implementation). Add NULL watermark detection after `max()` computation. Add test: source table with one row having `NULL` in `incremental_column`; assert the runner raises or warns; assert the NULL row is not silently loaded and then lost.
-
----
-
-### Pitfall 6: JSONB Serialization Round-Trip Type Drift
-
-**What goes wrong:**
-
-The watermark is stored as `pipeline_runs.watermark JSONB` (per the existing DDL in `queries.py`). The round-trip `Python value → JSON string → JSONB → Python value` introduces type drift for several types:
-
-1. **`datetime` → JSON string → text comparison on next run:** If the watermark is a `datetime` object serialized to JSON as `"2024-01-01T12:00:00+00:00"`, it is read back as a string. The incremental filter then compares `col > '2024-01-01T12:00:00+00:00'` where `col` is a `TIMESTAMPTZ`. PostgreSQL will cast the string literal to `TIMESTAMPTZ` for comparison (implicit cast), which works — but the round-trip must preserve the timezone designator. A naive `datetime.isoformat()` without `+00:00` or `Z` produces a timezone-naive string that PostgreSQL interprets in the session timezone, not UTC, causing offset-by-N-hours skips.
-
-2. **`Decimal` → float precision loss:** A numeric watermark column with type `NUMERIC(18,6)` returns a `Decimal` from psycopg 3. `json.dumps(Decimal("123456789012.123456"))` raises `TypeError`. A naïve `float(watermark_value)` loses precision. `str(watermark_value)` is safe for JSON storage but must be deserialized as `Decimal`, not `float`, on read.
-
-3. **Large integer (`BIGINT`) → float:** JSON numbers have no integer/float distinction. `json.dumps({"value": 9007199254740993})` → `9007199254740993` (correct). `json.loads(...)["value"]` → `9007199254740993` (Python int, correct). But some JSON libraries round large integers to float; verify `json.loads` returns `int` for integers within Python's arbitrary precision range.
-
-4. **psycopg 3 returns the `watermark` column as a Python `dict`** (JSONB → dict via the built-in adapter). Reading `row["watermark"]` gives `{"col": "updated_at", "value": "2024-01-01T12:00:00+00:00"}` — the value is a string, not a `datetime`. The filter param `%s` sent to psycopg 3 with a string value for a `TIMESTAMPTZ` column works via implicit PostgreSQL cast, but must be tested explicitly.
-
-**Why it happens:**
-
-JSON is the natural "schema-free" storage for a dynamic watermark value, but it erases Python/PostgreSQL type information. The developer serializes a `datetime` with `isoformat()` without confirming the round-trip produces the exact same value (timezone offset intact, microseconds intact) and that PostgreSQL accepts the string for comparison with the source column type.
-
-**How to avoid:**
-
-Define a strict serialization contract for the watermark JSONB:
-- `datetime`/`date`: serialize with `isoformat()` only after ensuring `tzinfo=UTC` (enforce `datetime.now(UTC)`, not naive `datetime.now()`). Deserialize via `datetime.fromisoformat()`.
-- `int` / `BIGINT`: serialize as JSON integer (no quotes). Deserialize as Python `int`. Test with values > 2^53.
-- `Decimal` / `NUMERIC`: serialize as quoted string (`str(value)`). Deserialize as `Decimal`. Never via `float`.
-- `date`: serialize as `"YYYY-MM-DD"` string; deserialize via `datetime.date.fromisoformat()`.
-
-Store in JSONB as `{"col": "<column_name>", "value": <serialized>, "type": "datetime"|"int"|"decimal"|"date"}` so the reader knows which deserializer to apply.
-
-The `type` discriminator field removes guessing and allows forward-compatible extensions.
-
-Write a round-trip test for each supported type: `serialize(v) → store as JSONB → read back → deserialize → assert == v` with no precision loss and correct timezone.
-
-**Warning signs:**
-
-- Watermark is serialized via `json.dumps({"value": watermark_value})` without handling `datetime` types (raises `TypeError`).
-- Round-trip test not present in the test suite.
-- Timezone-naive `datetime` values are used as watermarks on `TIMESTAMPTZ` columns.
-- Large integer watermarks are deserialized as `float` and compared with `==` to the original (fails above 2^53).
-
-**Phase to address:**
-
-Phase 25 or 26 (whichever defines the watermark serialization utilities). Write the round-trip test before wiring the runner. The serialization helpers must be pure functions (no DB), unit-testable without a real PostgreSQL instance.
-
----
-
-### Pitfall 7: Transform Chain Drops the Watermark Column Before max() Is Computed
-
-**What goes wrong:**
-
-The watermark is computed from the post-transform DataFrame: `new_watermark = df[incremental_column].max()`. If any transform step drops the `incremental_column` (e.g., `df.drop(columns=["updated_at"])` or a `df[["col1", "col2"]]` column selection that omits it), the `df[incremental_column]` lookup raises `KeyError`. This is a runtime error, not a construction-time error — it surfaces only on the first incremental run.
-
-Worse: if the transform renames the column (`df.rename(columns={"updated_at": "ts"})`), the `max()` on the original name raises `KeyError`. The new name is `ts` but the pipeline still references `incremental_column="updated_at"`.
-
-Even more subtle: a transform that **modifies** the watermark column's values (`df["updated_at"] = df["updated_at"].dt.tz_convert("US/Eastern")`) computes the watermark in the wrong timezone. The loaded column has US/Eastern timestamps but the watermark is in UTC. Next run: `WHERE updated_at > <UTC watermark>` — the filter is against the original source column (still UTC), so this is actually correct for filtering. But the stored watermark is in US/Eastern, so the comparison `UTC_column > Eastern_watermark` works only because PostgreSQL normalizes TIMESTAMPTZ. Not a bug per se, but timezone confusion is a latent maintenance trap.
-
-**Why it happens:**
-
-The transform chain was designed (in v0.5.0) to be a black box that receives a DataFrame and returns a DataFrame. The pipeline runner trusts that the returned DataFrame has all the columns needed for the load. No contract was established about which columns must survive the transform. Adding `incremental_column` introduces a new contract: the column must survive the transform chain with its original name and type intact.
-
-**How to avoid:**
-
-**Compute `max(col)` BEFORE the transform chain, from the raw extracted DataFrame.** This is the correct approach:
+Test shape:
 
 ```python
-# After extract, before transform:
-if pipeline.incremental_column:
-    col = pipeline.incremental_column
-    if col not in df.columns:
-        raise ETLIncrementalError(f"incremental_column '{col}' not found in extracted data")
-    new_watermark_raw = df[col].max()
-
-# After transform chain:
-# Use new_watermark_raw (not df[col].max() post-transform)
+# 1. Insert committed data (autocommit=True or explicit commit)
+db.execute("INSERT INTO metrics (time, val) VALUES (now() - INTERVAL '2 hours', 42)")
+# 2. Refresh on its own autocommit connection
+db.timescale.refresh_continuous_aggregate("metrics_hourly", start, end)
+# 3. Assert aggregated row now exists
+rows = db.execute("SELECT * FROM metrics_hourly")
+assert len(rows) > 0
 ```
-
-The watermark represents the high-water mark of the **source** data, not the transformed data. Computing it from the raw extract is semantically correct and immune to transform side effects.
-
-**Alternatively** (less preferred): validate at construction time that `incremental_column` will survive transforms — but this is impossible without running the transforms, which requires data.
-
-The better guard is the extraction-time check: before running any transform, assert `incremental_column in df.columns`. This gives a clear error at the right moment instead of a cryptic `KeyError` deep in the runner.
 
 **Warning signs:**
 
-- `df[incremental_column].max()` appears after the transform loop in the runner code.
-- No check that `incremental_column in df.columns` appears before the transform chain.
-- A transform in the test suite drops a column but the test does not assert the incremental column is preserved.
+Tests that insert data and immediately call refresh return empty results without errors — the data was not committed when refresh ran.
 
 **Phase to address:**
 
-Phase 25 or 26 (runner design, this is the highest-priority structural decision for incremental ETL). The watermark computation point must be locked in the design doc before implementation. Write a test: a transform that drops the watermark column; assert the runner raises `ETLIncrementalError` (not `KeyError`), and the message names the missing column and the transform step.
+Continuous aggregate phase (Phase 30). The refresh method must be on a dedicated autocommit connection. The test fixture must use committed data.
 
 ---
 
-### Pitfall 8: First-Run Full Load on a Huge Table With No Bound
+### Pitfall 3: drop_chunks Is Destructive and Irreversible — Easy Footgun in a High-Level API
 
 **What goes wrong:**
 
-When `pipeline_runs.watermark IS NULL` (no previous successful run), the incremental pipeline falls back to a full load: `SELECT * FROM source` with no WHERE clause. If the source table has 100M rows, this materializes the entire table into a DataFrame (`to_dataframe()`) before the first incremental watermark is established. The process OOMs or the load takes hours.
+`drop_chunks('my_hypertable', older_than => INTERVAL '30 days')` permanently deletes all chunks older than 30 days. There is no ROLLBACK. Data is gone. If a user calls `db.timescale.drop_chunks("metrics", "30 days")` with a wrong table name or wrong interval, they lose production data with no recovery path.
 
-Unlike the non-incremental case (where the user can set `extract_limit`), the incremental full-load-first-run is triggered automatically and invisibly on the very first call to `run()`. The user has no immediate indication that "first run = full load" until the process hangs.
+Additionally: if a continuous aggregate is defined on the hypertable and its refresh window overlaps with the dropped region, aggregate queries return incorrect results (NULL-padded or zero) for the deleted period. The aggregate view survives the drop but queries a hypertable with missing raw data.
 
 **Why it happens:**
 
-The design decision ("first run = full load then record max(col)") is correct for correctness (no data missed) but hazardous for large tables. The hazard is that the user declares an incremental pipeline expecting fast incremental loads, not knowing the first run is slow.
+The function name sounds benign. A high-level convenience API makes it trivially easy to call. The `older_than` parameter accepts a plain interval string, which a user might read as "chunks from 30 days ago" when it means "all chunks whose time range is entirely before (now - 30 days)".
 
 **How to avoid:**
 
-1. Add `first_run_limit: int | None = None` to `Pipeline`. When set and `watermark IS NULL`, the full load uses `LIMIT first_run_limit`. Document: "Use `first_run_limit` to bound the first full load on large tables; subsequent runs are incremental."
+1. Mark `drop_chunks` as DESTRUCTIVE and IRREVERSIBLE in the numpydoc `Notes` section. Use the word "permanent". Do not soften it.
+2. Add a `dry_run: bool = False` parameter that calls `show_chunks` with the same arguments and returns the list of chunks that WOULD be dropped without actually dropping them. This mirrors the ETL dry_run pattern already in the codebase.
+3. Validate that exactly one of `older_than` or `newer_than` is provided — never accept both (confusing semantics); never default both to None (which would drop every chunk).
+4. Ship `show_chunks` (read-only) before `drop_chunks` so the pattern is established.
 
-2. In the API docstring for `incremental_column`, add a prominent note: "**First run:** When no prior watermark exists, the full source table is extracted. For large tables, set `extract_limit` or `first_run_limit` to bound the initial load."
-
-3. Alternatively: require the user to pass `initial_watermark` to the `Pipeline` — a value below which all data is considered already loaded. This avoids the full-load-first-run entirely. Document: "If the target already has data from a manual seed, set `initial_watermark` to the max value in the target to skip re-loading existing data."
-
-For v0.7.0 scope: implement the `initial_watermark` parameter on `Pipeline` (serialized to JSONB on construction or checked at run time if no watermark row exists) as the clean solution. The first incremental run then starts from `initial_watermark` instead of NULL, allowing the user to pre-seed the watermark without a full load.
+Test shape: insert data in two temporal windows, drop the older window via `drop_chunks`, assert older chunks are gone and newer chunks remain. Verify via `show_chunks` before and after. Also test `dry_run=True` returns the chunk list without removing anything.
 
 **Warning signs:**
 
-- No `initial_watermark` or `first_run_limit` parameter on `Pipeline`.
-- The first incremental run on any source table > 10k rows generates a full-table `to_dataframe()` call.
-- Docs do not mention the first-run full-load behavior.
+All hypertable data disappears after a `timescale.*` call. `drop_chunks` is the first suspect.
 
 **Phase to address:**
 
-Phase 25 (Pipeline design). `initial_watermark` parameter should be on the `Pipeline` dataclass from the start, not retrofitted. Add a test: a Pipeline with `initial_watermark=100` on a table with rows 1–200; assert the first run extracts only rows 101–200.
+Chunk management phase (whichever phase implements `show_chunks` / `drop_chunks`). The `dry_run` parameter and the DESTRUCTIVE docstring note are non-negotiable before publication.
+
+---
+
+### Pitfall 4: time_bucket_gapfill Bounds Cannot Be Inferred from psycopg %s Parameters
+
+**What goes wrong:**
+
+The query:
+
+```sql
+SELECT time_bucket_gapfill('1 hour', time) AS bucket, avg(val)
+FROM metrics
+WHERE time >= %s AND time < %s
+GROUP BY bucket
+```
+
+with bound parameters raises:
+
+```
+ERROR: missing time_bucket_gapfill argument: could not infer start from WHERE clause
+```
+
+or:
+
+```
+ERROR: invalid time_bucket_gapfill argument: start must be a simple expression
+```
+
+`time_bucket_gapfill` requires TimescaleDB's planner hook to inspect the WHERE clause at planning time to determine the gapfill range. When values are bound as `%s` placeholders (prepared-statement parameters), the planner sees opaque plan nodes — it cannot read the literal value — so inference fails. This is not a psycopg 3 bug; it is a fundamental TimescaleDB planner constraint.
+
+**Why it happens:**
+
+The pycopg codebase correctly uses `%s` for all user values to prevent injection. This pattern is right for data values but is structurally incompatible with `time_bucket_gapfill`'s planner-time bound inference.
+
+**How to avoid:**
+
+Pass `start` and `end` as explicit arguments to `time_bucket_gapfill()` in the generated SQL:
+
+```sql
+SELECT time_bucket_gapfill('1 hour', time, %s::timestamptz, %s::timestamptz) AS bucket, avg(val)
+FROM metrics
+WHERE time >= %s AND time < %s
+GROUP BY bucket
+```
+
+With explicit start/end arguments in the function call, TimescaleDB reads them from the function argument list at execution time — not from the WHERE clause at planning time. Bound `%s` parameters in function arguments work correctly. Only WHERE-clause inference fails.
+
+The builder signature must accept `start` and `end` as required parameters, not optional inferrable values. If the user does not provide them, raise a clear `ValueError` before the query is sent.
+
+`locf()` and `interpolate()` are only valid alongside `time_bucket_gapfill`. Guard against constructing a query that uses them outside a gapfill context.
+
+**Warning signs:**
+
+- The query works with hardcoded literal dates but fails with bound parameters.
+- Error message mentions "could not infer start" or "start must be a simple expression".
+
+**Phase to address:**
+
+`time_bucket` / `time_bucket_gapfill` helpers phase. The builder MUST accept explicit `start` and `end` parameters and embed them as function arguments. Write a test using `datetime.now()` as a bound parameter (not a literal) to confirm the explicit-argument path works.
+
+---
+
+### Pitfall 5: time_bucket_gapfill MUST Appear Directly in GROUP BY — No Expression Wrapping
+
+**What goes wrong:**
+
+```sql
+-- Fails silently or with a planner error:
+SELECT time_bucket_gapfill('1 hour', time) + INTERVAL '30 minutes', avg(val)
+FROM metrics
+WHERE time >= '2024-01-01' AND time < '2024-01-02'
+GROUP BY time_bucket_gapfill('1 hour', time) + INTERVAL '30 minutes'
+```
+
+`time_bucket_gapfill` must be a top-level reference in GROUP BY, not wrapped in any expression. Wrapping breaks TimescaleDB's planner recognition of the function.
+
+**Why it happens:**
+
+`time_bucket_gapfill` is a special planner-recognized function. Expression wrapping in GROUP BY defeats the recognition even if the expression is semantically equivalent.
+
+**How to avoid:**
+
+The builder must never wrap `time_bucket_gapfill(...)` in any expression in the GROUP BY clause. If users need an offset, apply it in a CTE or outer SELECT. Document this constraint in the method docstring.
+
+**Phase to address:**
+
+`time_bucket` / `time_bucket_gapfill` phase. Verify with a test that the generated SQL includes bare `time_bucket_gapfill(...)` as the GROUP BY column.
+
+---
+
+### Pitfall 6: add_dimension Requires an Empty Hypertable; by_range/by_hash Requires TimescaleDB >= 2.13
+
+**What goes wrong:**
+
+Calling `add_dimension` on a hypertable that already has data raises an error (exact message varies by version; roughly: "hypertable has existing data: cannot add partitioned dimension").
+
+Additionally, on TimescaleDB < 2.13, calling the new `by_range('column', interval)` or `by_hash('column', partitions)` dimension builder functions fails with `UndefinedFunction`. These were introduced in TimescaleDB 2.13 as part of the "generalized hypertable DDL API" release.
+
+The pre-2.13 positional form is deprecated but still works on 2.13+:
+
+```sql
+-- Old positional form (deprecated in 2.13, works on all 2.x):
+SELECT add_dimension('table', 'column', number_partitions => 4);
+SELECT add_dimension('table', 'column', chunk_time_interval => INTERVAL '1 day');
+```
+
+`number_partitions` and `chunk_time_interval` are mutually exclusive — passing both raises an error.
+
+**Why it happens:**
+
+The 2.13 release simplified the DDL API. Users on self-hosted PostgreSQL with an older TimescaleDB build (pre-2.13) will not have `by_range`/`by_hash`. The pycopg test environment may also be pre-2.13 — check with `SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'` before building the implementation.
+
+**How to avoid:**
+
+1. Validate the target hypertable is empty before calling `add_dimension`. Query `timescaledb_information.chunks` for the hypertable; if rows exist, raise a clear pycopg-domain error (not a raw psycopg `ProgrammingError`) before sending the SQL.
+2. Use the pre-2.13 positional keyword form in the initial implementation — it works on both old and new 2.x. Document `by_range`/`by_hash` as a future enhancement requiring >= 2.13.
+3. Validate that `number_partitions` and `chunk_time_interval` are not both provided — raise `ValueError` at call time if both are non-None.
+4. Document the 2.x minimum in the docstring. If both forms are exposed in a future phase, add a version gate check (query `pg_extension.extversion`, compare semver).
+
+**Warning signs:**
+
+- Error about "existing data" when running `add_dimension` tests — the fixture is reusing a hypertable from a prior test that inserted data.
+- `UndefinedFunction` for `by_range` or `by_hash` on the CI/local test server.
+
+**Phase to address:**
+
+`add_dimension` phase. Test fixture must create a fresh empty hypertable for each `add_dimension` test.
+
+---
+
+### Pitfall 7: Continuous Aggregate SELECT Must Use time_bucket on the Partitioning Column
+
+**What goes wrong:**
+
+```sql
+-- Fails with a TimescaleDB error:
+CREATE MATERIALIZED VIEW bad_agg WITH (timescaledb.continuous) AS
+SELECT date_trunc('hour', time) AS bucket, avg(val)
+FROM metrics
+GROUP BY bucket;
+```
+
+TimescaleDB requires `time_bucket(interval, <partitioning_column>)` — not `date_trunc`, not a plain column reference, not an alias. The partitioning column must be the one defined as the time dimension of the hypertable.
+
+**Why it happens:**
+
+`date_trunc` is a plain PostgreSQL function; TimescaleDB cannot hook into its planner extension for incremental materialization. `time_bucket` is the required entry point for continuous aggregates.
+
+**How to avoid:**
+
+The `create_continuous_aggregate` builder should validate (heuristic only — no SQL parser) that the user-supplied aggregate SQL string contains `time_bucket(` (case-insensitive). If not found, raise a `ValueError` with a clear message before sending the DDL to the DB. This is a lightweight guard, not a parser — it catches the most common mistake.
+
+**Phase to address:**
+
+Continuous aggregate phase. Include the heuristic check in the builder. Test with a `date_trunc`-based query to confirm the error fires before any DB round-trip.
+
+---
+
+### Pitfall 8: Continuous Aggregate Policy — start_offset Must Be Greater Than end_offset
+
+**What goes wrong:**
+
+`add_continuous_aggregate_policy` parameters are named in a way that suggests temporal ordering (start before end chronologically), but the semantics are relative to the present:
+
+- `start_offset` = how far BACK in time the refresh window starts (e.g., `INTERVAL '3 days'` means "start from 3 days ago")
+- `end_offset` = how close to the PRESENT the refresh window ends (e.g., `INTERVAL '1 hour'` means "stop 1 hour before now")
+
+So `start_offset > end_offset` (as intervals) is correct: start_offset must be LARGER than end_offset. If `start_offset='1 hour'` and `end_offset='3 days'`, the window is reversed and TimescaleDB will raise an error or produce undefined behavior.
+
+Also: `NULL` for `end_offset` means "up to the present" — this materializes the current (still-open) bucket, which is incorrect. The current bucket has incomplete data. Always use a non-NULL `end_offset` of at least the bucket interval (e.g., for hourly buckets, `end_offset >= INTERVAL '1 hour'`).
+
+**Why it happens:**
+
+The parameter names suggest a timeline from start to end. Users coming from standard window-function thinking set `start_offset` to a small interval (close to now) and `end_offset` to a large interval (further back), which reverses the window.
+
+**How to avoid:**
+
+1. Validate at call time (before sending SQL) that `start_offset > end_offset` when both are non-NULL. For interval comparison, parse with Python's `datetime.timedelta` if both are Python timedelta objects; if strings, at minimum document the constraint prominently and add a test with deliberately swapped values.
+2. Validate that `end_offset` is not `None` in the default call path — require explicit opt-in for the open-ended (NULL) case.
+3. Document with an example showing correct ordering in the method docstring.
+
+**Phase to address:**
+
+Continuous aggregate phase. Test: call `add_continuous_aggregate_policy` with swapped offsets; assert a `ValueError` fires.
+
+---
+
+### Pitfall 9: reorder_policy Conflicts With Compression and Requires a Non-Default Index
+
+**What goes wrong:**
+
+Two failure modes:
+
+1. A reorder policy on a hypertable that also has a compression policy will fail (or silently skip) when the reorder job runs on already-compressed chunks. Compressed chunks are immutable; the reorder operation cannot modify them. Early TimescaleDB versions raised an explicit error; later versions (1.7.1+) silently skip compressed chunks. Either way, the reorder policy is effectively inert for any chunk that has been compressed.
+
+2. `add_reorder_policy` requires an existing non-default index. If the named index does not exist, the call raises an error. The default btree index on the time column does NOT count as a valid reorder target if no additional index is specified. The index must be explicitly named in the call.
+
+**Why it happens:**
+
+The interaction between reorder and compression is non-obvious: both operate on chunks, but compression makes chunks immutable. The documentation states "it is not recommended to combine compression with reordering" but does not prevent it at the API level. The index requirement is also not immediately obvious — users assume the hypertable's existing indexes are discoverable.
+
+**How to avoid:**
+
+1. If the hypertable already has compression enabled (check `timescaledb_information.hypertables.compression_enabled`), raise a `TimescaleDBError` or at minimum a prominent warning before adding a reorder policy.
+2. Validate that the named index exists before calling `add_reorder_policy` — query `pg_indexes` for the index name; raise `ValueError` if not found.
+3. Document in the docstring: "You can have only one reorder policy per hypertable. Reorder policies cannot reorder already-compressed chunks — do not combine with compression."
+
+**Phase to address:**
+
+`reorder_policy` phase. Tests: verify index existence check fires; verify the policy row appears in `timescaledb_information.jobs`; do NOT test that the scheduler fired the job.
+
+---
+
+## Deterministic Testing Strategy for Scheduler-Driven Policies
+
+Policies (`add_continuous_aggregate_policy`, `add_compression_policy`, `add_retention_policy`, `add_reorder_policy`) register background jobs that run on the TimescaleDB scheduler. The scheduler is a separate background process. **Never test that a policy has FIRED in CI.** Testing scheduler firing introduces slow, flaky, environment-dependent tests that fail whenever the background worker is suppressed (as it is in many CI environments and in TimescaleDB's own test suite via `_timescaledb_internal.stop_background_workers()`).
+
+**The correct deterministic strategy is:**
+
+1. **Test that the policy ROW exists** after calling the add-policy method. Query `timescaledb_information.jobs`:
+
+   ```python
+   rows = db.execute(
+       "SELECT * FROM timescaledb_information.jobs "
+       "WHERE proc_name = 'policy_refresh_continuous_aggregate'"
+   )
+   assert any(r["hypertable_name"] == "metrics" for r in rows)
+   ```
+
+2. **Test manual execution** by calling `CALL run_job(job_id)` on an autocommit connection. `run_job` is a stored procedure (use `CALL`, not `SELECT`). This verifies the policy configuration is valid without depending on the scheduler.
+
+3. **Test idempotency**: calling add-policy twice with `if_not_exists=True` must not raise an error. Calling it without `if_not_exists=True` must raise a clear error.
+
+4. **Test removal**: after calling remove-policy, assert the job row is gone from `timescaledb_information.jobs`.
+
+5. **For refresh correctness tests**: call `refresh_continuous_aggregate` directly (not via policy) on an autocommit connection with known committed data. Do not depend on the scheduler at all for functional correctness tests.
+
+This strategy gives full coverage of the policy API surface without any scheduler dependency. Every test is sub-second and deterministic.
 
 ---
 
@@ -345,13 +374,13 @@ Phase 25 (Pipeline design). `initial_watermark` parameter should be on the `Pipe
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Compute watermark from post-transform DataFrame | Simpler code, one DataFrame reference | Transform drops watermark column → KeyError; wrong timezone if transform mutates timestamps | Never; compute from pre-transform raw extract |
-| Use `>=` for the incremental filter | "Safer", never skips | Re-processes boundary row every run; with append mode produces duplicates on every run | Never for append; only if explicitly documented for upsert |
-| Serialize watermark as bare `json.dumps(value)` without type tag | Fewer lines | datetime loses timezone; Decimal raises TypeError; large int becomes float | Never; use typed serialization with discriminator |
-| Write watermark in `_end_run` on both success and failure paths | DRY, single `_end_run` call | Failed load advances watermark; next run skips rows silently | Never |
-| Allow `incremental_column` with `load_mode="replace"` | Fewer validation rules | `replace` TRUNCATE wipes target before incremental load; on failure, target is empty AND watermark may be stale | Never; forbidden at construction time per locked scope |
-| Skip `initial_watermark` / `first_run_limit` | Smaller API surface | First run silently full-loads a huge table; OOM with no warning | Acceptable only for tables known to be small; unacceptable as a general default |
-| Skip NULL watermark check after `df[col].max()` | Simpler runner | `NaT`/`NaN` written to JSONB as JSON null; next run re-does full load silently | Never; raise `ETLIncrementalError` on NULL watermark |
+| Route continuous aggregate DDL through `self._db.execute()` | Simpler code, reuses existing path | Fails immediately with transaction-block error in any normal session | Never |
+| Infer gapfill bounds from WHERE clause | Looks like the time_bucket API surface | Silent failure with bound params; confusing error message | Never — always require explicit start/end |
+| Skip `dry_run` on drop_chunks | Less code | Users have no safe preview before irreversible data loss | Never on a published PyPI library |
+| Skip empty-hypertable check on add_dimension | Lets the DB surface the error | DB error message is cryptic; user sees nothing about why it failed | Never — validate first and raise a clear pycopg error |
+| Use `by_range`/`by_hash` unconditionally | Cleaner API | Breaks silently on TimescaleDB < 2.13 | Only if 2.13 is the documented hard minimum AND CI verifies the version |
+| Test policy firing by waiting for scheduler | Tests actual scheduler behavior | Flaky, slow, fails on CI where background workers are suppressed | Never — test policy row existence and manual CALL run_job() only |
+| Skip reorder-vs-compression guard | Less code | Policy silently does nothing on compressed chunks; maintenance debt | Never — raise an error or at minimum a warning |
 
 ---
 
@@ -359,12 +388,13 @@ Phase 25 (Pipeline design). `initial_watermark` parameter should be on the `Pipe
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| psycopg 3 JSONB adapter | Reading `row["watermark"]` and assuming it returns a typed Python value | psycopg 3 deserializes JSONB to `dict`/`list`/`str`/`int`/`float`/`None`; datetime strings are returned as `str`, not `datetime`; apply type-discriminator deserialization on read |
-| psycopg 3 `%s` with datetime string from JSONB | Sending the raw string `"2024-01-01T12:00:00+00:00"` as a `%s` param to compare with `TIMESTAMPTZ` | PostgreSQL casts the ISO-8601 string implicitly; works but must be tested; naive strings (no `+00:00`) are interpreted in session timezone — always include timezone offset |
-| pandas `df[col].max()` on datetime column | Returns `pd.Timestamp` (timezone-aware or naive depending on column dtype) | Must convert to Python `datetime` with explicit UTC tzinfo before serializing: `ts.to_pydatetime().astimezone(UTC)` |
-| `ETL_UPDATE_RUN` query | Adding `watermark = %s` to the existing UPDATE without a separate success-only code path | The UPDATE currently runs on both success and failure paths; adding watermark here writes it on failure too; use a separate query constant or add a `watermark` optional kwarg with None-check |
-| SQL subquery wrap for incremental filter | `SELECT * FROM (<sql>) sub WHERE col > %s` — subquery alias `sub` conflicts with source SQL using the same alias | Use a unique internal alias like `_pycopg_etl_src` that is unlikely to conflict with user SQL |
-| `to_dataframe` with bound `%s` watermark parameter | `to_dataframe` uses named params (`:lim`) in the extract path; incremental `%s` for the watermark must match psycopg 3's positional param syntax | Verify whether `to_dataframe` accepts positional `%s` or requires named params `:param`; the current extract-limit path uses `:lim` (named); the watermark param must use the same convention consistently |
+| psycopg 3 + continuous aggregate DDL | Call `self._db.execute(create_sql)` — hits implicit transaction | Open `self._db.connect(autocommit=True)` per call; close after |
+| psycopg 3 async + autocommit | Set `conn.autocommit = True` (read-only on async connections after construction) | Pass `autocommit=True` to `await AsyncConnection.connect()` or call `await conn.set_autocommit(True)` immediately |
+| refresh after insert in test | Data inserted in implicit transaction not visible to refresh | Use autocommit inserts in test fixtures, or explicit COMMIT before refresh |
+| drop_chunks + continuous aggregate | Drop raw data in a region the cagg has not yet materialized; aggregate returns NULL for that period | Refresh the cagg BEFORE dropping raw chunks; or use retention policy which coordinates automatically |
+| reorder_policy + compression_policy on same hypertable | Reorder job silently skips compressed chunks; policy appears healthy but does nothing | Treat reorder and compression as mutually exclusive; detect at add-policy time |
+| time_bucket_gapfill + locf/interpolate outside gapfill context | `locf()` / `interpolate()` used in a plain time_bucket query; DB raises error | Only expose `locf`/`interpolate` as optional parameters of the gapfill builder, not standalone |
+| add_continuous_aggregate_policy NULL end_offset | Open-ended window materializes the current (incomplete) bucket; incorrect aggregates | Require a non-NULL end_offset at least equal to the bucket interval |
 
 ---
 
@@ -372,26 +402,47 @@ Phase 25 (Pipeline design). `initial_watermark` parameter should be on the `Pipe
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Full-batch extract into DataFrame on first incremental run | OOM or multi-minute stall on first run of any large table | Add `initial_watermark` parameter to skip full load; document the first-run behavior prominently | Any source table > available RAM / 2 |
-| No index on `incremental_column` in source table | Each incremental run does a sequential scan of the full source table | Document that `incremental_column` must be indexed; the subquery-wrap `WHERE col > %s` cannot use an index if none exists | >100k rows |
-| `pipeline_runs` table unbounded growth with high-frequency runs | `history()` / `last_run()` queries slow; `pipeline_runs` becomes large | Add `retention_days` cleanup utility or document manual pruning; the `SELECT * ... LIMIT %s` in `ETL_LIST_RUNS` limits reads but not table size | >1M run rows (~years of hourly runs) |
-| Reading last watermark from `pipeline_runs` scans all rows for the pipeline | `last_run()` uses `ORDER BY started_at DESC LIMIT 1` — requires a sort | Ensure `pipeline_runs(pipeline_name, started_at)` has a composite index; or add `status='success'` filter to read only successful watermarks | >10k runs per pipeline |
-| Incremental filter on a non-indexed column causes full subquery scan | Incremental run slower than full load | Same as index trap above; the subquery `SELECT * FROM (source) sub WHERE col > %s` evaluates the full source then filters — no pushdown through a user-written subquery | >50k rows in source |
+| refresh_continuous_aggregate with NULL window_end | Full historical re-materialization on every call; query hangs | Never pass NULL as window_end; validate at call time | Any table with more than a few days of data |
+| refresh including the current (still-open) bucket | Most-recent bucket returns incorrect/stale aggregates after refresh | Set window_end to `now() - bucket_interval` to exclude the current incomplete bucket | Always — the current bucket is never complete |
+| show_chunks without committing prior DDL | Returns empty or stale results in the same session | Ensure CREATE MATERIALIZED VIEW is committed before show_chunks runs | Any test that chains DDL + show_chunks in the same session |
+| add_dimension on a large hypertable | DB rejects with "existing data" error | Validate empty first; document that add_dimension is only valid on empty hypertables | Any hypertable with data |
+
+---
+
+## Version Pitfalls: TimescaleDB 2.x API Changes
+
+| Change | Before 2.13 | From 2.13 | Consequence for pycopg |
+|--------|-------------|-----------|------------------------|
+| `materialized_only` default | `false` (real-time on by default) | `true` (materialized-only by default) | Expose `materialized_only` param; default `True` to match current TSDB behavior; document the change prominently |
+| `add_dimension` API | Positional: `add_dimension(table, col, number_partitions=>N)` | Generalized: `add_dimension(table, by_hash(col, N))` | Use positional form (backward-compatible); document 2.13 as minimum for by_range/by_hash |
+| `create_hypertable` generalized | Positional form | `by_range(col, interval)` builder form | Same — existing positional form still works in 2.x; do not switch |
+
+### Checking the Test Environment Version
+
+Before building `add_dimension` or any 2.13+ API calls, verify the local test server version:
+
+```python
+row = db.execute("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")[0]
+# row["extversion"] should be "2.x.y"
+```
+
+Use the pre-2.13 positional API for `add_dimension` in v0.8.0. Mark `by_range`/`by_hash` as a future enhancement if the test server is pre-2.13.
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Boundary semantics locked:** `>` (strict) used for the filter; documented as at-least-once when combined with upsert. Construction-time `ValueError` raised when `incremental_column` + `load_mode="append"` are combined without explicit opt-in.
-- [ ] **Watermark computed pre-transform:** `df[incremental_column].max()` called on the raw extracted DataFrame, before the transform chain. Column presence check `incremental_column in df.columns` asserted before transforms run.
-- [ ] **Watermark advanced only on success:** `_end_run` with `watermark=` value is called only on the success path. The `except` block calls `_end_run` with `watermark=None`. Test: fail a load; assert `pipeline_runs.watermark IS NULL` for that run.
-- [ ] **Watermark round-trip type-safe:** Serialization handles `datetime` (timezone-aware), `int`, `Decimal`, and `date`. Round-trip test for each type. Large integers (> 2^53) tested.
-- [ ] **NULL watermark detected:** After `max()`, check `pd.isna(new_watermark_raw)` and raise `ETLIncrementalError`. Test: all-NULL watermark column raises, not silently stores JSON null.
-- [ ] **First-run bound available:** `initial_watermark` or `first_run_limit` parameter on `Pipeline`. Documented in API docstring. Test: first incremental run with `initial_watermark=N` extracts only rows > N.
-- [ ] **`incremental_column` + `replace` rejected:** `Pipeline.__post_init__` raises `ValueError` for this combination. Test at construction time.
-- [ ] **SQL subquery alias unique:** The internal alias in the subquery wrap is `_pycopg_etl_src` (or similar), not `sub` or `t`, to avoid alias conflicts in complex user SQL.
-- [ ] **Async parity:** `AsyncETLAccessor.run()` has identical incremental logic to `ETLAccessor.run()`. `TestEtlParity` covers the incremental path.
-- [ ] **`ETL_UPDATE_RUN` or watermark write clearly success-only:** The queries.py constant or its usage explicitly documents that `watermark` is written only on success.
+- [ ] **create_continuous_aggregate:** Uses `connect(autocommit=True)` — verify by calling it after `db.execute("SELECT 1")` without error.
+- [ ] **refresh_continuous_aggregate:** Uses `connect(autocommit=True)` — verify with committed data; confirm empty result is not returned because data was uncommitted.
+- [ ] **time_bucket_gapfill builder:** `start` and `end` are required, embedded as function arguments — verify with a `datetime` bound param (not hardcoded) that no "could not infer" error fires.
+- [ ] **drop_chunks:** Has `dry_run` parameter returning chunk list without deleting — verify no chunks removed on `dry_run=True`.
+- [ ] **add_dimension:** Empty-hypertable check fires BEFORE the SQL is sent — verify with a populated hypertable that a pycopg error (not raw psycopg ProgrammingError) is raised.
+- [ ] **Continuous aggregate SQL validation:** Heuristic `time_bucket` check fires for `date_trunc`-based query before any DB round-trip.
+- [ ] **add_continuous_aggregate_policy:** start_offset > end_offset validation present; NULL end_offset gated.
+- [ ] **reorder_policy:** Docstring notes mutual exclusivity with compression; optional: check compression_enabled before adding the policy.
+- [ ] **All policy tests:** Use row-existence check + `CALL run_job()`, never sleep-and-wait for the scheduler.
+- [ ] **async parity:** Every new method has an async counterpart registered in `ACCESSOR_PAIRS` — verify `test_accessor_parity` still passes after each new method.
+- [ ] **Coverage ratchet:** All new autocommit branches are covered — autocommit paths are easy to miss in happy-path-only test suites.
 
 ---
 
@@ -399,49 +450,55 @@ Phase 25 (Pipeline design). `initial_watermark` parameter should be on the `Pipe
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Watermark advanced on failed load | HIGH | Manually `UPDATE pipeline_runs SET watermark = '<previous_good_watermark>' WHERE pipeline_name = '...' AND run_id = <failed_run_id>`; or insert a synthetic success row with the prior watermark; re-run to re-extract the skipped delta |
-| Snapshot hazard — rows lost at boundary | MEDIUM | Identify the gap period (between last successful watermark and `now() - safety_lag`); manually backfill: `INSERT INTO target SELECT * FROM source WHERE col BETWEEN last_watermark AND new_watermark` with conflict handling; re-run incremental from corrected watermark |
-| Transform drops watermark column | LOW | No data loss (run fails before load); fix the transform to preserve `incremental_column`; re-run |
-| JSONB type drift (datetime stored as naive string) | MEDIUM | Correct the serialization code; patch existing watermark rows: `UPDATE pipeline_runs SET watermark = jsonb_set(watermark, '{value}', to_json(watermark->>'value' || '+00:00')::jsonb) WHERE ...`; re-run to verify |
-| First-run OOM on huge table | LOW | No data loss (extract failed before load); add `initial_watermark` or `first_run_limit`; re-run |
-| NULL watermark column rows silently skipped | LOW-MEDIUM | Identify NULL-watermark rows in source; load them manually or via a `load_mode="append"` pipeline with explicit SQL filter; document the NOT NULL constraint for `incremental_column` |
+| Continuous aggregate DDL failed in transaction | LOW | No data loss (DDL was rolled back); fix to use autocommit connection; re-run |
+| drop_chunks deleted wrong data | HIGH | No rollback; restore from backup; verify backup freshness before exposing drop_chunks to users |
+| drop_chunks under a cagg left stale aggregates | MEDIUM | Refresh the cagg for the dropped region (aggregates will compute from remaining data; missing raw data = NULL/zero aggregates); document the dependency |
+| add_dimension on non-empty hypertable | LOW | No data modified (DB rejected the call); empty the hypertable or create a new one; re-run |
+| Gapfill "could not infer" from bound params | LOW | No data loss; rebuild the query with explicit start/end arguments in the function call |
+| reorder_policy silently inactive on compressed chunks | MEDIUM | Remove the reorder policy; decompress relevant chunks if needed; decide: keep reorder OR keep compression, not both |
 
 ---
 
 ## Pitfall-to-Phase Mapping
 
 | Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Inclusive/exclusive boundary (`>` vs `>=`) | Phase 25 — Pipeline design + `__post_init__` | Test: two rows at same max timestamp; assert both captured on next run |
-| Low-resolution / non-monotonic watermark column | Phase 25 — API docstring contract | Test: second-granularity timestamp and integer sequence watermarks |
-| Watermark advanced on failed load | Phase 26 — Runner implementation | Test: fail load; assert `watermark IS NULL` on failed run; next run re-extracts |
-| Snapshot hazard (concurrent inserts at boundary) | Phase 26 — Runner implementation + docs | Document isolation level and residual risk; optional `watermark_lag` for future |
-| NULLs in watermark column | Phase 26 — Runner implementation | Test: all-NULL watermark column raises `ETLIncrementalError` |
-| JSONB serialization type drift | Phase 25 or 26 — Watermark serialization utilities | Round-trip test for datetime/int/Decimal/date |
-| Transform drops watermark column | Phase 25 or 26 — Runner design (compute pre-transform) | Test: transform drops column; assert `ETLIncrementalError` with column name |
-| First-run full load on huge table | Phase 25 — Pipeline design (`initial_watermark` param) | Test: `initial_watermark=N` skips rows <= N on first run |
-
----
-
-## Note on Alias Removal (ALIAS-RM-01)
-
-The one pitfall worth flagging for the alias removal sub-feature: **silently breaking callers who still use the flat API.** The 56 deprecated aliases (`db.create_hypertable(...)`, `db.vacuum(...)`, etc.) have been emitting `DeprecationWarning` since v0.6.0. Hard-removing them in v0.7.0 is a breaking change. Users who pinned `pycopg>=0.6.0` without an upper bound will hit `AttributeError` on upgrade with no clear error message beyond the attribute name.
-
-Prevention: CHANGELOG `[0.7.0]` must have a `**Breaking**` section listing all 56 removed names with their accessor replacements (1:1 table, same as the MIGRATION v0.5→v0.6 guide). The MIGRATION v0.6→v0.7 guide must be prepended to MIGRATION.md. The `AttributeError` raised by Python when the stub is gone has no context — the MIGRATION guide is the only user-facing recovery path.
-
-No deep pitfall research is needed for this sub-feature; it is mechanical (delete a block, update tests, update docs). The one operational risk is forgetting to update `test_parity.py` to remove the now-deleted method names from any exception lists, causing a false-pass on parity when both sides simply lack the method.
+|---------|-----------------|--------------|
+| CREATE MATERIALIZED VIEW in transaction block | Continuous aggregate phase (Phase 30) | Test: call after `db.execute("SELECT 1")` — no transaction-block error |
+| refresh in transaction block | Continuous aggregate phase (Phase 30) | Test: refresh on autocommit path with committed data — no error, correct results |
+| refresh of uncommitted data | Continuous aggregate phase (Phase 30) | Test: insert + immediate refresh without commit — empty result; insert + commit + refresh — non-empty |
+| drop_chunks irreversible without dry_run | Chunk management phase | Test: dry_run=True returns chunk list without dropping; verify chunk count unchanged |
+| gapfill bounds not inferred from %s params | time_bucket_gapfill phase | Test: run gapfill with `datetime.now()` bound param — no "could not infer" error |
+| gapfill not bare in GROUP BY | time_bucket_gapfill phase | Test: inspect generated SQL — GROUP BY contains bare `time_bucket_gapfill(...)` |
+| add_dimension on non-empty hypertable | add_dimension phase | Test: populated hypertable raises pycopg error before DB round-trip |
+| add_dimension by_range/by_hash on < 2.13 | add_dimension phase | Verify TSDB version; use positional API by default in v0.8.0 |
+| Policy firing tested via scheduler | All policy phases | All policy tests use row-existence check + `CALL run_job()` |
+| reorder + compression conflict | reorder_policy phase | Docstring Notes + optional guard; test verifies error or warning fires |
+| materialized_only default change in 2.13 | Continuous aggregate phase | Expose param, default True; test both modes |
+| NULL window_end on refresh | Continuous aggregate phase | Validate: None end raises ValueError before SQL is sent |
+| start_offset <= end_offset on cagg policy | Continuous aggregate phase | Test: swapped offsets raise ValueError |
+| Continuous aggregate using date_trunc not time_bucket | Continuous aggregate phase | Heuristic check raises ValueError for date_trunc query |
 
 ---
 
 ## Sources
 
-- `/home/loc/workspace/pycopg/pycopg/etl.py` — current `ETLAccessor.run()` and `AsyncETLAccessor.run()` implementation; transform chain; NaN coercion; `_end_run` call sites (success vs. failure paths)
-- `/home/loc/workspace/pycopg/pycopg/queries.py` — `ETL_INIT_PIPELINE_RUNS` (watermark JSONB column present, always NULL); `ETL_UPDATE_RUN` (does NOT currently write `watermark`); `ETL_GET_LAST_RUN` (used to retrieve last watermark for next run)
-- `/home/loc/workspace/pycopg/.planning/PROJECT.md` — v0.7.0 locked scope decisions (incremental_column, `>` filter, first-run = full load, append/upsert only, `replace` forbidden, zero new runtime deps)
-- Incremental ETL design literature: the `>` vs `>=` boundary trade-off is documented in Airbyte, dbt, and Debezium documentation; the snapshot hazard is the standard "read-committed incremental ETL gap" problem discussed in Flink and Spark Structured Streaming CDC documentation
-- psycopg 3 JSONB adapter behavior: psycopg 3 docs (built-in JSON adaptation — dicts/lists/primitives, no automatic datetime deserialization)
-- pandas `max()` behavior on nullable columns: returns `NaN`/`NaT` for all-null series; ignores NULLs in mixed series (skipna=True by default)
+- [REFRESH cannot run inside a transaction block — timescale/timescaledb#1218](https://github.com/timescale/timescaledb/issues/1218)
+- [CREATE MATERIALIZED VIEW WITH DATA cannot be executed within a pipeline — timescale/timescaledb#5377](https://github.com/timescale/timescaledb/issues/5377)
+- [time_bucket_gapfill "invalid time_bucket_gapfill argument" via REST endpoint — timescale/timescaledb#4279](https://github.com/timescale/timescaledb/issues/4279)
+- [time_bucket_gapfill cannot infer start and finish from subquery — timescale/timescaledb#7605](https://github.com/timescale/timescaledb/issues/7605)
+- [time_bucket_gapfill fails to infer from NULL comparison — timescale/timescaledb#8525](https://github.com/timescale/timescaledb/issues/8525)
+- [add_dimension() documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/hypertable/add_dimension)
+- [add_reorder_policy() documentation (timescale.com)](https://docs.timescale.com/api/latest/hypertable/add_reorder_policy/)
+- [refresh_continuous_aggregate() documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/continuous-aggregates/refresh_continuous_aggregate)
+- [add_continuous_aggregate_policy() documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/continuous-aggregates/add_continuous_aggregate_policy)
+- [Reorder job fails on compressed chunks — timescale/timescaledb#1810](https://github.com/timescale/timescaledb/issues/1810)
+- [TimescaleDB 2.13.0 release notes — materialized_only default change](https://github.com/timescale/timescaledb/releases/tag/2.13.0)
+- [drop_chunks documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/hypertable/drop_chunks)
+- [psycopg 3 transaction management — autocommit](https://www.psycopg.org/psycopg3/docs/basic/transactions.html)
+- [Working with TimescaleDB in CI — autocommit for materialized views (wazeem.com)](https://wazeem.com/100/working-with-timescaledb-in-continuous-integration-automating-materialized-view-creation/)
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/etl.py` — autocommit isolation pattern for run-log writes (direct precedent for the cagg autocommit fix)
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/timescale.py` — existing TimescaleAccessor pattern; confirms `create_hypertable` uses `self._db.execute()` (safe for stored procedures, not safe for cagg DDL)
 
 ---
-*Pitfalls research for: watermark-based incremental ETL (pycopg v0.7.0, `Pipeline.incremental_column`, `pipeline_runs.watermark JSONB`)*
-*Researched: 2026-06-19*
+*Pitfalls research for: TimescaleDB 2.x advanced features in a psycopg 3 Python library wrapper (pycopg v0.8.0)*
+*Researched: 2026-06-22*
