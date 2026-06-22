@@ -405,17 +405,22 @@ builder form on 2.28**. Legacy positional form is not used here.
 | A1 | The `add_dimension` "clear error" (TS-ADV-08) should be repurposed to wrap the duplicate-dimension error since the non-empty error no longer exists on 2.28 | add_dimension / Finding 1 | If user wants a different behavior (e.g., a pre-check for data + raise), the method shape changes; needs user confirmation in discuss-phase |
 | A2 | `add_reorder_policy` live test tolerating `FeatureNotSupported` satisfies TS-ADV-09's "job row" criterion via the mock test instead | add_reorder_policy / Finding 2 | If a Community-licensed CI is required for the job-row assertion, an env change is needed |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **TS-ADV-08 clear-error semantics (A1).**
+Both questions were resolved by the user 2026-06-22 during plan-phase and are now locked in CONTEXT.md
+(D-08 / D-12) and reflected in ROADMAP success criteria #3/#4.
+
+1. **TS-ADV-08 clear-error semantics (A1) — RESOLVED → D-08 reshape.**
    - What we know: builder form succeeds on non-empty; duplicate-dim error (TS160) is the reliable catch.
-   - What's unclear: whether the user wants the original "non-empty -> error" behavior re-created via
-     a pre-check (`COUNT(*) FROM timescaledb_information.chunks`) or accepts the repurposed dup-dim wrap.
-   - Recommendation: discuss-phase confirms; default to wrapping dup-dim as `TimescaleError`.
+   - **Resolution (user-confirmed):** wrap the **duplicate-dimension** error as `TimescaleError` (the
+     repurposed dup-dim wrap; reachable only with `if_not_exists=False`). The original "non-empty -> error"
+     pre-check was rejected as it would block a legitimate TSDB-2.28 operation. See CONTEXT.md D-08.
 
-2. **TS-ADV-09 job-row coverage under Apache license (A2).**
+2. **TS-ADV-09 job-row coverage under Apache license (A2) — RESOLVED → D-12.**
    - What we know: live DB rejects `add_reorder_policy`; existing tests tolerate `FeatureNotSupported`.
-   - Recommendation: assert SQL shape via mock test; tolerate `FeatureNotSupported` in live test.
+   - **Resolution (user-confirmed):** mock SQL-shape test is authoritative; live test tolerates
+     `FeatureNotSupported`; job-row assertion written defensively for Community-licensed builds only.
+     No infra change this phase. See CONTEXT.md D-12.
 
 ## Environment Availability
 

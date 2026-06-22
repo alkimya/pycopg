@@ -1,8 +1,8 @@
 ---
 phase: 30
 slug: chunk-management-partitioning
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-22
 ---
@@ -81,4 +81,4 @@ created: 2026-06-22
 - [ ] Feedback latency < 120s
 - [ ] `nyquist_compliant: true` set in frontmatter (set by planner once tasks map cleanly)
 
-**Approval:** pending
+**Approval:** approved 2026-06-22 (plan-checker Dimension 8 PASS; `wave_0_complete` flips true once `tests/test_timescale.py` lands in Wave 1)

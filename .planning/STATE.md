@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: Roadmap created — ready for `/gsd-plan-phase 30`
-stopped_at: Phase 30 context gathered
-last_updated: "2026-06-22T15:36:01.272Z"
-last_activity: 2026-06-22 — Roadmap created for v0.8.0
+status: Phase 30 planned — ready to execute (`/gsd-execute-phase 30`)
+stopped_at: Phase 30 planned (3 plans, 3 waves)
+last_updated: "2026-06-22T17:00:00.000Z"
+last_activity: 2026-06-22 — Phase 30 planned (3 plans / 3 waves, plan-checker PASSED)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** v0.8.0 TimescaleDB avancé — roadmap created (Phases 30-33), ready to plan Phase 30.
+**Current focus:** v0.8.0 TimescaleDB avancé — Phase 30 planned (3 plans / 3 waves), ready to execute.
 
 ## Current Position
 
-Phase: 30 (not started)
-Plan: —
-Status: Roadmap created — ready for `/gsd-plan-phase 30`
-Last activity: 2026-06-22 — Roadmap created for v0.8.0
+Phase: 30 (planned, not started)
+Plan: 3 plans (30-01, 30-02, 30-03) across 3 waves
+Status: Phase 30 planned — ready to execute (`/gsd-execute-phase 30`)
+Last activity: 2026-06-22 — Phase 30 planned (plan-checker PASSED, no blockers)
 
 ## Performance Metrics
 
@@ -43,7 +43,7 @@ Last activity: 2026-06-22 — Roadmap created for v0.8.0
 
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
-| 30. Chunk Management & Partitioning | ? | 0 | Not started |
+| 30. Chunk Management & Partitioning | 3 | 0 | Planned — ready to execute |
 | 31. Continuous Aggregate Lifecycle | ? | 0 | Not started |
 | 32. Query Helpers & Parity Verification | ? | 0 | Not started |
 | 33. Release v0.8.0 | ? | 0 | Not started |
@@ -69,6 +69,13 @@ Last activity: 2026-06-22 — Roadmap created for v0.8.0
 - TS-ADV-10 parity assigned to Phase 32 (last feature phase, where the full 9-method surface exists)
 - Zero new runtime dependencies; coverage ratchet ≥94% (baseline 95.11%)
 
+**Phase 30 planning (2026-06-22) — research-driven decision changes:**
+
+- TSDB version confirmed **2.28.0** (live `SELECT extversion`) → `add_dimension` uses modern `by_hash`/`by_range`; no pre-2.13 fallback.
+- **D-08 RESHAPED:** the "empty/non-empty hypertable raises" premise is FALSE on 2.28's builder form (succeeds on populated tables). `add_dimension` instead wraps the **duplicate-dimension** error (TS160, `if_not_exists=False` path) as `TimescaleError`. The earlier STATE decision "validates empty hypertable" is superseded.
+- **D-12 added:** local/CI is Apache-licensed → `add_reorder_policy` raises `FeatureNotSupported`. Mock SQL-shape test is authoritative; live test tolerates it; job-row assertion exercises only on Community builds. (Same constraint will apply to Phase 31's cagg policy tests.)
+- **show_chunks** = native `show_chunks()` SRF JOINed to `timescaledb_information.chunks` (`%%I.%%I::regclass` key, `ORDER BY range_start ASC`); **drop_chunks** = capture-before-drop (drop SRF returns text + rows vanish post-drop). New 3rd file `pycopg/exceptions.py` (`TimescaleError`) + new `tests/test_timescale.py`.
+
 ### Pending Todos
 
 None — roadmap created, ready to plan.
@@ -77,8 +84,9 @@ None — roadmap created, ready to plan.
 
 - 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — fixture-isolation bug, not v0.8.0 code; use `-o addopts=""` for targeted runs.
 - One ~2.7% flaky bound-param test surfaced during Phase 28 — watch for re-flake.
-- **Phase 30 research flag:** confirm TSDB version (`SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'`) before finalizing `add_dimension` SQL form (pre-2.13 positional vs 2.13+ `by_hash`/`by_range`).
+- ~~**Phase 30 research flag:** confirm TSDB version~~ RESOLVED 2026-06-22: live = 2.28.0 → modern `by_hash`/`by_range`.
 - **Phase 32 research flag:** verify `to_dataframe` `%s`-to-named-bind conversion path at plan time before coding `into="df"` for `time_bucket`/`time_bucket_gapfill`.
+- **Phase 31 carry-forward:** the Apache-license `FeatureNotSupported` constraint (Phase 30 D-12) also blocks `add_continuous_aggregate_policy` job-row live tests — plan the same mock-authoritative + license-tolerant strategy.
 
 ## Deferred Items
 
@@ -95,11 +103,11 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-22T15:36:01.265Z
-Stopped at: Phase 30 context gathered
-Resume file: .planning/phases/30-chunk-management-partitioning/30-CONTEXT.md
-Next action: Plan Phase 30 — `/gsd-plan-phase 30`
+Last session: 2026-06-22T17:00:00.000Z
+Stopped at: Phase 30 planned (3 plans / 3 waves, plan-checker PASSED)
+Resume file: .planning/phases/30-chunk-management-partitioning/30-01-PLAN.md
+Next action: Execute Phase 30 — `/gsd-execute-phase 30`
 
 ## Operator Next Steps
 
-- Plan Phase 30 with `/gsd-plan-phase 30`
+- Execute Phase 30 with `/gsd-execute-phase 30`

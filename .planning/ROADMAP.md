@@ -106,9 +106,16 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 5. All four methods have async counterparts (`async_db.timescale.*`) verified by `test_accessor_parity`; coverage ratchet ≥94% holds
 
 **Plans**: 3 plans (2 implementation waves over 3 sequential waves due to shared `timescale.py`)
+**Wave 1**
 
 - [ ] 30-01-PLAN.md — Foundation: `TimescaleError` exception + `TSDB_SHOW_CHUNKS` SQL constant + new `tests/test_timescale.py` scaffold (sync/async skip-fixtures + Wave 0 stubs) [wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 30-02-PLAN.md — `show_chunks` + `drop_chunks` (sync + async): type-driven `%s` casts, oldest-first list, both-None ValueError, capture-before-drop dry_run [wave 2]
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 30-03-PLAN.md — `add_dimension` + `add_reorder_policy` (sync + async): by_hash/by_range, mutual-excl ValueError, dup-dim→TimescaleError, license-tolerant reorder test, full parity + coverage gate [wave 3]
 
 **UI hint**: no
