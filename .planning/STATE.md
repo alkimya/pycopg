@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: completed
+status: "Phase 31 context gathered (31-CONTEXT.md, D-01..D-10). Next: /gsd-plan-phase 31"
 stopped_at: Phase 31 context gathered
-last_updated: "2026-06-22T21:31:59.286Z"
-last_activity: 2026-06-22
+last_updated: "2026-06-22T22:42:47.719Z"
+last_activity: 2026-06-22 -- Phase 31 planning complete
 progress:
   total_phases: 4
   completed_phases: 1
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 Phase: 31
 Plan: Not started
 Status: Phase 31 context gathered (31-CONTEXT.md, D-01..D-10). Next: /gsd-plan-phase 31
-Last activity: 2026-06-22
+Last activity: 2026-06-22 -- Phase 31 planning complete
 
 ## Performance Metrics
 

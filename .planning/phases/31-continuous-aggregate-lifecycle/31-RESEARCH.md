@@ -444,7 +444,12 @@ context-manager is wired so `conn.execute` lines register as covered.
 
 ---
 
-## Open Questions for planner
+## Open Questions for planner (RESOLVED 2026-06-23 — see CONTEXT.md D-09/D-10)
+
+> **RESOLVED:** both questions below were answered during planning. The D-09/D-10 license-gating
+> ack was confirmed by the user (all 3 cagg methods → mock-authoritative + live-tolerant; isolation
+> proven structurally) and is recorded in the REVISED CONTEXT.md D-09/D-10. The `None`-offset →
+> `NULL` rendering is encoded in plan 31-03's acceptance criteria. Retained below for the audit trail.
 
 1. **D-09/D-10 wording update (needs a one-line user ack, like Phase 30's D-08/D-12 reshape).**
    Continuous aggregates are TSL/Community-only; the local/CI build is Apache, so create + refresh
@@ -590,10 +595,12 @@ Sources:
 | Architecture (autocommit seam) | HIGH | live psycopg behavior + existing ETL precedent |
 | Pitfalls (license gate, async await) | HIGH | live `0A000` on all 3 + code audit of 10 async guards |
 
-### Open Questions
-- D-09/D-10 need a one-line user/planner ack: cagg create+refresh are license-gated like policy →
-  test strategy shifts to mock-authoritative + structural isolation proof (API surface unchanged).
-- `None`-offset → render SQL `NULL` (planner to make per-offset branch explicit).
+### Open Questions (RESOLVED 2026-06-23 — see CONTEXT.md D-09/D-10 + plan 31-03)
+- ~~D-09/D-10 need a one-line user/planner ack: cagg create+refresh are license-gated like policy →
+  test strategy shifts to mock-authoritative + structural isolation proof (API surface unchanged).~~
+  **RESOLVED:** user-acked; CONTEXT.md D-09/D-10 revised accordingly.
+- ~~`None`-offset → render SQL `NULL` (planner to make per-offset branch explicit).~~
+  **RESOLVED:** encoded in plan 31-03 acceptance criteria.
 
 ### Ready for Planning
 Research complete. Planner can create PLAN.md files; the only judgement call is acknowledging the
