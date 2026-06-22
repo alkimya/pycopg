@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pycopg import queries
-from pycopg.exceptions import ExtensionNotAvailable
+from pycopg.exceptions import ExtensionNotAvailable, TimescaleError
 from pycopg.utils import validate_identifier, validate_identifiers, validate_interval
 
 if TYPE_CHECKING:
@@ -478,6 +478,164 @@ class TimescaleAccessor:
         self._db.execute(drop_sql, params)
         return chunk_list
 
+    def add_dimension(
+        self,
+        table: str,
+        column: str,
+        partition_type: str = "hash",
+        number_partitions: int | None = None,
+        chunk_interval: str | None = None,
+        schema: str = "public",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Add a partitioning dimension to a hypertable.
+
+        Uses the modern TimescaleDB 2.13+ ``by_hash`` / ``by_range`` builder
+        form (TSDB 2.28 verified).  Validates mutual exclusivity of
+        ``number_partitions`` and ``chunk_interval`` at construction time —
+        before any DB round-trip (D-07).
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        column : str
+            Column to partition by.
+        partition_type : str, optional
+            ``"hash"`` (space-partitioning) or ``"range"`` (time/value
+            partitioning), by default ``"hash"``.
+        number_partitions : int or None, optional
+            Number of hash partitions.  Required when
+            ``partition_type="hash"``; forbidden for ``"range"``.
+        chunk_interval : str or None, optional
+            Chunk interval for the new dimension (e.g. ``"7 days"``).
+            Required when ``partition_type="range"``; forbidden for
+            ``"hash"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        if_not_exists : bool, optional
+            If ``True`` (default), a duplicate dimension is silently
+            ignored (TSDB emits a NOTICE).  If ``False``, a duplicate
+            dimension raises :exc:`TimescaleError`.
+
+        Raises
+        ------
+        ValueError
+            If ``partition_type`` is neither ``"hash"`` nor ``"range"``,
+            or if the ``number_partitions`` / ``chunk_interval`` mutual
+            exclusivity constraint is violated — raised *before* any DB
+            round-trip.
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        TimescaleError
+            If ``if_not_exists=False`` and the column is already a
+            dimension on this hypertable (duplicate-dimension error,
+            SQLSTATE TS160).
+        """
+        # D-07: construction-time mutual-exclusivity ValueError — before any
+        # DB round-trip.
+        if partition_type == "hash":
+            if number_partitions is None:
+                raise ValueError(
+                    "partition_type='hash' requires number_partitions to be set."
+                )
+            if chunk_interval is not None:
+                raise ValueError(
+                    "partition_type='hash' does not accept chunk_interval. "
+                    "Use number_partitions instead."
+                )
+        elif partition_type == "range":
+            if chunk_interval is None:
+                raise ValueError(
+                    "partition_type='range' requires chunk_interval to be set."
+                )
+            if number_partitions is not None:
+                raise ValueError(
+                    "partition_type='range' does not accept number_partitions. "
+                    "Use chunk_interval instead."
+                )
+        else:
+            raise ValueError(
+                f"partition_type must be 'hash' or 'range', got {partition_type!r}."
+            )
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+        validate_identifier(column)
+
+        if partition_type == "hash":
+            dim = f"by_hash('{column}', {int(number_partitions)})"
+        else:  # range
+            validate_interval(chunk_interval)
+            dim = f"by_range('{column}', INTERVAL '{chunk_interval}')"
+
+        ne = ", if_not_exists => true" if if_not_exists else ""
+        sql = f"SELECT add_dimension('{schema}.{table}', {dim}{ne})"
+
+        # D-08 reshape: wrap the duplicate-dimension DB error (SQLSTATE TS160,
+        # surfaces as a generic psycopg DatabaseError subclass) as
+        # TimescaleError.  Only reachable when if_not_exists=False; when True,
+        # TSDB emits a NOTICE and returns normally.
+        try:
+            self._db.execute(sql)
+        except Exception as exc:
+            raise TimescaleError(
+                f"add_dimension failed for column '{column}' on "
+                f"'{schema}.{table}': {exc}"
+            ) from exc
+
+    def add_reorder_policy(
+        self,
+        table: str,
+        index_name: str,
+        schema: str = "public",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Add an automatic reorder policy to a hypertable.
+
+        Registers a background job that periodically reorders chunks by the
+        given index (Community license feature).  On Apache-licensed builds,
+        psycopg raises ``FeatureNotSupported`` — the caller must tolerate it.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        index_name : str
+            Name of the index to reorder by.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        if_not_exists : bool, optional
+            If ``True`` (default), silently skip if a reorder policy already
+            exists for this hypertable.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+        """
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema, index_name)
+
+        ne = ", if_not_exists => true" if if_not_exists else ""
+        self._db.execute(
+            f"SELECT add_reorder_policy('{schema}.{table}', '{index_name}'{ne}) AS job_id"
+        )
+
 
 class AsyncTimescaleAccessor:
     """Async TimescaleDB helper namespace exposed as ``async_db.timescale``.
@@ -886,3 +1044,150 @@ class AsyncTimescaleAccessor:
         )
         await self._db.execute(drop_sql, params)
         return chunk_list
+
+    async def add_dimension(
+        self,
+        table: str,
+        column: str,
+        partition_type: str = "hash",
+        number_partitions: int | None = None,
+        chunk_interval: str | None = None,
+        schema: str = "public",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Add a partitioning dimension to a hypertable.
+
+        Async mirror of :meth:`TimescaleAccessor.add_dimension`.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        column : str
+            Column to partition by.
+        partition_type : str, optional
+            ``"hash"`` (space-partitioning) or ``"range"`` (time/value
+            partitioning), by default ``"hash"``.
+        number_partitions : int or None, optional
+            Number of hash partitions.  Required when
+            ``partition_type="hash"``; forbidden for ``"range"``.
+        chunk_interval : str or None, optional
+            Chunk interval for the new dimension (e.g. ``"7 days"``).
+            Required when ``partition_type="range"``; forbidden for
+            ``"hash"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        if_not_exists : bool, optional
+            If ``True`` (default), a duplicate dimension is silently
+            ignored.  If ``False``, a duplicate dimension raises
+            :exc:`TimescaleError`.
+
+        Raises
+        ------
+        ValueError
+            If ``partition_type`` is invalid or mutual-exclusivity is
+            violated — raised *before* any DB round-trip (D-07).
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        TimescaleError
+            If ``if_not_exists=False`` and the column is already a
+            dimension (duplicate-dimension error, SQLSTATE TS160).
+        """
+        # D-07: construction-time mutual-exclusivity ValueError — before any
+        # DB round-trip (plain Python, no await).
+        if partition_type == "hash":
+            if number_partitions is None:
+                raise ValueError(
+                    "partition_type='hash' requires number_partitions to be set."
+                )
+            if chunk_interval is not None:
+                raise ValueError(
+                    "partition_type='hash' does not accept chunk_interval. "
+                    "Use number_partitions instead."
+                )
+        elif partition_type == "range":
+            if chunk_interval is None:
+                raise ValueError(
+                    "partition_type='range' requires chunk_interval to be set."
+                )
+            if number_partitions is not None:
+                raise ValueError(
+                    "partition_type='range' does not accept number_partitions. "
+                    "Use chunk_interval instead."
+                )
+        else:
+            raise ValueError(
+                f"partition_type must be 'hash' or 'range', got {partition_type!r}."
+            )
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema)
+        validate_identifier(column)
+
+        if partition_type == "hash":
+            dim = f"by_hash('{column}', {int(number_partitions)})"
+        else:  # range
+            validate_interval(chunk_interval)
+            dim = f"by_range('{column}', INTERVAL '{chunk_interval}')"
+
+        ne = ", if_not_exists => true" if if_not_exists else ""
+        sql = f"SELECT add_dimension('{schema}.{table}', {dim}{ne})"
+
+        # D-08 reshape: wrap duplicate-dimension DB error as TimescaleError.
+        try:
+            await self._db.execute(sql)
+        except Exception as exc:
+            raise TimescaleError(
+                f"add_dimension failed for column '{column}' on "
+                f"'{schema}.{table}': {exc}"
+            ) from exc
+
+    async def add_reorder_policy(
+        self,
+        table: str,
+        index_name: str,
+        schema: str = "public",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Add an automatic reorder policy to a hypertable.
+
+        Async mirror of :meth:`TimescaleAccessor.add_reorder_policy`.
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        index_name : str
+            Name of the index to reorder by.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        if_not_exists : bool, optional
+            If ``True`` (default), silently skip if a reorder policy already
+            exists for this hypertable.
+
+        Raises
+        ------
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (D-12).
+        """
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        validate_identifiers(table, schema, index_name)
+
+        ne = ", if_not_exists => true" if if_not_exists else ""
+        await self._db.execute(
+            f"SELECT add_reorder_policy('{schema}.{table}', '{index_name}'{ne}) AS job_id"
+        )
