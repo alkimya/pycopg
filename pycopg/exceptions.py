@@ -51,6 +51,12 @@ class DatabaseExists(PycopgError):
     pass
 
 
+class TimescaleError(PycopgError):
+    """Error raised by TimescaleDB management operations."""
+
+    pass
+
+
 class ETLError(PycopgError):
     """Base exception for ETL pipeline errors."""
 

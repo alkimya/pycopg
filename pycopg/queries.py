@@ -242,6 +242,36 @@ HYPERTABLE_INFO = """
         hypertable_detailed_size(format('%%I.%%I', %s::text, %s::text)) AS detailed_size
 """
 
+# TSDB_SHOW_CHUNKS — list chunks for a hypertable, optionally filtered by
+# older_than / newer_than bounds (appended by the builder at call time).
+#
+# JOIN key uses format('%%I.%%I', ...) — the double %% is required because
+# psycopg eats a single % in query strings; the result is the literal SQL
+# format('%I.%I', ...) which PostgreSQL then interprets as a quoted-identifier
+# cast to regclass.  Same convention as HYPERTABLE_INFO / TABLE_SIZES above.
+#
+# The {schema}.{table} and the optional bound fragments are interpolated by
+# the builder in timescale.py after validate_identifiers().  Runtime VALUES
+# (older_than / newer_than) are bound as %s / %s::interval — never
+# interpolated into the SQL string.
+#
+# Ordering is range_start ASC (oldest first per D-05).  Lexicographic sort on
+# chunk names is intentionally AVOIDED (_hyper_N_10 sorts before _hyper_N_2).
+TSDB_SHOW_CHUNKS = (
+    "SELECT c.chunk_schema || '.' || c.chunk_name AS chunk_name "
+    "FROM show_chunks('{{schema}}.{{table}}'{{older_arg}}{{newer_arg}}) AS sc "
+    "JOIN timescaledb_information.chunks c "
+    "  ON format('%%I.%%I', c.chunk_schema, c.chunk_name)::regclass = sc "
+    "ORDER BY c.range_start ASC"
+)
+
+# TSDB_DROP_CHUNKS — side-effecting call issued AFTER the preview list has
+# been captured via TSDB_SHOW_CHUNKS.  The schema/table and bound fragments
+# are interpolated identically; runtime VALUES bind as %s / %s::interval.
+TSDB_DROP_CHUNKS = (
+    "SELECT drop_chunks('{{schema}}.{{table}}'{{older_arg}}{{newer_arg}})"
+)
+
 # =============================================================================
 # ETL QUERIES
 # =============================================================================
