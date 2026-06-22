@@ -19,7 +19,7 @@ marker.
 # Apache-license tolerance).  Import here so it is available when Plan 03 fills
 # in the stub bodies, and to satisfy the Wave 0 acceptance criterion.
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -272,6 +272,22 @@ class TestShowChunksMock:
 
 class TestDropChunksMock:
     """Mock SQL-shape unit tests for drop_chunks (sync + async, no live DB)."""
+
+    @pytest.mark.parametrize("bad", [123, 1.5, date(2020, 1, 1)])
+    def test_build_chunk_bound_fragments_rejects_unsupported_type(self, bad):
+        """WR-04: non-str/non-datetime bounds raise TypeError, not a silent bind.
+
+        ``drop_chunks`` is destructive, so an int/date/Decimal must not fall
+        through to a bare ``%s`` bind where the DB could match an unexpected
+        chunk set.  ``date`` is excluded too (datetime is a subclass of date).
+        """
+        from pycopg.timescale import _build_chunk_bound_fragments
+
+        with pytest.raises(TypeError, match="older_than must be str"):
+            _build_chunk_bound_fragments(bad, None)
+
+        with pytest.raises(TypeError, match="newer_than must be str"):
+            _build_chunk_bound_fragments(None, bad)
 
     def test_drop_chunks_both_none_raises_before_execute(self, config):
         """drop_chunks(both None) raises ValueError and never calls execute (D-03)."""
@@ -748,6 +764,90 @@ class TestAddDimensionMock:
                 number_partitions=4,
                 if_not_exists=False,
             )
+
+    def test_add_dimension_non_db_error_propagates_unwrapped(self, config):
+        """WR-01: a non-DatabaseError from execute propagates, not wrapped."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(side_effect=RuntimeError("not a db error"))
+
+        # Must surface as the original RuntimeError, never flattened to
+        # TimescaleError (the catch is narrowed to DatabaseError).
+        with pytest.raises(RuntimeError, match="not a db error"):
+            db.timescale.add_dimension(
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=4,
+                if_not_exists=False,
+            )
+
+    @pytest.mark.parametrize("bad", [True, 3.9, 0, -1])
+    def test_add_dimension_invalid_number_partitions_raises(self, config, bad):
+        """WR-03: bool/float/non-positive number_partitions raise ValueError, no DB call."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ValueError, match="number_partitions"):
+            db.timescale.add_dimension(
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=bad,
+            )
+
+        db.execute.assert_not_called()
+
+    async def test_add_dimension_async_non_db_error_propagates_unwrapped(self, config):
+        """WR-01 async: a non-DatabaseError from execute propagates, not wrapped."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(side_effect=RuntimeError("not a db error"))
+
+        with pytest.raises(RuntimeError, match="not a db error"):
+            await db.timescale.add_dimension(
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=4,
+                if_not_exists=False,
+            )
+
+    @pytest.mark.parametrize("bad", [True, 3.9, 0, -1])
+    async def test_add_dimension_async_invalid_number_partitions_raises(
+        self, config, bad
+    ):
+        """WR-03 async: invalid number_partitions raises ValueError before any await."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+
+        with pytest.raises(ValueError, match="number_partitions"):
+            await db.timescale.add_dimension(
+                "events",
+                "device_id",
+                partition_type="hash",
+                number_partitions=bad,
+            )
+
+        db.execute.assert_not_called()
 
     async def test_add_dimension_async_hash_sql_shape(self, config):
         """Async add_dimension hash form awaits guard + execute; correct SQL shape."""

@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from psycopg import DatabaseError
+
 from pycopg import queries
 from pycopg.exceptions import ExtensionNotAvailable, TimescaleError
 from pycopg.utils import validate_identifier, validate_identifiers, validate_interval
@@ -54,18 +56,28 @@ def _build_chunk_bound_fragments(
     elif isinstance(older_than, str):
         older_frag = ", older_than => %s::interval"
         params.append(older_than)
-    else:
+    elif isinstance(older_than, datetime):
         older_frag = ", older_than => %s"
         params.append(older_than)
+    else:
+        raise TypeError(
+            "older_than must be str (interval literal) or datetime, "
+            f"got {type(older_than).__name__}."
+        )
 
     if newer_than is None:
         newer_frag = ""
     elif isinstance(newer_than, str):
         newer_frag = ", newer_than => %s::interval"
         params.append(newer_than)
-    else:
+    elif isinstance(newer_than, datetime):
         newer_frag = ", newer_than => %s"
         params.append(newer_than)
+    else:
+        raise TypeError(
+            "newer_than must be str (interval literal) or datetime, "
+            f"got {type(newer_than).__name__}."
+        )
 
     return older_frag, newer_frag, params
 
@@ -528,9 +540,12 @@ class TimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         TimescaleError
-            If ``if_not_exists=False`` and the column is already a
-            dimension on this hypertable (duplicate-dimension error,
-            SQLSTATE TS160).
+            Wraps any database-level failure of ``add_dimension`` — most
+            notably the duplicate-dimension error (SQLSTATE TS160) raised
+            when ``if_not_exists=False`` and the column is already a
+            dimension, but also other DB errors such as the table not being
+            a hypertable.  Non-database errors (e.g. :exc:`ValueError`)
+            propagate unchanged.
         """
         # D-07: construction-time mutual-exclusivity ValueError — before any
         # DB round-trip.
@@ -543,6 +558,19 @@ class TimescaleAccessor:
                 raise ValueError(
                     "partition_type='hash' does not accept chunk_interval. "
                     "Use number_partitions instead."
+                )
+            # bool is a subclass of int — reject it and non-positive values
+            # before they reach by_hash() as a silently-wrong partition count.
+            if isinstance(number_partitions, bool) or not isinstance(
+                number_partitions, int
+            ):
+                raise ValueError(
+                    "number_partitions must be a positive int, got "
+                    f"{type(number_partitions).__name__}."
+                )
+            if number_partitions < 1:
+                raise ValueError(
+                    f"number_partitions must be >= 1, got {number_partitions}."
                 )
         elif partition_type == "range":
             if chunk_interval is None:
@@ -577,13 +605,15 @@ class TimescaleAccessor:
         ne = ", if_not_exists => true" if if_not_exists else ""
         sql = f"SELECT add_dimension('{schema}.{table}', {dim}{ne})"
 
-        # D-08 reshape: wrap the duplicate-dimension DB error (SQLSTATE TS160,
-        # surfaces as a generic psycopg DatabaseError subclass) as
-        # TimescaleError.  Only reachable when if_not_exists=False; when True,
-        # TSDB emits a NOTICE and returns normally.
+        # D-08 reshape: wrap any database-level failure of add_dimension as
+        # TimescaleError.  The motivating case is the duplicate-dimension error
+        # (SQLSTATE TS160) raised when if_not_exists=False; with if_not_exists
+        # True, TSDB emits a NOTICE and returns normally.  We catch only
+        # DatabaseError (not bare Exception) so ValueError, cancellation, and
+        # non-DB programming errors propagate unchanged.
         try:
             self._db.execute(sql)
-        except Exception as exc:
+        except DatabaseError as exc:
             raise TimescaleError(
                 f"add_dimension failed for column '{column}' on "
                 f"'{schema}.{table}': {exc}"
@@ -1090,8 +1120,10 @@ class AsyncTimescaleAccessor:
         ExtensionNotAvailable
             If TimescaleDB extension is not installed.
         TimescaleError
-            If ``if_not_exists=False`` and the column is already a
-            dimension (duplicate-dimension error, SQLSTATE TS160).
+            Wraps any database-level failure of ``add_dimension`` — most
+            notably the duplicate-dimension error (SQLSTATE TS160) raised
+            when ``if_not_exists=False``.  Non-database errors (e.g.
+            :exc:`ValueError`) propagate unchanged.
         """
         # D-07: construction-time mutual-exclusivity ValueError — before any
         # DB round-trip (plain Python, no await).
@@ -1104,6 +1136,19 @@ class AsyncTimescaleAccessor:
                 raise ValueError(
                     "partition_type='hash' does not accept chunk_interval. "
                     "Use number_partitions instead."
+                )
+            # bool is a subclass of int — reject it and non-positive values
+            # before they reach by_hash() as a silently-wrong partition count.
+            if isinstance(number_partitions, bool) or not isinstance(
+                number_partitions, int
+            ):
+                raise ValueError(
+                    "number_partitions must be a positive int, got "
+                    f"{type(number_partitions).__name__}."
+                )
+            if number_partitions < 1:
+                raise ValueError(
+                    f"number_partitions must be >= 1, got {number_partitions}."
                 )
         elif partition_type == "range":
             if chunk_interval is None:
@@ -1138,10 +1183,13 @@ class AsyncTimescaleAccessor:
         ne = ", if_not_exists => true" if if_not_exists else ""
         sql = f"SELECT add_dimension('{schema}.{table}', {dim}{ne})"
 
-        # D-08 reshape: wrap duplicate-dimension DB error as TimescaleError.
+        # D-08 reshape: wrap any database-level failure as TimescaleError (the
+        # motivating case is the duplicate-dimension error when
+        # if_not_exists=False).  Catch only DatabaseError so non-DB errors
+        # propagate unchanged.
         try:
             await self._db.execute(sql)
-        except Exception as exc:
+        except DatabaseError as exc:
             raise TimescaleError(
                 f"add_dimension failed for column '{column}' on "
                 f"'{schema}.{table}': {exc}"
