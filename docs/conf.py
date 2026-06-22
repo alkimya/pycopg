@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath('..'))
 project = 'pycopg'
 copyright = '2026, Loc Cosnier <loc.cosnier@pm.me>'
 author = 'Loc Cosnier'
-release = '0.6.0'
+release = '0.7.0'
 
 # -- General configuration ---------------------------------------------------
 
