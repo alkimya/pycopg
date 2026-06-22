@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: executing
-stopped_at: Phase 30 complete — all 3 plans done (show_chunks, drop_chunks, add_dimension, add_reorder_policy; 46 tests green; TS-ADV-10 parity confirmed)
-last_updated: "2026-06-22T19:00:00Z"
-last_activity: 2026-06-22 -- Phase 30 Plan 03 executed (Wave 3 — FINAL plan of phase)
+status: completed
+stopped_at: Phase 30 complete (all 3 plans, full suite 1239 passed incl. 13 code-review-fix regression tests, parity 7/7, coverage 94.98%)
+last_updated: "2026-06-22T18:43:12.761Z"
+last_activity: 2026-06-22
 progress:
   total_phases: 4
   completed_phases: 1
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 30 — chunk-management-partitioning
+**Current focus:** Phase 31 — continuous-aggregate-lifecycle (next; Phase 30 complete)
 
 ## Current Position
 
-Phase: 30 (chunk-management-partitioning) — COMPLETE
-Plan: 3 of 3 (DONE — phase complete)
+Phase: 31
+Plan: Not started
 Status: All 3 plans executed. Phase 30 complete. Next: Phase 31 (Continuous Aggregate Lifecycle)
-Last activity: 2026-06-22 -- Phase 30 Plan 03 executed (Wave 3 — FINAL)
+Last activity: 2026-06-22
 
 ## Performance Metrics
 
