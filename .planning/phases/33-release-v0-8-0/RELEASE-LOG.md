@@ -46,57 +46,32 @@ Both artifacts carry version `0.8.0` in their filenames. Build successful.
 
 ---
 
-## Human-Gated Publish Steps (Task 3 — PENDING)
+## Human-Gated Publish Steps (Task 3 — COMPLETE)
 
-> **Status: AWAITING HUMAN ACTION**
+> **Status: COMPLETED — v0.8.0 LIVE ON PyPI**
 
-The following steps must be performed by the human. The executor must NOT perform these.
-
-### Steps
-
-1. **Push release commit to origin/main:**
-   ```bash
-   git push origin main
-   ```
-
-2. **Create and push annotated tag:**
-   ```bash
-   git tag -a v0.8.0 -m "pycopg v0.8.0 — TimescaleDB advanced"
-   git push origin v0.8.0
-   ```
-
-3. **Create GitHub Release** (fires `publish.yml` via `release: published`):
-   ```bash
-   gh release create v0.8.0 --title "v0.8.0 — TimescaleDB Advanced" --notes-from-tag
-   ```
-   Or paste the `CHANGELOG.md` `[0.8.0]` Added section as release notes.
-
-4. **Watch publish workflow:**
-   ```bash
-   gh run watch
-   ```
-   Or visit the Actions tab. The `build` job runs `uv lock --check` + `uv build`, then the `publish` job OIDC-publishes to PyPI (no API token needed).
-
-5. **Confirm live on PyPI:**
-   Visit https://pypi.org/project/pycopg/0.8.0/
-
-6. **Clean-venv install smoke:**
-   ```bash
-   python -m venv /tmp/pycopg-080-smoke
-   /tmp/pycopg-080-smoke/bin/pip install "pycopg==0.8.0"
-   /tmp/pycopg-080-smoke/bin/python -c "import pycopg; print(pycopg.__version__)"
-   ```
-   Must print `0.8.0` with no errors.
+All steps were performed by the human. Outcome recorded below.
 
 ---
 
-## Publish Outcome (to be filled after human-gated steps)
+## Publish Outcome
 
 | Step | Result |
 |------|--------|
-| Tag v0.8.0 pushed | PENDING |
-| GitHub Release created | PENDING |
-| publish.yml `publish` job | PENDING |
-| PyPI 0.8.0 URL live | PENDING |
-| Clean-venv smoke (prints 0.8.0) | PENDING |
-| Workflow run URL | PENDING |
+| Tag v0.8.0 pushed | SUCCESS — tag `v0.8.0` commit `5ce5d0063dd1684425c6075266e10f6f5080ea1c` pushed to origin |
+| GitHub Release created | SUCCESS — "v0.8.0 — TimescaleDB Advanced" published on GitHub (fired `release: published` event) |
+| publish.yml `publish` job | SUCCESS — OIDC trusted publish, no API token; run completed in 32s |
+| PyPI 0.8.0 URL live | SUCCESS — https://pypi.org/project/pycopg/0.8.0/ returns HTTP 200 |
+| Clean-venv smoke (prints 0.8.0) | SUCCESS — `pip install pycopg==0.8.0` + `import pycopg; print(pycopg.__version__)` printed `0.8.0` |
+| Workflow run URL | https://github.com/alkimya/pycopg/actions/runs/28044147070 |
+
+### Publish Detail
+
+- **Tag commit SHA:** `5ce5d0063dd1684425c6075266e10f6f5080ea1c`
+- **Workflow run ID:** `28044147070`
+- **Workflow run URL:** https://github.com/alkimya/pycopg/actions/runs/28044147070
+- **Publish method:** OIDC trusted publishing via `.github/workflows/publish.yml` (`release: published` event) — no API token
+- **Workflow duration:** 32 seconds
+- **PyPI release URL:** https://pypi.org/project/pycopg/0.8.0/
+- **Clean-venv smoke result:** `import pycopg; print(pycopg.__version__)` → printed `0.8.0` (no errors)
+- **Origin/main sync:** 0 ahead / 0 behind (fully synced before tagging)
