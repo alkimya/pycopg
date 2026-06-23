@@ -1,5 +1,37 @@
 # Milestones
 
+## v0.8.0 TimescaleDB avancé (Shipped: 2026-06-23)
+
+**Phases completed:** 4 phases (30–33), 11 plans, 29 tasks
+
+**Delivered:** A purely-additive TimescaleDB release that grows the `db.timescale.*` accessor surface from 6 to 15 methods (full sync/async parity). Three feature families: chunk management & partitioning (`show_chunks`, `drop_chunks` with both-None `ValueError` safety + `dry_run`, `add_dimension` by_hash/by_range, `add_reorder_policy`); the full continuous-aggregate lifecycle (`create`/`refresh` via the `connect(autocommit=True)` seam that bypasses an enclosing `db.session()`, plus `add_continuous_aggregate_policy`); and time-series query helpers (`time_bucket`, `time_bucket_gapfill` with `into="df"/"rows"` routing). Community/TSL-only operations (caggs, gapfill, reorder) tested two-layer — mock-authoritative SQL-shape + Apache-license-tolerant live integration. Shipped to PyPI under the held ≥94% coverage ratchet, zero new runtime dependencies.
+
+**Key accomplishments:**
+
+- TimescaleError exception + TSDB_SHOW_CHUNKS SQL constant (%%I.%%I regclass JOIN, range_start ASC) + tests/test_timescale.py with ts_db/async_ts_db skip-fixtures and 19 xfail Wave 0 stubs.
+- show_chunks + drop_chunks on TimescaleAccessor + AsyncTimescaleAccessor with capture-before-drop, type-driven %s cast, both-None ValueError guard, and two-layer mock+live test coverage.
+- add_dimension (by_hash/by_range D-06, construction-time ValueError D-07, dup-dim->TimescaleError D-08) + add_reorder_policy (mock-authoritative SQL + Apache-tolerant live test D-12) on both accessors; 46/46 test_timescale.py green; TS-ADV-10 parity confirmed.
+- `create_continuous_aggregate` (sync + async) via `connect(autocommit=True)` seam with `time_bucket(` heuristic guard, mock-authoritative SQL-shape tests, and license-tolerant live integration tests.
+- `refresh_continuous_aggregate` (sync + async) via `connect(autocommit=True)` seam with `datetime|None` type guard, `[None,None]`=full-refresh params, mock-authoritative SQL-shape tests, and license-tolerant live integration tests proving the seam bypasses an enclosing `db.session()`.
+- `add_continuous_aggregate_policy` (sync + async) via plain `self._db.execute` (D-01) with `_check_offset_ordering` best-effort guard, `NULL`-for-None offsets, mock-authoritative SQL-shape tests, license-tolerant live integration tests, and the final 3-method `test_accessor_parity` confirmation.
+- Sync + async `db.timescale.time_bucket` and `time_bucket_gapfill` query helpers with `into="df"/"rows"` routing, module-level pure SQL builders (fixed `AS bucket` alias, gapfill double-binding `start`/`finish`), and full TS-ADV-10 sync/async parity.
+- Two-layer test coverage (mock SQL-shape + live integration) for `time_bucket` / `time_bucket_gapfill` plus an explicit 9-name v0.8.0 timescale surface parity assertion, holding the coverage ratchet at 95.11%.
+- Version bumped to 0.8.0 in both canonical sources; CHANGELOG [0.8.0] Added-only entry written covering 9 new TimescaleDB methods grouped by the three feature families; lockfile regenerated.
+- Rewrote timescaledb.md raw-SQL blocks to first-class `db.timescale.*` calls, added Advanced Chunk & Dimension Management section, extended api-reference.md with 9 new method rows, and bumped README to (15 methods) with compact v0.8.0 highlights.
+- 4 quality gates green (coverage 95.11%, interrogate 100%, Sphinx -W clean, import green), 0.8.0 sdist+wheel built, OIDC publish to PyPI succeeded in 32s via human-gated GitHub Release, clean-venv smoke confirmed `__version__ == 0.8.0`
+
+**Stats:**
+
+- Lines changed: ~16,242 insertions, ~11,348 deletions across 124 files (incl. `.planning/`)
+- Codebase: ~15,112 LOC lib (`pycopg/`)
+- Timeline: 2026-06-22 → 2026-06-23 (~2 days), 99 commits in window, 13 `feat(` commits
+- Gates at ship: coverage 95.11% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean, zero DeprecationWarnings on import
+- Git range: `v0.7.0` → tag `v0.8.0`
+
+**Known deferred items at close:** 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter` — fixture-isolation, not v0.8.0 code); stale `pycopg.aliases` Sphinx cross-reference in accessor docstrings (IN-01/IN-02 carry-forward, cosmetic); code-review warnings deferred across phases (WR-01 case-sensitive `time_bucket(` guard, WR-03 INTERVAL-literal-vs-`%s`, `%`-in-structural-SQL); TimescaleDB follow-ups TSDB-F01..F04 (cagg/policy removal, time_bucket origin/offset, compress/decompress, physical-time chunk filters) and incremental-ETL follow-ups ETL-INC-F01..F05 deferred to future milestones.
+
+---
+
 ## v0.7.0 Alias Removal + Incremental ETL (Shipped: 2026-06-22)
 
 **Phases completed:** 5 phases (25–29), 13 plans, 20 tasks

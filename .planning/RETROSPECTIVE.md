@@ -206,6 +206,55 @@
 
 ---
 
+## Milestone: v0.8.0 — TimescaleDB avancé
+
+**Shipped:** 2026-06-23
+**Phases:** 4 (30–33) | **Plans:** 11 | **Tasks:** 29
+
+### What Was Built
+
+- **Chunk & dimension management (Phase 30):** `show_chunks` (list[str], oldest-first, `older_than`/`newer_than` filters), `drop_chunks` (both-None `ValueError` pre-flight + capture-before-drop `dry_run`, DESTRUCTIVE docstring), `add_dimension` (TSDB 2.x `by_hash`/`by_range` builder form, construction-time mutual-exclusivity `ValueError`, dup-dimension → `TimescaleError`), `add_reorder_policy` — sync + async. New milestone-wide `TimescaleError(PycopgError)`, `TSDB_SHOW_CHUNKS`/`TSDB_DROP_CHUNKS` constants, new `tests/test_timescale.py` with `ts_db`/`async_ts_db` skip-fixtures.
+- **Continuous aggregate lifecycle (Phase 31):** `create_continuous_aggregate` + `refresh_continuous_aggregate` via the `connect(autocommit=True)` seam (`time_bucket(` heuristic guard; `datetime|None`-only refresh window; both-None = full refresh), `add_continuous_aggregate_policy` via plain `execute` (D-01) with a `_check_offset_ordering` best-effort guard — sync + async.
+- **Query helpers & parity (Phase 32):** `time_bucket` + `time_bucket_gapfill` with `into="df"/"rows"` routing via a LOCAL `_to_named_binds`/`_check_into` (not imported from spatial); gapfill takes required positional `start`/`finish`, double-bound. TS-ADV-10 full 9-method parity confirmed via `test_accessor_parity` + an explicit 9-name surface assertion.
+- **Release (Phase 33):** version bump (2 sources), CHANGELOG `[0.8.0]` Added-only (no MIGRATION — purely additive), `docs/timescaledb.md` rewritten to first-class `db.timescale.*` calls + Advanced Chunk & Dimension Management section + `api-reference.md` 15-row table + README "15 methods", 4 gates green (cov 95.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), human-gated tag `v0.8.0` + OIDC publish (run 28044147070), clean-venv smoke.
+
+### What Worked
+
+- **The autocommit seam from v0.5.0 ETL transferred verbatim to caggs.** `create`/`refresh` reuse the exact `connect(autocommit=True)` pattern that isolated run-log writes — and a live test proved it bypasses an enclosing `db.session()`. A structural seam designed for one feature family paid off in a second, three milestones later.
+- **Two-layer mock-authoritative + license-tolerant testing handled the Apache/TSL split cleanly.** Because the local/CI TimescaleDB is Apache-licensed (no caggs, gapfill, or reorder), the mock SQL-shape test is the authority and the live test uses `try/except FeatureNotSupported` — so the suite is green on Apache while the SQL contract is still pinned.
+- **Live verification at plan time caught a material wrong assumption before any code was written.** D-08 ("gapfill is Apache-free") was *reversed* during Phase 32 planning by running the query against the local DB — gapfill is TSL-only, exactly like caggs. Catching it at plan time (not in a failing CI run) saved a wrong test strategy.
+- **Code review again caught real latent bugs in new code** (Phase 30: over-broad `except Exception` swallowing non-DB errors, missing `number_partitions` validation, unvalidated chunk-bound types on the destructive path) — fixed with 13 regression tests before ship.
+- **The `db.meta`-free single-block decisions and local-copy-not-import discipline kept the accessor coupling-free.** `time_bucket` helpers deliberately copied `_to_named_binds` rather than importing from spatial, avoiding a timescale→spatial dependency.
+
+### What Was Inefficient
+
+- **Ran sequential-on-main yet again (now the de-facto default, 12th+ phase).** No worktrees; local `main` ran ~79–99 commits ahead of `origin` for the whole milestone. Fine for this mechanical single-file-per-phase work, but the divergence keeps accumulating and the executor parallelism stays unused.
+- **STATE.md drift recurred and needed hand-fixing across the milestone (7th+ tracked occurrence); `milestone.complete` again warned it could not update one STATE.md field at close** ("Last Activity Description" format mismatch) — the same CLI-format-vs-expected-format divergence flagged in v0.6.0/v0.7.0.
+- **REQUIREMENTS.md checkbox-vs-traceability-table drift resurfaced at close** — 6 of 11 checkboxes were left unticked while the authoritative traceability table showed all 11 Complete; had to be reconciled by hand in the archive. The phase CLIs update the table but not the inline checkboxes.
+- **Carry-forward cosmetic debt rode along untouched for the whole milestone** — the stale `pycopg.aliases` Sphinx cross-reference in accessor docstrings (IN-01/IN-02) has now survived removal of `aliases.py` itself and several phases; never blocking, never closed.
+
+### Patterns Established
+
+- **A connection seam built for one feature family is reusable infrastructure.** The `connect(autocommit=True)` seam (v0.5.0 run-log → v0.8.0 caggs) is now a proven cross-milestone primitive for "this DDL/operation cannot run inside a transaction."
+- **For license-gated DB features: mock SQL-shape test is authoritative, live test is license-tolerant.** `try/except FeatureNotSupported` + a pinned SQL assertion keeps the suite green on a restricted-license DB while still verifying the generated SQL.
+- **Verify license/feature assumptions against the live DB at plan time, not in CI.** A 30-second `psql` check reversed a wrong test-strategy decision (D-08) before it cost a phase.
+- **Accessor-to-accessor coupling is avoided by copying small helpers locally** (`_to_named_binds`/`_check_into`) rather than cross-importing — keeps each accessor independently movable.
+
+### Key Lessons
+
+1. **Structural seams are the second-highest-leverage thing a milestone leaves behind** (after forward-compat scaffolding). The autocommit seam designed for ETL run-logs in v0.5.0 was the enabling primitive for the entire cagg lifecycle in v0.8.0 — at zero design cost.
+2. **A 30-second live check beats a confident assumption.** The D-08 reversal (gapfill TSL-only, not Apache-free) shows that for environment-dependent facts (licenses, extension versions, planner behavior), querying the real DB at plan time is cheaper than discovering it in a failing test.
+3. **Code review continues to earn its place on new feature code** — three real bugs in Phase 30's new methods (error-swallowing, missing validation, unvalidated destructive-path input) survived the tests and were caught only by review. The pattern from v0.7.0 (review data/error paths adversarially) held again.
+4. **The recurring tooling taxes are now multi-milestone certainties, not anomalies:** STATE.md drift (7th+), the MILESTONES `Delivered`/`Stats`/`deferred` enrichment-by-hand (5th milestone), and now REQUIREMENTS.md checkbox-vs-table drift at close. These are tooling-level fixes overdue across the board.
+
+### Cost Observations
+
+- Model mix: Opus for orchestration/planning/review, Sonnet for researchers/executors/verifier.
+- Sessions: 2026-06-22 (milestone launch + Phase 30 + Phase 31 context) → 2026-06-23 (Phases 31–33 + release + close), ~2 days.
+- Notable: 4 phases, 11 plans; mature accessor + builder-pur patterns meant near-zero design churn — the only material design event was the live-verified D-08 license reversal at plan time.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -217,6 +266,7 @@
 | v0.5.0 | 5 (16–20) | 13 | ETL pipeline runner via the spatial mirror pattern; structural run-log isolation; fenced reversible-prep + human-gated publish |
 | v0.6.0 | 4 (21–24) | 13 | Accessor reorg via `@deprecated_alias` + lazy accessors; prove-once-replicate-N; `-W error` as the load-bearing refactor gate; milestone audit restored |
 | v0.7.0 | 5 (25–29) | 13 | Alias hard-removal (delete-the-wrapper-block) + incremental ETL on the reserved `watermark JSONB`; layered pure→run-log→extract/parity decomposition; review caught real coercion bugs |
+| v0.8.0 | 4 (30–33) | 11 | Advanced TimescaleDB surface (`db.timescale.*` 6→15) on the v0.5.0 autocommit seam; mock-authoritative + license-tolerant testing for Apache/TSL split; plan-time live verification reversed a wrong license assumption (D-08) |
 
 ### Cumulative Quality
 
@@ -227,13 +277,15 @@
 | v0.5.0 | 23 (~983 tests) | 94.26% | Ratchet held at 94 with new async ETL behavioral tests; interrogate 100% |
 | v0.6.0 | 30+ (~1100 tests) | 95.64% | Ratchet held at 94; +56 DB-free alias tests + 7-pair parity; `-W error::DeprecationWarning` green at 1030 unit tests; interrogate 100% |
 | v0.7.0 | 30+ (~1180 tests) | 95.11% | Ratchet held at 94; +114-test `test_alias_removal.py` (AttributeError + WR-01) + 34 DB-free incremental builder tests + live-DB watermark round-trips; `-W error::DeprecationWarning` green (no stubs left); interrogate 100% |
+| v0.8.0 | 31+ (~1288 tests) | 95.11% | Ratchet held at 94; new `test_timescale.py` two-layer (mock SQL-shape + Apache-tolerant live) for 9 methods + 9-name surface parity assertion; `-W error::DeprecationWarning` green; interrogate 100% |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. **Real PostgreSQL beats mocks** for catching driver/DB interaction bugs (v0.3.0, v0.4.0, and v0.5.0 all surfaced latent bugs only real-DB tests caught).
 2. **Sync is the established core-value API; align async toward it** — enriching async never breaking sync kept the parity promise with zero sync breakage across all three milestones.
-3. **The builder/accessor mirror pattern compounds.** Established in v0.4.0 (spatial), reused wholesale in v0.5.0 (ETL), the *target shape* the v0.6.0 monolith was refactored toward, and in v0.7.0 it made the async incremental surface a near-mechanical 1:1 mirror of sync — the most reusable architectural decision of the project.
+3. **The builder/accessor mirror pattern compounds.** Established in v0.4.0 (spatial), reused wholesale in v0.5.0 (ETL), the *target shape* the v0.6.0 monolith was refactored toward, in v0.7.0 it made the async incremental surface a near-mechanical 1:1 mirror of sync, and in v0.8.0 it absorbed 9 new TimescaleDB methods with near-zero design churn — the most reusable architectural decision of the project.
 4. **Forward-compat scaffolding pays off a milestone later.** v0.5.0 reserved a nullable `watermark JSONB` column (always NULL); v0.7.0 turned it into incremental ETL with **zero breaking migration**. The reserve-the-column bet is now a proven, repeatable pattern — make the cheap forward-compat move whenever a future additive feature is foreseeable.
 5. **A breaking removal is safe only if the prior deprecation cycle set it up.** v0.6.0's logic-in-accessor + warn+delegate wrappers (D-SCOPE-2) made v0.7.0's hard removal a one-block delete with zero logic risk; the enumerated `test_alias_removal.py` made "surface is accessor-only" a hard invariant. Sequence the deprecation cycle correctly and the break is mechanical.
-6. **Recurring tooling taxes, now tracked across milestones:** (a) the SUMMARY one-liner auto-extraction / MILESTONES enrichment-by-hand — confirmed v0.4.0–v0.7.0 (four running); (b) STATE.md bookkeeping drift requiring hand-fixes at phase/milestone close — acute in v0.6.0 and v0.7.0 (6+ hand-fixes in v0.7.0 alone), the CLI-written format and the close-step's expected format have diverged. Both are worth fixing at the tooling level. Manual REQUIREMENTS.md checkbox updates (v0.4.0 + v0.5.0) stayed sidestepped in v0.6.0/v0.7.0 by running on `main` where the milestone CLI marks them.
-7. **Match execution mode to the work; review data-coercion paths adversarially.** v0.6.0 and v0.7.0 both ran cleanly sequential-on-main (mechanical/low-conflict work) — reserve worktrees for genuinely parallel, file-disjoint work. Separately, v0.7.0's code review caught two real coercion bugs the test suite missed: for types crossing a DB boundary (`pd.isna` before `is_float`, float-vs-int), an adversarial read earns its cost.
+6. **Recurring tooling taxes, now tracked across milestones:** (a) the SUMMARY one-liner auto-extraction / MILESTONES enrichment-by-hand — confirmed v0.4.0–v0.8.0 (five running); (b) STATE.md bookkeeping drift requiring hand-fixes at phase/milestone close — acute v0.6.0–v0.8.0 (7th+ occurrence), the CLI-written format and the close-step's expected format have diverged (`milestone.complete` warns it cannot update "Last Activity Description"); (c) **new in v0.8.0:** REQUIREMENTS.md checkbox-vs-traceability-table drift at close (the phase CLIs update the table but not the inline checkboxes). All three are tooling-level fixes overdue. Manual REQUIREMENTS.md checkbox updates stayed sidestepped v0.6.0/v0.7.0 by running on `main`, but resurfaced in v0.8.0's archive.
+7. **Match execution mode to the work; review data/error paths adversarially.** v0.6.0–v0.8.0 all ran cleanly sequential-on-main (mechanical/low-conflict work) — reserve worktrees for genuinely parallel, file-disjoint work. Separately, code review keeps earning its cost on types/errors crossing a DB boundary: v0.7.0 caught two coercion bugs (`pd.isna` before `is_float`, float-vs-int), v0.8.0 caught three in new TimescaleDB code (error-swallowing `except`, missing validation, unvalidated destructive-path input).
+8. **Structural connection seams are reusable cross-milestone infrastructure.** The `connect(autocommit=True)` seam built for v0.5.0 ETL run-log isolation became the enabling primitive for the entire v0.8.0 continuous-aggregate lifecycle — at zero design cost. Second only to forward-compat scaffolding in leverage. And for environment-dependent facts (licenses, extension versions, planner behavior), a 30-second live `psql` check at plan time beats a confident assumption — v0.8.0's D-08 reversal proved it.

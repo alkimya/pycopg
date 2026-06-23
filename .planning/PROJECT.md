@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.7.0 it offers full sync/async feature parity, an accessor-organized public surface (`db.spatial/etl/timescale/admin/maint/backup/schema.*`) with a flat transactional core, PostGIS spatial helpers, a declarative ETL pipeline runner with run tracking, idempotent loads and **watermark-based incremental loading** (`Pipeline.incremental_column`), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
+A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.8.0 it offers full sync/async feature parity, an accessor-organized public surface (`db.spatial/etl/timescale/admin/maint/backup/schema.*`) with a flat transactional core, PostGIS spatial helpers, a declarative ETL pipeline runner with run tracking, idempotent loads and **watermark-based incremental loading** (`Pipeline.incremental_column`), an **advanced TimescaleDB surface** (`db.timescale.*`, 15 methods — chunk & dimension management, full continuous-aggregate lifecycle, and `time_bucket`/`time_bucket_gapfill` query helpers), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
 
 ## Core Value
 
@@ -27,16 +27,18 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Current Milestone: v0.8.0 TimescaleDB avancé *(started 2026-06-22)*
+## Next Milestone Goals
 
-**Goal:** Livrer les fonctionnalités phares time-series qui manquent au socle actuel, posées proprement dans le `db.timescale.*` créé en v0.6.0 (qui n'a aujourd'hui que hypertable/compression/rétention) : **continuous aggregates** (cycle complet create + refresh manuel + policy auto-refresh), `time_bucket` / `time_bucket_gapfill` (helpers de requête), `show_chunks` / `drop_chunks`, `add_dimension`, `reorder_policy`. Sur le pattern builder-pur + accessor déjà éprouvé (spatial, etl, timescale-basics), parité sync/async obligatoire (Core Value), cible TimescaleDB 2.x. Phase numbering continues from Phase 29 (v0.8.0 démarre à la Phase 30).
+v0.8.0 "TimescaleDB avancé" shipped 2026-06-23. The validated forward sequence (see `.planning/FUTURE-MILESTONES.md`, order locked by the user) is **v0.9.0 CRUD ergonomique + introspection enrichie** → **v1.0.0 spatial v2 + stabilisation API**.
 
-**Target features (sous `db.timescale.*` / `async_db.timescale.*`):**
-- **Continuous aggregates** — `create` + `refresh` manuel + policy auto-refresh (cycle complet, groupés)
-- **`time_bucket` / `time_bucket_gapfill`** — helpers de requête (builders SQL purs → DataFrame/rows, pattern spatial)
-- **`show_chunks` / `drop_chunks`** — inspection + gestion des chunks
-- **`add_dimension`** — partitionnement multi-dimensionnel des hypertables
-- **`reorder_policy`** — policy de réordonnancement des chunks
+**v0.9.0 (next candidate) — CRUD ergonomique + introspection enrichie:** additive convenience over the existing API, low risk — `upsert` (singulier), `delete_where`, `update_where`, `exists`, `count`, `paginate`, dict-fetch — plus introspection helpers (`primary_key()`, `foreign_keys()`, `sequences()`, `views()`, `describe()`). Scope confirms at `/gsd-new-milestone`. One feature family per milestone, on the proven builder-pur + accessor pattern, sync/async parity obligatoire (Core Value). The `db.meta.*` carve from the v0.6.0 single `db.schema.*` block may be reconsidered here.
+
+**v1.0.0 — Spatial v2 + stabilisation:** extend `db.spatial.*` (ST_Union, ST_Simplify, ST_ConvexHull, ST_MakeValid, spatial aggregates, raster?) + freeze the public API for a real 1.0.
+
+<details>
+<summary>v0.8.0 milestone goal & locked decisions (shipped 2026-06-23 — historical reference)</summary>
+
+**Goal:** Livrer les fonctionnalités phares time-series qui manquent au socle actuel, posées proprement dans le `db.timescale.*` créé en v0.6.0 (qui n'avait que hypertable/compression/rétention) : **continuous aggregates** (cycle complet create + refresh manuel + policy auto-refresh), `time_bucket` / `time_bucket_gapfill` (helpers de requête), `show_chunks` / `drop_chunks`, `add_dimension`, `reorder_policy`. Sur le pattern builder-pur + accessor déjà éprouvé (spatial, etl, timescale-basics), parité sync/async obligatoire (Core Value), cible TimescaleDB 2.x. Phases 30–33.
 
 **Locked scope decisions (cadrage 2026-06-22):**
 - **Cible TimescaleDB 2.x uniquement** — continuous aggregates matérialisées modernes, signatures `add_*_policy` actuelles ; 2.x documenté comme plancher (matche l'env de test local).
@@ -46,7 +48,9 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 - **Fence : TimescaleDB-only** — les follow-ups ETL incrémental (`initial_watermark` F01, F02–F05) restent reportés à un milestone ETL ultérieur (une famille de features par milestone).
 - **Zéro nouvelle dépendance runtime** ; cliquet de couverture maintenu ≥94% (baseline 95.11% depuis v0.7.0).
 
-Suite validée après v0.8.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre validé) : **v0.9.0** CRUD ergonomique + introspection → **v1.0.0** spatial v2 + stabilisation API.
+**Material correction during execution:** D-08 was REVERSED at Phase 32 plan time — `time_bucket` is Apache-free (live tests assert REAL output) but `time_bucket_gapfill`/`locf`/`interpolate` and the full continuous-aggregate surface are Community/TSL-only (raise `FeatureNotSupported` under the local Apache 2.28 license), so those live tests use a license-tolerant `try/except FeatureNotSupported` with the mock SQL-shape test as authoritative.
+
+</details>
 
 <details>
 <summary>v0.7.0 milestone goal & locked decisions (shipped 2026-06-22 — historical reference)</summary>
@@ -142,12 +146,18 @@ Suite validée après v0.8.0 (voir `.planning/FUTURE-MILESTONES.md`, ordre valid
 - ✓ Typed JSONB envelope round-trips timestamp/integer/text watermarks without drift, zero new runtime deps — v0.7.0 (ETL-INC-10)
 - ✓ Full sync/async incremental parity (`AsyncETLAccessor` mirrors the surface, covered by `test_accessor_parity`); `docs/etl.md` incremental section + backfill/reset workflow documented — v0.7.0 (ETL-INC-11, ETL-INC-12)
 - ✓ v0.7.0 released to PyPI via OIDC: version bumped (2 sources), gates green (cov 95.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tagged, clean-venv smoke confirmed — v0.7.0 (REL-07)
+- ✓ Chunk inspection/management: `show_chunks` (list[str], oldest-first, `older_than`/`newer_than` filters) + `drop_chunks` (both-None `ValueError` before any DB round-trip, capture-before-drop `dry_run`, DESTRUCTIVE docstring) on both accessors — v0.8.0 (TS-ADV-04, TS-ADV-05)
+- ✓ Partitioning & reorder: `add_dimension` (TSDB 2.x `by_hash`/`by_range` form, construction-time mutual-exclusivity `ValueError`, dup-dimension → `TimescaleError`) + `add_reorder_policy` (mock-authoritative SQL, Apache-license-tolerant live test) on both accessors — v0.8.0 (TS-ADV-08, TS-ADV-09)
+- ✓ Continuous aggregate lifecycle: `create_continuous_aggregate` + `refresh_continuous_aggregate` via the `connect(autocommit=True)` seam (bypasses an enclosing `db.session()`) + `add_continuous_aggregate_policy` (plain execute, `_check_offset_ordering` guard), all sync + async — v0.8.0 (TS-ADV-01, TS-ADV-02, TS-ADV-03)
+- ✓ Time-series query helpers: `time_bucket` (Apache-free, REAL live output) + `time_bucket_gapfill` (required positional `start`/`finish`, double-bound, TSL-only) with `into="df"/"rows"` routing via local `_to_named_binds`/`_check_into` — v0.8.0 (TS-ADV-06, TS-ADV-07)
+- ✓ Full sync/async parity for all 9 new methods (`AsyncTimescaleAccessor` mirrors every method, `await`ed extension guard) enforced by `test_accessor_parity` + explicit 9-name surface assertion — v0.8.0 (TS-ADV-10)
+- ✓ v0.8.0 released to PyPI via OIDC: version bumped (2 sources), CHANGELOG `[0.8.0]` Added-only, all 3 docs surfaces updated (timescaledb.md Advanced section + api-reference 15-row table + README "15 methods"), 4 gates green (cov 95.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tagged, clean-venv smoke confirmed — v0.8.0 (REL-08)
 
 ### Active
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-v0.8.0 "TimescaleDB avancé" — full REQ-ID list in REQUIREMENTS.md. Continuous aggregates (full lifecycle), `time_bucket`/`time_bucket_gapfill` query helpers, `show_chunks`/`drop_chunks`, `add_dimension`, `reorder_policy` — all under `db.timescale.*` at sync/async parity, TimescaleDB 2.x.
+*None — v0.8.0 shipped; next milestone not yet started.* Run `/gsd-new-milestone` to scope **v0.9.0 "CRUD ergonomique + introspection enrichie"** (candidate, per `.planning/FUTURE-MILESTONES.md`): additive convenience — `upsert` (singulier), `delete_where`, `update_where`, `exists`, `count`, `paginate`, dict-fetch — plus introspection helpers (`primary_key()`, `foreign_keys()`, `sequences()`, `views()`, `describe()`). Low-risk, pure comfort over the existing API. Then **v1.0.0 "Spatial v2 + stabilisation"**.
 
 ### Out of Scope
 
@@ -165,32 +175,40 @@ v0.8.0 "TimescaleDB avancé" — full REQ-ID list in REQUIREMENTS.md. Continuous
 
 ## Context
 
-Shipped v0.7.0 (2026-06-22). Breaking + additive: hard-removed the 56 deprecated flat aliases (deleted `pycopg/aliases.py` + 6 warn+delegate test files; ~31 code files changed, +2,860 / −1,959 vs v0.6.0) and added watermark-based incremental ETL on the existing `etl.py` (new `Pipeline.incremental_column` field, `_build_incremental_extract_sql` builder, typed-JSONB `_encode/_decode_watermark` envelope, `_read_watermark`/`_do_extract` helpers, `RunResult.watermark_used/recorded`, sync + async). The `pipeline_runs.watermark JSONB` column reserved in v0.5.0 is now in use — no breaking migration. Zero new runtime dependencies.
+Shipped v0.8.0 (2026-06-23). Purely additive on `pycopg/timescale.py`: 9 new time-series methods (sync + async) grow the `db.timescale.*` surface from 6 to 15 — `show_chunks`/`drop_chunks`/`add_dimension`/`add_reorder_policy` (chunk & dimension management), `create_continuous_aggregate`/`refresh_continuous_aggregate`/`add_continuous_aggregate_policy` (cagg lifecycle via the `connect(autocommit=True)` seam), and `time_bucket`/`time_bucket_gapfill` (query helpers, `into="df"/"rows"`). New milestone-wide `TimescaleError(PycopgError)` in `exceptions.py`; new `TSDB_SHOW_CHUNKS`/`TSDB_DROP_CHUNKS` SQL constants in `queries.py`; new `tests/test_timescale.py` (sync `ts_db` + `async_ts_db` skip-fixtures, two-layer mock + live coverage). Community/TSL-only operations (caggs, gapfill, reorder) tested mock-authoritative + Apache-license-tolerant live. No breaking change, no migration. Zero new runtime dependencies.
 Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend.
-Codebase: ~13,327 LOC lib + ~15,690 LOC tests.
-Test coverage: 95.11% with real PostgreSQL (`pycopg_test`); coverage ratchet at `--cov-fail-under=94`.
-Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; `docs/etl.md` incremental-loading section; MIGRATION v0.6→v0.7 guide (56-name flat→accessor table + incremental notes).
+Codebase: ~15,112 LOC lib (`pycopg/`).
+Test coverage: 95.11% with real PostgreSQL (`pycopg_test` + a TimescaleDB-enabled `ts_db` fixture); coverage ratchet at `--cov-fail-under=94`.
+Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; `docs/timescaledb.md` rewritten to first-class `db.timescale.*` calls + Advanced Chunk & Dimension Management section; `api-reference.md` 15-row timescale table; `docs/etl.md` incremental-loading section. CHANGELOG `[0.8.0]` Added-only (no MIGRATION — purely additive).
 
 **Known tech debt:**
 
 - **2 pre-existing flaky full-suite DB tests** (`TestAsyncIntegration::test_async_transaction_fix`, `TestPostGISErrorHandling::test_create_spatial_index_name_parameter`) — `UndefinedTable` fixture-isolation bug in the spatial/integration suites, NOT ETL code; fail identically in isolation; did not affect the coverage threshold. Worth a fixture-isolation fix in a future cleanup. (See STATE.md Deferred Items.)
 - New (v0.7.0): one ~2.7% flaky bound-param test surfaced during Phase 28 (orchestrator-fixed); watch for re-flake. (See RETROSPECTIVE.md.)
-- Coverage-95 stretch still deferred — gate honest at 94 (measured 95.11% at v0.7.0 ship); remaining headroom is DB/IO paths structurally out of scope.
+- Coverage-95 stretch still deferred — gate honest at 94 (measured 95.11% at v0.8.0 ship); remaining headroom is DB/IO paths structurally out of scope.
 - `TableNotFound` exported in `__all__` but has no internal raise site (user-`except` only) — benign.
-- `CLAUDE.md` "Version" line still reads v0.5.0 (stale) — actual shipped is v0.7.0; cosmetic doc lag (carried since v0.6.0).
+- `CLAUDE.md` "Version" line still reads v0.5.0 (stale) — actual shipped is v0.8.0; cosmetic doc lag (carried since v0.6.0).
+- Stale `pycopg.aliases` Sphinx cross-reference in accessor docstrings (IN-01/IN-02 carry-forward, cosmetic — `aliases.py` was deleted in v0.7.0).
+- v0.8.0 code-review warnings deferred (advisory, not blocking): WR-01 case-sensitive `time_bucket(` cagg guard; WR-03 INTERVAL-literal-vs-`%s`; `%`/`%s` in caller-supplied structural `aggregates`/`where` breaks the rows/named-bind path (caller-error UX, not injection); IN-03 fragile `chunk_seq` helper.
 - Nyquist: phases 22–24 VALIDATION.md left `draft`/`nyquist_compliant: false` (verified PASSED via VERIFICATION.md; missing formal sign-off, not a coverage gap — see STATE.md Deferred Items).
-- Database class is organized under accessors (`spatial`/`etl`/`timescale`/`admin`/`maint`/`backup`/`schema`) with the transactional core kept flat by design; the public surface is now accessor-only (no flat aliases).
+- Database class is organized under accessors (`spatial`/`etl`/`timescale`/`admin`/`maint`/`backup`/`schema`) with the transactional core kept flat by design; the public surface is accessor-only (no flat aliases).
+
+**Resolved in v0.8.0:**
+
+- TimescaleDB advanced surface delivered end-to-end at full sync/async parity (TS-ADV-01..10): chunk & dimension management, full continuous-aggregate lifecycle via the `connect(autocommit=True)` seam, and `time_bucket`/`time_bucket_gapfill` query helpers — `db.timescale.*` grows 6 → 15 methods. Purely additive, no migration.
+- License reality mapped: `time_bucket` + basic chunk ops are Apache-free; caggs, gapfill, and reorder policies are Community/TSL-only — documented in `docs/timescaledb.md`, tested mock-authoritative + Apache-tolerant live.
+- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0, v0.6.0, v0.7.0, v0.8.0 live on PyPI.
 
 **Resolved in v0.7.0:**
 
 - The 56 deprecated flat aliases removed (one deprecation cycle served in v0.6.0); public surface is accessor-only (ALIAS-RM-01..04). Closed WR-01 (IDE signature erasure) and IN-02 (stale flat-name error messages) — both carried forward from v0.6.0.
 - Watermark-based incremental ETL delivered end-to-end at full sync/async parity (ETL-INC-01..12); the v0.5.0-reserved `watermark JSONB` column wired with no breaking migration.
-- All of v0.3.0, v0.3.1, v0.4.0, v0.5.0, v0.6.0, v0.7.0 live on PyPI.
 
 **Still deferred to a future milestone:**
 
-- v0.8.0 (next candidate): TimescaleDB avancé — continuous aggregates, `time_bucket`/`time_bucket_gapfill`, `show_chunks`/`drop_chunks`, `add_dimension`, `reorder_policy`.
-- ETL incremental follow-ups: `initial_watermark` first-run bound (ETL-INC-F01), configurable `>=`/lookback boundary (ETL-INC-F02), multi-column watermarks (ETL-INC-F03), advisory-lock concurrency (ETL-INC-F04), CDC/WAL change capture (ETL-INC-F05) — all deferred to v0.8.0+.
+- TimescaleDB follow-ups (out of v0.8.0 surface): `drop_continuous_aggregate`/`remove_continuous_aggregate_policy` lifecycle removal (TSDB-F01), `time_bucket` `origin`/`offset` alignment (TSDB-F02), `compress_chunk`/`decompress_chunk` per-chunk control (TSDB-F03), `show_chunks` physical-time filters (TSDB-F04).
+- ETL incremental follow-ups: `initial_watermark` first-run bound (ETL-INC-F01), configurable `>=`/lookback boundary (ETL-INC-F02), multi-column watermarks (ETL-INC-F03), advisory-lock concurrency (ETL-INC-F04), CDC/WAL change capture (ETL-INC-F05).
+- v0.9.0 (next candidate): CRUD ergonomique + introspection enrichie. v1.0.0: spatial v2 + API stabilisation.
 - API-01: Named parameter support (:name syntax)
 - API-02: Connection health checks
 - API-03: Structured logging
@@ -258,6 +276,12 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.7.0: typed JSONB envelope for the watermark (`_encode`/`_decode`), zero new deps | `pipeline_runs.watermark JSONB` (reserved v0.5.0) must round-trip int/str/datetime without tz/precision drift | ✓ Good — reserved column now in use, no breaking migration, round-trip verified for all 3 types |
 | v0.7.0: `RunResult.watermark_used/recorded` (None for non-incremental) + incremental `dry_run` preview | Surface the filter floor + new high-water mark for inspection without writing a run row | ✓ Good — both fields on `RunResult`/`history()`/`last_run()`; `dry_run` previews without persisting |
 | v0.5.0: reserve a nullable `watermark JSONB` column, always NULL | Lets incremental support slot on with no breaking migration | ✓ Good — incremental ETL shipped v0.7.0 (ETL-INC-*) using exactly this column; no breaking migration needed |
+| v0.8.0: target TimescaleDB 2.x only; the v0.6.0 `db.timescale.*` accessor is the base, extended via the same builder-pur pattern | One feature family per milestone on a clean accessor; no new connection seams except where DDL requires it | ✓ Good — 9 methods added on both accessors, `test_accessor_parity` green, zero new deps |
+| v0.8.0: cagg `create`/`refresh` run on a dedicated `connect(autocommit=True)` connection; policy uses plain `execute` (D-01) | CAGG DDL + refresh cannot run inside a transaction block; the auto-refresh policy can | ✓ Good — autocommit seam proven to bypass an enclosing `db.session()`; 3 prior policy methods matched |
+| v0.8.0: `drop_chunks` raises `ValueError` when both bounds are None, before any DB round-trip; `dry_run` captures-before-drop | A destructive op with no bounds would wipe the whole hypertable; preview must not delete | ✓ Good — guard fires pre-flight, `dry_run` previews via `show_chunks` |
+| v0.8.0: `add_dimension` uses the TSDB 2.x `by_hash`/`by_range` builder form with construction-time mutual-exclusivity `ValueError`; dup-dimension → `TimescaleError` | 2.28's builder form replaced the legacy positional API; the "non-empty hypertable raises" behavior no longer exists (D-08 reshaped) | ✓ Good — validated against live TSDB 2.28; 13 regression tests |
+| v0.8.0: query helpers use a LOCAL `_to_named_binds`/`_check_into` (not imported from spatial); `into ∈ {df, rows}` (gdf rejected) | Avoid a timescale→spatial import coupling; gdf is meaningless for time-series rows | ✓ Good — local copies, `into="gdf"` raises before any DB call |
+| v0.8.0: D-08 REVERSED at plan time — `time_bucket` Apache-free (REAL live tests) but `gapfill`/caggs/reorder Community/TSL-only | Live verification against local Apache 2.28 contradicted the CONTEXT assumption; tests must not assert features the license lacks | ✓ Good — split verdict: mock-authoritative + license-tolerant `try/except FeatureNotSupported` live |
 
 ## Evolution
 
@@ -306,5 +330,7 @@ This document evolves at phase transitions and milestone boundaries.
 *Last updated: 2026-06-22 — milestone v0.7.0 "Alias Removal + Incremental ETL" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.7.0 (incremental ETL + accessor-only surface); Current State → v0.7.0 SHIPPED, v0.6.0 demoted to "Previously shipped"; all 17 v0.7.0 requirements (ALIAS-RM-01..04, ETL-INC-01..12, REL-07) moved to Validated; Active emptied; "Current Milestone" reframed as "Next Milestone Goals" (v0.8.0 TimescaleDB avancé → v0.9.0 CRUD → v1.0.0 spatial v2), v0.7.0 goal/decisions collapsed to historical reference; Context refreshed (95.11% coverage, ~13,327 lib + ~15,690 test LOC, WR-01/IN-02 resolved by removal, incremental follow-ups F01-F05 deferred); 8 v0.7.0 Key Decisions outcomes added + WR-01 flipped ⚠️→✓ Resolved + watermark-JSONB Pending→✓ Good. ROADMAP collapsed + REQUIREMENTS archived to `milestones/v0.7.0-*`. Pre-flight: open-artifact audit clean, 17/17 requirements complete. Next: `/gsd-new-milestone` (v0.8.0).*
 
 *Last updated: 2026-06-22 — Phase 30 "Chunk Management & Partitioning" complete (3/3 plans, verification PASSED 5/5). Four new methods on both `TimescaleAccessor` and `AsyncTimescaleAccessor` via the established pure-builder pattern (no new connection seams): `show_chunks`/`drop_chunks` (TS-ADV-04/05) and `add_dimension`/`add_reorder_policy` (TS-ADV-08/09). New milestone-wide `TimescaleError(PycopgError)` in `exceptions.py` (D-09, reused Phases 31-32); `TSDB_SHOW_CHUNKS`/`TSDB_DROP_CHUNKS` SQL constants in `queries.py` (literal `%%I.%%I` regclass JOIN + `range_start ASC`); new `tests/test_timescale.py` (sync `ts_db` + `async_ts_db` skip-fixtures). Key behaviors: `drop_chunks` both-None `ValueError` fires before any DB round-trip (D-03) + capture-before-drop `dry_run`; `add_dimension` uses TSDB 2.28 `by_hash`/`by_range` form (D-06) with construction-time mutual-exclusivity `ValueError` (D-07) and the RESHAPED D-08 (wrap the duplicate-dimension DB error as `TimescaleError`, only with `if_not_exists=False` — the legacy "non-empty hypertable raises" behavior does not exist on 2.28); `add_reorder_policy` mock-authoritative + live FeatureNotSupported tolerance under Apache license (D-12). Ran sequential-on-main (3 single-plan waves, strict dep chain, no worktrees). Code review: 0 critical, 4 warnings — WR-01 (narrowed `add_dimension` `except Exception`→`except DatabaseError` so non-DB errors propagate), WR-03 (`number_partitions` positive-int validation), WR-04 (reject non-str/non-datetime chunk bounds on the destructive path) fixed in 1325f29 with 13 regression tests; deferred IN-01 (stale `pycopg.aliases` docstring drift — recurring), IN-03 (fragile `chunk_seq` helper). Gates: full suite 1239 passed, `test_accessor_parity` 7/7, coverage 94.98% (ratchet ≥94 held); 2 pre-existing flaky DB tests unrelated to this phase. TS-ADV-04/05/08/09 validated; TS-ADV-10 full-9-method parity remains Phase 32. Next: `/gsd-discuss-phase 31` (Continuous Aggregate Lifecycle).*
+
+*Last updated: 2026-06-23 — milestone v0.8.0 "TimescaleDB avancé" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.8.0 (advanced TimescaleDB surface, `db.timescale.*` 6→15 methods); Current State → v0.8.0 SHIPPED (done at Phase 33 close); all 11 v0.8.0 requirements (TS-ADV-01..10, REL-08) moved to Validated; Active emptied (next = v0.9.0 CRUD candidate); "Current Milestone" reframed as "Next Milestone Goals" (v0.9.0 CRUD → v1.0.0 spatial v2), v0.8.0 goal/decisions collapsed to historical reference (incl. the D-08 license reversal); Context refreshed (~15,112 lib LOC, 95.11% coverage, TSDB-F01..04 + ETL-INC-F01..05 deferred, v0.8.0 review warnings recorded as cosmetic/advisory debt); 7 v0.8.0 Key Decisions outcomes added. ROADMAP collapsed + REQUIREMENTS archived to `milestones/v0.8.0-*`. Pre-flight: open-artifact audit clean, 11/11 requirements complete. Tag `v0.8.0` already created at Phase 33 (PyPI publish). Next: `/gsd-new-milestone` (v0.9.0).*
 
 *Last updated: 2026-06-23 — Phase 32 "Query Helpers & Parity Verification" complete (2/2 plans, verification PASSED 8/8) — LAST v0.8.0 feature phase. The two read-only query helpers `time_bucket` (TS-ADV-06) and `time_bucket_gapfill` (TS-ADV-07) ship on both `TimescaleAccessor` and `AsyncTimescaleAccessor` via the established pure-builder + lazy-accessor pattern: module-level `_build_time_bucket_sql` / `_build_time_bucket_gapfill_sql` (validate_identifiers-first, fixed `AS bucket` alias D-01, `GROUP BY bucket ORDER BY bucket`), a LOCAL `_to_named_binds` (`%s`→`:pN`, D-06 — not imported from spatial) and a timescale-local `_check_into` (`_VALID_INTO = ("df","rows")`, the INVERSE of spatial's set, D-03), and sync+async `_run` dispatchers routing `into="df"` through `to_dataframe(sql=named, params=dict)` and `into="rows"` through `execute`. Key behaviors: `into="gdf"` raises `ValueError` before any DB call (guard runs first); `time_bucket_gapfill` takes REQUIRED positional `start`/`finish` (no WHERE-inference) bound TWICE — params `[bucket_width, start, finish, start, finish]`, 5 `%s` (D-10); async methods correctly `await self._db.schema.has_extension(...)` (the recurring Phase-23/30/31 missing-`await` regression did NOT recur). MATERIAL milestone correction: D-08 was REVERSED at plan time via live verification — `time_bucket` is Apache-free (live tests assert REAL output) but `time_bucket_gapfill`/`locf`/`interpolate` raise `FeatureNotSupported` under the local Apache 2.28.0 license (TSL-only, EXACTLY like Phase-31 caggs), so the gapfill live test uses the Phase-31 license-tolerant `try/except FeatureNotSupported` with the mock SQL-shape test as authoritative. TS-ADV-10 full 9-method sync/async parity confirmed via the existing `test_accessor_parity` (no `ACCESSOR_PAIRS` change) plus a new explicit 9-name `test_timescale_v080_surface` set-membership assertion. Ran sequential-on-main (2 single-plan waves, strict dep chain, no worktrees). Code review: 0 critical, 1 warning (WR-01 — literal `%`/`%s` in caller-supplied structural `aggregates`/`where` breaks the rows/named-bind path; inherited from the spatial `_to_named_binds` precedent, caller-error UX not injection — deferred, advisory), 4 info. Gates: full suite 1288 passed, coverage 95.11% (ratchet ≥94 held); the 2 pre-existing flaky DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) fail in files Phase 32 never touched — not regressions. TS-ADV-06/07/10 validated; all 11 v0.8.0 feature requirements now complete. Next: `/gsd-discuss-phase 33` (Release v0.8.0 — REL-08, the LAST phase).*
