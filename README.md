@@ -83,7 +83,7 @@ pycopg organizes database operations into typed accessor namespaces:
 | `db.admin.*` | Roles & permissions | `create_role`, `grant`, `revoke`, `list_roles`, … (11 methods) |
 | `db.maint.*` | Maintenance | `size`, `vacuum`, `analyze`, `explain`, … (6 methods) |
 | `db.backup.*` | Backup & restore | `pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv` (4 methods) |
-| `db.timescale.*` | TimescaleDB | `create_hypertable`, `enable_compression`, `add_retention_policy`, … (6 methods) |
+| `db.timescale.*` | TimescaleDB | `create_hypertable`, `enable_compression`, `time_bucket`, `show_chunks`, … (15 methods) |
 | `db.spatial.*` | PostGIS helpers | `contains`, `within`, `intersects`, `create_spatial_index`, … (13 methods) |
 | `db.etl.*` | ETL pipelines | `run`, `history`, `last_run`, `init` (4 methods) |
 
@@ -567,6 +567,33 @@ db.timescale.add_retention_policy("logs", drop_after="90 days")
 # Query hypertables
 db.timescale.list_hypertables()
 ```
+
+### v0.8.0 Highlights — new TimescaleDB methods
+
+```python
+# Time bucketing — returns a pandas DataFrame directly
+df = db.timescale.time_bucket(
+    "events", "time", "1 hour",
+    aggregates="device_id, AVG(temperature) AS avg_temp",
+    into="df",
+)
+
+# Chunk management — list and safely remove old chunks
+old = db.timescale.show_chunks("events", older_than="30 days")
+would_drop = db.timescale.drop_chunks("events", older_than="90 days", dry_run=True)
+db.timescale.drop_chunks("events", older_than="90 days")  # irreversible
+
+# Continuous aggregate lifecycle
+db.timescale.create_continuous_aggregate(
+    "hourly",
+    select_sql="SELECT time_bucket('1 hour', time) AS bucket, device_id, AVG(temperature) AS avg_temp FROM events GROUP BY bucket, device_id",
+)
+db.timescale.add_continuous_aggregate_policy("hourly", start_offset="3 hours", end_offset="1 hour")
+```
+
+For the full advanced guide (chunk dimensions, gap filling, license notes) see the
+[TimescaleDB documentation](docs/timescaledb.md) or the
+[RTD timescaledb page](https://pycopg.readthedocs.io/en/latest/timescaledb.html).
 
 ## Schema & Table Management
 
