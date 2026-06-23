@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: planning
-stopped_at: Phase 33 context gathered
-last_updated: "2026-06-23T15:56:15.085Z"
-last_activity: 2026-06-23
+status: ready_to_execute
+stopped_at: Phase 33 planned (3 plans)
+last_updated: "2026-06-23T16:20:39.622Z"
+last_activity: 2026-06-23 -- Phase 33 planning complete
 progress:
   total_phases: 4
   completed_phases: 3
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 ## Current Position
 
 Phase: 33
-Plan: Not started
-Status: Phase 33 context gathered — ready to plan Phase 33 (Release v0.8.0, REL-08, last phase)
-Last activity: 2026-06-23
+Plan: Not started (3 plans ready)
+Status: Phase 33 planned — 3 plans / 3 sequential waves, ready to execute (Release v0.8.0, REL-08, last phase)
+Last activity: 2026-06-23 -- Phase 33 planning complete
 
 ## Performance Metrics
 
@@ -115,10 +115,10 @@ None — roadmap created, ready to plan.
 ## Session Continuity
 
 Last session: 2026-06-23T15:56:15.072Z
-Stopped at: Phase 33 context gathered
-Resume file: .planning/phases/33-release-v0-8-0/33-CONTEXT.md
-Next action: /gsd-plan-phase 33 (Release v0.8.0 — REL-08, last phase)
+Stopped at: Phase 33 planned (3 plans / 3 waves)
+Resume file: .planning/phases/33-release-v0-8-0/33-01-PLAN.md
+Next action: /gsd-execute-phase 33 (Release v0.8.0 — REL-08, last phase)
 
 ## Operator Next Steps
 
-- Begin Phase 32 with `/gsd-discuss-phase 32`
+- Execute Phase 33 (final phase) with `/gsd-execute-phase 33`

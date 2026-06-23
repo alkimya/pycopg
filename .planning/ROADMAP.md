@@ -192,9 +192,16 @@ Plans:
 3. `docs/timescaledb.md` (or equivalent advanced section) documents the 9 new methods; README updated to reference them; Sphinx API pages render without errors
 
 **Plans**: 3 plans / 3 sequential waves
+**Wave 1**
 
 - [ ] 33-01-PLAN.md — Version bump (0.8.0 in both sources) + CHANGELOG [0.8.0] Added entry (D-01/04/08/09/10/11)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 33-02-PLAN.md — Docs: rewrite timescaledb.md + Advanced section, api-reference.md 9 rows, README 15 methods (D-05/06/07/10/14)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 33-03-PLAN.md — 4 quality gates (GATES.md) + human-gated tag/OIDC publish/clean-venv smoke (D-02/03/04/12/13)
 
 **UI hint**: no
