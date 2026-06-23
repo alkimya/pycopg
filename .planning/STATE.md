@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: in-progress
-stopped_at: "33-03-PLAN.md complete — v0.8.0 LIVE on PyPI; awaiting /gsd-complete-milestone v0.8.0"
-last_updated: "2026-06-23T18:00:00Z"
-last_activity: 2026-06-23 -- Phase 33 Plan 03 complete (4 gates PASS, OIDC publish succeeded, v0.8.0 live on PyPI, clean-venv smoke confirmed); SUMMARY written
+status: completed
+stopped_at: Phase 33 Plan 03 complete — v0.8.0 live on PyPI (SUMMARY + STATE + ROADMAP updated)
+last_updated: "2026-06-23T18:31:04.102Z"
+last_activity: 2026-06-23
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 10
-  percent: 91
+  completed_plans: 11
+  percent: 100
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 33 (release-v0-8-0) — ALL PLANS COMPLETE
-Plan: 3 of 3 (COMPLETE — all tasks done, SUMMARY written)
+Phase: 33
+Plan: Not started
 Status: v0.8.0 LIVE on PyPI; phase complete; awaiting /gsd-complete-milestone v0.8.0
-Last activity: 2026-06-23 -- Phase 33 Plan 03 complete (4 gates PASS, OIDC publish run 28044147070, v0.8.0 live PyPI, clean-venv smoke confirmed)
+Last activity: 2026-06-23
 
 ## Performance Metrics
 

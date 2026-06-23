@@ -242,4 +242,4 @@ Plans:
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete    | 2026-06-23 |
-| 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
+| 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
