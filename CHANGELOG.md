@@ -19,38 +19,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chunks matching the given time bounds. `dry_run=True` returns the list that *would* be dropped
   without removing any data. Raises `ValueError` when both bounds are `None` (DESTRUCTIVE/IRREVERSIBLE
   safety guard). Passing only one bound is valid.
-- `db.timescale.add_dimension(table, column, number_partitions=None, chunk_interval=None,
-  if_not_exists=False)` — add a space partition (`by_hash`) or time partition (`by_range`) using
-  the TimescaleDB 2.x `add_dimension` builder form. Raises `TimescaleError` on duplicate-dimension
-  conflicts when `if_not_exists=False`.
-- `db.timescale.add_reorder_policy(table, index_name, if_not_exists=False)` — register a
+- `db.timescale.add_dimension(table, column, partition_type="hash", number_partitions=None,
+  chunk_interval=None, if_not_exists=True)` — add a space partition (`by_hash`) or time partition
+  (`by_range`) using the TimescaleDB 2.x `add_dimension` builder form; `partition_type` selects the
+  builder (`hash`↔`number_partitions`, `range`↔`chunk_interval`). Raises `TimescaleError` on
+  duplicate-dimension conflicts when `if_not_exists=False`.
+- `db.timescale.add_reorder_policy(table, index_name, if_not_exists=True)` — register a
   background reorder policy for a hypertable chunk index. Requires a Community/TSL-licensed
   TimescaleDB build; raises `FeatureNotSupported` on Apache-licensed builds.
 
 **Continuous aggregate lifecycle** (3 new methods):
 
-- `db.timescale.create_continuous_aggregate(view_name, select_sql, materialized=True,
+- `db.timescale.create_continuous_aggregate(view_name, select_sql, materialized_only=True,
   with_no_data=False)` — create a continuous aggregate view. `select_sql` must contain
   `time_bucket(` (heuristic guard; raises `ValueError` otherwise). Uses a dedicated
   `autocommit=True` connection to satisfy TimescaleDB's transaction-block restriction.
   Requires Community/TSL build; raises `FeatureNotSupported` on Apache.
-- `db.timescale.refresh_continuous_aggregate(view_name, start=None, finish=None)` — manually
-  refresh a continuous aggregate over the specified window. `start` and `finish` must be
-  `datetime` objects or `None`; raises `ValueError` when both are supplied but `start >= finish`.
-  Requires Community/TSL build.
+- `db.timescale.refresh_continuous_aggregate(view_name, window_start=None, window_end=None)` —
+  manually refresh a continuous aggregate over the specified window. `window_start` and
+  `window_end` must be `datetime` objects or `None`; raises `ValueError` when both are supplied
+  but `window_start >= window_end`. Requires Community/TSL build.
 - `db.timescale.add_continuous_aggregate_policy(view_name, start_offset, end_offset,
-  schedule_interval, if_not_exists=False)` — register a background refresh policy for a
+  schedule_interval="1 hour", if_not_exists=True)` — register a background refresh policy for a
   continuous aggregate. Uses plain `execute` (no autocommit seam). Requires Community/TSL build.
 
 **Query helpers** (2 new methods):
 
-- `db.timescale.time_bucket(table, time_column, bucket_width, into="rows",
-  extra_columns=None, where=None, params=None)` — time-bucket aggregation query helper;
-  returns rows, a `pandas.DataFrame` (`into="df"`), or a `GeoDataFrame` (`into="gdf"`).
-- `db.timescale.time_bucket_gapfill(table, time_column, bucket_width, start, finish,
-  into="rows", extra_columns=None, where=None, params=None)` — gap-filling time-bucket query;
-  `start` and `finish` are required positional arguments (TSDB planner hook requires them
-  explicitly). Requires Community/TSL build; raises `FeatureNotSupported` on Apache.
+- `db.timescale.time_bucket(table, time_column, bucket_width, aggregates, where=None,
+  into="df")` — time-bucket aggregation query helper; returns a `pandas.DataFrame` (default
+  `into="df"`) or a `list[dict]` (`into="rows"`). `aggregates` is required structural SQL
+  (the projected bucket columns/aggregate expressions); any other `into` value raises `ValueError`.
+- `db.timescale.time_bucket_gapfill(table, time_column, bucket_width, start, finish, aggregates,
+  where=None, into="df")` — gap-filling time-bucket query; `start` and `finish` are required
+  positional `datetime` arguments (TSDB planner hook requires them explicitly). Returns a
+  `pandas.DataFrame` (default) or `list[dict]`. Requires Community/TSL build; raises
+  `FeatureNotSupported` on Apache.
 
 All 9 methods have full sync/async parity on `AsyncTimescaleAccessor`. Zero new runtime
 dependencies. For usage examples and the license note for Community/TSL-gated methods, see the
