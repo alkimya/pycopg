@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: paused-at-checkpoint
-stopped_at: "33-03-PLAN.md Task 3 — human-gated checkpoint: awaiting tag v0.8.0 + GitHub Release + OIDC publish + clean-venv smoke"
-last_updated: "2026-06-23T17:00:00Z"
-last_activity: 2026-06-23 -- Phase 33 Plan 03 Tasks 1+2 executed (4 gates PASS, 0.8.0 sdist+wheel built, GATES.md+RELEASE-LOG.md committed); paused at human-gated checkpoint
+status: in-progress
+stopped_at: "33-03-PLAN.md complete — v0.8.0 LIVE on PyPI; awaiting /gsd-complete-milestone v0.8.0"
+last_updated: "2026-06-23T18:00:00Z"
+last_activity: 2026-06-23 -- Phase 33 Plan 03 complete (4 gates PASS, OIDC publish succeeded, v0.8.0 live on PyPI, clean-venv smoke confirmed); SUMMARY written
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 11
-  completed_plans: 9
-  percent: 82
+  completed_plans: 10
+  percent: 91
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 33 (release-v0-8-0) — PAUSED AT CHECKPOINT
-Plan: 3 of 3 (Tasks 1+2 complete; paused at Task 3 human-gated checkpoint)
-Status: Awaiting human: push main, tag v0.8.0, create GitHub Release, OIDC publish, clean-venv smoke
-Last activity: 2026-06-23 -- Phase 33 Plan 03 Tasks 1+2 complete (4 gates PASS, 0.8.0 built, paused at human-gated checkpoint)
+Phase: 33 (release-v0-8-0) — ALL PLANS COMPLETE
+Plan: 3 of 3 (COMPLETE — all tasks done, SUMMARY written)
+Status: v0.8.0 LIVE on PyPI; phase complete; awaiting /gsd-complete-milestone v0.8.0
+Last activity: 2026-06-23 -- Phase 33 Plan 03 complete (4 gates PASS, OIDC publish run 28044147070, v0.8.0 live PyPI, clean-venv smoke confirmed)
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Last activity: 2026-06-23 -- Phase 33 Plan 03 Tasks 1+2 complete (4 gates PASS, 
 | 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
 | 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
 | 32. Query Helpers & Parity Verification | 2 | 2 | COMPLETE (TS-ADV-06/07/10, cov 95.11%) |
-| 33. Release v0.8.0 | 3 | 2 | PAUSED AT CHECKPOINT (Plans 01-02 complete; Plan 03 Tasks 1+2 done; Task 3 human-gated: tag+publish+smoke) |
+| 33. Release v0.8.0 | 3 | 3 | COMPLETE (4 gates PASS, OIDC publish run 28044147070, v0.8.0 live PyPI 2026-06-23) |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
@@ -115,12 +115,11 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T17:00:00Z
-Stopped at: 33-03-PLAN.md Task 3 — human-gated checkpoint (tag v0.8.0 + GitHub Release + OIDC publish + clean-venv smoke)
-Resume file: .planning/phases/33-release-v0-8-0/33-03-PLAN.md (Task 3 continuation)
-Next action: Human performs publish steps in RELEASE-LOG.md, then signals "approved" to resume continuation agent
+Last session: 2026-06-23T18:00:00Z
+Stopped at: Phase 33 Plan 03 complete — v0.8.0 live on PyPI (SUMMARY + STATE + ROADMAP updated)
+Resume file: None — all Phase 33 plans complete; run /gsd-complete-milestone v0.8.0
+Next action: /gsd-complete-milestone v0.8.0
 
 ## Operator Next Steps
 
-- Human: push origin main, tag v0.8.0, create GitHub Release → OIDC publish → clean-venv smoke (see RELEASE-LOG.md)
-- After smoke prints 0.8.0: signal "approved" to resume continuation agent (will write 33-03-SUMMARY.md + run /gsd-complete-milestone)
+- Run `/gsd-complete-milestone v0.8.0` to close the milestone, archive plans, update PROJECT.md, push to origin

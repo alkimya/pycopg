@@ -85,7 +85,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 - [x] **Phase 30: Chunk Management & Partitioning** - Deliver `show_chunks`, `drop_chunks`, `add_dimension`, `add_reorder_policy` on both sync and async accessors using the pure-builder pattern with no new connection seams — completed 2026-06-22
 - [x] **Phase 31: Continuous Aggregate Lifecycle** - Deliver the full `create_continuous_aggregate` + `refresh_continuous_aggregate` + `add_continuous_aggregate_policy` lifecycle on both accessors using the `connect(autocommit=True)` seam (completed 2026-06-23)
 - [x] **Phase 32: Query Helpers & Parity Verification** - Deliver `time_bucket` and `time_bucket_gapfill` query helpers with DataFrame/rows output, plus full TS-ADV-10 sync/async parity confirmation across all 9 new methods
-- [ ] **Phase 33: Release v0.8.0** - Docs, CHANGELOG, version bump, 4 quality gates, human-gated tag and PyPI publish
+- [x] **Phase 33: Release v0.8.0** - Docs, CHANGELOG, version bump, 4 quality gates, human-gated tag and PyPI publish — completed 2026-06-23
 
 ## Phase Details
 
@@ -202,7 +202,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [~] 33-03-PLAN.md — 4 quality gates (GATES.md) + human-gated tag/OIDC publish/clean-venv smoke (D-02/03/04/12/13) [Tasks 1+2 done; PAUSED at Task 3 human-gated checkpoint]
+- [x] 33-03-PLAN.md — 4 quality gates (GATES.md) + human-gated tag/OIDC publish/clean-venv smoke (D-02/03/04/12/13) — completed 2026-06-23 (v0.8.0 live on PyPI, run 28044147070)
 
 **UI hint**: no
 
@@ -242,4 +242,4 @@ Plans:
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete    | 2026-06-23 |
-| 33. Release v0.8.0 | v0.8.0 | 2/3 | Paused at checkpoint (human-gated tag+publish) | — |
+| 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
