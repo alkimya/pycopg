@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: "Phase 31 planned — 3 plans (31-01/02/03), 3 sequential waves, gates green. Ready to execute. Next: /gsd-execute-phase 31"
-stopped_at: Phase 31 planned (ready to execute)
-last_updated: "2026-06-23T00:00:00.000Z"
-last_activity: 2026-06-23 -- Phase 31 planning complete (3 plans, gates green)
+status: executing
+stopped_at: Phase 31 context gathered
+last_updated: "2026-06-23T08:23:54.257Z"
+last_activity: 2026-06-23 -- Phase 31 execution started
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 0
+  total_plans: 6
+  completed_plans: 4
   percent: 25
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 31 — continuous-aggregate-lifecycle (next; Phase 30 complete)
+**Current focus:** Phase 31 — continuous-aggregate-lifecycle
 
 ## Current Position
 
-Phase: 31
-Plan: Planned (3 plans, 0/3 executed)
-Status: Phase 31 planned — 3 plans (31-01/02/03), 3 sequential waves, gates green. Ready to execute. Next: /gsd-execute-phase 31
-Last activity: 2026-06-23 -- Phase 31 planning complete (3 plans, gates green)
+Phase: 31 (continuous-aggregate-lifecycle) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-23 -- Phase 31 execution started
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Last activity: 2026-06-23 -- Phase 31 planning complete (3 plans, gates green)
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
+| Phase 31 P01 | 15m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -106,7 +107,7 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-22T21:31:59.276Z
+Last session: 2026-06-23T08:23:54.250Z
 Stopped at: Phase 31 context gathered
 Resume file: .planning/phases/31-continuous-aggregate-lifecycle/31-CONTEXT.md
 Next action: /gsd-plan-phase 31 (Continuous Aggregate Lifecycle)

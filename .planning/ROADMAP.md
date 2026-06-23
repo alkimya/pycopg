@@ -139,7 +139,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 31-01-PLAN.md — `create_continuous_aggregate` (sync + async) via the `connect(autocommit=True)` seam: `time_bucket(` ValueError, `materialized_only`/`with_no_data` flags, mock-authoritative + license-tolerant tests [wave 1]
+- [x] 31-01-PLAN.md — `create_continuous_aggregate` (sync + async) via the `connect(autocommit=True)` seam: `time_bucket(` ValueError, `materialized_only`/`with_no_data` flags, mock-authoritative + license-tolerant tests [wave 1]
 
 **Wave 2** *(blocked on Wave 1 — shared files)*
 
@@ -221,6 +221,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 28. Incremental ETL — Extract, RunResult & Async Parity | v0.7.0 | 3/3 | Complete | 2026-06-21 |
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
-| 31. Continuous Aggregate Lifecycle | v0.8.0 | 0/3 | Planned | - |
+| 31. Continuous Aggregate Lifecycle | v0.8.0 | 1/3 | In Progress|  |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 0/? | Not started | - |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |

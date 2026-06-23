@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TS-ADV-05 | Phase 30 | Complete |
 | TS-ADV-08 | Phase 30 | Complete |
 | TS-ADV-09 | Phase 30 | Complete |
-| TS-ADV-01 | Phase 31 | Pending |
+| TS-ADV-01 | Phase 31 | Complete |
 | TS-ADV-02 | Phase 31 | Pending |
 | TS-ADV-03 | Phase 31 | Pending |
 | TS-ADV-06 | Phase 32 | Pending |
