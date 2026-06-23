@@ -194,7 +194,7 @@ Plans:
 **Plans**: 3 plans / 3 sequential waves
 **Wave 1**
 
-- [ ] 33-01-PLAN.md — Version bump (0.8.0 in both sources) + CHANGELOG [0.8.0] Added entry (D-01/04/08/09/10/11)
+- [x] 33-01-PLAN.md — Version bump (0.8.0 in both sources) + CHANGELOG [0.8.0] Added entry (D-01/04/08/09/10/11)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -242,4 +242,4 @@ Plans:
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete    | 2026-06-23 |
-| 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |
+| 33. Release v0.8.0 | v0.8.0 | 1/3 | In Progress|  |

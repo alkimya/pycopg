@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: ready_to_execute
-stopped_at: Phase 33 planned (3 plans)
-last_updated: "2026-06-23T16:20:39.622Z"
-last_activity: 2026-06-23 -- Phase 33 planning complete
+status: executing
+stopped_at: "Completed 33-01-PLAN.md (version bump + CHANGELOG [0.8.0] + lockfile)"
+last_updated: "2026-06-23T16:29:11Z"
+last_activity: 2026-06-23 -- Phase 33 Plan 01 executed (version 0.8.0, CHANGELOG [0.8.0], uv.lock)
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 9
   percent: 75
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 33 — Release v0.8.0 (last phase; Phase 32 complete)
+**Current focus:** Phase 33 — release-v0-8-0
 
 ## Current Position
 
-Phase: 33
-Plan: Not started (3 plans ready)
-Status: Phase 33 planned — 3 plans / 3 sequential waves, ready to execute (Release v0.8.0, REL-08, last phase)
-Last activity: 2026-06-23 -- Phase 33 planning complete
+Phase: 33 (release-v0-8-0) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 33 (Plan 01 complete)
+Last activity: 2026-06-23 -- Phase 33 Plan 01 executed (version 0.8.0, CHANGELOG [0.8.0], uv.lock)
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Last activity: 2026-06-23 -- Phase 33 planning complete
 | 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
 | 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
 | 32. Query Helpers & Parity Verification | 2 | 2 | COMPLETE (TS-ADV-06/07/10, cov 95.11%) |
-| 33. Release v0.8.0 | ? | 0 | Not started |
+| 33. Release v0.8.0 | 3 | 1 | In Progress (Plan 01: version bump + CHANGELOG [0.8.0] + lockfile) |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
@@ -55,6 +55,7 @@ Last activity: 2026-06-23 -- Phase 33 planning complete
 | Phase 31 P03 | 20m | 3 tasks | 2 files |
 | Phase 32 P01 | 25m | 3 tasks | 1 files |
 | Phase 32 P02 | 20m | 3 tasks | 2 files |
+| Phase 33 P01 | 2m | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -114,11 +115,11 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T15:56:15.072Z
-Stopped at: Phase 33 planned (3 plans / 3 waves)
-Resume file: .planning/phases/33-release-v0-8-0/33-01-PLAN.md
-Next action: /gsd-execute-phase 33 (Release v0.8.0 — REL-08, last phase)
+Last session: 2026-06-23T16:29:11Z
+Stopped at: Completed 33-01-PLAN.md (version bump + CHANGELOG [0.8.0] + lockfile)
+Resume file: .planning/phases/33-release-v0-8-0/33-02-PLAN.md
+Next action: /gsd-execute-phase 33 (Plan 02 — docs rewrite)
 
 ## Operator Next Steps
 
-- Execute Phase 33 (final phase) with `/gsd-execute-phase 33`
+- Execute Phase 33 Plan 02 (docs) with `/gsd-execute-phase 33`
