@@ -202,7 +202,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 33-03-PLAN.md — 4 quality gates (GATES.md) + human-gated tag/OIDC publish/clean-venv smoke (D-02/03/04/12/13)
+- [~] 33-03-PLAN.md — 4 quality gates (GATES.md) + human-gated tag/OIDC publish/clean-venv smoke (D-02/03/04/12/13) [Tasks 1+2 done; PAUSED at Task 3 human-gated checkpoint]
 
 **UI hint**: no
 
@@ -242,4 +242,4 @@ Plans:
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete    | 2026-06-23 |
-| 33. Release v0.8.0 | v0.8.0 | 1/3 | In Progress|  |
+| 33. Release v0.8.0 | v0.8.0 | 2/3 | Paused at checkpoint (human-gated tag+publish) | — |

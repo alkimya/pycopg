@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: executing
-stopped_at: "Completed 33-02-PLAN.md (docs rewrite: timescaledb.md + api-reference.md + README)"
-last_updated: "2026-06-23T16:35:30Z"
-last_activity: 2026-06-23 -- Phase 33 Plan 02 executed (docs rewrite: 3 files, 9 new TimescaleDB methods documented)
+status: paused-at-checkpoint
+stopped_at: "33-03-PLAN.md Task 3 — human-gated checkpoint: awaiting tag v0.8.0 + GitHub Release + OIDC publish + clean-venv smoke"
+last_updated: "2026-06-23T17:00:00Z"
+last_activity: 2026-06-23 -- Phase 33 Plan 03 Tasks 1+2 executed (4 gates PASS, 0.8.0 sdist+wheel built, GATES.md+RELEASE-LOG.md committed); paused at human-gated checkpoint
 progress:
   total_phases: 4
   completed_phases: 3
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 33 (release-v0-8-0) — EXECUTING
-Plan: 3 of 3
-Status: Executing Phase 33 (Plans 01-02 complete)
-Last activity: 2026-06-23 -- Phase 33 Plan 02 executed (docs rewrite: 3 files, 9 new TimescaleDB methods documented)
+Phase: 33 (release-v0-8-0) — PAUSED AT CHECKPOINT
+Plan: 3 of 3 (Tasks 1+2 complete; paused at Task 3 human-gated checkpoint)
+Status: Awaiting human: push main, tag v0.8.0, create GitHub Release, OIDC publish, clean-venv smoke
+Last activity: 2026-06-23 -- Phase 33 Plan 03 Tasks 1+2 complete (4 gates PASS, 0.8.0 built, paused at human-gated checkpoint)
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Last activity: 2026-06-23 -- Phase 33 Plan 02 executed (docs rewrite: 3 files, 9
 | 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
 | 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
 | 32. Query Helpers & Parity Verification | 2 | 2 | COMPLETE (TS-ADV-06/07/10, cov 95.11%) |
-| 33. Release v0.8.0 | 3 | 2 | In Progress (Plans 01-02: version bump + CHANGELOG + docs rewrite) |
+| 33. Release v0.8.0 | 3 | 2 | PAUSED AT CHECKPOINT (Plans 01-02 complete; Plan 03 Tasks 1+2 done; Task 3 human-gated: tag+publish+smoke) |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
@@ -115,11 +115,12 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T16:35:30Z
-Stopped at: Completed 33-02-PLAN.md (docs rewrite: timescaledb.md + api-reference.md + README)
-Resume file: .planning/phases/33-release-v0-8-0/33-03-PLAN.md
-Next action: /gsd-execute-phase 33 (Plan 03 — quality gates + human-gated tag/publish)
+Last session: 2026-06-23T17:00:00Z
+Stopped at: 33-03-PLAN.md Task 3 — human-gated checkpoint (tag v0.8.0 + GitHub Release + OIDC publish + clean-venv smoke)
+Resume file: .planning/phases/33-release-v0-8-0/33-03-PLAN.md (Task 3 continuation)
+Next action: Human performs publish steps in RELEASE-LOG.md, then signals "approved" to resume continuation agent
 
 ## Operator Next Steps
 
-- Execute Phase 33 Plan 03 (quality gates + tag + publish) with `/gsd-execute-phase 33`
+- Human: push origin main, tag v0.8.0, create GitHub Release → OIDC publish → clean-venv smoke (see RELEASE-LOG.md)
+- After smoke prints 0.8.0: signal "approved" to resume continuation agent (will write 33-03-SUMMARY.md + run /gsd-complete-milestone)
