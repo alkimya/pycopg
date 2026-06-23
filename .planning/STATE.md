@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: verifying
-stopped_at: Phase 31 context gathered
-last_updated: "2026-06-23T08:44:39.281Z"
-last_activity: 2026-06-23 -- Phase 31 execution started
+status: "Phase 31 COMPLETE (3/3 plans, verified 8/8, review 0-crit) — cagg lifecycle trio shipped. Next: /gsd-discuss-phase 32"
+stopped_at: Phase 31 complete (continuous-aggregate-lifecycle verified PASSED)
+last_updated: "2026-06-23T09:03:19.767Z"
+last_activity: 2026-06-23
 progress:
   total_phases: 4
   completed_phases: 2
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 31 (continuous-aggregate-lifecycle) — COMPLETE
-Plan: 3 of 3 (all plans shipped)
-Status: Phase complete — all 3 cagg methods delivered (create, refresh, policy)
-Last activity: 2026-06-23 -- Phase 31 plan 03 completed (add_continuous_aggregate_policy + check_offset_ordering helper; 1266 pass, cov 95.05%)
+Phase: 32 (next — not started)
+Plan: Not started
+Status: Phase 31 complete — all 3 cagg methods delivered (create, refresh, policy); verified 8/8, code review 0-critical
+Last activity: 2026-06-23 -- Phase 31 executed + verified PASSED (3 plans sequential-on-main)
 
 ## Performance Metrics
 
