@@ -191,6 +191,15 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 | `add_retention_policy` | `table, drop_after, schema="public"` | - |
 | `list_hypertables` | - | `list[dict]` |
 | `hypertable_info` | `table, schema="public"` | `dict` |
+| `show_chunks` | `table, older_than=None, newer_than=None, schema="public"` | `list[str]` |
+| `drop_chunks` | `table, older_than=None, newer_than=None, schema="public", dry_run=False` | `list[str]` |
+| `add_dimension` | `table, column, partition_type="hash", number_partitions=None, chunk_interval=None, schema="public", if_not_exists=True` | `-` |
+| `add_reorder_policy` | `table, index_name, schema="public", if_not_exists=True` | `-` |
+| `create_continuous_aggregate` | `view_name, select_sql, schema="public", materialized_only=True, with_no_data=False` | `-` |
+| `refresh_continuous_aggregate` | `view_name, window_start=None, window_end=None, schema="public"` | `-` |
+| `add_continuous_aggregate_policy` | `view_name, start_offset, end_offset, schedule_interval="1 hour", schema="public", if_not_exists=True` | `-` |
+| `time_bucket` | `table, time_column, bucket_width, aggregates, where=None, schema="public", into="df"` | `DataFrame \| list[dict]` |
+| `time_bucket_gapfill` | `table, time_column, bucket_width, start, finish, aggregates, where=None, schema="public", into="df"` | `DataFrame \| list[dict]` |
 
 ### Role Methods
 
