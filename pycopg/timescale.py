@@ -666,6 +666,86 @@ class TimescaleAccessor:
             f"SELECT add_reorder_policy('{schema}.{table}', '{index_name}'{ne}) AS job_id"
         )
 
+    def create_continuous_aggregate(
+        self,
+        view_name: str,
+        select_sql: str,
+        schema: str = "public",
+        materialized_only: bool = True,
+        with_no_data: bool = False,
+    ) -> None:
+        """Create a TimescaleDB continuous aggregate materialized view.
+
+        Runs on a dedicated ``connect(autocommit=True)`` connection (D-02)
+        because TimescaleDB's internal multi-transaction materialization
+        cannot execute inside a transaction block.  The license error
+        (``FeatureNotSupported`` / ``0A000``) propagates to the caller — no
+        swallow (D-09).
+
+        .. note::
+            ``select_sql`` is structural SQL authored by the caller and is
+            **not** safe for untrusted user input (the same contract as the
+            ``aggregates`` argument in the Phase-32 query helpers).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to create.
+        select_sql : str
+            The ``SELECT`` statement for the continuous aggregate.  Must
+            contain a ``time_bucket(...)`` grouping — a ``ValueError`` is
+            raised before any DB round-trip if this substring is absent (D-04).
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+        materialized_only : bool, optional
+            If ``True`` (default), sets
+            ``timescaledb.materialized_only=true``, returning only
+            materialised data on queries.  Set to ``False`` to also include
+            real-time data beyond the materialisation horizon.
+        with_no_data : bool, optional
+            If ``True``, creates the view with ``WITH NO DATA`` (skips
+            initial materialisation).  Default ``False`` (materialises on
+            creation).
+
+        Raises
+        ------
+        ValueError
+            If ``select_sql`` does not contain ``time_bucket(`` — a cagg
+            select without a ``time_bucket`` grouping is almost always a
+            user error.
+        ExtensionNotAvailable
+            If the TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (see D-09).
+        """
+        validate_identifiers(view_name, schema)
+
+        if "time_bucket(" not in select_sql:
+            raise ValueError(
+                "select_sql must contain a time_bucket(...) grouping. "
+                "A continuous aggregate without time_bucket is almost certainly a user error."
+            )
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        mo = "true" if materialized_only else "false"
+        data = "NO DATA" if with_no_data else "DATA"
+        sql = (
+            f"CREATE MATERIALIZED VIEW {schema}.{view_name}\n"
+            f"WITH (timescaledb.continuous, timescaledb.materialized_only={mo})\n"
+            f"AS {select_sql}\n"
+            f"WITH {data}"
+        )
+
+        with self._db.connect(autocommit=True) as conn:
+            conn.execute(sql)
+
 
 class AsyncTimescaleAccessor:
     """Async TimescaleDB helper namespace exposed as ``async_db.timescale``.
@@ -1239,3 +1319,79 @@ class AsyncTimescaleAccessor:
         await self._db.execute(
             f"SELECT add_reorder_policy('{schema}.{table}', '{index_name}'{ne}) AS job_id"
         )
+
+    async def create_continuous_aggregate(
+        self,
+        view_name: str,
+        select_sql: str,
+        schema: str = "public",
+        materialized_only: bool = True,
+        with_no_data: bool = False,
+    ) -> None:
+        """Create a TimescaleDB continuous aggregate materialized view.
+
+        Async mirror of :meth:`TimescaleAccessor.create_continuous_aggregate`.
+        Runs on a dedicated ``async with self._db.connect(autocommit=True)``
+        connection (D-02).  The license error (``FeatureNotSupported`` /
+        ``0A000``) propagates to the caller — no swallow (D-09).
+
+        .. note::
+            ``select_sql`` is structural SQL authored by the caller and is
+            **not** safe for untrusted user input.
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to create.
+        select_sql : str
+            The ``SELECT`` statement for the continuous aggregate.  Must
+            contain a ``time_bucket(...)`` grouping — a ``ValueError`` is
+            raised before any DB round-trip if this substring is absent (D-04).
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+        materialized_only : bool, optional
+            If ``True`` (default), sets
+            ``timescaledb.materialized_only=true``.  Set to ``False`` to also
+            include real-time data beyond the materialisation horizon.
+        with_no_data : bool, optional
+            If ``True``, creates with ``WITH NO DATA``.  Default ``False``
+            (materialises on creation).
+
+        Raises
+        ------
+        ValueError
+            If ``select_sql`` does not contain ``time_bucket(`` — a cagg
+            select without a ``time_bucket`` grouping is almost always a
+            user error.
+        ExtensionNotAvailable
+            If the TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (see D-09).
+        """
+        validate_identifiers(view_name, schema)
+
+        if "time_bucket(" not in select_sql:
+            raise ValueError(
+                "select_sql must contain a time_bucket(...) grouping. "
+                "A continuous aggregate without time_bucket is almost certainly a user error."
+            )
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        mo = "true" if materialized_only else "false"
+        data = "NO DATA" if with_no_data else "DATA"
+        sql = (
+            f"CREATE MATERIALIZED VIEW {schema}.{view_name}\n"
+            f"WITH (timescaledb.continuous, timescaledb.materialized_only={mo})\n"
+            f"AS {select_sql}\n"
+            f"WITH {data}"
+        )
+
+        async with self._db.connect(autocommit=True) as conn:
+            await conn.execute(sql)
