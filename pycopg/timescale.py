@@ -883,6 +883,91 @@ class TimescaleAccessor:
         with self._db.connect(autocommit=True) as conn:
             conn.execute(sql, [window_start, window_end])
 
+    def add_continuous_aggregate_policy(
+        self,
+        view_name: str,
+        start_offset: str | None,
+        end_offset: str | None,
+        schedule_interval: str = "1 hour",
+        schema: str = "public",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Register an auto-refresh policy on a continuous aggregate.
+
+        Schedules a background job that periodically calls
+        ``refresh_continuous_aggregate`` on the given view.  Uses a plain
+        ``self._db.execute`` call (D-01 — transaction-safe, like
+        ``add_reorder_policy`` / ``add_compression_policy`` /
+        ``add_retention_policy``; NOT the autocommit seam).
+
+        On Apache-licensed TimescaleDB builds, the underlying
+        ``add_continuous_aggregate_policy`` function raises
+        ``FeatureNotSupported`` (SQLSTATE ``0A000``) — the license error
+        propagates to the caller without swallowing (D-09).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to register the policy on.
+        start_offset : str or None
+            Start offset for the policy refresh window (older boundary), e.g.
+            ``"7 days"``.  ``None`` means open-ended (no lower bound).
+        end_offset : str or None
+            End offset for the policy refresh window (newer boundary), e.g.
+            ``"1 hour"``.  ``None`` means open-ended (no upper bound).
+        schedule_interval : str, optional
+            How often the policy job runs, by default ``"1 hour"``.
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+        if_not_exists : bool, optional
+            If ``True`` (default), silently skip if a policy already exists
+            for this view.  If ``False``, the DB raises an error on duplicate.
+
+        Raises
+        ------
+        ValueError
+            If ``start_offset`` and ``end_offset`` share the same
+            fixed-duration unit (``second``, ``minute``, ``hour``, ``day``,
+            ``week``) and ``start_offset`` does not cover a longer window than
+            ``end_offset`` — raised *before* any DB round-trip (D-07).
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (D-09).
+        """
+        validate_identifiers(view_name, schema)
+
+        if start_offset is not None:
+            validate_interval(start_offset)
+        if end_offset is not None:
+            validate_interval(end_offset)
+
+        _check_offset_ordering(start_offset, end_offset)
+
+        validate_interval(schedule_interval)
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        ne = ", if_not_exists => true" if if_not_exists else ""
+
+        start_frag = "NULL" if start_offset is None else f"INTERVAL '{start_offset}'"
+        end_frag = "NULL" if end_offset is None else f"INTERVAL '{end_offset}'"
+
+        self._db.execute(
+            f"SELECT add_continuous_aggregate_policy("
+            f"'{schema}.{view_name}', "
+            f"start_offset => {start_frag}, "
+            f"end_offset => {end_frag}, "
+            f"schedule_interval => INTERVAL '{schedule_interval}'"
+            f"{ne}) AS job_id"
+        )
+
 
 class AsyncTimescaleAccessor:
     """Async TimescaleDB helper namespace exposed as ``async_db.timescale``.
@@ -1594,3 +1679,82 @@ class AsyncTimescaleAccessor:
 
         async with self._db.connect(autocommit=True) as conn:
             await conn.execute(sql, [window_start, window_end])
+
+    async def add_continuous_aggregate_policy(
+        self,
+        view_name: str,
+        start_offset: str | None,
+        end_offset: str | None,
+        schedule_interval: str = "1 hour",
+        schema: str = "public",
+        if_not_exists: bool = True,
+    ) -> None:
+        """Register an auto-refresh policy on a continuous aggregate.
+
+        Async mirror of
+        :meth:`TimescaleAccessor.add_continuous_aggregate_policy`.
+        Uses a plain ``await self._db.execute`` call (D-01 — transaction-safe;
+        NOT the autocommit seam).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to register the policy on.
+        start_offset : str or None
+            Start offset for the policy refresh window (older boundary), e.g.
+            ``"7 days"``.  ``None`` means open-ended (no lower bound).
+        end_offset : str or None
+            End offset for the policy refresh window (newer boundary), e.g.
+            ``"1 hour"``.  ``None`` means open-ended (no upper bound).
+        schedule_interval : str, optional
+            How often the policy job runs, by default ``"1 hour"``.
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+        if_not_exists : bool, optional
+            If ``True`` (default), silently skip if a policy already exists
+            for this view.  If ``False``, the DB raises an error on duplicate.
+
+        Raises
+        ------
+        ValueError
+            If ``start_offset`` and ``end_offset`` share the same
+            fixed-duration unit and ``start_offset`` does not cover a longer
+            window than ``end_offset`` — raised *before* any DB round-trip
+            (D-07).
+        ExtensionNotAvailable
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (D-09).
+        """
+        validate_identifiers(view_name, schema)
+
+        if start_offset is not None:
+            validate_interval(start_offset)
+        if end_offset is not None:
+            validate_interval(end_offset)
+
+        _check_offset_ordering(start_offset, end_offset)
+
+        validate_interval(schedule_interval)
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        ne = ", if_not_exists => true" if if_not_exists else ""
+
+        start_frag = "NULL" if start_offset is None else f"INTERVAL '{start_offset}'"
+        end_frag = "NULL" if end_offset is None else f"INTERVAL '{end_offset}'"
+
+        await self._db.execute(
+            f"SELECT add_continuous_aggregate_policy("
+            f"'{schema}.{view_name}', "
+            f"start_offset => {start_frag}, "
+            f"end_offset => {end_frag}, "
+            f"schedule_interval => INTERVAL '{schedule_interval}'"
+            f"{ne}) AS job_id"
+        )
