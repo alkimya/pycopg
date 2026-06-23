@@ -61,6 +61,43 @@ def test_accessor_parity(sync_cls, async_cls):
     )
 
 
+def test_timescale_v080_surface():
+    """Assert both timescale accessors expose the exact 9 v0.8.0 methods (D-11).
+
+    A named frozenset of the v0.8.0 TimescaleDB surface — the Phase 30-32
+    additions — must be a subset of the public members of BOTH
+    :class:`TimescaleAccessor` and :class:`AsyncTimescaleAccessor`, so a
+    silently dropped or renamed method fails loudly.  This complements the
+    bidirectional set-diff in :func:`test_accessor_parity` (which only checks
+    sync/async symmetry, not that the methods exist at all).
+
+    Per-method signature parity is intentionally deferred (D-11);
+    ``ACCESSOR_PAIRS`` is not touched.
+    """
+    v080_surface = frozenset(
+        {
+            "show_chunks",
+            "drop_chunks",
+            "add_dimension",
+            "add_reorder_policy",
+            "create_continuous_aggregate",
+            "refresh_continuous_aggregate",
+            "add_continuous_aggregate_policy",
+            "time_bucket",
+            "time_bucket_gapfill",
+        }
+    )
+
+    for cls in (TimescaleAccessor, AsyncTimescaleAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v080_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing v0.8.0 method(s): {sorted(missing)}"
+
+
 class TestAsyncParity:
     """Test that AsyncDatabase maintains parity with Database API."""
 
