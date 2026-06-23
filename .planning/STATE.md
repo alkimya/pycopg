@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: planned
-stopped_at: Phase 32 planned (2 plans, verification passed)
-last_updated: "2026-06-23T11:00:16.948Z"
-last_activity: 2026-06-23 -- Phase 32 planned (2 plans/2 waves, plan-checker PASSED first try; D-08 corrected via live verification)
+status: executing
+stopped_at: Phase 32 context gathered
+last_updated: "2026-06-23T11:29:36.017Z"
+last_activity: 2026-06-23 -- Phase 32 execution started
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 50
+  total_plans: 8
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 32 — Query Helpers & Parity Verification
+**Current focus:** Phase 32 — query-helpers-parity-verification
 
 ## Current Position
 
-Phase: 32 (planned — ready to execute)
-Plan: 2 plans / 2 waves
+Phase: 32 (query-helpers-parity-verification) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-23 -- Phase 32 planned (2 plans/2 waves, plan-checker PASSED first try; D-08 corrected via live verification)
+Last activity: 2026-06-23 -- Phase 32 execution started
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Last activity: 2026-06-23 -- Phase 32 planned (2 plans/2 waves, plan-checker PAS
 | Phase 31 P01 | 15m | 2 tasks | 2 files |
 | Phase 31 P02 | 15m | 2 tasks | 2 files |
 | Phase 31 P03 | 20m | 3 tasks | 2 files |
+| Phase 32 P01 | 25m | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,7 @@ Last activity: 2026-06-23 -- Phase 32 planned (2 plans/2 waves, plan-checker PAS
 - **D-12 added:** local/CI is Apache-licensed → `add_reorder_policy` raises `FeatureNotSupported`. Mock SQL-shape test is authoritative; live test tolerates it; job-row assertion exercises only on Community builds. (Same constraint will apply to Phase 31's cagg policy tests.)
 - **show_chunks** = native `show_chunks()` SRF JOINed to `timescaledb_information.chunks` (`%%I.%%I::regclass` key, `ORDER BY range_start ASC`); **drop_chunks** = capture-before-drop (drop SRF returns text + rows vanish post-drop). New 3rd file `pycopg/exceptions.py` (`TimescaleError`) + new `tests/test_timescale.py`.
 - [Phase ?]: refresh_continuous_aggregate type guard
+- [Phase ?]: Phase 32-01: time_bucket/time_bucket_gapfill query helpers on both accessors (sync+async); builder owns fixed AS bucket alias D-01; into=(df,rows) timescale-local D-03; gapfill double-binds start/finish D-10; no semantic guards D-09; zero new deps/autocommit D-12
 
 ### Pending Todos
 
@@ -110,7 +112,7 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T10:29:27.023Z
+Last session: 2026-06-23T11:29:30.699Z
 Stopped at: Phase 32 context gathered
 Resume file: .planning/phases/32-query-helpers-parity-verification/32-CONTEXT.md
 Next action: /gsd-discuss-phase 32 (Query Helpers and Parity Verification)

@@ -100,6 +100,12 @@ None - no external service configuration required.
 - Production code for both query helpers (sync + async) is complete and parity-clean. Plan 02 delivers the mock SQL-shape unit tests + live integration tests (`time_bucket` asserts real output; `time_bucket_gapfill` uses the Phase-31 license-tolerant `try/except FeatureNotSupported` pattern per the corrected D-08, with the mock shape test authoritative) plus the explicit 9-name parity assertion and the coverage ratchet (≥94%).
 - No blockers. Zero new dependencies; no autocommit code added (D-12).
 
+## Self-Check: PASSED
+
+- `32-01-SUMMARY.md` exists on disk.
+- Task commits `7743627`, `63ac0d2`, `3ec345b` all present in git log.
+- `def time_bucket` present in `pycopg/timescale.py`.
+
 ---
 *Phase: 32-query-helpers-parity-verification*
 *Completed: 2026-06-23*

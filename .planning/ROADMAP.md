@@ -169,7 +169,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 Plans:
 **Wave 1**
 
-- [ ] 32-01-PLAN.md — Implement time_bucket / time_bucket_gapfill (sync+async) + builders & routing helpers in timescale.py
+- [x] 32-01-PLAN.md — Implement time_bucket / time_bucket_gapfill (sync+async) + builders & routing helpers in timescale.py
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -230,5 +230,5 @@ Plans:
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
-| 32. Query Helpers & Parity Verification | v0.8.0 | 0/? | Not started | - |
+| 32. Query Helpers & Parity Verification | v0.8.0 | 1/2 | In Progress|  |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |
