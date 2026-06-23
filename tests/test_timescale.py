@@ -2447,3 +2447,174 @@ class TestTimeBucketGapfillMock:
             finish,
         ]
         assert result is sentinel
+
+
+# =============================================================================
+# time_bucket / time_bucket_gapfill — live integration tests (Layer 1)
+# =============================================================================
+
+
+class TestTimeBucketLive:
+    """Live-DB integration tests for time_bucket (Apache-free -> REAL output)."""
+
+    def test_time_bucket_df_returns_bucket_column(self, ts_db):
+        """time_bucket(into='df') returns a DataFrame with a real bucket column."""
+        table = f"_test_tb_{uuid.uuid4().hex[:8]}"
+        try:
+            _make_hypertable(ts_db, table, days=5)
+            df = ts_db.timescale.time_bucket(
+                table, "ts", "1 day", "avg(val) AS avg_val"
+            )
+            # time_bucket is Apache-free -> assert REAL output (no try/except).
+            assert "bucket" in df.columns
+            assert len(df) >= 1
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    def test_time_bucket_rows_returns_dicts(self, ts_db):
+        """time_bucket(into='rows') returns list[dict] each with a bucket key."""
+        table = f"_test_tbr_{uuid.uuid4().hex[:8]}"
+        try:
+            _make_hypertable(ts_db, table, days=5)
+            rows = ts_db.timescale.time_bucket(
+                table, "ts", "1 day", "avg(val) AS avg_val", into="rows"
+            )
+            assert isinstance(rows, list)
+            assert len(rows) >= 1
+            for row in rows:
+                assert "bucket" in row
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    async def test_time_bucket_async_df_returns_bucket_column(self, async_ts_db):
+        """Async time_bucket(into='df') returns a DataFrame with a bucket column."""
+        from pycopg import Database
+
+        table = f"_test_async_tb_{uuid.uuid4().hex[:8]}"
+        sync_db = Database(async_ts_db.config)
+        try:
+            _make_hypertable(sync_db, table, days=5)
+            df = await async_ts_db.timescale.time_bucket(
+                table, "ts", "1 day", "avg(val) AS avg_val"
+            )
+            assert "bucket" in df.columns
+            assert len(df) >= 1
+        finally:
+            sync_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    async def test_time_bucket_async_rows_returns_dicts(self, async_ts_db):
+        """Async time_bucket(into='rows') returns list[dict] with a bucket key."""
+        from pycopg import Database
+
+        table = f"_test_async_tbr_{uuid.uuid4().hex[:8]}"
+        sync_db = Database(async_ts_db.config)
+        try:
+            _make_hypertable(sync_db, table, days=5)
+            rows = await async_ts_db.timescale.time_bucket(
+                table, "ts", "1 day", "avg(val) AS avg_val", into="rows"
+            )
+            assert isinstance(rows, list)
+            assert len(rows) >= 1
+            for row in rows:
+                assert "bucket" in row
+        finally:
+            sync_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+
+class TestTimeBucketGapfillLive:
+    """Live-DB tests for time_bucket_gapfill (TSL-gated -> license-tolerant).
+
+    On the local Apache 2.28 build, ``time_bucket_gapfill`` raises
+    :class:`psycopg.errors.FeatureNotSupported` (planner-verified 2026-06-23,
+    correcting D-08).  These tests therefore MIRROR
+    :meth:`TestCreateContinuousAggregateLive.test_create_continuous_aggregate_live`
+    -- the real gap-filled output is asserted inside ``try`` and the license
+    gate is tolerated in ``except``.  The mock test is authoritative for shape.
+    Python ``datetime`` objects are passed for ``start`` / ``finish`` (ROADMAP
+    criterion #2 -- NOT literals).
+    """
+
+    def test_time_bucket_gapfill_live(self, ts_db):
+        """gapfill live: real NULL-padded output, tolerating FeatureNotSupported (D-08)."""
+        table = f"_test_gf_{uuid.uuid4().hex[:8]}"
+        try:
+            # Build a hypertable with a deliberate time gap: rows only on the
+            # first and last day of a multi-day range, so interior 1-hour
+            # buckets are empty and must be gap-filled.
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+            ts_db.execute(
+                f"CREATE TABLE {table} (ts TIMESTAMPTZ NOT NULL, val DOUBLE PRECISION)"
+            )
+            ts_db.timescale.create_hypertable(
+                table, "ts", chunk_time_interval="1 day", if_not_exists=True
+            )
+            start = datetime(2024, 1, 1, 0, 0, 0)
+            finish = datetime(2024, 1, 1, 6, 0, 0)
+            # Only two rows (hour 0 and hour 5) -> interior hours are gaps.
+            ts_db.execute(
+                f"INSERT INTO {table} (ts, val) VALUES "
+                f"('2024-01-01 00:00:00+00', 10.0), "
+                f"('2024-01-01 05:00:00+00', 20.0)"
+            )
+            try:
+                rows = ts_db.timescale.time_bucket_gapfill(
+                    table,
+                    "ts",
+                    "1 hour",
+                    start,
+                    finish,
+                    "avg(val) AS avg_val",
+                    into="rows",
+                )
+                # Community/TSL build: real gap-filled, NULL-padded output.
+                assert len(rows) >= 1
+                for row in rows:
+                    assert "bucket" in row
+                # At least one interior bucket has no data -> NULL aggregate.
+                assert any(row["avg_val"] is None for row in rows)
+            except FeatureNotSupported:
+                # Apache license — expected on local/CI.
+                pass
+        finally:
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    async def test_time_bucket_gapfill_async_live(self, async_ts_db):
+        """Async gapfill live: real output inside try, tolerates Apache license gate."""
+        from pycopg import Database
+
+        table = f"_test_async_gf_{uuid.uuid4().hex[:8]}"
+        sync_db = Database(async_ts_db.config)
+        try:
+            sync_db.execute(f"DROP TABLE IF EXISTS {table}")
+            sync_db.execute(
+                f"CREATE TABLE {table} (ts TIMESTAMPTZ NOT NULL, val DOUBLE PRECISION)"
+            )
+            sync_db.timescale.create_hypertable(
+                table, "ts", chunk_time_interval="1 day", if_not_exists=True
+            )
+            start = datetime(2024, 1, 1, 0, 0, 0)
+            finish = datetime(2024, 1, 1, 6, 0, 0)
+            sync_db.execute(
+                f"INSERT INTO {table} (ts, val) VALUES "
+                f"('2024-01-01 00:00:00+00', 10.0), "
+                f"('2024-01-01 05:00:00+00', 20.0)"
+            )
+            try:
+                rows = await async_ts_db.timescale.time_bucket_gapfill(
+                    table,
+                    "ts",
+                    "1 hour",
+                    start,
+                    finish,
+                    "avg(val) AS avg_val",
+                    into="rows",
+                )
+                assert len(rows) >= 1
+                for row in rows:
+                    assert "bucket" in row
+                assert any(row["avg_val"] is None for row in rows)
+            except FeatureNotSupported:
+                # Apache license — expected on local/CI.
+                pass
+        finally:
+            sync_db.execute(f"DROP TABLE IF EXISTS {table}")
