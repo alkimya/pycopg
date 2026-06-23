@@ -162,19 +162,33 @@ info = db.timescale.hypertable_info("events")
 ### Time Bucketing
 
 ```python
-# Average temperature per hour
-result = db.execute("""
-    SELECT
-        time_bucket('1 hour', time) AS bucket,
-        device_id,
-        AVG(temperature) AS avg_temp,
-        MAX(temperature) AS max_temp,
-        MIN(temperature) AS min_temp
-    FROM events
-    WHERE time > NOW() - INTERVAL '1 day'
-    GROUP BY bucket, device_id
-    ORDER BY bucket DESC
-""")
+import pandas as pd
+
+# Average temperature per hour, returned as a DataFrame
+df = db.timescale.time_bucket(
+    "events",
+    "time",
+    "1 hour",
+    aggregates="device_id, AVG(temperature) AS avg_temp, MAX(temperature) AS max_temp",
+    where="time > NOW() - INTERVAL '1 day'",
+    into="df",
+)
+# df is a pandas DataFrame with columns: bucket, device_id, avg_temp, max_temp
+
+# Return as a list of dicts instead
+rows = db.timescale.time_bucket(
+    "events",
+    "time",
+    "1 hour",
+    aggregates="device_id, AVG(temperature) AS avg_temp",
+    into="rows",
+)
+
+# Note: `aggregates` and `where` are structural SQL fragments injected directly
+# into the query builder.  Aggregate expressions (e.g. column names, AVG calls)
+# must come from trusted sources — not from untrusted user input.
+# The `where` *value* is parameterised safely; only the column/expression names
+# in `aggregates` are structural.
 ```
 
 ### Last Values
@@ -215,17 +229,25 @@ result = db.execute("""
 ### Gap Filling
 
 ```python
-# Fill gaps in time series
-result = db.execute("""
-    SELECT
-        time_bucket_gapfill('1 minute', time) AS bucket,
-        device_id,
-        COALESCE(AVG(temperature), locf(AVG(temperature))) AS temperature
-    FROM events
-    WHERE time BETWEEN NOW() - INTERVAL '1 hour' AND NOW()
-    GROUP BY bucket, device_id
-    ORDER BY bucket
-""")
+from datetime import datetime, timedelta
+
+now = datetime.utcnow()
+start = now - timedelta(hours=1)
+
+# Fill time-series gaps with last-observation-carried-forward (locf)
+# start and finish MUST be passed as explicit positional datetime arguments —
+# gap-fill requires them as bound parameters inside the function call, not as
+# a WHERE clause (TimescaleDB planner restriction).
+df = db.timescale.time_bucket_gapfill(
+    "events",
+    "time",
+    "1 minute",
+    start=start,
+    finish=now,
+    aggregates="device_id, locf(AVG(temperature)) AS temperature",
+    into="df",
+)
+# df has columns: bucket, device_id, temperature (nulls filled by locf)
 ```
 
 ## Continuous Aggregates
@@ -233,30 +255,116 @@ result = db.execute("""
 Create materialized views that automatically update.
 
 ```python
-# Create continuous aggregate
-db.execute("""
-    CREATE MATERIALIZED VIEW hourly_metrics
-    WITH (timescaledb.continuous) AS
-    SELECT
-        time_bucket('1 hour', time) AS bucket,
-        device_id,
-        AVG(temperature) AS avg_temp,
-        MAX(temperature) AS max_temp,
-        MIN(temperature) AS min_temp,
-        COUNT(*) AS samples
-    FROM events
-    GROUP BY bucket, device_id
-    WITH NO DATA
-""")
+# Create a continuous aggregate view
+db.timescale.create_continuous_aggregate(
+    "hourly_metrics",
+    select_sql=(
+        "SELECT time_bucket('1 hour', time) AS bucket, "
+        "device_id, AVG(temperature) AS avg_temp, "
+        "MAX(temperature) AS max_temp, MIN(temperature) AS min_temp, "
+        "COUNT(*) AS samples "
+        "FROM events GROUP BY bucket, device_id"
+    ),
+    materialized_only=True,
+    with_no_data=True,
+)
 
-# Add refresh policy
-db.execute("""
-    SELECT add_continuous_aggregate_policy('hourly_metrics',
-        start_offset => INTERVAL '3 hours',
-        end_offset => INTERVAL '1 hour',
-        schedule_interval => INTERVAL '1 hour'
-    )
-""")
+# Manually refresh a window (e.g. backfill the last 3 hours)
+from datetime import datetime, timedelta
+
+now = datetime.utcnow()
+db.timescale.refresh_continuous_aggregate(
+    "hourly_metrics",
+    window_start=now - timedelta(hours=3),
+    window_end=now,
+)
+
+# Add an automatic refresh policy (runs every hour, refreshes last 3 hours)
+db.timescale.add_continuous_aggregate_policy(
+    "hourly_metrics",
+    start_offset="3 hours",
+    end_offset="1 hour",
+    schedule_interval="1 hour",
+)
+```
+
+## Advanced Chunk & Dimension Management
+
+> **Note:** `time_bucket_gapfill` (and its `locf`/`interpolate` gap-fill functions) and the
+> continuous-aggregate methods (`create_continuous_aggregate`, `refresh_continuous_aggregate`,
+> `add_continuous_aggregate_policy`) require a **Community/TSL-licensed** TimescaleDB build.
+> On Apache-licensed builds (including most self-hosted open-source installations) these raise
+> `FeatureNotSupported`. `time_bucket`, `show_chunks`, `drop_chunks`, `add_dimension`, and
+> `add_reorder_policy` are available on all TimescaleDB builds.
+
+### Inspecting Chunks
+
+```python
+# List all chunks for the 'events' hypertable (oldest first)
+chunks = db.timescale.show_chunks("events")
+# ['_timescaledb_internal._hyper_1_1_chunk', '_timescaledb_internal._hyper_1_2_chunk', ...]
+
+# List only chunks older than 30 days (interval string)
+old_chunks = db.timescale.show_chunks("events", older_than="30 days")
+
+# Or use a datetime cutoff
+from datetime import datetime, timedelta
+cutoff = datetime.utcnow() - timedelta(days=30)
+old_chunks = db.timescale.show_chunks("events", older_than=cutoff)
+```
+
+Returns `list[str]` of fully-qualified chunk names, sorted oldest-first by `range_start`.
+
+### Dropping Chunks
+
+> **DESTRUCTIVE / IRREVERSIBLE** — dropped chunks are permanently removed.
+> Use `dry_run=True` first to preview which chunks will be affected.
+> Both bounds set to `None` (the default) raises `ValueError` to prevent accidental
+> full-table truncation.
+
+```python
+# Preview what would be dropped — no data is actually removed
+would_drop = db.timescale.drop_chunks("events", older_than="90 days", dry_run=True)
+print(f"Would drop {len(would_drop)} chunks: {would_drop}")
+
+# Drop for real once you have confirmed the list
+dropped = db.timescale.drop_chunks("events", older_than="90 days")
+```
+
+### Adding a Space Dimension
+
+Add a secondary partition dimension (hash or range) to an existing hypertable.
+TimescaleDB 2.x uses the modern `by_hash`/`by_range` form.
+
+```python
+# Hash partition on device_id across 4 partitions
+db.timescale.add_dimension(
+    "events",
+    "device_id",
+    partition_type="hash",
+    number_partitions=4,
+)
+
+# Range partition on a secondary time/numeric column
+# (number_partitions and chunk_interval are mutually exclusive)
+db.timescale.add_dimension(
+    "metrics",
+    "region_id",
+    partition_type="range",
+    chunk_interval=100,
+)
+```
+
+### Adding a Reorder Policy
+
+Automatically reorder chunks on a specified index to improve compression and query
+performance.
+
+```python
+db.timescale.add_reorder_policy(
+    "events",
+    index_name="events_device_id_time_idx",
+)
 ```
 
 ## Complete Example
