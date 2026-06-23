@@ -8,9 +8,11 @@ A production-ready Python library providing high-level sync and async APIs for P
 
 Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-## Current State — v0.7.0 SHIPPED 2026-06-22
+## Current State — v0.8.0 SHIPPED 2026-06-23
 
-**Latest shipped:** v0.7.0 "Alias Removal + Incremental ETL" — published to PyPI (`pip install pycopg==0.7.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.7.0`). All 5 phases (25–29) verified passed; the 56 deprecated flat aliases hard-removed from both classes (surface is now accessor-only), watermark-based incremental ETL wired end-to-end in sync + async, CHANGELOG `[0.7.0]` Breaking/Added + MIGRATION v0.6→v0.7 (56-name table) finalized, version bumped in both sources, clean-venv import smoke confirmed. Gates at ship: coverage 95.11% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green (no stubs left to fire).
+**Latest shipped:** v0.8.0 "TimescaleDB avancé" — published to PyPI (`pip install pycopg==0.8.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.8.0`, workflow run 28044147070). Phases 30–33 verified passed: 9 new time-series methods (chunk & dimension management ×4, continuous aggregate lifecycle ×3, query helpers ×2) on `db.timescale.*` / `async_db.timescale.*` with full sync/async parity; CHANGELOG `[0.8.0]` Added-only; all three docs surfaces updated (`docs/timescaledb.md` Advanced Chunk & Dimension Management section, `api-reference.md` 15-row table, README "15 methods"); 4 gates green at ship (coverage 95.11%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green); clean-venv import smoke printed 0.8.0. (Milestone roll-up into the requirements/decisions log is finalized by `/gsd-complete-milestone v0.8.0`.)
+
+**Previously shipped:** v0.7.0 "Alias Removal + Incremental ETL" — published to PyPI (`pip install pycopg==0.7.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.7.0`). All 5 phases (25–29) verified passed; the 56 deprecated flat aliases hard-removed from both classes (surface is now accessor-only), watermark-based incremental ETL wired end-to-end in sync + async, CHANGELOG `[0.7.0]` Breaking/Added + MIGRATION v0.6→v0.7 (56-name table) finalized, version bumped in both sources, clean-venv import smoke confirmed. Gates at ship: coverage 95.11% (ratchet ≥94 held), interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green (no stubs left to fire).
 
 **Delivered in v0.7.0:**
 
