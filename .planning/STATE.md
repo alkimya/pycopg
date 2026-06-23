@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: executing
-stopped_at: Phase 32 complete (both plans shipped)
-last_updated: "2026-06-23T12:00:00.000Z"
-last_activity: 2026-06-23 -- Phase 32 complete (query helpers + parity verified)
+status: planning
+stopped_at: Phase 32 complete (32-01 + 32-02 shipped)
+last_updated: "2026-06-23T11:51:31.554Z"
+last_activity: 2026-06-23
 progress:
   total_phases: 4
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 32 — query-helpers-parity-verification
+**Current focus:** Phase 33 — Release v0.8.0 (last phase; Phase 32 complete)
 
 ## Current Position
 
-Phase: 32 (query-helpers-parity-verification) — COMPLETE
-Plan: 2 of 2 (both shipped)
+Phase: 33
+Plan: Not started
 Status: Phase 32 complete — ready to plan Phase 33 (Release v0.8.0)
-Last activity: 2026-06-23 -- Phase 32 complete (query helpers + parity verified)
+Last activity: 2026-06-23
 
 ## Performance Metrics
 
