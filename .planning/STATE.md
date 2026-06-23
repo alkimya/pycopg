@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
 status: executing
-stopped_at: Phase 32 context gathered
-last_updated: "2026-06-23T11:29:36.017Z"
-last_activity: 2026-06-23 -- Phase 32 execution started
+stopped_at: Phase 32 complete (both plans shipped)
+last_updated: "2026-06-23T12:00:00.000Z"
+last_activity: 2026-06-23 -- Phase 32 complete (query helpers + parity verified)
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 7
-  percent: 88
+  completed_plans: 8
+  percent: 75
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 32 (query-helpers-parity-verification) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-06-23 -- Phase 32 execution started
+Phase: 32 (query-helpers-parity-verification) — COMPLETE
+Plan: 2 of 2 (both shipped)
+Status: Phase 32 complete — ready to plan Phase 33 (Release v0.8.0)
+Last activity: 2026-06-23 -- Phase 32 complete (query helpers + parity verified)
 
 ## Performance Metrics
 
@@ -45,7 +45,7 @@ Last activity: 2026-06-23 -- Phase 32 execution started
 | ----- | ----- | -------- | ------ |
 | 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
 | 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
-| 32. Query Helpers & Parity Verification | ? | 0 | Not started |
+| 32. Query Helpers & Parity Verification | 2 | 2 | COMPLETE (TS-ADV-06/07/10, cov 95.11%) |
 | 33. Release v0.8.0 | ? | 0 | Not started |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
@@ -54,6 +54,7 @@ Last activity: 2026-06-23 -- Phase 32 execution started
 | Phase 31 P02 | 15m | 2 tasks | 2 files |
 | Phase 31 P03 | 20m | 3 tasks | 2 files |
 | Phase 32 P01 | 25m | 3 tasks | 1 files |
+| Phase 32 P02 | 20m | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,7 @@ Last activity: 2026-06-23 -- Phase 32 execution started
 - **show_chunks** = native `show_chunks()` SRF JOINed to `timescaledb_information.chunks` (`%%I.%%I::regclass` key, `ORDER BY range_start ASC`); **drop_chunks** = capture-before-drop (drop SRF returns text + rows vanish post-drop). New 3rd file `pycopg/exceptions.py` (`TimescaleError`) + new `tests/test_timescale.py`.
 - [Phase ?]: refresh_continuous_aggregate type guard
 - [Phase ?]: Phase 32-01: time_bucket/time_bucket_gapfill query helpers on both accessors (sync+async); builder owns fixed AS bucket alias D-01; into=(df,rows) timescale-local D-03; gapfill double-binds start/finish D-10; no semantic guards D-09; zero new deps/autocommit D-12
+- [Phase 32-02]: two-layer tests — time_bucket asserts REAL output (Apache-free), time_bucket_gapfill uses try/except FeatureNotSupported (TSL-gated on local Apache 2.28, D-08 corrected at plan time, mirrors Phase-31 caggs); mock tests authoritative for SQL shape + double-bind (D-10) + awaited async has_extension (D-07) + into=gdf ValueError pre-DB (D-03); explicit 9-name v0.8.0 surface frozenset asserted as subset of both classes (D-11), ACCESSOR_PAIRS untouched; cov 95.11%
 
 ### Pending Todos
 
@@ -94,7 +96,7 @@ None — roadmap created, ready to plan.
 - 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — fixture-isolation bug, not v0.8.0 code; use `-o addopts=""` for targeted runs.
 - One ~2.7% flaky bound-param test surfaced during Phase 28 — watch for re-flake.
 - ~~**Phase 30 research flag:** confirm TSDB version~~ RESOLVED 2026-06-22: live = 2.28.0 → modern `by_hash`/`by_range`.
-- **Phase 32 research flag:** verify `to_dataframe` `%s`-to-named-bind conversion path at plan time before coding `into="df"` for `time_bucket`/`time_bucket_gapfill`.
+- ~~**Phase 32 research flag:** verify `to_dataframe` `%s`-to-named-bind conversion path~~ RESOLVED: plan 01 used a timescale-local `_to_named_binds` copy (D-06); plan 02 mock tests confirm `:p0` named binds + dict params reach `to_dataframe`.
 - ~~**Phase 31 carry-forward:**~~ RESOLVED 2026-06-23: all 3 cagg methods use mock-authoritative + license-tolerant strategy for Apache build.
 
 ## Deferred Items
@@ -112,10 +114,10 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T11:29:30.699Z
-Stopped at: Phase 32 context gathered
-Resume file: .planning/phases/32-query-helpers-parity-verification/32-CONTEXT.md
-Next action: /gsd-discuss-phase 32 (Query Helpers and Parity Verification)
+Last session: 2026-06-23T12:00:00.000Z
+Stopped at: Phase 32 complete (32-01 + 32-02 shipped)
+Resume file: .planning/phases/32-query-helpers-parity-verification/32-02-SUMMARY.md
+Next action: /gsd-discuss-phase 33 (Release v0.8.0 — REL-08, last phase)
 
 ## Operator Next Steps
 

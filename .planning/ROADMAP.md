@@ -84,7 +84,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 - [x] **Phase 30: Chunk Management & Partitioning** - Deliver `show_chunks`, `drop_chunks`, `add_dimension`, `add_reorder_policy` on both sync and async accessors using the pure-builder pattern with no new connection seams — completed 2026-06-22
 - [x] **Phase 31: Continuous Aggregate Lifecycle** - Deliver the full `create_continuous_aggregate` + `refresh_continuous_aggregate` + `add_continuous_aggregate_policy` lifecycle on both accessors using the `connect(autocommit=True)` seam (completed 2026-06-23)
-- [ ] **Phase 32: Query Helpers & Parity Verification** - Deliver `time_bucket` and `time_bucket_gapfill` query helpers with DataFrame/rows output, plus full TS-ADV-10 sync/async parity confirmation across all 9 new methods
+- [x] **Phase 32: Query Helpers & Parity Verification** - Deliver `time_bucket` and `time_bucket_gapfill` query helpers with DataFrame/rows output, plus full TS-ADV-10 sync/async parity confirmation across all 9 new methods
 - [ ] **Phase 33: Release v0.8.0** - Docs, CHANGELOG, version bump, 4 quality gates, human-gated tag and PyPI publish
 
 ## Phase Details
@@ -173,7 +173,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 32-02-PLAN.md — Mock SQL-shape + live tests (time_bucket REAL, gapfill license-tolerant) + explicit 9-name parity assertion
+- [x] 32-02-PLAN.md — Mock SQL-shape + live tests (time_bucket REAL, gapfill license-tolerant) + explicit 9-name parity assertion
 
 **UI hint**: no
 
@@ -230,5 +230,5 @@ Plans:
 | 29. Release v0.7.0 | v0.7.0 | 3/3 | Complete | 2026-06-22 |
 | 30. Chunk Management & Partitioning | v0.8.0 | 3/3 | Complete    | 2026-06-22 |
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete    | 2026-06-23 |
-| 32. Query Helpers & Parity Verification | v0.8.0 | 1/2 | In Progress|  |
+| 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete | |
 | 33. Release v0.8.0 | v0.8.0 | 0/? | Not started | - |

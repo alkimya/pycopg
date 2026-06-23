@@ -28,12 +28,12 @@ dependencies. Coverage ratchet held ≥94% (baseline 95.11%).
 
 ### Query Helpers
 
-+ [ ] **TS-ADV-06**: User can run a bucketed aggregation query via `db.timescale.time_bucket(table, time_column, bucket_width, aggregates, where=None, schema="public", into="df")`, returning a `DataFrame` (or `list[dict]` when `into="rows"`); `bucket_width` and `where` values parameterized as `%s`, identifiers validated, `aggregates` documented as structural SQL (not from untrusted input)
-+ [ ] **TS-ADV-07**: User can run a gap-filled bucketed query via `db.timescale.time_bucket_gapfill(table, time_column, bucket_width, start, finish, aggregates, where=None, schema="public", into="df")`, returning a `DataFrame`/`list[dict]`; **`start` and `finish` are required** (passed as explicit function arguments, not WHERE inference — `%s` planner-inference is structurally broken); `locf()`/`interpolate()` supplied inside the `aggregates` fragments
++ [x] **TS-ADV-06**: User can run a bucketed aggregation query via `db.timescale.time_bucket(table, time_column, bucket_width, aggregates, where=None, schema="public", into="df")`, returning a `DataFrame` (or `list[dict]` when `into="rows"`); `bucket_width` and `where` values parameterized as `%s`, identifiers validated, `aggregates` documented as structural SQL (not from untrusted input)
++ [x] **TS-ADV-07**: User can run a gap-filled bucketed query via `db.timescale.time_bucket_gapfill(table, time_column, bucket_width, start, finish, aggregates, where=None, schema="public", into="df")`, returning a `DataFrame`/`list[dict]`; **`start` and `finish` are required** (passed as explicit function arguments, not WHERE inference — `%s` planner-inference is structurally broken); `locf()`/`interpolate()` supplied inside the `aggregates` fragments
 
 ### Parity, Docs & Release
 
-+ [ ] **TS-ADV-10**: Full sync/async parity for all 9 new methods — `AsyncTimescaleAccessor` mirrors every method (async guard correctly `await`ed); enforced by `test_accessor_parity` over the existing `(TimescaleAccessor, AsyncTimescaleAccessor)` `ACCESSOR_PAIRS` entry
++ [x] **TS-ADV-10**: Full sync/async parity for all 9 new methods — `AsyncTimescaleAccessor` mirrors every method (async guard correctly `await`ed); enforced by `test_accessor_parity` over the existing `(TimescaleAccessor, AsyncTimescaleAccessor)` `ACCESSOR_PAIRS` entry
 + [ ] **REL-08**: Release v0.8.0 — README + Sphinx API docs cover the 9 new methods + an `docs/` time-series advanced section; CHANGELOG `[0.8.0]` Added entry; version bumped in both sources; 4 gates green (coverage ≥94, interrogate ≥95, Sphinx `-W`, no DeprecationWarnings); human-gated tag `v0.8.0` + OIDC publish + clean-venv install smoke
 
 ## Future Requirements
@@ -83,7 +83,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TS-ADV-03 | Phase 31 | Complete |
 | TS-ADV-06 | Phase 32 | Complete |
 | TS-ADV-07 | Phase 32 | Complete |
-| TS-ADV-10 | Phase 32 | Pending |
+| TS-ADV-10 | Phase 32 | Complete |
 | REL-08 | Phase 33 | Pending |
 
 **Coverage:**
