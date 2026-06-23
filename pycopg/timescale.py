@@ -149,6 +149,180 @@ def _check_offset_ordering(
     # mixed-unit / month / year → defer to the DB (raises 22023 on Community builds)
 
 
+#: Accepted ``into=`` values for the query helpers (D-03).  This is the
+#: *inverse* of :data:`pycopg.spatial._VALID_INTO` (``("rows", "gdf")``) — the
+#: timescale helpers return DataFrames or plain rows, never GeoDataFrames.
+_VALID_INTO = ("df", "rows")
+
+
+def _check_into(into: str, helper: str) -> None:
+    """Validate the ``into=`` value for a query helper before any SQL runs.
+
+    Parameters
+    ----------
+    into : str
+        Requested output form — ``"df"`` (a :class:`pandas.DataFrame`) or
+        ``"rows"`` (a ``list[dict]``).  ``"gdf"`` (or any other value) is
+        rejected (D-03).
+    helper : str
+        Helper name, used only for the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``into`` is not one of ``("df", "rows")`` — raised *before* any
+        DB round-trip, which is how ``into="gdf"`` gets rejected.
+    """
+    if into not in _VALID_INTO:
+        raise ValueError(f"{helper}(): into must be one of {_VALID_INTO}, got {into!r}")
+
+
+def _to_named_binds(sql: str, params: list) -> tuple[str, dict]:
+    """Convert ``%s`` placeholders to named binds for SQLAlchemy ``text()``.
+
+    The pure builders emit psycopg-style ``%s`` placeholders with a
+    positional params list, but ``to_dataframe`` wraps SQL in SQLAlchemy
+    ``text()``, which requires ``:name`` binds with a dict.  This adapter
+    rewrites placeholders to ``:p0``, ``:p1``, ... in order.  Local copy of
+    :func:`pycopg.spatial._to_named_binds` (D-06) — kept here to avoid a
+    ``timescale → spatial`` dependency on private helpers.
+
+    Parameters
+    ----------
+    sql : str
+        SQL containing ``%s`` placeholders.
+    params : list
+        Positional parameter values (one per placeholder).
+
+    Returns
+    -------
+    tuple of (str, dict)
+        SQL with named binds and the matching parameter dict.
+    """
+    parts = sql.split("%s")
+    out = parts[0]
+    binds: dict = {}
+    for i, part in enumerate(parts[1:]):
+        out += f":p{i}{part}"
+        binds[f"p{i}"] = params[i]
+    return out, binds
+
+
+def _build_time_bucket_sql(
+    table: str,
+    time_column: str,
+    bucket_width: str,
+    aggregates: str,
+    where: str | None = None,
+    schema: str = "public",
+) -> tuple[str, list]:
+    """Build a ``time_bucket`` bucketed-aggregation SELECT (D-01, D-05).
+
+    Identifiers (``table``, ``time_column``, ``schema``) are validated and
+    interpolated; only ``bucket_width`` is bound as a ``%s`` parameter.  The
+    bucket expression always carries the fixed ``AS bucket`` alias so the
+    output column is deterministically named ``bucket`` (D-01).
+
+    Parameters
+    ----------
+    table : str
+        Hypertable name.
+    time_column : str
+        Timestamp column to bucket on.
+    bucket_width : str
+        Bucket interval (e.g. ``"1 hour"``), bound as ``%s``.
+    aggregates : str
+        Caller-supplied structural SQL aggregate list (e.g. ``"avg(v)"``);
+        documented as structural SQL, not untrusted input (D-04).
+    where : str or None, optional
+        Optional structural-SQL WHERE fragment (without the ``WHERE``
+        keyword).  ``None`` (default) omits the clause.
+    schema : str, optional
+        Schema name, by default ``"public"``.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string with ``%s`` placeholders and the positional params list
+        ``[bucket_width]``.
+    """
+    validate_identifiers(table, schema, time_column)
+
+    sql = (
+        f"SELECT time_bucket(%s, {time_column}) AS bucket, {aggregates} "
+        f"FROM {schema}.{table}"
+    )
+    if where is not None:
+        sql += f" WHERE {where}"
+    sql += " GROUP BY bucket ORDER BY bucket"
+
+    return sql, [bucket_width]
+
+
+def _build_time_bucket_gapfill_sql(
+    table: str,
+    time_column: str,
+    bucket_width: str,
+    start: datetime,
+    finish: datetime,
+    aggregates: str,
+    where: str | None = None,
+    schema: str = "public",
+) -> tuple[str, list]:
+    """Build a ``time_bucket_gapfill`` gap-filled SELECT (D-01, D-05, D-10).
+
+    Identifiers (``table``, ``time_column``, ``schema``) are validated and
+    interpolated; ``bucket_width``, ``start`` and ``finish`` are bound as
+    ``%s``.  ``start`` and ``finish`` are bound **twice** — once as the
+    explicit gapfill bound args and once in the ``WHERE`` range (``>=`` lower /
+    ``<`` upper) — so the params order is
+    ``[bucket_width, start, finish, start, finish]`` (D-10).  The bucket
+    expression always carries the fixed ``AS bucket`` alias (D-01).
+
+    No semantic guards are applied (no Python ``start < finish`` check, no
+    ``locf(``-presence heuristic) — the DB is the authority (D-09).
+
+    Parameters
+    ----------
+    table : str
+        Hypertable name.
+    time_column : str
+        Timestamp column to bucket on.
+    bucket_width : str
+        Bucket interval (e.g. ``"1 hour"``), bound as ``%s``.
+    start : datetime
+        Lower (inclusive) bound of the gap-filled range, bound as ``%s``.
+    finish : datetime
+        Upper (exclusive) bound of the gap-filled range, bound as ``%s``.
+    aggregates : str
+        Caller-supplied structural SQL aggregate list, optionally including
+        ``locf(...)`` / ``interpolate(...)`` (D-04).
+    where : str or None, optional
+        Optional structural-SQL WHERE fragment ANDed onto the time range.
+        ``None`` (default) omits it.
+    schema : str, optional
+        Schema name, by default ``"public"``.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string with five ``%s`` placeholders and the positional params
+        list ``[bucket_width, start, finish, start, finish]``.
+    """
+    validate_identifiers(table, schema, time_column)
+
+    sql = (
+        f"SELECT time_bucket_gapfill(%s, {time_column}, %s, %s) AS bucket, "
+        f"{aggregates} FROM {schema}.{table} "
+        f"WHERE {time_column} >= %s AND {time_column} < %s"
+    )
+    if where is not None:
+        sql += f" AND ({where})"
+    sql += " GROUP BY bucket ORDER BY bucket"
+
+    return sql, [bucket_width, start, finish, start, finish]
+
+
 class TimescaleAccessor:
     """TimescaleDB helper namespace exposed as ``db.timescale``.
 
