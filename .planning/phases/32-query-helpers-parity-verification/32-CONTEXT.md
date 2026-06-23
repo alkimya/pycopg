@@ -90,15 +90,23 @@ pure-builder + `validate_identifiers` + `%s`-params + lazy-accessor + sync/async
   gotcha.
 
 ### `time_bucket_gapfill` validation & binding
-- **D-08 [license — Apache-licensed, REAL live assertions; NOT the Phase-31 pattern]:** Unlike
-  Phase-31 continuous aggregates (TSL/Community-only → `FeatureNotSupported` on the local 2.28.0
-  Apache build), `time_bucket`, `time_bucket_gapfill`, `locf()` and `interpolate()` are in the
-  **Apache 2 (free) edition** and run for real on the local/CI build. **Live tests assert real
-  behavior** (bucketed/gap-filled output, NULL-padded buckets present, `bucket` column, aggregate
-  values) — they are **NOT** wrapped in `try/except FeatureNotSupported`. This is the v0.6.0
-  spatial-style two-layer pattern (mock SQL-shape + real live), **not** the Phase-31 license-tolerant
-  pattern. Planner/researcher should still live-verify gapfill isn't gated on the local build, but
-  default to real assertions.
+- **D-08 [license — SPLIT verdict, live-verified 2026-06-23; ORIGINAL framing CORRECTED]:**
+  **CORRECTION (live-verified against local TimescaleDB 2.28.0, `timescaledb.license = apache`,
+  during planning):** The original D-08 claim — that `time_bucket_gapfill`/`locf()`/`interpolate()`
+  are Apache-free — is **materially WRONG**. Live verification (orchestrator-confirmed): bare
+  `time_bucket('1 hour', now())` **runs for real** on the Apache build (Apache-free ✓), but
+  `time_bucket_gapfill(...)` raises `ERROR: function "time_bucket_gapfill" is not supported under
+  the current "apache" license` in **both** the 2-arg and 4-arg forms; `locf()`/`interpolate()` are
+  gated identically (only reachable inside gapfill). So gapfill is **TSL/Community-only, exactly like
+  Phase-31 caggs** — NOT Apache-free.
+  **Resulting test strategy (the SPLIT verdict):**
+  - `time_bucket` live tests assert **real** bucketed output (deterministic `bucket` column,
+    aggregate values) — the original D-08 framing holds for this method.
+  - `time_bucket_gapfill` live tests use the **Phase-31 license-tolerant** `try/except
+    FeatureNotSupported` pattern (analog `tests/test_timescale.py:1395-1419`), with the **mock
+    SQL-shape test authoritative** for the gapfill SQL contract (double-bind, NULL-pad shape).
+  The gapfill SQL **template itself is syntactically valid** (the error is a license gate, not a
+  syntax error), so the production code in 32-01 is **unaffected**.
 - **D-09 [minimal pre-flight guards — honest about limits]:** Validate identifiers
   (`table`, `time_column`, `schema`) and enforce `start`/`finish` as required (the signature does
   this). Bind `bucket_width`/`start`/`finish`/`where`-params as `%s`. Do **NOT** add semantic guards:
