@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-23
+
+### Added
+
+**Chunk & dimension management** (4 new methods on `db.timescale.*` and `async_db.timescale.*`):
+
+- `db.timescale.show_chunks(table, older_than=None, newer_than=None)` — list fully-qualified
+  chunk names for a hypertable, sorted oldest-first by range start.
+- `db.timescale.drop_chunks(table, older_than=None, newer_than=None, dry_run=False)` — drop
+  chunks matching the given time bounds. `dry_run=True` returns the list that *would* be dropped
+  without removing any data. Raises `ValueError` when both bounds are `None` (DESTRUCTIVE/IRREVERSIBLE
+  safety guard). Passing only one bound is valid.
+- `db.timescale.add_dimension(table, column, number_partitions=None, chunk_interval=None,
+  if_not_exists=False)` — add a space partition (`by_hash`) or time partition (`by_range`) using
+  the TimescaleDB 2.x `add_dimension` builder form. Raises `TimescaleError` on duplicate-dimension
+  conflicts when `if_not_exists=False`.
+- `db.timescale.add_reorder_policy(table, index_name, if_not_exists=False)` — register a
+  background reorder policy for a hypertable chunk index. Requires a Community/TSL-licensed
+  TimescaleDB build; raises `FeatureNotSupported` on Apache-licensed builds.
+
+**Continuous aggregate lifecycle** (3 new methods):
+
+- `db.timescale.create_continuous_aggregate(view_name, select_sql, materialized=True,
+  with_no_data=False)` — create a continuous aggregate view. `select_sql` must contain
+  `time_bucket(` (heuristic guard; raises `ValueError` otherwise). Uses a dedicated
+  `autocommit=True` connection to satisfy TimescaleDB's transaction-block restriction.
+  Requires Community/TSL build; raises `FeatureNotSupported` on Apache.
+- `db.timescale.refresh_continuous_aggregate(view_name, start=None, finish=None)` — manually
+  refresh a continuous aggregate over the specified window. `start` and `finish` must be
+  `datetime` objects or `None`; raises `ValueError` when both are supplied but `start >= finish`.
+  Requires Community/TSL build.
+- `db.timescale.add_continuous_aggregate_policy(view_name, start_offset, end_offset,
+  schedule_interval, if_not_exists=False)` — register a background refresh policy for a
+  continuous aggregate. Uses plain `execute` (no autocommit seam). Requires Community/TSL build.
+
+**Query helpers** (2 new methods):
+
+- `db.timescale.time_bucket(table, time_column, bucket_width, into="rows",
+  extra_columns=None, where=None, params=None)` — time-bucket aggregation query helper;
+  returns rows, a `pandas.DataFrame` (`into="df"`), or a `GeoDataFrame` (`into="gdf"`).
+- `db.timescale.time_bucket_gapfill(table, time_column, bucket_width, start, finish,
+  into="rows", extra_columns=None, where=None, params=None)` — gap-filling time-bucket query;
+  `start` and `finish` are required positional arguments (TSDB planner hook requires them
+  explicitly). Requires Community/TSL build; raises `FeatureNotSupported` on Apache.
+
+All 9 methods have full sync/async parity on `AsyncTimescaleAccessor`. Zero new runtime
+dependencies. For usage examples and the license note for Community/TSL-gated methods, see the
+[TimescaleDB advanced guide](docs/timescaledb.md).
+
 ## [0.7.0] - 2026-06-22
 
 ### Breaking
@@ -230,7 +279,8 @@ examples, watermark-column requirements, and backfill/reset instructions.
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/alkimya/pycopg/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alkimya/pycopg/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alkimya/pycopg/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/alkimya/pycopg/compare/v0.4.0...v0.5.0
