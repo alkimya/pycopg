@@ -12,6 +12,7 @@ as thin deprecated aliases (see :mod:`pycopg.aliases`) until v0.7.0.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -80,6 +81,72 @@ def _build_chunk_bound_fragments(
         )
 
     return older_frag, newer_frag, params
+
+
+#: Compiled regex that recognises fixed-duration interval literals such as
+#: ``"7 days"``, ``"1 hour"``, ``"30 minutes"``, ``"2 weeks"``.
+#: Calendar units (``month``, ``year``) are intentionally excluded — they are
+#: ambiguous in seconds and are deferred to the DB (D-07).
+_OFFSET_RE = re.compile(
+    r"^(\d+)\s+(second|minute|hour|day|week)s?$",
+    re.IGNORECASE,
+)
+
+
+def _check_offset_ordering(
+    start_offset: str | None,
+    end_offset: str | None,
+) -> None:
+    """Best-effort same-unit guard for continuous-aggregate policy offsets.
+
+    Raises ``ValueError`` when ``start_offset`` and ``end_offset`` share the
+    same fixed-duration unit (``second``, ``minute``, ``hour``, ``day``,
+    ``week``) **and** the integer count of ``start_offset`` is less than or
+    equal to that of ``end_offset``.  The start offset must cover a *longer*
+    window (older data) than the end offset.
+
+    Mixed-unit pairs (e.g. ``"1 day"`` vs ``"6 hours"``), calendar units
+    (``"1 month"``, ``"1 year"``), and ``None`` offsets are silently deferred
+    to the DB, which is the final authority on offset ordering (D-07).  The DB
+    raises ``22023`` (``invalid_parameter_value``) on a Community build when
+    ordering is violated.
+
+    Parameters
+    ----------
+    start_offset : str or None
+        Start offset for the policy (older boundary).  ``None`` means
+        open-ended (no lower bound) — the check is skipped.
+    end_offset : str or None
+        End offset for the policy (newer boundary).  ``None`` means
+        open-ended (no upper bound) — the check is skipped.
+
+    Raises
+    ------
+    ValueError
+        If both offsets share the same fixed-duration unit and
+        ``start_offset`` does not cover a longer window than ``end_offset``.
+
+    Notes
+    -----
+    This is a *best-effort* guard — it only covers the unambiguous same-unit
+    case.  The DB is the final authority on offset ordering for calendar and
+    mixed-unit intervals (D-07).  No interval-to-seconds parser is used; only
+    stdlib :mod:`re` is needed (zero new dependencies).
+    """
+    if start_offset is None or end_offset is None:
+        return  # open-ended → DB authority
+
+    ms = _OFFSET_RE.match(start_offset.strip())
+    me = _OFFSET_RE.match(end_offset.strip())
+
+    if ms and me and ms.group(2).lower() == me.group(2).lower():
+        # Both offsets share the same fixed-duration unit — compare counts.
+        if int(ms.group(1)) <= int(me.group(1)):
+            raise ValueError(
+                f"start_offset ({start_offset!r}) must cover a longer window than "
+                f"end_offset ({end_offset!r})."
+            )
+    # mixed-unit / month / year → defer to the DB (raises 22023 on Community builds)
 
 
 class TimescaleAccessor:
