@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
 status: executing
-stopped_at: "Completed 33-01-PLAN.md (version bump + CHANGELOG [0.8.0] + lockfile)"
-last_updated: "2026-06-23T16:29:11Z"
-last_activity: 2026-06-23 -- Phase 33 Plan 01 executed (version 0.8.0, CHANGELOG [0.8.0], uv.lock)
+stopped_at: "Completed 33-02-PLAN.md (docs rewrite: timescaledb.md + api-reference.md + README)"
+last_updated: "2026-06-23T16:35:30Z"
+last_activity: 2026-06-23 -- Phase 33 Plan 02 executed (docs rewrite: 3 files, 9 new TimescaleDB methods documented)
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 11
   completed_plans: 9
-  percent: 75
+  percent: 82
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 ## Current Position
 
 Phase: 33 (release-v0-8-0) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 33 (Plan 01 complete)
-Last activity: 2026-06-23 -- Phase 33 Plan 01 executed (version 0.8.0, CHANGELOG [0.8.0], uv.lock)
+Plan: 3 of 3
+Status: Executing Phase 33 (Plans 01-02 complete)
+Last activity: 2026-06-23 -- Phase 33 Plan 02 executed (docs rewrite: 3 files, 9 new TimescaleDB methods documented)
 
 ## Performance Metrics
 
@@ -46,7 +46,7 @@ Last activity: 2026-06-23 -- Phase 33 Plan 01 executed (version 0.8.0, CHANGELOG
 | 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
 | 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
 | 32. Query Helpers & Parity Verification | 2 | 2 | COMPLETE (TS-ADV-06/07/10, cov 95.11%) |
-| 33. Release v0.8.0 | 3 | 1 | In Progress (Plan 01: version bump + CHANGELOG [0.8.0] + lockfile) |
+| 33. Release v0.8.0 | 3 | 2 | In Progress (Plans 01-02: version bump + CHANGELOG + docs rewrite) |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
@@ -115,11 +115,11 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T16:29:11Z
-Stopped at: Completed 33-01-PLAN.md (version bump + CHANGELOG [0.8.0] + lockfile)
-Resume file: .planning/phases/33-release-v0-8-0/33-02-PLAN.md
-Next action: /gsd-execute-phase 33 (Plan 02 — docs rewrite)
+Last session: 2026-06-23T16:35:30Z
+Stopped at: Completed 33-02-PLAN.md (docs rewrite: timescaledb.md + api-reference.md + README)
+Resume file: .planning/phases/33-release-v0-8-0/33-03-PLAN.md
+Next action: /gsd-execute-phase 33 (Plan 03 — quality gates + human-gated tag/publish)
 
 ## Operator Next Steps
 
-- Execute Phase 33 Plan 02 (docs) with `/gsd-execute-phase 33`
+- Execute Phase 33 Plan 03 (quality gates + tag + publish) with `/gsd-execute-phase 33`

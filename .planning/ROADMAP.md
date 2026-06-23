@@ -198,7 +198,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 33-02-PLAN.md — Docs: rewrite timescaledb.md + Advanced section, api-reference.md 9 rows, README 15 methods (D-05/06/07/10/14)
+- [x] 33-02-PLAN.md — Docs: rewrite timescaledb.md + Advanced section, api-reference.md 9 rows, README 15 methods (D-05/06/07/10/14)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
