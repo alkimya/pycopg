@@ -746,6 +746,76 @@ class TimescaleAccessor:
         with self._db.connect(autocommit=True) as conn:
             conn.execute(sql)
 
+    def refresh_continuous_aggregate(
+        self,
+        view_name: str,
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
+        schema: str = "public",
+    ) -> None:
+        """Refresh a TimescaleDB continuous aggregate over an optional time window.
+
+        Runs on a dedicated ``connect(autocommit=True)`` connection (D-02)
+        because TimescaleDB's refresh procedure issues multiple internal
+        transactions (one per batch on TSDB 2.28+) and cannot execute inside
+        a transaction block.  The license error (``FeatureNotSupported`` /
+        ``0A000``) propagates to the caller — no swallow (D-09).
+
+        Window bounds are **absolute timestamps** (``datetime`` or ``None``).
+        Both ``None`` → full refresh across the entire cagg range (D-06).
+        One side ``None`` → open-ended on that side.  Relative interval
+        strings (``"7 days"`` etc.) are deliberately rejected — unlike
+        :meth:`TimescaleAccessor.drop_chunks`, a refresh window is an
+        absolute materialisation range (D-05).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to refresh.
+        window_start : datetime or None, optional
+            Start of the materialisation window (inclusive).  ``None``
+            means no lower bound (full refresh from the beginning).
+        window_end : datetime or None, optional
+            End of the materialisation window (exclusive).  ``None``
+            means no upper bound (full refresh to the end).
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+
+        Raises
+        ------
+        ValueError
+            If ``window_start`` or ``window_end`` is not a
+            :class:`datetime` or ``None``.  Relative interval strings are
+            not accepted as refresh window bounds.
+        ExtensionNotAvailable
+            If the TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (see D-09).
+        """
+        validate_identifiers(view_name, schema)
+
+        for bound in (window_start, window_end):
+            if bound is not None and not isinstance(bound, datetime):
+                raise ValueError(
+                    "refresh window bounds must be datetime or None (absolute timestamps); "
+                    f"got {type(bound).__name__}. "
+                    "Relative interval strings are not accepted — "
+                    "a refresh window is an absolute materialisation range."
+                )
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        sql = f"CALL refresh_continuous_aggregate('{schema}.{view_name}', %s, %s)"
+
+        with self._db.connect(autocommit=True) as conn:
+            conn.execute(sql, [window_start, window_end])
+
 
 class AsyncTimescaleAccessor:
     """Async TimescaleDB helper namespace exposed as ``async_db.timescale``.
@@ -1395,3 +1465,65 @@ class AsyncTimescaleAccessor:
 
         async with self._db.connect(autocommit=True) as conn:
             await conn.execute(sql)
+
+    async def refresh_continuous_aggregate(
+        self,
+        view_name: str,
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
+        schema: str = "public",
+    ) -> None:
+        """Refresh a TimescaleDB continuous aggregate over an optional time window.
+
+        Async mirror of :meth:`TimescaleAccessor.refresh_continuous_aggregate`.
+        Runs on a dedicated ``async with self._db.connect(autocommit=True)``
+        connection (D-02).  The license error (``FeatureNotSupported`` /
+        ``0A000``) propagates to the caller — no swallow (D-09).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to refresh.
+        window_start : datetime or None, optional
+            Start of the materialisation window (inclusive).  ``None``
+            means no lower bound (full refresh from the beginning).
+        window_end : datetime or None, optional
+            End of the materialisation window (exclusive).  ``None``
+            means no upper bound (full refresh to the end).
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+
+        Raises
+        ------
+        ValueError
+            If ``window_start`` or ``window_end`` is not a
+            :class:`datetime` or ``None``.  Relative interval strings are
+            not accepted as refresh window bounds.
+        ExtensionNotAvailable
+            If the TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available).  Callers should catch and tolerate it on
+            non-Community builds (see D-09).
+        """
+        validate_identifiers(view_name, schema)
+
+        for bound in (window_start, window_end):
+            if bound is not None and not isinstance(bound, datetime):
+                raise ValueError(
+                    "refresh window bounds must be datetime or None (absolute timestamps); "
+                    f"got {type(bound).__name__}. "
+                    "Relative interval strings are not accepted — "
+                    "a refresh window is an absolute materialisation range."
+                )
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        sql = f"CALL refresh_continuous_aggregate('{schema}.{view_name}', %s, %s)"
+
+        async with self._db.connect(autocommit=True) as conn:
+            await conn.execute(sql, [window_start, window_end])
