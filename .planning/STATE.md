@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: executing
-stopped_at: Phase 32 context gathered
+status: planned
+stopped_at: Phase 32 planned (2 plans, verification passed)
 last_updated: "2026-06-23T11:00:16.948Z"
-last_activity: 2026-06-23 -- Phase 31 executed + verified PASSED (3 plans sequential-on-main)
+last_activity: 2026-06-23 -- Phase 32 planned (2 plans/2 waves, plan-checker PASSED first try; D-08 corrected via live verification)
 progress:
   total_phases: 4
   completed_phases: 2
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 ## Current Position
 
-Phase: 32 (next — not started)
-Plan: Not started
+Phase: 32 (planned — ready to execute)
+Plan: 2 plans / 2 waves
 Status: Ready to execute
-Last activity: 2026-06-23 -- Phase 31 executed + verified PASSED (3 plans sequential-on-main)
+Last activity: 2026-06-23 -- Phase 32 planned (2 plans/2 waves, plan-checker PASSED first try; D-08 corrected via live verification)
 
 ## Performance Metrics
 
