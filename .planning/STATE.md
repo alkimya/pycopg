@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
 status: planning
-stopped_at: Phase 32 complete (32-01 + 32-02 shipped)
-last_updated: "2026-06-23T11:51:31.554Z"
+stopped_at: Phase 33 context gathered
+last_updated: "2026-06-23T15:56:15.085Z"
 last_activity: 2026-06-23
 progress:
   total_phases: 4
@@ -114,9 +114,9 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T12:00:00.000Z
-Stopped at: Phase 32 complete (32-01 + 32-02 shipped)
-Resume file: .planning/phases/32-query-helpers-parity-verification/32-02-SUMMARY.md
+Last session: 2026-06-23T15:56:15.072Z
+Stopped at: Phase 33 context gathered
+Resume file: .planning/phases/33-release-v0-8-0/33-CONTEXT.md
 Next action: /gsd-discuss-phase 33 (Release v0.8.0 — REL-08, last phase)
 
 ## Operator Next Steps
