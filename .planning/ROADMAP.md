@@ -165,7 +165,11 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 2. User can call `db.timescale.time_bucket_gapfill("metrics", "time", "1 hour", start, finish, "locf(avg(value))")` with Python `datetime` bound parameters (not hardcoded literals) and receive gap-filled rows including NULL-padded buckets; both `start` and `finish` are required positional arguments (no WHERE-inference path)
 3. `test_accessor_parity` passes with all 9 new `TimescaleAccessor` methods mirrored on `AsyncTimescaleAccessor`; no method missing on either side; coverage ratchet ≥94% holds with all new autocommit branches covered
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 32-01-PLAN.md — Implement time_bucket / time_bucket_gapfill (sync+async) + builders & routing helpers in timescale.py
+- [ ] 32-02-PLAN.md — Mock SQL-shape + live tests (time_bucket REAL, gapfill license-tolerant) + explicit 9-name parity assertion
 
 **UI hint**: no
 
