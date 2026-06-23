@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: verifying
+status: "Phase 32 CONTEXT captured (12 decisions D-01..D-12, 4 areas) — query helpers + parity. Next: /gsd-plan-phase 32"
 stopped_at: Phase 32 context gathered
 last_updated: "2026-06-23T10:29:27.033Z"
-last_activity: 2026-06-23 -- Phase 31 executed + verified PASSED (3 plans sequential-on-main)
+last_activity: 2026-06-23 -- Phase 32 context gathered (time_bucket/gapfill query helpers + TS-ADV-10 parity)
 progress:
   total_phases: 4
   completed_phases: 2
