@@ -2068,3 +2068,382 @@ class TestAddContinuousAggregatePolicyLive:
                 sync_db = Database(async_ts_db.config)
             sync_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
             sync_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+
+# =============================================================================
+# time_bucket — mock SQL-shape unit tests (Layer 2, no live DB)
+# =============================================================================
+
+
+class TestTimeBucketMock:
+    """Mock SQL-shape unit tests for time_bucket (sync + async, no live DB).
+
+    Mirror :class:`TestShowChunksMock` -- a ``MagicMock(spec=SchemaAccessor)``
+    with ``has_extension -> True`` is assigned to ``db._schema`` and
+    ``db.execute`` / ``db.to_dataframe`` are mocked so the generated SQL/params
+    are asserted without a live DB (D-01, D-02, D-03).
+    """
+
+    def test_time_bucket_rows_sql_shape(self, config):
+        """time_bucket(into='rows') executes time_bucket(%s, col) AS bucket (D-01)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[{"bucket": "x", "avg_val": 1.0}])
+
+        result = db.timescale.time_bucket(
+            "events", "ts", "1 hour", "avg(val) AS avg_val", into="rows"
+        )
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert "time_bucket(%s," in sql
+        assert "AS bucket" in sql
+        assert "GROUP BY bucket ORDER BY bucket" in sql
+        assert params == ["1 hour"]
+        assert result == [{"bucket": "x", "avg_val": 1.0}]
+
+    def test_time_bucket_df_named_binds(self, config):
+        """time_bucket(into='df') routes through to_dataframe with named binds (D-02)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        sentinel = object()
+        db.to_dataframe = MagicMock(return_value=sentinel)
+
+        result = db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)")
+
+        # into='df' (default) MUST go through to_dataframe, never execute.
+        db.execute.assert_not_called()
+        kwargs = db.to_dataframe.call_args.kwargs
+        # Named binds (:p0), NOT %s.
+        assert ":p0" in kwargs["sql"]
+        assert "%s" not in kwargs["sql"]
+        assert "AS bucket" in kwargs["sql"]
+        # params is a dict whose values match the positional params in order.
+        assert isinstance(kwargs["params"], dict)
+        assert list(kwargs["params"].values()) == ["1 hour"]
+        assert result is sentinel
+
+    def test_time_bucket_df_with_where(self, config):
+        """time_bucket(where=...) injects the WHERE fragment into the df-path SQL."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.to_dataframe = MagicMock(return_value=object())
+
+        db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)", where="val > 0")
+
+        sql = db.to_dataframe.call_args.kwargs["sql"]
+        assert "WHERE val > 0" in sql
+
+    def test_time_bucket_df_without_where(self, config):
+        """time_bucket() with no where= emits no WHERE clause."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.to_dataframe = MagicMock(return_value=object())
+
+        db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)")
+
+        sql = db.to_dataframe.call_args.kwargs["sql"]
+        assert "WHERE" not in sql
+
+    def test_time_bucket_gdf_raises_before_db(self, config):
+        """time_bucket(into='gdf') raises ValueError before any DB call (D-03)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        db.to_dataframe = MagicMock()
+
+        with pytest.raises(ValueError, match="into must be one of"):
+            db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)", into="gdf")
+
+        # Guard fires before SQL -- neither DB sink is touched.
+        db.execute.assert_not_called()
+        db.to_dataframe.assert_not_called()
+
+    def test_time_bucket_no_extension_raises(self, config):
+        """time_bucket raises ExtensionNotAvailable when TimescaleDB is absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        db.to_dataframe = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)")
+
+        db.execute.assert_not_called()
+        db.to_dataframe.assert_not_called()
+
+    async def test_time_bucket_async_rows_awaits_has_extension(self, config):
+        """Async time_bucket awaits has_extension; correct rows SQL shape (D-07)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[{"bucket": "x"}])
+
+        result = await db.timescale.time_bucket(
+            "events", "ts", "1 hour", "avg(val)", into="rows"
+        )
+
+        mock_schema.has_extension.assert_awaited_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert "time_bucket(%s," in sql
+        assert "AS bucket" in sql
+        assert params == ["1 hour"]
+        assert result == [{"bucket": "x"}]
+
+    async def test_time_bucket_async_df_named_binds(self, config):
+        """Async time_bucket(into='df') awaits to_dataframe with named binds (D-02, D-07)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+        sentinel = object()
+        db.to_dataframe = AsyncMock(return_value=sentinel)
+
+        result = await db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)")
+
+        mock_schema.has_extension.assert_awaited_once_with("timescaledb")
+        db.execute.assert_not_called()
+        kwargs = db.to_dataframe.call_args.kwargs
+        assert ":p0" in kwargs["sql"]
+        assert "%s" not in kwargs["sql"]
+        assert list(kwargs["params"].values()) == ["1 hour"]
+        assert result is sentinel
+
+
+# =============================================================================
+# time_bucket_gapfill — mock SQL-shape unit tests (Layer 2, no live DB)
+# =============================================================================
+
+
+class TestTimeBucketGapfillMock:
+    """Mock SQL-shape unit tests for time_bucket_gapfill (sync + async).
+
+    Authoritative for the gapfill SQL shape and the start/finish double-bind
+    (D-10) -- the live test (Apache-gated) cannot assert real output on the
+    local build.
+    """
+
+    def test_gapfill_rows_double_bind(self, config):
+        """gapfill binds start/finish TWICE: [bw, start, finish, start, finish] (D-10)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[{"bucket": "x", "lo": None}])
+
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        result = db.timescale.time_bucket_gapfill(
+            "events", "ts", "1 hour", start, finish, "locf(avg(val)) AS lo", into="rows"
+        )
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert "time_bucket_gapfill(%s," in sql
+        assert "AS bucket" in sql
+        # The double-bind (D-10): five placeholders, start/finish each twice.
+        assert sql.count("%s") == 5
+        assert params == ["1 hour", start, finish, start, finish]
+        # WHERE range uses >= lower and < upper.
+        assert ">= %s" in sql
+        assert "< %s" in sql
+        assert "GROUP BY bucket ORDER BY bucket" in sql
+        assert result == [{"bucket": "x", "lo": None}]
+
+    def test_gapfill_df_named_binds(self, config):
+        """gapfill(into='df') routes through to_dataframe with named binds (D-02)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        sentinel = object()
+        db.to_dataframe = MagicMock(return_value=sentinel)
+
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        result = db.timescale.time_bucket_gapfill(
+            "events", "ts", "1 hour", start, finish, "locf(avg(val)) AS lo"
+        )
+
+        db.execute.assert_not_called()
+        kwargs = db.to_dataframe.call_args.kwargs
+        assert ":p0" in kwargs["sql"]
+        assert "%s" not in kwargs["sql"]
+        # Named binds preserve the double-bind order (D-10).
+        assert list(kwargs["params"].values()) == [
+            "1 hour",
+            start,
+            finish,
+            start,
+            finish,
+        ]
+        assert result is sentinel
+
+    def test_gapfill_df_with_where(self, config):
+        """gapfill(where=...) ANDs the extra fragment onto the time-range WHERE."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.to_dataframe = MagicMock(return_value=object())
+
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        db.timescale.time_bucket_gapfill(
+            "events",
+            "ts",
+            "1 hour",
+            start,
+            finish,
+            "locf(avg(val)) AS lo",
+            where="val > 0",
+        )
+
+        sql = db.to_dataframe.call_args.kwargs["sql"]
+        assert "AND (val > 0)" in sql
+
+    def test_gapfill_gdf_raises_before_db(self, config):
+        """gapfill(into='gdf') raises ValueError before any DB call (D-03)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        db.to_dataframe = MagicMock()
+
+        with pytest.raises(ValueError, match="into must be one of"):
+            db.timescale.time_bucket_gapfill(
+                "events",
+                "ts",
+                "1 hour",
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 2),
+                "locf(avg(val)) AS lo",
+                into="gdf",
+            )
+
+        db.execute.assert_not_called()
+        db.to_dataframe.assert_not_called()
+
+    def test_gapfill_no_extension_raises(self, config):
+        """gapfill raises ExtensionNotAvailable when TimescaleDB is absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        db.to_dataframe = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.time_bucket_gapfill(
+                "events",
+                "ts",
+                "1 hour",
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 2),
+                "locf(avg(val)) AS lo",
+            )
+
+        db.execute.assert_not_called()
+        db.to_dataframe.assert_not_called()
+
+    async def test_gapfill_async_rows_awaits_double_bind(self, config):
+        """Async gapfill awaits has_extension; double-bind preserved (D-07, D-10)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[{"bucket": "x", "lo": None}])
+
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        result = await db.timescale.time_bucket_gapfill(
+            "events", "ts", "1 hour", start, finish, "locf(avg(val)) AS lo", into="rows"
+        )
+
+        mock_schema.has_extension.assert_awaited_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert "time_bucket_gapfill(%s," in sql
+        assert sql.count("%s") == 5
+        assert params == ["1 hour", start, finish, start, finish]
+        assert result == [{"bucket": "x", "lo": None}]
+
+    async def test_gapfill_async_df_named_binds(self, config):
+        """Async gapfill(into='df') awaits to_dataframe with named binds (D-02, D-07)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+        sentinel = object()
+        db.to_dataframe = AsyncMock(return_value=sentinel)
+
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        result = await db.timescale.time_bucket_gapfill(
+            "events", "ts", "1 hour", start, finish, "locf(avg(val)) AS lo"
+        )
+
+        mock_schema.has_extension.assert_awaited_once_with("timescaledb")
+        db.execute.assert_not_called()
+        kwargs = db.to_dataframe.call_args.kwargs
+        assert ":p0" in kwargs["sql"]
+        assert "%s" not in kwargs["sql"]
+        assert list(kwargs["params"].values()) == [
+            "1 hour",
+            start,
+            finish,
+            start,
+            finish,
+        ]
+        assert result is sentinel
