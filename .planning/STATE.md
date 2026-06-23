@@ -4,13 +4,13 @@ milestone: v0.8.0
 milestone_name: TimescaleDB avancé
 status: executing
 stopped_at: Phase 31 context gathered
-last_updated: "2026-06-23T08:23:54.257Z"
+last_updated: "2026-06-23T08:32:09.372Z"
 last_activity: 2026-06-23 -- Phase 31 execution started
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 25
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 ## Current Position
 
 Phase: 31 (continuous-aggregate-lifecycle) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-23 -- Phase 31 execution started
 
@@ -51,6 +51,7 @@ Last activity: 2026-06-23 -- Phase 31 execution started
 | Phase 30 P02 | 480 | 2 tasks | 3 files |
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
 | Phase 31 P01 | 15m | 2 tasks | 2 files |
+| Phase 31 P02 | 15m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,7 @@ Last activity: 2026-06-23 -- Phase 31 execution started
 - **D-08 RESHAPED:** the "empty/non-empty hypertable raises" premise is FALSE on 2.28's builder form (succeeds on populated tables). `add_dimension` instead wraps the **duplicate-dimension** error (TS160, `if_not_exists=False` path) as `TimescaleError`. The earlier STATE decision "validates empty hypertable" is superseded.
 - **D-12 added:** local/CI is Apache-licensed → `add_reorder_policy` raises `FeatureNotSupported`. Mock SQL-shape test is authoritative; live test tolerates it; job-row assertion exercises only on Community builds. (Same constraint will apply to Phase 31's cagg policy tests.)
 - **show_chunks** = native `show_chunks()` SRF JOINed to `timescaledb_information.chunks` (`%%I.%%I::regclass` key, `ORDER BY range_start ASC`); **drop_chunks** = capture-before-drop (drop SRF returns text + rows vanish post-drop). New 3rd file `pycopg/exceptions.py` (`TimescaleError`) + new `tests/test_timescale.py`.
+- [Phase ?]: refresh_continuous_aggregate type guard
 
 ### Pending Todos
 
@@ -107,7 +109,7 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T08:23:54.250Z
+Last session: 2026-06-23T08:32:09.365Z
 Stopped at: Phase 31 context gathered
 Resume file: .planning/phases/31-continuous-aggregate-lifecycle/31-CONTEXT.md
 Next action: /gsd-plan-phase 31 (Continuous Aggregate Lifecycle)
