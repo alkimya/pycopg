@@ -1187,3 +1187,269 @@ class TestAddReorderPolicyLive:
                 pass
         finally:
             await async_ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+
+# =============================================================================
+# create_continuous_aggregate — mock SQL-shape unit tests (authoritative per D-09)
+# =============================================================================
+
+
+class TestCreateContinuousAggregateMock:
+    """Mock SQL-shape unit tests for create_continuous_aggregate (sync + async, no live DB).
+
+    These are the AUTHORITATIVE assertions for TS-ADV-01 per D-09 because the
+    Apache-licensed local/CI build raises FeatureNotSupported on live calls.
+
+    The autocommit seam is mocked: db.connect(autocommit=True) is intercepted as a
+    context manager whose conn.execute captures the SQL string.  db.execute is NOT
+    called for the create statement — asserted explicitly.
+    """
+
+    def test_create_continuous_aggregate_sql_shape_defaults(self, config):
+        """create_continuous_aggregate default flags generate correct SQL via autocommit seam."""
+        from unittest.mock import patch
+
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        select_sql = (
+            "SELECT time_bucket('1 hour', ts) AS bucket, avg(val) FROM src GROUP BY 1"
+        )
+        conn_mock = MagicMock()
+        ctx_mock = MagicMock()
+        ctx_mock.__enter__ = MagicMock(return_value=conn_mock)
+        ctx_mock.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(db, "connect", return_value=ctx_mock) as mock_connect:
+            db.timescale.create_continuous_aggregate("metrics_hourly", select_sql)
+
+            mock_connect.assert_called_once_with(autocommit=True)
+            sql = conn_mock.execute.call_args[0][0]
+
+        assert "CREATE MATERIALIZED VIEW public.metrics_hourly" in sql
+        assert (
+            "WITH (timescaledb.continuous, timescaledb.materialized_only=true)" in sql
+        )
+        assert "WITH DATA" in sql
+        assert "WITH NO DATA" not in sql
+        # db.execute must NOT be called for the create statement
+        db.execute.assert_not_called()
+
+    def test_create_continuous_aggregate_sql_shape_flags_flipped(self, config):
+        """create_continuous_aggregate with materialized_only=False, with_no_data=True."""
+        from unittest.mock import patch
+
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        select_sql = (
+            "SELECT time_bucket('1 hour', ts) AS bucket, avg(val) FROM src GROUP BY 1"
+        )
+        conn_mock = MagicMock()
+        ctx_mock = MagicMock()
+        ctx_mock.__enter__ = MagicMock(return_value=conn_mock)
+        ctx_mock.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(db, "connect", return_value=ctx_mock):
+            db.timescale.create_continuous_aggregate(
+                "metrics_hourly",
+                select_sql,
+                materialized_only=False,
+                with_no_data=True,
+            )
+
+            sql = conn_mock.execute.call_args[0][0]
+
+        assert "timescaledb.materialized_only=false" in sql
+        assert "WITH NO DATA" in sql
+
+    def test_create_continuous_aggregate_no_time_bucket_raises_valueerror(self, config):
+        """create_continuous_aggregate raises ValueError when select_sql lacks time_bucket(."""
+        from unittest.mock import patch
+
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+
+        with patch.object(db, "connect") as mock_connect:
+            with pytest.raises(ValueError, match="time_bucket"):
+                db.timescale.create_continuous_aggregate(
+                    "bad_view", "SELECT avg(val) FROM src GROUP BY 1"
+                )
+            # Seam must never be opened for pre-DB raises
+            mock_connect.assert_not_called()
+
+    def test_create_continuous_aggregate_no_extension_raises(self, config):
+        """create_continuous_aggregate raises ExtensionNotAvailable when extension absent."""
+        from unittest.mock import patch
+
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+
+        select_sql = (
+            "SELECT time_bucket('1 hour', ts) AS bucket, avg(val) FROM src GROUP BY 1"
+        )
+        with patch.object(db, "connect") as mock_connect:
+            with pytest.raises(
+                ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ):
+                db.timescale.create_continuous_aggregate("metrics_hourly", select_sql)
+            mock_connect.assert_not_called()
+
+    async def test_create_continuous_aggregate_async_sql_shape(self, config):
+        """Async create_continuous_aggregate awaits guard + runs on autocommit seam."""
+        from unittest.mock import patch
+
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        select_sql = (
+            "SELECT time_bucket('1 hour', ts) AS bucket, avg(val) FROM src GROUP BY 1"
+        )
+        conn_mock = AsyncMock()
+        ctx_mock = MagicMock()
+        ctx_mock.__aenter__ = AsyncMock(return_value=conn_mock)
+        ctx_mock.__aexit__ = AsyncMock(return_value=False)
+
+        with patch.object(db, "connect", return_value=ctx_mock) as mock_connect:
+            await db.timescale.create_continuous_aggregate("metrics_hourly", select_sql)
+
+            mock_connect.assert_called_once_with(autocommit=True)
+            sql = conn_mock.execute.call_args[0][0]
+
+        assert "CREATE MATERIALIZED VIEW public.metrics_hourly" in sql
+        assert (
+            "WITH (timescaledb.continuous, timescaledb.materialized_only=true)" in sql
+        )
+        assert "WITH DATA" in sql
+        # db.execute must NOT be called for the create statement
+        db.execute.assert_not_called()
+
+    async def test_create_continuous_aggregate_async_no_extension_raises(self, config):
+        """Async create_continuous_aggregate raises ExtensionNotAvailable when extension absent.
+
+        This test is the Phase-23 await-omission catch: without ``await`` on the guard,
+        the AsyncMock coroutine is truthy and the extension check never triggers, causing
+        this test to fail.
+        """
+        from unittest.mock import patch
+
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
+
+        select_sql = (
+            "SELECT time_bucket('1 hour', ts) AS bucket, avg(val) FROM src GROUP BY 1"
+        )
+        with patch.object(db, "connect") as mock_connect:
+            with pytest.raises(
+                ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ):
+                await db.timescale.create_continuous_aggregate(
+                    "metrics_hourly", select_sql
+                )
+            mock_connect.assert_not_called()
+
+
+# =============================================================================
+# create_continuous_aggregate — live-DB integration tests (D-09, D-10)
+# =============================================================================
+
+
+class TestCreateContinuousAggregateLive:
+    """Live-DB integration tests for create_continuous_aggregate (TS-ADV-01, D-09/D-10).
+
+    The local/CI TSDB runs under the Apache license, so create_continuous_aggregate
+    raises FeatureNotSupported.  The live call is wrapped in try/except to tolerate that.
+    The authoritative SQL assertion lives in TestCreateContinuousAggregateMock.
+
+    On a Community-licensed build, the tests also assert a row in
+    timescaledb_information.continuous_aggregates.
+    """
+
+    def test_create_continuous_aggregate_live(self, ts_db):
+        """create_continuous_aggregate live: tolerates FeatureNotSupported on Apache builds (D-09)."""
+        table = f"_test_cagg_{uuid.uuid4().hex[:8]}"
+        view = f"_test_cagg_v_{uuid.uuid4().hex[:8]}"
+        try:
+            _make_hypertable(ts_db, table, days=3)
+            select_sql = (
+                f"SELECT time_bucket('1 hour', ts) AS bucket, avg(val) AS avg_val "
+                f"FROM {table} GROUP BY 1"
+            )
+            try:
+                ts_db.timescale.create_continuous_aggregate(view, select_sql)
+                # On Community builds: verify the cagg row exists.
+                rows = ts_db.execute(
+                    "SELECT 1 FROM timescaledb_information.continuous_aggregates "
+                    "WHERE view_schema = %s AND view_name = %s",
+                    ["public", view],
+                )
+                assert len(rows) >= 1
+            except FeatureNotSupported:
+                # Apache license — expected on local/CI.
+                pass
+        finally:
+            ts_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    async def test_create_continuous_aggregate_async_live(self, async_ts_db):
+        """Async create_continuous_aggregate live: tolerates FeatureNotSupported on Apache builds."""
+        table = f"_test_async_cagg_{uuid.uuid4().hex[:8]}"
+        view = f"_test_async_cagg_v_{uuid.uuid4().hex[:8]}"
+        sync_db = None
+        try:
+            from pycopg import Database
+
+            sync_db = Database(async_ts_db.config)
+            _make_hypertable(sync_db, table, days=3)
+
+            select_sql = (
+                f"SELECT time_bucket('1 hour', ts) AS bucket, avg(val) AS avg_val "
+                f"FROM {table} GROUP BY 1"
+            )
+            try:
+                await async_ts_db.timescale.create_continuous_aggregate(
+                    view, select_sql
+                )
+                # On Community builds: verify the cagg row exists.
+                rows = await async_ts_db.execute(
+                    "SELECT 1 FROM timescaledb_information.continuous_aggregates "
+                    "WHERE view_schema = %s AND view_name = %s",
+                    ["public", view],
+                )
+                assert len(rows) >= 1
+            except FeatureNotSupported:
+                pass
+        finally:
+            if sync_db is None:
+                from pycopg import Database
+
+                sync_db = Database(async_ts_db.config)
+            sync_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
+            sync_db.execute(f"DROP TABLE IF EXISTS {table}")
