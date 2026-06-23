@@ -1745,3 +1745,326 @@ class TestRefreshContinuousAggregateLive:
                 sync_db = Database(async_ts_db.config)
             sync_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
             sync_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+
+# =============================================================================
+# add_continuous_aggregate_policy — mock SQL-shape unit tests (authoritative per D-09)
+# =============================================================================
+
+
+class TestAddContinuousAggregatePolicyMock:
+    """Mock SQL-shape unit tests for add_continuous_aggregate_policy (sync + async, no live DB).
+
+    These are the AUTHORITATIVE assertions for TS-ADV-03 per D-09 because the
+    Apache-licensed local/CI build raises FeatureNotSupported on live calls.
+
+    The policy call uses a plain db.execute (D-01 — NOT the autocommit seam):
+    assert db.execute is called and db.connect is NOT called.
+    """
+
+    def test_add_continuous_aggregate_policy_sql_shape_defaults(self, config):
+        """Policy SQL shape with defaults: named-arg form, if_not_exists=True, INTERVAL frags."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+        db.connect = MagicMock()
+
+        db.timescale.add_continuous_aggregate_policy(
+            "metrics_hourly", "7 days", "1 hour"
+        )
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        db.connect.assert_not_called()
+
+        sql = db.execute.call_args[0][0]
+        assert "add_continuous_aggregate_policy('public.metrics_hourly'" in sql
+        assert "start_offset => INTERVAL '7 days'" in sql
+        assert "end_offset => INTERVAL '1 hour'" in sql
+        assert "schedule_interval => INTERVAL '1 hour'" in sql
+        assert ", if_not_exists => true" in sql
+
+    def test_add_continuous_aggregate_policy_if_not_exists_false(self, config):
+        """if_not_exists=False omits the if_not_exists named arg from SQL."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.add_continuous_aggregate_policy(
+            "metrics_hourly", "7 days", "1 hour", if_not_exists=False
+        )
+
+        sql = db.execute.call_args[0][0]
+        assert "if_not_exists" not in sql
+
+    def test_add_continuous_aggregate_policy_none_start_offset_renders_null(
+        self, config
+    ):
+        """None start_offset renders as SQL literal NULL (not INTERVAL 'None')."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.add_continuous_aggregate_policy("metrics_hourly", None, "1 hour")
+
+        sql = db.execute.call_args[0][0]
+        assert "start_offset => NULL" in sql
+        assert "INTERVAL 'None'" not in sql
+
+    def test_add_continuous_aggregate_policy_none_end_offset_renders_null(self, config):
+        """None end_offset renders as SQL literal NULL (not INTERVAL 'None')."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.add_continuous_aggregate_policy("metrics_hourly", "7 days", None)
+
+        sql = db.execute.call_args[0][0]
+        assert "end_offset => NULL" in sql
+        assert "INTERVAL 'None'" not in sql
+
+    def test_add_continuous_aggregate_policy_offset_ordering_same_unit_raises(
+        self, config
+    ):
+        """Same-unit start_offset <= end_offset raises ValueError before any execute (D-07)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        with pytest.raises(ValueError, match="start_offset"):
+            db.timescale.add_continuous_aggregate_policy(
+                "metrics_hourly", "1 hour", "7 hours"
+            )
+        db.execute.assert_not_called()
+
+    def test_add_continuous_aggregate_policy_offset_ordering_mixed_unit_no_raise(
+        self, config
+    ):
+        """Mixed-unit offset pair does not raise in Python — deferred to DB (D-07)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        # "1 day" vs "6 hours" — different units, no Python ValueError
+        db.timescale.add_continuous_aggregate_policy(
+            "metrics_hourly", "1 day", "6 hours"
+        )
+        db.execute.assert_called_once()
+
+    def test_add_continuous_aggregate_policy_no_extension_raises(self, config):
+        """add_continuous_aggregate_policy raises ExtensionNotAvailable when extension absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        db.connect = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.add_continuous_aggregate_policy(
+                "metrics_hourly", "7 days", "1 hour"
+            )
+
+        db.execute.assert_not_called()
+        db.connect.assert_not_called()
+
+    async def test_add_continuous_aggregate_policy_async_sql_shape(self, config):
+        """Async policy SQL shape: named-arg form via plain await self._db.execute (D-01)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+        db.connect = MagicMock()
+
+        await db.timescale.add_continuous_aggregate_policy(
+            "metrics_hourly", "7 days", "1 hour"
+        )
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        db.execute.assert_called_once()
+        db.connect.assert_not_called()
+
+        sql = db.execute.call_args[0][0]
+        assert "add_continuous_aggregate_policy('public.metrics_hourly'" in sql
+        assert "start_offset => INTERVAL '7 days'" in sql
+        assert "end_offset => INTERVAL '1 hour'" in sql
+        assert "schedule_interval => INTERVAL '1 hour'" in sql
+        assert ", if_not_exists => true" in sql
+
+    async def test_add_continuous_aggregate_policy_async_no_extension_raises(
+        self, config
+    ):
+        """Async policy raises ExtensionNotAvailable when extension absent.
+
+        This is the Phase-23 await-omission catch: without ``await`` on the
+        has_extension guard, the AsyncMock coroutine is truthy and the
+        extension check never triggers, causing this test to fail.
+        """
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+        db.connect = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+        ):
+            await db.timescale.add_continuous_aggregate_policy(
+                "metrics_hourly", "7 days", "1 hour"
+            )
+
+        db.execute.assert_not_called()
+        db.connect.assert_not_called()
+
+
+# =============================================================================
+# add_continuous_aggregate_policy — live-DB integration tests (D-09, D-10)
+# =============================================================================
+
+
+class TestAddContinuousAggregatePolicyLive:
+    """Live-DB integration tests for add_continuous_aggregate_policy (TS-ADV-03, D-09).
+
+    The local/CI TSDB runs under the Apache license, so add_continuous_aggregate_policy
+    raises FeatureNotSupported.  The live call is wrapped in try/except to tolerate that.
+    The authoritative SQL assertion lives in TestAddContinuousAggregatePolicyMock.
+
+    On a Community-licensed build, the tests also assert a job row in
+    timescaledb_information.jobs and call CALL run_job(job_id) to exercise it.
+    """
+
+    def test_add_continuous_aggregate_policy_live(self, ts_db):
+        """add_continuous_aggregate_policy live: tolerates FeatureNotSupported on Apache builds.
+
+        On a Community build, asserts the job row exists in
+        timescaledb_information.jobs (proc_name='policy_refresh_continuous_aggregate')
+        and CALL run_job(job_id) succeeds.
+        """
+        table = f"_test_cagg_policy_{uuid.uuid4().hex[:8]}"
+        view = f"_test_cagg_policy_v_{uuid.uuid4().hex[:8]}"
+        cagg_created = False
+        try:
+            _make_hypertable(ts_db, table, days=3)
+            select_sql = (
+                f"SELECT time_bucket('1 hour', ts) AS bucket, avg(val) AS avg_val "
+                f"FROM {table} GROUP BY 1"
+            )
+            # Create the cagg first (tolerate license error)
+            try:
+                ts_db.timescale.create_continuous_aggregate(view, select_sql)
+                cagg_created = True
+            except FeatureNotSupported:
+                pass
+
+            if cagg_created:
+                try:
+                    ts_db.timescale.add_continuous_aggregate_policy(
+                        view, "7 days", "1 hour"
+                    )
+                    # On Community builds: verify the job was registered.
+                    rows = ts_db.execute(
+                        "SELECT job_id FROM timescaledb_information.jobs "
+                        "WHERE hypertable_name = %s "
+                        "AND proc_name = 'policy_refresh_continuous_aggregate'",
+                        [view],
+                    )
+                    assert len(rows) >= 1
+                    job_id = rows[0]["job_id"]
+                    # Exercise the job on-demand.
+                    ts_db.execute(f"CALL run_job({job_id})")
+                except FeatureNotSupported:
+                    # Apache license — expected on local/CI.
+                    pass
+        finally:
+            ts_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
+            ts_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+    async def test_add_continuous_aggregate_policy_async_live(self, async_ts_db):
+        """Async add_continuous_aggregate_policy live: tolerates FeatureNotSupported.
+
+        On a Community build, asserts the job row exists in
+        timescaledb_information.jobs and CALL run_job(job_id) succeeds.
+        """
+        table = f"_test_async_cagg_policy_{uuid.uuid4().hex[:8]}"
+        view = f"_test_async_cagg_policy_v_{uuid.uuid4().hex[:8]}"
+        sync_db = None
+        cagg_created = False
+        try:
+            from pycopg import Database
+
+            sync_db = Database(async_ts_db.config)
+            _make_hypertable(sync_db, table, days=3)
+
+            select_sql = (
+                f"SELECT time_bucket('1 hour', ts) AS bucket, avg(val) AS avg_val "
+                f"FROM {table} GROUP BY 1"
+            )
+            # Create the cagg first (tolerate license error)
+            try:
+                await async_ts_db.timescale.create_continuous_aggregate(
+                    view, select_sql
+                )
+                cagg_created = True
+            except FeatureNotSupported:
+                pass
+
+            if cagg_created:
+                try:
+                    await async_ts_db.timescale.add_continuous_aggregate_policy(
+                        view, "7 days", "1 hour"
+                    )
+                    # On Community builds: verify the job was registered.
+                    rows = await async_ts_db.execute(
+                        "SELECT job_id FROM timescaledb_information.jobs "
+                        "WHERE hypertable_name = %s "
+                        "AND proc_name = 'policy_refresh_continuous_aggregate'",
+                        [view],
+                    )
+                    assert len(rows) >= 1
+                    job_id = rows[0]["job_id"]
+                    # Exercise the job on-demand.
+                    await async_ts_db.execute(f"CALL run_job({job_id})")
+                except FeatureNotSupported:
+                    # Apache license — expected on local/CI.
+                    pass
+        finally:
+            if sync_db is None:
+                from pycopg import Database
+
+                sync_db = Database(async_ts_db.config)
+            sync_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
+            sync_db.execute(f"DROP TABLE IF EXISTS {table}")
