@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-22)
 
 Phase: 33
 Plan: Not started
-Status: Phase 32 complete — ready to plan Phase 33 (Release v0.8.0)
+Status: Phase 33 context gathered — ready to plan Phase 33 (Release v0.8.0, REL-08, last phase)
 Last activity: 2026-06-23
 
 ## Performance Metrics
@@ -117,7 +117,7 @@ None — roadmap created, ready to plan.
 Last session: 2026-06-23T15:56:15.072Z
 Stopped at: Phase 33 context gathered
 Resume file: .planning/phases/33-release-v0-8-0/33-CONTEXT.md
-Next action: /gsd-discuss-phase 33 (Release v0.8.0 — REL-08, last phase)
+Next action: /gsd-plan-phase 33 (Release v0.8.0 — REL-08, last phase)
 
 ## Operator Next Steps
 
