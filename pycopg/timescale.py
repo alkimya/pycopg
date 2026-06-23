@@ -2106,3 +2106,175 @@ class AsyncTimescaleAccessor:
             f"schedule_interval => INTERVAL '{schedule_interval}'"
             f"{ne}) AS job_id"
         )
+
+    async def _run(
+        self, sql: str, params: list, into: str
+    ) -> pd.DataFrame | list[dict]:
+        """Execute a built query helper SELECT asynchronously (D-07).
+
+        Exact awaited mirror of :meth:`TimescaleAccessor._run`.
+
+        Parameters
+        ----------
+        sql : str
+            SQL from a pure builder, with ``%s`` placeholders.
+        params : list
+            Positional parameters for the SQL.
+        into : str
+            Output form, already validated by :func:`_check_into` — ``"df"``
+            returns a :class:`pandas.DataFrame` (via the awaited named-bind
+            ``to_dataframe`` path); ``"rows"`` returns a ``list[dict]`` (via
+            awaited positional ``execute``).
+
+        Returns
+        -------
+        pandas.DataFrame or list of dict
+            Query results in the requested form.
+        """
+        if into == "df":
+            named_sql, binds = _to_named_binds(sql, params)
+            return await self._db.to_dataframe(sql=named_sql, params=binds)
+        return await self._db.execute(sql, params)
+
+    async def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        where: str | None = None,
+        schema: str = "public",
+        into: str = "df",
+    ) -> pd.DataFrame | list[dict]:
+        """Run a ``time_bucket`` bucketed aggregation (TS-ADV-06, TS-ADV-10).
+
+        Async mirror of :meth:`TimescaleAccessor.time_bucket` — buckets
+        ``time_column`` into fixed ``bucket_width`` intervals and applies the
+        caller-supplied ``aggregates``.  The first output column is
+        deterministically named ``bucket`` (D-01).
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        time_column : str
+            Timestamp column to bucket on.
+        bucket_width : str
+            Bucket interval (e.g. ``"1 hour"``), bound as ``%s``.
+        aggregates : str
+            Caller-supplied **structural SQL** aggregate list (e.g.
+            ``"avg(value), max(value)"``).  Documented as structural SQL — not
+            untrusted end-user input (D-04).
+        where : str or None, optional
+            Optional structural-SQL ``WHERE`` fragment (without the ``WHERE``
+            keyword).  ``None`` (default) omits the clause.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        into : str, optional
+            Output form — ``"df"`` (default) returns a
+            :class:`pandas.DataFrame`; ``"rows"`` returns a ``list[dict]``.
+            Any other value (e.g. ``"gdf"``) raises :class:`ValueError`
+            *before* any DB round-trip (D-03).
+
+        Returns
+        -------
+        pandas.DataFrame or list of dict
+            Bucketed aggregation results in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
+            call (D-03).
+        ExtensionNotAvailable
+            If the TimescaleDB extension is not installed.
+        """
+        _check_into(into, "time_bucket")
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
+            )
+        sql, params = _build_time_bucket_sql(
+            table, time_column, bucket_width, aggregates, where=where, schema=schema
+        )
+        return await self._run(sql, params, into)
+
+    async def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        where: str | None = None,
+        schema: str = "public",
+        into: str = "df",
+    ) -> pd.DataFrame | list[dict]:
+        """Run a gap-filled ``time_bucket_gapfill`` aggregation (TS-ADV-07/10).
+
+        Async mirror of :meth:`TimescaleAccessor.time_bucket_gapfill` — NULL-pads
+        missing buckets across the explicit ``[start, finish)`` range.  ``start``
+        and ``finish`` are **required** absolute bounds (TS-ADV-07) and are bound
+        twice (gapfill args + WHERE range, D-10).  No Python ``start < finish``
+        guard is applied (D-09).  On Apache-licensed builds the underlying
+        function raises :class:`psycopg.errors.FeatureNotSupported` (a license
+        gate, not a syntax error).
+
+        Parameters
+        ----------
+        table : str
+            Hypertable name.
+        time_column : str
+            Timestamp column to bucket on.
+        bucket_width : str
+            Bucket interval (e.g. ``"1 hour"``), bound as ``%s``.
+        start : datetime
+            Lower (inclusive) bound of the gap-filled range, bound as ``%s``.
+        finish : datetime
+            Upper (exclusive) bound of the gap-filled range, bound as ``%s``.
+        aggregates : str
+            Caller-supplied **structural SQL** aggregate list, optionally
+            including ``locf(...)`` / ``interpolate(...)`` (D-04).
+        where : str or None, optional
+            Optional structural-SQL ``WHERE`` fragment ANDed onto the time
+            range.  ``None`` (default) omits it.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        into : str, optional
+            Output form — ``"df"`` (default) or ``"rows"``; any other value
+            (e.g. ``"gdf"``) raises :class:`ValueError` before any DB call
+            (D-03).
+
+        Returns
+        -------
+        pandas.DataFrame or list of dict
+            Gap-filled bucketed results in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
+            call (D-03).
+        ExtensionNotAvailable
+            If the TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (gapfill is
+            a Community/TSL feature).
+        """
+        _check_into(into, "time_bucket_gapfill")
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailable(
+                "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
+            )
+        sql, params = _build_time_bucket_gapfill_sql(
+            table,
+            time_column,
+            bucket_width,
+            start,
+            finish,
+            aggregates,
+            where=where,
+            schema=schema,
+        )
+        return await self._run(sql, params, into)
