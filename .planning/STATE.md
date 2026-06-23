@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.8.0
 milestone_name: TimescaleDB avancé
-status: executing
+status: verifying
 stopped_at: Phase 31 context gathered
-last_updated: "2026-06-23T08:32:09.372Z"
+last_updated: "2026-06-23T08:44:39.281Z"
 last_activity: 2026-06-23 -- Phase 31 execution started
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 25
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-22)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 31 — continuous-aggregate-lifecycle
+**Current focus:** Phase 32 — Query Helpers & Parity Verification
 
 ## Current Position
 
-Phase: 31 (continuous-aggregate-lifecycle) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-06-23 -- Phase 31 execution started
+Phase: 31 (continuous-aggregate-lifecycle) — COMPLETE
+Plan: 3 of 3 (all plans shipped)
+Status: Phase complete — all 3 cagg methods delivered (create, refresh, policy)
+Last activity: 2026-06-23 -- Phase 31 plan 03 completed (add_continuous_aggregate_policy + check_offset_ordering helper; 1266 pass, cov 95.05%)
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Last activity: 2026-06-23 -- Phase 31 execution started
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
 | 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
-| 31. Continuous Aggregate Lifecycle | ? | 0 | Not started |
+| 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
 | 32. Query Helpers & Parity Verification | ? | 0 | Not started |
 | 33. Release v0.8.0 | ? | 0 | Not started |
 | Phase 30 P01 | 210 | 2 tasks | 3 files |
@@ -52,6 +52,7 @@ Last activity: 2026-06-23 -- Phase 31 execution started
 | Phase 30 P03 | 1080 | 3 tasks | 2 files |
 | Phase 31 P01 | 15m | 2 tasks | 2 files |
 | Phase 31 P02 | 15m | 2 tasks | 2 files |
+| Phase 31 P03 | 20m | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -62,7 +63,7 @@ Last activity: 2026-06-23 -- Phase 31 execution started
 - Target: TimescaleDB 2.x only (no 1.x shims); `by_range`/`by_hash` form for `add_dimension` — confirm local TSDB version at Phase 30 plan time
 - Pattern: pure-builder + `validate_identifiers` + `%s` params + lazy accessor + sync/async parity (same as spatial/etl/timescale-basics)
 - `create_continuous_aggregate` and `refresh_continuous_aggregate` MUST use dedicated `connect(autocommit=True)` connection — cannot route through `self._db.execute()` (TimescaleDB transaction-block restriction, confirmed GitHub issues #1218/#2876/#5377)
-- `add_continuous_aggregate_policy` also uses autocommit for consistency and safety
+- `add_continuous_aggregate_policy` uses PLAIN `self._db.execute` (D-01 confirmed at execution time — NOT autocommit seam; matches the 3 shipped policy methods)
 - Continuous aggregate trio ships together (Phase 31) — create + refresh + policy are an indivisible lifecycle
 - `time_bucket_gapfill` requires explicit `start`/`finish` positional arguments inside the function call (not WHERE-clause inference — `%s` bound params are opaque to the TSDB planner hook, confirmed issues #4279/#7605/#8525)
 - `drop_chunks` with both bounds `None` raises `ValueError` before any DB call; `dry_run=True` delegates to `show_chunks`; docstring marks DESTRUCTIVE/IRREVERSIBLE
@@ -92,7 +93,7 @@ None — roadmap created, ready to plan.
 - One ~2.7% flaky bound-param test surfaced during Phase 28 — watch for re-flake.
 - ~~**Phase 30 research flag:** confirm TSDB version~~ RESOLVED 2026-06-22: live = 2.28.0 → modern `by_hash`/`by_range`.
 - **Phase 32 research flag:** verify `to_dataframe` `%s`-to-named-bind conversion path at plan time before coding `into="df"` for `time_bucket`/`time_bucket_gapfill`.
-- **Phase 31 carry-forward:** the Apache-license `FeatureNotSupported` constraint (Phase 30 D-12) also blocks `add_continuous_aggregate_policy` job-row live tests — plan the same mock-authoritative + license-tolerant strategy.
+- ~~**Phase 31 carry-forward:**~~ RESOLVED 2026-06-23: all 3 cagg methods use mock-authoritative + license-tolerant strategy for Apache build.
 
 ## Deferred Items
 
@@ -109,11 +110,11 @@ None — roadmap created, ready to plan.
 
 ## Session Continuity
 
-Last session: 2026-06-23T08:32:09.365Z
-Stopped at: Phase 31 context gathered
-Resume file: .planning/phases/31-continuous-aggregate-lifecycle/31-CONTEXT.md
-Next action: /gsd-plan-phase 31 (Continuous Aggregate Lifecycle)
+Last session: 2026-06-23
+Stopped at: Phase 31 plan 03 complete (add_continuous_aggregate_policy shipped)
+Resume file: .planning/phases/31-continuous-aggregate-lifecycle/31-03-SUMMARY.md
+Next action: /gsd-discuss-phase 32 (Query Helpers and Parity Verification)
 
 ## Operator Next Steps
 
-- Plan Phase 31 with `/gsd-plan-phase 31`
+- Begin Phase 32 with `/gsd-discuss-phase 32`
