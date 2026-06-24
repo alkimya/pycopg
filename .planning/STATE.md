@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
-status: executing
-stopped_at: Completed 34-02 upsert/delete_where/update_where
-last_updated: "2026-06-24T15:54:44.393Z"
+status: verifying
+stopped_at: Completed 34-03 exists/count/paginate/fetch_all
+last_updated: "2026-06-24T16:04:38.636Z"
 last_activity: 2026-06-24 -- Phase 34 execution started
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 Phase: 34 (crud-ergonomics) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-24 -- Phase 34 execution started
 
 Progress: `░░░░░░░░░░` 0% (0/3 phases)
@@ -66,6 +66,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 - Release human-gated at the irreversible PyPI publish step (project convention)
 - [Phase ?]: _build_where_dict placed after _build_select_sql in QueryMixin — validate_identifiers-first + values-as-params pattern (T-34-01, T-34-02)
 - [Phase ?]: upsert/delete_where/update_where added to both Database and AsyncDatabase with identical signatures, empty-where guard, RETURNING * for upsert, SET-then-WHERE param order
+- [Phase 34-03]: exists/count/paginate/fetch_all added flat on both classes — ValueError-on-empty-where for exists (pre-cursor), count None-where routes around builder, order_by columns validated, dict_row documented in fetch_all docstring (CRUD-07 part a)
 
 ### Pending Todos
 
@@ -102,7 +103,7 @@ None — start Phase 34 with `/gsd-plan-phase 34`.
 
 ## Session Continuity
 
-Last session: 2026-06-24T15:54:44.381Z
-Stopped at: Completed 34-02 upsert/delete_where/update_where
+Last session: 2026-06-24T16:05:00.000Z
+Stopped at: Completed 34-03 exists/count/paginate/fetch_all
 Resume file: None
-Next action: /gsd-plan-phase 34
+Next action: Phase 34 complete — /gsd-verify-phase 34 or proceed to Phase 35

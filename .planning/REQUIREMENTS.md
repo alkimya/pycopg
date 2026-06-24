@@ -27,7 +27,7 @@ Convenience over the existing transactional core. Predicate arguments (`where=`)
 - [x] **CRUD-04**: User can check row existence with `db.exists(table, where={...}) -> bool` without fetching rows
 - [x] **CRUD-05**: User can count rows with `db.count(table, where=None|{...}) -> int`
 - [x] **CRUD-06**: User can fetch a page of rows with `db.paginate(table, limit, offset=0, order_by=..., where=None)` returning the page rows
-- [ ] **CRUD-07**: User can fetch query results as `list[dict]` (dict-fetch) instead of tuples, for ergonomic row access
+- [x] **CRUD-07**: User can fetch query results as `list[dict]` (dict-fetch) instead of tuples, for ergonomic row access
 - [x] **CRUD-08**: Every new CRUD helper has a working, tested `AsyncDatabase` equivalent with identical signature, enforced by `test_accessor_parity`
 
 ### Schema Introspection
@@ -84,7 +84,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CRUD-04 | Phase 34 | Complete |
 | CRUD-05 | Phase 34 | Complete |
 | CRUD-06 | Phase 34 | Complete |
-| CRUD-07 | Phase 34 | Pending |
+| CRUD-07 | Phase 34 | Complete |
 | CRUD-08 | Phase 34 | Complete |
 | INTRO-01 | Phase 35 | Pending |
 | INTRO-02 | Phase 35 | Pending |
