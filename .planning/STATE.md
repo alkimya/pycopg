@@ -4,7 +4,7 @@ milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: planning
 stopped_at: Phase 34 context gathered
-last_updated: "2026-06-24T14:40:13.269Z"
+last_updated: "2026-06-24T15:34:22.016Z"
 last_activity: 2026-06-24 — Roadmap created (Phases 34-36, 15 requirements mapped)
 progress:
   total_phases: 1
