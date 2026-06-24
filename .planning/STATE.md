@@ -1,12 +1,13 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.9.0
-milestone_name: CRUD ergonomique + introspection enrichie
+milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: planning
-last_updated: "2026-06-24"
-last_activity: 2026-06-24
+stopped_at: Phase 34 context gathered
+last_updated: "2026-06-24T14:40:13.269Z"
+last_activity: 2026-06-24 — Roadmap created (Phases 34-36, 15 requirements mapped)
 progress:
-  total_phases: 3
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -53,6 +54,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 ### Decisions
 
 **Locked at cadrage (2026-06-24):**
+
 - Both feature families (CRUD + introspection) in one milestone — low risk, additive
 - CRUD helpers land on the flat transactional core next to `upsert_many`/`insert_many`/`fetch_one`/`fetch_val`; NO `db.meta.*` carve
 - Introspection helpers extend existing `db.schema.*` (`SchemaAccessor`/`AsyncSchemaAccessor` in `pycopg/schema.py`) — purely additive, no new accessor, no deprecation cycle
@@ -96,7 +98,7 @@ None — start Phase 34 with `/gsd-plan-phase 34`.
 
 ## Session Continuity
 
-Last session: 2026-06-24 — roadmap created for v0.9.0 (Phases 34-36)
-Stopped at: Roadmap written; requirements traceability filled
-Resume file: None — ready for Phase 34 planning
+Last session: 2026-06-24T14:40:13.241Z
+Stopped at: Phase 34 context gathered
+Resume file: .planning/phases/34-crud-ergonomics/34-CONTEXT.md
 Next action: /gsd-plan-phase 34
