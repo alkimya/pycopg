@@ -145,7 +145,16 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   4. User can call `db.schema.describe(table, schema="public")` and receive a consolidated description containing columns+types, primary key, foreign keys, and indexes — the all-in-one introspection helper
   5. Every new introspection method is callable identically on `async_db.schema.*` (`AsyncSchemaAccessor`), and `test_accessor_parity` enumerates and verifies each pair
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 35-01-introspection-helpers-PLAN.md — pg_catalog `primary_key`/`foreign_keys` + `information_schema` `sequences`/`views` on both accessors (4 SQL constants, 8 methods, mock+live tests) [Wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 35-02-describe-consolidation-PLAN.md — `describe()` composition helper (one flat dict over table_info/primary_key/foreign_keys/list_indexes) on both accessors + composition-equality/missing-table tests + optional v090 named-surface test [Wave 2]
+
 **UI hint**: no
 
 ### Phase 36: Release v0.9.0
