@@ -207,6 +207,35 @@ class QueryMixin:
 
         return sql
 
+    @staticmethod
+    def _build_where_dict(where: dict) -> tuple[str, list]:
+        """Build WHERE fragment from a dict of equality conditions.
+
+        Parameters
+        ----------
+        where : dict
+            Mapping of column names to values. Keys become validated SQL
+            identifiers; values become positional ``%s`` parameters.
+            Must be non-empty — callers are responsible for rejecting an
+            empty dict before invoking this builder.
+
+        Returns
+        -------
+        tuple of (str, list)
+            Tuple of (fragment, params) where ``fragment`` is an AND-ed
+            ``col = %s`` string suitable for ``WHERE {fragment}`` and
+            ``params`` is the list of values in dict-insertion order.
+
+        Raises
+        ------
+        InvalidIdentifier
+            If any column key fails identifier validation.
+        """
+        validate_identifiers(*where.keys())
+        fragment = " AND ".join(f"{col} = %s" for col in where)
+        params = list(where.values())
+        return fragment, params
+
 
 class SessionMixin:
     """Mixin providing session/connection reuse capabilities.
