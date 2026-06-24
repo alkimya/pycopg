@@ -724,6 +724,198 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             return list(row.values())[0]
         return None
 
+    async def fetch_all(self, sql: str, params: Sequence | None = None) -> list[dict]:
+        """Execute SQL and return all rows as a list of dicts.
+
+        Thin ``list[dict]`` complement to :meth:`fetch_one`. The core uses
+        psycopg's ``dict_row`` row factory by default, so every row is already
+        a plain ``dict`` — no extra conversion needed. Use :meth:`fetch_one`
+        when you expect exactly one row; use ``fetch_all`` for arbitrary result
+        sets where you need the full list at once.
+
+        Parameters
+        ----------
+        sql : str
+            SQL query. The caller owns the SQL string and must parameterize
+            dynamic values via ``params`` (same trust model as
+            :meth:`execute` / :meth:`fetch_one`).
+        params : Sequence, optional
+            Positional query parameters (bound as ``%s``).
+
+        Returns
+        -------
+        list of dict
+            All result rows as dicts (keyed by column name). Returns ``[]``
+            for queries that produce no rows or no description.
+
+        Notes
+        -----
+        The underlying connection uses ``dict_row`` as its row factory, so
+        all fetch methods (``fetch_one``, ``fetch_all``, ``execute``) return
+        ``dict`` rows by default — no ``into=`` toggle or tuples path is
+        provided.
+        """
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            if cur.description:
+                return await cur.fetchall()
+            return []
+
+    async def exists(
+        self,
+        table: str,
+        where: dict,
+        schema: str = "public",
+    ) -> bool:
+        """Check whether any row matching the given equality conditions exists.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict
+            Equality conditions as column-name to value mapping. Must be
+            non-empty — an existence check with no predicate is meaningless.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        bool
+            ``True`` if at least one matching row exists, ``False`` otherwise.
+
+        Raises
+        ------
+        ValueError
+            If ``where`` is empty or falsy (guard fires before any SQL or
+            cursor is opened).
+        InvalidIdentifier
+            If any column name or the table/schema identifier is invalid.
+        """
+        if not where:
+            raise ValueError(
+                "exists requires a non-empty `where` dict — "
+                "an existence check with no predicate is meaningless."
+            )
+        validate_identifiers(table, schema)
+        fragment, params = self._build_where_dict(where)
+        sql = f"SELECT EXISTS(SELECT 1 FROM {schema}.{table} WHERE {fragment})"
+        return bool(await self.fetch_val(sql, params))
+
+    async def count(
+        self,
+        table: str,
+        where: dict | None = None,
+        schema: str = "public",
+    ) -> int:
+        """Count rows in a table, optionally filtered by equality conditions.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. When ``None``
+            (default), all rows are counted without a WHERE clause.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        int
+            Number of matching (or total) rows.
+
+        Raises
+        ------
+        InvalidIdentifier
+            If any column name or the table/schema identifier is invalid.
+        """
+        validate_identifiers(table, schema)
+        if where:
+            fragment, params = self._build_where_dict(where)
+            sql = f"SELECT COUNT(*) FROM {schema}.{table} WHERE {fragment}"
+        else:
+            params = []
+            sql = f"SELECT COUNT(*) FROM {schema}.{table}"
+        return int(await self.fetch_val(sql, params))
+
+    async def paginate(
+        self,
+        table: str,
+        limit: int,
+        offset: int = 0,
+        order_by: str | list[str] | None = None,
+        where: dict | None = None,
+        descending: bool = False,
+        schema: str = "public",
+    ) -> list[dict]:
+        """Return a page of rows from a table.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        limit : int
+            Maximum number of rows to return. Cast to ``int`` before use.
+        offset : int, optional
+            Number of rows to skip, by default 0. Cast to ``int`` before use.
+        order_by : str or list of str, optional
+            Column name(s) to sort by. Each name is validated via
+            ``validate_identifiers`` before interpolation. Whole-clause
+            direction is controlled by ``descending``.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. ``None``
+            (default) returns all rows without a WHERE clause.
+        descending : bool, optional
+            When ``True``, append ``DESC`` to the ORDER BY clause (applies to
+            all listed columns). Per-column direction is deferred.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            Requested page as a list of row dicts. Returns ``[]`` when the
+            query produces no rows.
+
+        Raises
+        ------
+        InvalidIdentifier
+            If any column name in ``order_by`` or the table/schema identifier
+            is invalid.
+        """
+        validate_identifiers(table, schema)
+
+        params: list = []
+        where_clause = ""
+        if where:
+            fragment, where_params = self._build_where_dict(where)
+            where_clause = f" WHERE {fragment}"
+            params.extend(where_params)
+
+        order_clause = ""
+        if order_by is not None:
+            if isinstance(order_by, str):
+                order_by_cols = [order_by]
+            else:
+                order_by_cols = list(order_by)
+            validate_identifiers(*order_by_cols)
+            cols_str = ", ".join(order_by_cols)
+            direction = " DESC" if descending else ""
+            order_clause = f" ORDER BY {cols_str}{direction}"
+
+        sql = (
+            f"SELECT * FROM {schema}.{table}"
+            f"{where_clause}"
+            f"{order_clause}"
+            f" LIMIT {int(limit)} OFFSET {int(offset)}"
+        )
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            if cur.description:
+                return await cur.fetchall()
+            return []
+
     # =========================================================================
     # DATAFRAME OPERATIONS
     # =========================================================================
