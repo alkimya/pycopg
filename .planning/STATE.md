@@ -4,8 +4,8 @@ milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: verifying
 stopped_at: Completed 34-03 exists/count/paginate/fetch_all
-last_updated: "2026-06-24T16:04:38.636Z"
-last_activity: 2026-06-24 -- Phase 34 execution started
+last_updated: "2026-06-24T17:53:16.143Z"
+last_activity: 2026-06-24
 progress:
   total_phases: 1
   completed_phases: 1
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 ## Current Position
 
-Phase: 34 (crud-ergonomics) — EXECUTING
-Plan: 3 of 3
+Phase: 34
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-24 -- Phase 34 execution started
+Last activity: 2026-06-24
 
 Progress: `░░░░░░░░░░` 0% (0/3 phases)
 
