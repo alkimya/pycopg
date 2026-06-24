@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.8.0
-milestone_name: TimescaleDB avancé
-status: Awaiting next milestone
-stopped_at: Milestone v0.8.0 closed and archived — awaiting /gsd-new-milestone (v0.9.0)
-last_updated: "2026-06-23T19:41:34.591Z"
-last_activity: 2026-06-23 — Milestone v0.8.0 completed and archived
+milestone: v0.9.0
+milestone_name: CRUD ergonomique + introspection enrichie
+status: planning
+last_updated: "2026-06-24T11:01:51.847Z"
+last_activity: 2026-06-24
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 ## Current Position
 
-Phase: Milestone v0.8.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-23 — Milestone v0.8.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-24 — Milestone v0.9.0 started
 
 ## Performance Metrics
 
