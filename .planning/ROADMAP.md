@@ -115,7 +115,10 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   4. User can call `db.exists(table, where={...})` and `db.count(table, where=None|{...})` to check/count rows without fetching result sets
   5. User can call `db.paginate(table, limit, offset, order_by, where)` to retrieve a specific page of rows, and `db.fetch_as_dicts(sql)` (or equivalent) to get results as `list[dict]` instead of tuples
   6. Every new CRUD method is callable identically on `AsyncDatabase`, and `test_accessor_parity` enumerates and verifies each pair
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 34-01-PLAN.md — Shared `_build_where_dict` pure builder (validated dict→`%s` WHERE fragment) in base.py + unit tests [Wave 1]
+- [ ] 34-02-PLAN.md — Write helpers: `upsert` (RETURNING *), `delete_where`, `update_where` (empty-where guard, rowcount) on both classes + live-DB tests [Wave 2]
+- [ ] 34-03-PLAN.md — Read helpers: `exists`, `count`, `paginate`, `fetch_all` (dict-fetch) on both classes + live-DB tests [Wave 3]
 **UI hint**: no
 
 ### Phase 35: Schema Introspection
