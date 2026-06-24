@@ -644,6 +644,144 @@ class Database(DatabaseBase, QueryMixin):
 
         return self.insert_many(table, rows, schema, on_conflict)
 
+    def upsert(
+        self,
+        table: str,
+        row: dict,
+        conflict_columns: list[str],
+        update_columns: list[str] | None = None,
+        schema: str = "public",
+    ) -> dict | None:
+        """Upsert a single row and return the affected row.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        row : dict
+            Row data as column-name to value mapping.
+        conflict_columns : list of str
+            Columns that define uniqueness for the ON CONFLICT target.
+        update_columns : list of str, optional
+            Columns to update on conflict. Defaults to all non-conflict columns.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict or None
+            The affected row as a dict (via RETURNING *). Under DO UPDATE the
+            return is structurally always a dict; None is a defensive guard for
+            a future no-row path and is not reachable under the current SQL.
+        """
+        columns = list(row.keys())
+        if update_columns is None:
+            update_columns = [c for c in columns if c not in conflict_columns]
+
+        validate_identifiers(*conflict_columns)
+        validate_identifiers(*update_columns)
+
+        conflict_str = ", ".join(conflict_columns)
+        update_str = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_columns])
+        on_conflict = f"({conflict_str}) DO UPDATE SET {update_str}"
+
+        sql, _ = self._build_insert_sql(table, columns, schema, on_conflict)
+        sql += " RETURNING *"
+        params = [row[c] for c in columns]
+
+        with self.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.fetchone()
+
+    def delete_where(
+        self,
+        table: str,
+        where: dict,
+        schema: str = "public",
+    ) -> int:
+        """Delete rows matching the given equality conditions.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict
+            Equality conditions as column-name to value mapping. Must be
+            non-empty — use truncate_table to affect all rows.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        int
+            Number of rows deleted.
+
+        Raises
+        ------
+        ValueError
+            If where is empty or None (destructive guard D-04).
+        """
+        if not where:
+            raise ValueError(
+                "delete_where requires a non-empty 'where' dict. "
+                "To delete all rows use truncate_table."
+            )
+        validate_identifiers(table, schema)
+        fragment, where_params = self._build_where_dict(where)
+        sql = f"DELETE FROM {schema}.{table} WHERE {fragment}"
+        with self.cursor() as cur:
+            cur.execute(sql, where_params)
+            return cur.rowcount
+
+    def update_where(
+        self,
+        table: str,
+        values: dict,
+        where: dict,
+        schema: str = "public",
+    ) -> int:
+        """Update rows matching the given equality conditions.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        values : dict
+            Column-name to new-value mapping for the SET clause. Must be
+            non-empty.
+        where : dict
+            Equality conditions as column-name to value mapping. Must be
+            non-empty — use truncate_table to affect all rows.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        int
+            Number of rows updated.
+
+        Raises
+        ------
+        ValueError
+            If where or values is empty or None (destructive guard D-04).
+        """
+        if not values:
+            raise ValueError("update_where requires a non-empty 'values' dict.")
+        if not where:
+            raise ValueError(
+                "update_where requires a non-empty 'where' dict. "
+                "To update all rows use execute with an explicit SQL statement."
+            )
+        validate_identifiers(table, schema)
+        validate_identifiers(*values.keys())
+        set_clause = ", ".join(f"{col} = %s" for col in values)
+        fragment, where_params = self._build_where_dict(where)
+        sql = f"UPDATE {schema}.{table} SET {set_clause} WHERE {fragment}"
+        params = list(values.values()) + where_params
+        with self.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.rowcount
+
     def stream(
         self,
         sql: str,

@@ -18,11 +18,12 @@ def db_config():
     user = os.getenv("PGUSER", "postgres")
     password = os.getenv("PGPASSWORD", "postgres")
     port = int(os.getenv("PGPORT", "5432"))
+    database = os.getenv("PGDATABASE", "pycopg_test")
 
     return Config(
         host=host,
         port=port,
-        database="pycopg_test",
+        database=database,
         user=user,
         password=password,
     )
