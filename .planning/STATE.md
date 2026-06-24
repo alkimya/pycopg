@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: executing
-stopped_at: Completed 34-01 _build_where_dict pure builder
-last_updated: "2026-06-24T15:41:55.777Z"
+stopped_at: Completed 34-02 upsert/delete_where/update_where
+last_updated: "2026-06-24T15:54:44.393Z"
 last_activity: 2026-06-24 -- Phase 34 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 ## Current Position
 
 Phase: 34 (crud-ergonomics) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-24 -- Phase 34 execution started
 
@@ -49,6 +49,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 | 35. Schema Introspection | TBD | 0 | Not started |
 | 36. Release v0.9.0 | TBD | 0 | Not started |
 | Phase 34-crud-ergonomics P01 | 56 | 2 tasks | 2 files |
+| Phase 34 P02 | 496 | - tasks | - files |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 - Zero new runtime dependencies; CHANGELOG `[0.9.0]` Added-only (no MIGRATION guide needed)
 - Release human-gated at the irreversible PyPI publish step (project convention)
 - [Phase ?]: _build_where_dict placed after _build_select_sql in QueryMixin — validate_identifiers-first + values-as-params pattern (T-34-01, T-34-02)
+- [Phase ?]: upsert/delete_where/update_where added to both Database and AsyncDatabase with identical signatures, empty-where guard, RETURNING * for upsert, SET-then-WHERE param order
 
 ### Pending Todos
 
@@ -100,7 +102,7 @@ None — start Phase 34 with `/gsd-plan-phase 34`.
 
 ## Session Continuity
 
-Last session: 2026-06-24T15:41:55.771Z
-Stopped at: Completed 34-01 _build_where_dict pure builder
+Last session: 2026-06-24T15:54:44.381Z
+Stopped at: Completed 34-02 upsert/delete_where/update_where
 Resume file: None
 Next action: /gsd-plan-phase 34

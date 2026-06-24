@@ -21,14 +21,14 @@ Convenience over the existing transactional core. Predicate arguments (`where=`)
 `validate_identifiers`, values bound as `%s`. Singular ergonomic complements to the existing
 `*_many` batch methods.
 
-- [ ] **CRUD-01**: User can upsert a single row with `db.upsert(table, row, conflict_columns, ...)` (singular complement to `upsert_many`), returning the affected/returned row
+- [x] **CRUD-01**: User can upsert a single row with `db.upsert(table, row, conflict_columns, ...)` (singular complement to `upsert_many`), returning the affected/returned row
 - [x] **CRUD-02**: User can delete rows matching a condition with `db.delete_where(table, where={...})`, returning the number of rows deleted
 - [x] **CRUD-03**: User can update rows matching a condition with `db.update_where(table, values={...}, where={...})`, returning the number of rows updated
 - [x] **CRUD-04**: User can check row existence with `db.exists(table, where={...}) -> bool` without fetching rows
 - [x] **CRUD-05**: User can count rows with `db.count(table, where=None|{...}) -> int`
 - [x] **CRUD-06**: User can fetch a page of rows with `db.paginate(table, limit, offset=0, order_by=..., where=None)` returning the page rows
 - [ ] **CRUD-07**: User can fetch query results as `list[dict]` (dict-fetch) instead of tuples, for ergonomic row access
-- [ ] **CRUD-08**: Every new CRUD helper has a working, tested `AsyncDatabase` equivalent with identical signature, enforced by `test_accessor_parity`
+- [x] **CRUD-08**: Every new CRUD helper has a working, tested `AsyncDatabase` equivalent with identical signature, enforced by `test_accessor_parity`
 
 ### Schema Introspection
 
@@ -78,14 +78,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CRUD-01 | Phase 34 | Pending |
+| CRUD-01 | Phase 34 | Complete |
 | CRUD-02 | Phase 34 | Complete |
 | CRUD-03 | Phase 34 | Complete |
 | CRUD-04 | Phase 34 | Complete |
 | CRUD-05 | Phase 34 | Complete |
 | CRUD-06 | Phase 34 | Complete |
 | CRUD-07 | Phase 34 | Pending |
-| CRUD-08 | Phase 34 | Pending |
+| CRUD-08 | Phase 34 | Complete |
 | INTRO-01 | Phase 35 | Pending |
 | INTRO-02 | Phase 35 | Pending |
 | INTRO-03 | Phase 35 | Pending |
