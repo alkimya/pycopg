@@ -22,11 +22,11 @@ Convenience over the existing transactional core. Predicate arguments (`where=`)
 `*_many` batch methods.
 
 - [ ] **CRUD-01**: User can upsert a single row with `db.upsert(table, row, conflict_columns, ...)` (singular complement to `upsert_many`), returning the affected/returned row
-- [ ] **CRUD-02**: User can delete rows matching a condition with `db.delete_where(table, where={...})`, returning the number of rows deleted
-- [ ] **CRUD-03**: User can update rows matching a condition with `db.update_where(table, values={...}, where={...})`, returning the number of rows updated
-- [ ] **CRUD-04**: User can check row existence with `db.exists(table, where={...}) -> bool` without fetching rows
-- [ ] **CRUD-05**: User can count rows with `db.count(table, where=None|{...}) -> int`
-- [ ] **CRUD-06**: User can fetch a page of rows with `db.paginate(table, limit, offset=0, order_by=..., where=None)` returning the page rows
+- [x] **CRUD-02**: User can delete rows matching a condition with `db.delete_where(table, where={...})`, returning the number of rows deleted
+- [x] **CRUD-03**: User can update rows matching a condition with `db.update_where(table, values={...}, where={...})`, returning the number of rows updated
+- [x] **CRUD-04**: User can check row existence with `db.exists(table, where={...}) -> bool` without fetching rows
+- [x] **CRUD-05**: User can count rows with `db.count(table, where=None|{...}) -> int`
+- [x] **CRUD-06**: User can fetch a page of rows with `db.paginate(table, limit, offset=0, order_by=..., where=None)` returning the page rows
 - [ ] **CRUD-07**: User can fetch query results as `list[dict]` (dict-fetch) instead of tuples, for ergonomic row access
 - [ ] **CRUD-08**: Every new CRUD helper has a working, tested `AsyncDatabase` equivalent with identical signature, enforced by `test_accessor_parity`
 
@@ -79,11 +79,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CRUD-01 | Phase 34 | Pending |
-| CRUD-02 | Phase 34 | Pending |
-| CRUD-03 | Phase 34 | Pending |
-| CRUD-04 | Phase 34 | Pending |
-| CRUD-05 | Phase 34 | Pending |
-| CRUD-06 | Phase 34 | Pending |
+| CRUD-02 | Phase 34 | Complete |
+| CRUD-03 | Phase 34 | Complete |
+| CRUD-04 | Phase 34 | Complete |
+| CRUD-05 | Phase 34 | Complete |
+| CRUD-06 | Phase 34 | Complete |
 | CRUD-07 | Phase 34 | Pending |
 | CRUD-08 | Phase 34 | Pending |
 | INTRO-01 | Phase 35 | Pending |
@@ -95,6 +95,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REL-09 | Phase 36 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 15 total
 - Mapped to phases: 15 / Unmapped: 0
 

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
-status: planning
-stopped_at: Phase 34 context gathered
-last_updated: "2026-06-24T15:34:22.016Z"
-last_activity: 2026-06-24 — Roadmap created (Phases 34-36, 15 requirements mapped)
+status: executing
+stopped_at: Completed 34-01 _build_where_dict pure builder
+last_updated: "2026-06-24T15:41:55.777Z"
+last_activity: 2026-06-24 -- Phase 34 execution started
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** v0.9.0 — CRUD ergonomique + introspection enrichie (Phase 34 next)
+**Current focus:** Phase 34 — crud-ergonomics
 
 ## Current Position
 
-Phase: 34 — CRUD Ergonomics (not started)
-Plan: —
-Status: Roadmap created; ready to plan Phase 34
-Last activity: 2026-06-24 — Roadmap created (Phases 34-36, 15 requirements mapped)
+Phase: 34 (crud-ergonomics) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-24 -- Phase 34 execution started
 
 Progress: `░░░░░░░░░░` 0% (0/3 phases)
 
@@ -48,6 +48,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 | 34. CRUD Ergonomics | TBD | 0 | Not started |
 | 35. Schema Introspection | TBD | 0 | Not started |
 | 36. Release v0.9.0 | TBD | 0 | Not started |
+| Phase 34-crud-ergonomics P01 | 56 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 - Builder-pur + accessor pattern: `validate_identifiers` first, user values as `%s`, pure `(sql, params)` builders, lazy accessor, full sync/async parity verified by `test_accessor_parity`
 - Zero new runtime dependencies; CHANGELOG `[0.9.0]` Added-only (no MIGRATION guide needed)
 - Release human-gated at the irreversible PyPI publish step (project convention)
+- [Phase ?]: _build_where_dict placed after _build_select_sql in QueryMixin — validate_identifiers-first + values-as-params pattern (T-34-01, T-34-02)
 
 ### Pending Todos
 
@@ -98,7 +100,7 @@ None — start Phase 34 with `/gsd-plan-phase 34`.
 
 ## Session Continuity
 
-Last session: 2026-06-24T14:40:13.241Z
-Stopped at: Phase 34 context gathered
-Resume file: .planning/phases/34-crud-ergonomics/34-CONTEXT.md
+Last session: 2026-06-24T15:41:55.771Z
+Stopped at: Completed 34-01 _build_where_dict pure builder
+Resume file: None
 Next action: /gsd-plan-phase 34

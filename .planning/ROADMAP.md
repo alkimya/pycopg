@@ -120,7 +120,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 34-01-PLAN.md — Shared `_build_where_dict` pure builder (validated dict→`%s` WHERE fragment) in base.py + unit tests [Wave 1]
+- [x] 34-01-PLAN.md — Shared `_build_where_dict` pure builder (validated dict→`%s` WHERE fragment) in base.py + unit tests [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -200,6 +200,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete | 2026-06-23 |
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
-| 34. CRUD Ergonomics | v0.9.0 | 0/TBD | Not started | - |
+| 34. CRUD Ergonomics | v0.9.0 | 1/3 | In Progress|  |
 | 35. Schema Introspection | v0.9.0 | 0/TBD | Not started | - |
 | 36. Release v0.9.0 | v0.9.0 | 0/TBD | Not started | - |
