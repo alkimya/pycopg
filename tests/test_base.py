@@ -190,6 +190,26 @@ class TestQueryMixin:
         with pytest.raises(InvalidIdentifier):
             QueryMixin._build_select_sql("users", columns=["bad;col"])
 
+    def test_build_where_dict_basic(self):
+        """Test single-key dict produces correct fragment and param."""
+        fragment, params = QueryMixin._build_where_dict({"id": 1})
+        assert fragment == "id = %s"
+        assert params == [1]
+        assert "1" not in fragment
+
+    def test_build_where_dict_multi_key(self):
+        """Test multi-key dict produces AND-ed fragment with ordered params."""
+        fragment, params = QueryMixin._build_where_dict({"active": True, "kind": "x"})
+        assert fragment == "active = %s AND kind = %s"
+        assert params == [True, "x"]
+        assert "True" not in fragment
+        assert "x" not in fragment
+
+    def test_build_where_dict_validates_identifiers(self):
+        """Test that invalid column keys raise InvalidIdentifier."""
+        with pytest.raises(InvalidIdentifier):
+            QueryMixin._build_where_dict({"bad;col": 1})
+
 
 class TestSessionMixin:
     """Tests for SessionMixin class."""
