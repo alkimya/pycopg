@@ -887,3 +887,95 @@ class TestDatabaseTimescaleCoverage:
             ExtensionNotAvailable, match="TimescaleDB extension not installed"
         ):
             db.timescale.create_hypertable(t, "ts")
+
+
+class TestDatabaseCRUDErgonomics:
+    """34-02: upsert / delete_where / update_where sync live-DB tests."""
+
+    def _make_kv_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY, name TEXT, email TEXT)'
+        )
+
+    def test_upsert_inserts_and_returns_row(self, db, temp_table_name, cleanup_table):
+        """upsert on a fresh row inserts it and returns the full row as a dict."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        row = db.upsert(
+            temp_table_name, {"id": 1, "name": "Alice", "email": "a@x.com"}, ["id"]
+        )
+
+        assert isinstance(row, dict)
+        assert row["id"] == 1
+        assert row["name"] == "Alice"
+        assert row["email"] == "a@x.com"
+
+    def test_upsert_updates_existing_row(self, db, temp_table_name, cleanup_table):
+        """upsert on an existing row updates it and returns the updated row dict."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        db.insert_many(
+            temp_table_name, [{"id": 1, "name": "Alice", "email": "old@x.com"}]
+        )
+
+        row = db.upsert(
+            temp_table_name, {"id": 1, "name": "Alice", "email": "new@x.com"}, ["id"]
+        )
+
+        assert isinstance(row, dict)
+        assert row["id"] == 1
+        assert row["email"] == "new@x.com"
+
+    def test_delete_where_returns_count(self, db, temp_table_name, cleanup_table):
+        """delete_where deletes matching rows and returns the count."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "email": "a@x.com"},
+                {"id": 2, "name": "Bob", "email": "b@x.com"},
+            ],
+        )
+
+        count = db.delete_where(temp_table_name, {"id": 1})
+
+        assert count == 1
+        remaining = db.execute(f'SELECT id FROM "{temp_table_name}" ORDER BY id')
+        assert [r["id"] for r in remaining] == [2]
+
+    def test_delete_where_empty_raises(self, db):
+        """delete_where with an empty where dict raises ValueError before DB."""
+        with pytest.raises(ValueError):
+            db.delete_where("any_table", {})
+
+    def test_update_where_returns_count(self, db, temp_table_name, cleanup_table):
+        """update_where updates matching rows and returns the count."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "email": "a@x.com"},
+                {"id": 2, "name": "Bob", "email": "b@x.com"},
+            ],
+        )
+
+        count = db.update_where(
+            temp_table_name, {"name": "Updated"}, {"id": 1}
+        )
+
+        assert count == 1
+        rows = db.execute(
+            f'SELECT name FROM "{temp_table_name}" WHERE id = 1'
+        )
+        assert rows[0]["name"] == "Updated"
+
+    def test_update_where_empty_raises(self, db):
+        """update_where with an empty where dict raises ValueError before DB."""
+        with pytest.raises(ValueError):
+            db.update_where("any_table", {"name": "x"}, {})

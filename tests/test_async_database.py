@@ -3045,3 +3045,65 @@ class TestAsyncDatabaseCoverageFill:
     # DataFrame integration is out of Phase 11 scope (PAR parity covers the
     # constraint/admin/batch surface); the sync GeoDataFrame round-trip is
     # covered in test_database_integration.py::TestDatabaseGeoCoverage.
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseCRUDErgonomics:
+    """34-02: upsert / delete_where / update_where async live-DB tests."""
+
+    def _t(self):
+        import uuid
+
+        return f"test_crud_{uuid.uuid4().hex[:8]}"
+
+    async def test_upsert_async(self, db_config):
+        """async upsert inserts a row and returns full row dict, then updates it."""
+        import uuid
+
+        db = AsyncDatabase(db_config)
+        t = f"test_upsert_{uuid.uuid4().hex[:8]}"
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT, email TEXT)',
+                autocommit=True,
+            )
+            # Insert path
+            row = await db.upsert(t, {"id": 1, "name": "Alice", "email": "a@x.com"}, ["id"])
+            assert isinstance(row, dict)
+            assert row["id"] == 1
+            assert row["name"] == "Alice"
+
+            # Update path
+            row2 = await db.upsert(t, {"id": 1, "name": "Alice", "email": "new@x.com"}, ["id"])
+            assert isinstance(row2, dict)
+            assert row2["email"] == "new@x.com"
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_delete_where_async(self, db_config):
+        """async delete_where deletes matching rows and returns the count."""
+        import uuid
+
+        db = AsyncDatabase(db_config)
+        t = f"test_delw_{uuid.uuid4().hex[:8]}"
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await db.insert_many(
+                t,
+                [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}],
+            )
+            count = await db.delete_where(t, {"id": 1})
+            assert count == 1
+            remaining = await db.execute(f'SELECT id FROM "{t}" ORDER BY id')
+            assert [r["id"] for r in remaining] == [2]
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_delete_where_empty_raises_async(self, db_config):
+        """async delete_where with empty where raises ValueError before any DB call."""
+        db = AsyncDatabase(db_config)
+        with pytest.raises(ValueError):
+            await db.delete_where("any_table", {})
