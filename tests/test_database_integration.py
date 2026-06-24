@@ -980,6 +980,11 @@ class TestDatabaseCRUDErgonomics:
         with pytest.raises(ValueError):
             db.update_where("any_table", {"name": "x"}, {})
 
+    def test_upsert_no_update_columns_raises(self, db):
+        """upsert on a conflict-only row raises ValueError, not malformed SQL."""
+        with pytest.raises(ValueError):
+            db.upsert("any_table", {"id": 1}, ["id"])
+
 
 class TestDatabaseReadHelpers:
     """34-03: exists / count / paginate / fetch_all sync live-DB tests."""
@@ -1073,6 +1078,11 @@ class TestDatabaseReadHelpers:
 
         with pytest.raises(InvalidIdentifier):
             db.paginate("any_table", limit=1, order_by="bad;col")
+
+    def test_paginate_none_order_by_element_raises(self, db):
+        """paginate with a None/non-string order_by element raises ValueError."""
+        with pytest.raises(ValueError):
+            db.paginate("any_table", limit=1, order_by=[None, "id"])
 
     def test_fetch_all_returns_dicts(self, db, temp_table_name, cleanup_table):
         """fetch_all returns list[dict]; empty result returns []."""

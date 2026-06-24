@@ -677,6 +677,12 @@ class Database(DatabaseBase, QueryMixin):
         columns = list(row.keys())
         if update_columns is None:
             update_columns = [c for c in columns if c not in conflict_columns]
+        if not update_columns:
+            raise ValueError(
+                "upsert: no non-conflict columns to update. Provide "
+                "update_columns explicitly, or include a non-conflict column "
+                "in 'row'."
+            )
 
         validate_identifiers(*conflict_columns)
         validate_identifiers(*update_columns)
@@ -707,7 +713,7 @@ class Database(DatabaseBase, QueryMixin):
             Table name.
         where : dict
             Equality conditions as column-name to value mapping. Must be
-            non-empty — use truncate_table to affect all rows.
+            non-empty — use db.schema.truncate_table to affect all rows.
         schema : str, optional
             Schema name, by default "public".
 
@@ -724,7 +730,7 @@ class Database(DatabaseBase, QueryMixin):
         if not where:
             raise ValueError(
                 "delete_where requires a non-empty 'where' dict. "
-                "To delete all rows use truncate_table."
+                "To delete all rows use db.schema.truncate_table."
             )
         validate_identifiers(table, schema)
         fragment, where_params = self._build_where_dict(where)
@@ -751,7 +757,8 @@ class Database(DatabaseBase, QueryMixin):
             non-empty.
         where : dict
             Equality conditions as column-name to value mapping. Must be
-            non-empty — use truncate_table to affect all rows.
+            non-empty — use execute with an explicit UPDATE statement to
+            affect all rows.
         schema : str, optional
             Schema name, by default "public".
 
@@ -1164,6 +1171,8 @@ class Database(DatabaseBase, QueryMixin):
                 order_by_cols = [order_by]
             else:
                 order_by_cols = list(order_by)
+            if any(not isinstance(c, str) or not c for c in order_by_cols):
+                raise ValueError("order_by columns must be non-empty strings")
             validate_identifiers(*order_by_cols)
             cols_str = ", ".join(order_by_cols)
             direction = " DESC" if descending else ""
