@@ -979,3 +979,117 @@ class TestDatabaseCRUDErgonomics:
         """update_where with an empty where dict raises ValueError before DB."""
         with pytest.raises(ValueError):
             db.update_where("any_table", {"name": "x"}, {})
+
+
+class TestDatabaseReadHelpers:
+    """34-03: exists / count / paginate / fetch_all sync live-DB tests."""
+
+    def _make_kv_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY, name TEXT, active BOOLEAN)'
+        )
+
+    def test_exists_true_and_false(self, db, temp_table_name, cleanup_table):
+        """exists returns True for a matching row and False for an absent predicate."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [{"id": 1, "name": "Alice", "active": True}],
+        )
+
+        assert db.exists(temp_table_name, {"id": 1}) is True
+        assert db.exists(temp_table_name, {"id": 999}) is False
+
+    def test_exists_empty_where_raises(self, db):
+        """exists with an empty where dict raises ValueError before any DB call."""
+        with pytest.raises(ValueError):
+            db.exists("any_table", {})
+
+    def test_count_all_and_filtered(self, db, temp_table_name, cleanup_table):
+        """count with where=None returns total; count with where={} returns subset."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": False},
+                {"id": 3, "name": "Carol", "active": True},
+            ],
+        )
+
+        assert db.count(temp_table_name) == 3
+        assert db.count(temp_table_name, {"active": True}) == 2
+
+    def test_paginate_orders_and_slices(self, db, temp_table_name, cleanup_table):
+        """paginate returns the correct page slice in the correct order."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": True},
+                {"id": 3, "name": "Carol", "active": True},
+            ],
+        )
+
+        page1 = db.paginate(temp_table_name, limit=2, offset=0, order_by="id")
+        assert len(page1) == 2
+        assert [r["id"] for r in page1] == [1, 2]
+
+        page2 = db.paginate(temp_table_name, limit=2, offset=2, order_by="id")
+        assert len(page2) == 1
+        assert page2[0]["id"] == 3
+
+        desc_page = db.paginate(
+            temp_table_name, limit=2, offset=0, order_by="id", descending=True
+        )
+        assert [r["id"] for r in desc_page] == [3, 2]
+
+    def test_paginate_where_filters(self, db, temp_table_name, cleanup_table):
+        """paginate with where= narrows the result set."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": False},
+                {"id": 3, "name": "Carol", "active": True},
+            ],
+        )
+
+        rows = db.paginate(
+            temp_table_name, limit=10, where={"active": True}, order_by="id"
+        )
+        assert len(rows) == 2
+        assert all(r["active"] is True for r in rows)
+
+    def test_paginate_invalid_order_by_raises(self, db):
+        """paginate with an invalid order_by column raises InvalidIdentifier."""
+        from pycopg.exceptions import InvalidIdentifier
+
+        with pytest.raises(InvalidIdentifier):
+            db.paginate("any_table", limit=1, order_by="bad;col")
+
+    def test_fetch_all_returns_dicts(self, db, temp_table_name, cleanup_table):
+        """fetch_all returns list[dict]; empty result returns []."""
+        cleanup_table(temp_table_name)
+        self._make_kv_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [{"id": 1, "name": "Alice", "active": True}],
+        )
+
+        rows = db.fetch_all(f'SELECT id, name FROM "{temp_table_name}" ORDER BY id')
+        assert isinstance(rows, list)
+        assert len(rows) == 1
+        assert isinstance(rows[0], dict)
+        assert rows[0]["id"] == 1
+
+        empty = db.fetch_all(
+            f'SELECT id FROM "{temp_table_name}" WHERE id = 9999'
+        )
+        assert empty == []

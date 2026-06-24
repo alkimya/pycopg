@@ -3107,3 +3107,110 @@ class TestAsyncDatabaseCRUDErgonomics:
         db = AsyncDatabase(db_config)
         with pytest.raises(ValueError):
             await db.delete_where("any_table", {})
+
+
+@pytest.mark.asyncio
+class TestAsyncDatabaseReadHelpers:
+    """34-03: exists / count / paginate / fetch_all async live-DB tests."""
+
+    def _t(self, prefix="crud"):
+        import uuid
+
+        return f"test_{prefix}_{uuid.uuid4().hex[:8]}"
+
+    async def test_exists_async(self, db_config):
+        """async exists returns True for a present row and False for an absent one."""
+        db = AsyncDatabase(db_config)
+        t = self._t("exists")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await db.insert_many(t, [{"id": 1, "name": "Alice"}])
+
+            assert await db.exists(t, {"id": 1}) is True
+            assert await db.exists(t, {"id": 999}) is False
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_exists_empty_where_raises_async(self, db_config):
+        """async exists with empty where raises ValueError before any DB call."""
+        db = AsyncDatabase(db_config)
+        with pytest.raises(ValueError):
+            await db.exists("any_table", {})
+
+    async def test_count_async(self, db_config):
+        """async count returns total (where=None) and filtered count."""
+        db = AsyncDatabase(db_config)
+        t = self._t("count")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, active BOOLEAN)',
+                autocommit=True,
+            )
+            await db.insert_many(
+                t,
+                [
+                    {"id": 1, "active": True},
+                    {"id": 2, "active": False},
+                    {"id": 3, "active": True},
+                ],
+            )
+
+            assert await db.count(t) == 3
+            assert await db.count(t, {"active": True}) == 2
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_paginate_async(self, db_config):
+        """async paginate returns the correct page slice in order."""
+        db = AsyncDatabase(db_config)
+        t = self._t("pag")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await db.insert_many(
+                t,
+                [
+                    {"id": 1, "name": "Alice"},
+                    {"id": 2, "name": "Bob"},
+                    {"id": 3, "name": "Carol"},
+                ],
+            )
+
+            page = await db.paginate(t, limit=2, offset=0, order_by="id")
+            assert len(page) == 2
+            assert [r["id"] for r in page] == [1, 2]
+
+            page2 = await db.paginate(t, limit=2, offset=2, order_by="id")
+            assert len(page2) == 1
+            assert page2[0]["id"] == 3
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_fetch_all_async(self, db_config):
+        """async fetch_all returns list[dict]; empty result returns []."""
+        db = AsyncDatabase(db_config)
+        t = self._t("fall")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await db.insert_many(t, [{"id": 1, "name": "Alice"}])
+
+            rows = await db.fetch_all(f'SELECT id, name FROM "{t}" ORDER BY id')
+            assert isinstance(rows, list)
+            assert len(rows) == 1
+            assert isinstance(rows[0], dict)
+            assert rows[0]["id"] == 1
+
+            empty = await db.fetch_all(
+                f'SELECT id FROM "{t}" WHERE id = 9999'
+            )
+            assert empty == []
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
