@@ -78,27 +78,26 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CRUD-01 | Phase TBD | Pending |
-| CRUD-02 | Phase TBD | Pending |
-| CRUD-03 | Phase TBD | Pending |
-| CRUD-04 | Phase TBD | Pending |
-| CRUD-05 | Phase TBD | Pending |
-| CRUD-06 | Phase TBD | Pending |
-| CRUD-07 | Phase TBD | Pending |
-| CRUD-08 | Phase TBD | Pending |
-| INTRO-01 | Phase TBD | Pending |
-| INTRO-02 | Phase TBD | Pending |
-| INTRO-03 | Phase TBD | Pending |
-| INTRO-04 | Phase TBD | Pending |
-| INTRO-05 | Phase TBD | Pending |
-| INTRO-06 | Phase TBD | Pending |
-| REL-09 | Phase TBD | Pending |
+| CRUD-01 | Phase 34 | Pending |
+| CRUD-02 | Phase 34 | Pending |
+| CRUD-03 | Phase 34 | Pending |
+| CRUD-04 | Phase 34 | Pending |
+| CRUD-05 | Phase 34 | Pending |
+| CRUD-06 | Phase 34 | Pending |
+| CRUD-07 | Phase 34 | Pending |
+| CRUD-08 | Phase 34 | Pending |
+| INTRO-01 | Phase 35 | Pending |
+| INTRO-02 | Phase 35 | Pending |
+| INTRO-03 | Phase 35 | Pending |
+| INTRO-04 | Phase 35 | Pending |
+| INTRO-05 | Phase 35 | Pending |
+| INTRO-06 | Phase 35 | Pending |
+| REL-09 | Phase 36 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 15 ⚠️ (filled by roadmapper)
+- Mapped to phases: 15 / Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-24*
-*Last updated: 2026-06-24 after initial definition*
+*Last updated: 2026-06-24 — traceability filled by roadmapper (Phases 34-36)*

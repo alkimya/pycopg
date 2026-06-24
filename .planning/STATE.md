@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: CRUD ergonomique + introspection enrichie
 status: planning
-last_updated: "2026-06-24T11:01:51.847Z"
+last_updated: "2026-06-24"
 last_activity: 2026-06-24
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Planning next milestone (v0.9.0 CRUD ergonomique + introspection — candidate)
+**Current focus:** v0.9.0 — CRUD ergonomique + introspection enrichie (Phase 34 next)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 34 — CRUD Ergonomics (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-24 — Milestone v0.9.0 started
+Status: Roadmap created; ready to plan Phase 34
+Last activity: 2026-06-24 — Roadmap created (Phases 34-36, 15 requirements mapped)
+
+Progress: `░░░░░░░░░░` 0% (0/3 phases)
 
 ## Performance Metrics
 
@@ -38,37 +40,34 @@ Last activity: 2026-06-24 — Milestone v0.9.0 started
 - Sphinx `-W`: clean
 - `-W error::DeprecationWarning`: green (no deprecated stubs left after alias removal)
 
-**v0.8.0 phases:**
+**v0.9.0 phases:**
 
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
-| 30. Chunk Management & Partitioning | 3 | 3 | COMPLETE (46 tests, TS-ADV-10, cov 94.96%) |
-| 31. Continuous Aggregate Lifecycle | 3 | 3 | COMPLETE (11 policy tests, TS-ADV-03, cov 95.05%) |
-| 32. Query Helpers & Parity Verification | 2 | 2 | COMPLETE (TS-ADV-06/07/10, cov 95.11%) |
-| 33. Release v0.8.0 | 3 | 3 | COMPLETE (4 gates PASS, OIDC publish run 28044147070, v0.8.0 live PyPI 2026-06-23) |
-| Phase 30 P01 | 210 | 2 tasks | 3 files |
-| Phase 30 P02 | 480 | 2 tasks | 3 files |
-| Phase 30 P03 | 1080 | 3 tasks | 2 files |
-| Phase 31 P01 | 15m | 2 tasks | 2 files |
-| Phase 31 P02 | 15m | 2 tasks | 2 files |
-| Phase 31 P03 | 20m | 3 tasks | 2 files |
-| Phase 32 P01 | 25m | 3 tasks | 1 files |
-| Phase 32 P02 | 20m | 3 tasks | 2 files |
-| Phase 33 P01 | 2m | 3 tasks | 4 files |
+| 34. CRUD Ergonomics | TBD | 0 | Not started |
+| 35. Schema Introspection | TBD | 0 | Not started |
+| 36. Release v0.9.0 | TBD | 0 | Not started |
 
 ## Accumulated Context
 
 ### Decisions
 
-v0.8.0 milestone closed — the full decision log (scope + 7 v0.8.0 Key Decisions incl. the D-08 license reversal) lives in `.planning/PROJECT.md` Key Decisions and `.planning/milestones/v0.8.0-ROADMAP.md`. Cleared here at milestone close.
+**Locked at cadrage (2026-06-24):**
+- Both feature families (CRUD + introspection) in one milestone — low risk, additive
+- CRUD helpers land on the flat transactional core next to `upsert_many`/`insert_many`/`fetch_one`/`fetch_val`; NO `db.meta.*` carve
+- Introspection helpers extend existing `db.schema.*` (`SchemaAccessor`/`AsyncSchemaAccessor` in `pycopg/schema.py`) — purely additive, no new accessor, no deprecation cycle
+- `where=` predicate convention: dict of equality conditions (`{col: val}`) → AND-ed equality; columns validated via `validate_identifiers`; values bound as `%s`
+- Builder-pur + accessor pattern: `validate_identifiers` first, user values as `%s`, pure `(sql, params)` builders, lazy accessor, full sync/async parity verified by `test_accessor_parity`
+- Zero new runtime dependencies; CHANGELOG `[0.9.0]` Added-only (no MIGRATION guide needed)
+- Release human-gated at the irreversible PyPI publish step (project convention)
 
 ### Pending Todos
 
-None — v0.8.0 closed; run `/gsd-new-milestone` to scope v0.9.0.
+None — start Phase 34 with `/gsd-plan-phase 34`.
 
 ### Blockers/Concerns
 
-- 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — fixture-isolation bug, not v0.8.0 code; use `-o addopts=""` for targeted runs.
+- 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — fixture-isolation bug, not v0.9.0 code; use `-o addopts=""` for targeted runs.
 - One ~2.7% flaky bound-param test surfaced during Phase 28 — watch for re-flake.
 
 ## Deferred Items
@@ -89,14 +88,15 @@ None — v0.8.0 closed; run `/gsd-new-milestone` to scope v0.9.0.
 | future | ETL-INC-F03: multi-column / composite watermarks | deferred to a future ETL milestone |
 | future | ETL-INC-F04: advisory-lock concurrency for `append` + incremental | deferred to a future ETL milestone |
 | future | ETL-INC-F05: CDC / WAL-based change capture | deferred to a future ETL milestone |
+| v2 | CRUD-F01: raw-SQL escape hatch for `where=` | deferred from v0.9.0 cadrage |
+| v2 | CRUD-F02: `paginate` keyset/cursor pagination | deferred from v0.9.0 cadrage |
+| v2 | CRUD-F03: `paginate` page-envelope with total count + has_next | deferred from v0.9.0 cadrage |
+| v2 | INTRO-F01: `describe` output as rich dataclass / DataFrame rendering | deferred from v0.9.0 cadrage |
+| v2 | INTRO-F02: `materialized_views()` and per-view column introspection | deferred from v0.9.0 cadrage |
 
 ## Session Continuity
 
-Last session: 2026-06-23 — milestone v0.8.0 closed and archived
-Stopped at: Milestone v0.8.0 closed (ROADMAP collapsed, REQUIREMENTS archived + removed, PROJECT/RETROSPECTIVE evolved)
-Resume file: None — milestone complete
-Next action: /gsd-new-milestone (v0.9.0 CRUD ergonomique + introspection — candidate)
-
-## Operator Next Steps
-
-- Start the next milestone with /gsd-new-milestone
+Last session: 2026-06-24 — roadmap created for v0.9.0 (Phases 34-36)
+Stopped at: Roadmap written; requirements traceability filled
+Resume file: None — ready for Phase 34 planning
+Next action: /gsd-plan-phase 34

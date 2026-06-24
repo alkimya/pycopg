@@ -9,8 +9,18 @@
 - ✅ **v0.6.0 Réorganisation en accessors** — Phases 21-24 (shipped 2026-06-19)
 - ✅ **v0.7.0 Alias Removal + Incremental ETL** — Phases 25-29 (shipped 2026-06-22)
 - ✅ **v0.8.0 TimescaleDB avancé** — Phases 30-33 (shipped 2026-06-23)
+- 🚧 **v0.9.0 CRUD ergonomique + introspection enrichie** — Phases 34-36 (in progress)
 
 ## Phases
+
+<details>
+<summary>🚧 v0.9.0 CRUD ergonomique + introspection enrichie (Phases 34-36) — IN PROGRESS</summary>
+
+- [ ] **Phase 34: CRUD Ergonomics** - Convenience CRUD helpers on the flat transactional core (upsert singular, delete_where, update_where, exists, count, paginate, dict-fetch) with full sync/async parity
+- [ ] **Phase 35: Schema Introspection** - Enriched `db.schema.*` helpers (primary_key, foreign_keys, sequences, views, describe) with full sync/async parity
+- [ ] **Phase 36: Release v0.9.0** - Version bump, CHANGELOG Added-only, docs surfaces, 4 gates, human-gated OIDC publish + tag + smoke
+
+</details>
 
 <details>
 <summary>✅ v0.8.0 TimescaleDB avancé (Phases 30-33) — SHIPPED 2026-06-23</summary>
@@ -92,6 +102,47 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 </details>
 
+## Phase Details
+
+### Phase 34: CRUD Ergonomics
+**Goal**: Users can call ergonomic single-row and predicate-driven CRUD helpers on `Database` and `AsyncDatabase` next to their existing batch analogs, with full sync/async parity
+**Depends on**: Nothing new (additive over existing transactional core)
+**Requirements**: CRUD-01, CRUD-02, CRUD-03, CRUD-04, CRUD-05, CRUD-06, CRUD-07, CRUD-08
+**Success Criteria** (what must be TRUE):
+  1. User can call `db.upsert(table, row, conflict_columns)` to upsert a single row and receive the affected/returned row back
+  2. User can call `db.delete_where(table, where={...})` and receive the count of deleted rows; columns are identifier-validated, values bound as `%s`
+  3. User can call `db.update_where(table, values={...}, where={...})` to update rows matching AND-ed equality conditions and receive the count of updated rows
+  4. User can call `db.exists(table, where={...})` and `db.count(table, where=None|{...})` to check/count rows without fetching result sets
+  5. User can call `db.paginate(table, limit, offset, order_by, where)` to retrieve a specific page of rows, and `db.fetch_as_dicts(sql)` (or equivalent) to get results as `list[dict]` instead of tuples
+  6. Every new CRUD method is callable identically on `AsyncDatabase`, and `test_accessor_parity` enumerates and verifies each pair
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 35: Schema Introspection
+**Goal**: Users can call enriched read-only introspection helpers on `db.schema.*` to retrieve primary keys, foreign keys, sequences, views, and a consolidated table description, with full sync/async parity
+**Depends on**: Phase 34 (same milestone; can execute independently but follows naturally)
+**Requirements**: INTRO-01, INTRO-02, INTRO-03, INTRO-04, INTRO-05, INTRO-06
+**Success Criteria** (what must be TRUE):
+  1. User can call `db.schema.primary_key(table, schema="public")` and receive the list of primary-key column name(s) for the table
+  2. User can call `db.schema.foreign_keys(table, schema="public")` and receive a list of entries each naming the local column(s), referenced table, and referenced column(s)
+  3. User can call `db.schema.sequences(schema="public")` and receive a list of sequences defined in that schema, and `db.schema.views(schema="public")` and receive a list of view names
+  4. User can call `db.schema.describe(table, schema="public")` and receive a consolidated description containing columns+types, primary key, foreign keys, and indexes — the all-in-one introspection helper
+  5. Every new introspection method is callable identically on `async_db.schema.*` (`AsyncSchemaAccessor`), and `test_accessor_parity` enumerates and verifies each pair
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 36: Release v0.9.0
+**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional
+**Depends on**: Phase 34, Phase 35
+**Requirements**: REL-09
+**Success Criteria** (what must be TRUE):
+  1. Version is bumped to 0.9.0 in both canonical sources (`pyproject.toml` and the in-package `__version__`), and CHANGELOG `[0.9.0]` Added-only entry covers all new CRUD and introspection methods
+  2. All 4 quality gates pass: coverage ratchet ≥94%, interrogate ≥95, Sphinx `-W` clean, `-W error::DeprecationWarning` green
+  3. Docs surfaces updated: README method counts reflect new helpers, `api-reference.md` rows added, `docs/*.md` pages cover the new methods with numpydoc-consistent shallow docstrings
+  4. Tag `v0.9.0` pushed and PyPI wheel+sdist published via OIDC trusted publishing (human-gated at the irreversible publish step); clean-venv `pip install pycopg==0.9.0` smoke prints 0.9.0
+**Plans**: TBD
+**UI hint**: no
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -129,3 +180,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 31. Continuous Aggregate Lifecycle | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete | 2026-06-23 |
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
+| 34. CRUD Ergonomics | v0.9.0 | 0/TBD | Not started | - |
+| 35. Schema Introspection | v0.9.0 | 0/TBD | Not started | - |
+| 36. Release v0.9.0 | v0.9.0 | 0/TBD | Not started | - |
