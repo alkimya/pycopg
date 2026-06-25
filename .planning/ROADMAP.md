@@ -177,7 +177,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 36-02-PLAN.md — Release & Smoke: re-confirm 4 gates + local build, human-gated tag/Release/OIDC PyPI publish, clean-venv `pip install pycopg==0.9.0` smoke [Wave 2]
+- [x] 36-02-PLAN.md — Release & Smoke: re-confirm 4 gates + local build, human-gated tag/Release/OIDC PyPI publish, clean-venv `pip install pycopg==0.9.0` smoke [Wave 2]
 
 **UI hint**: no
 
@@ -220,4 +220,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete    | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete   | 2026-06-25 |
-| 36. Release v0.9.0 | v0.9.0 | 1/2 | In Progress|  |
+| 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete   | 2026-06-25 |
