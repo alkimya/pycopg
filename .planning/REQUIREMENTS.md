@@ -77,27 +77,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEBT-01 | TBD | Pending |
-| DEBT-02 | TBD | Pending |
-| DEBT-03 | TBD | Pending |
-| DEBT-04 | TBD | Pending |
-| DEBT-05 | TBD | Pending |
-| AUDIT-01 | TBD | Pending |
-| AUDIT-02 | TBD | Pending |
-| COV-01 | TBD | Pending |
-| NYQ-01 | TBD | Pending |
-| PERF-01 | TBD | Pending |
-| PERF-02 | TBD | Pending |
-| PERF-03 | TBD | Pending |
-| PERF-04 | TBD | Pending |
-| PERF-05 | TBD | Pending |
-| REL-10 | TBD | Pending |
+| DEBT-01 | Phase 37 | Pending |
+| DEBT-02 | Phase 37 | Pending |
+| DEBT-03 | Phase 37 | Pending |
+| DEBT-04 | Phase 37 | Pending |
+| DEBT-05 | Phase 37 | Pending |
+| AUDIT-01 | Phase 37 | Pending |
+| AUDIT-02 | Phase 37 | Pending |
+| NYQ-01 | Phase 37 | Pending |
+| PERF-01 | Phase 38 | Pending |
+| PERF-02 | Phase 38 | Pending |
+| PERF-03 | Phase 38 | Pending |
+| PERF-05 | Phase 38 | Pending |
+| COV-01 | Phase 39 | Pending |
+| PERF-04 | Phase 39 | Pending |
+| REL-10 | Phase 40 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 15 ⚠️ (resolved by roadmapper)
+- Mapped to phases: 15 (roadmap complete)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-25*
-*Last updated: 2026-06-25 after initial definition (milestone v0.10.0 start)*
+*Last updated: 2026-06-25 — traceability filled (roadmap v0.10.0, Phases 37-40)*
