@@ -173,6 +173,24 @@ FOREIGN_KEYS = """
 """
 
 # =============================================================================
+# SEQUENCE / VIEW QUERIES
+# =============================================================================
+
+SEQUENCES = """
+    SELECT sequence_name
+    FROM information_schema.sequences
+    WHERE sequence_schema = %s
+    ORDER BY sequence_name
+"""
+
+VIEWS = """
+    SELECT table_name
+    FROM information_schema.views
+    WHERE table_schema = %s
+    ORDER BY table_name
+"""
+
+# =============================================================================
 # ROLE QUERIES
 # =============================================================================
 

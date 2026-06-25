@@ -738,6 +738,42 @@ class SchemaAccessor:
             seen[name]["referenced_columns"].append(row["referenced_column"])
         return result
 
+    def sequences(self, schema: str = "public") -> list[str]:
+        """Return the names of all sequences in a schema.
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of str
+            Sequence names in alphabetical order, including SERIAL/identity-backed
+            sequences.  Returns ``[]`` when the schema has no sequences.
+        """
+        validate_identifiers(schema)
+        result = self._db.execute(queries.SEQUENCES, [schema])
+        return [r["sequence_name"] for r in result]
+
+    def views(self, schema: str = "public") -> list[str]:
+        """Return the names of regular views in a schema (materialized views excluded).
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of str
+            Regular view names in alphabetical order.  Materialized views are
+            excluded.  Returns ``[]`` when the schema has no regular views.
+        """
+        validate_identifiers(schema)
+        result = self._db.execute(queries.VIEWS, [schema])
+        return [r["table_name"] for r in result]
+
 
 class AsyncSchemaAccessor:
     """Async schema helper namespace exposed as ``async_db.schema``.
@@ -1452,3 +1488,39 @@ class AsyncSchemaAccessor:
             seen[name]["columns"].append(row["column_name"])
             seen[name]["referenced_columns"].append(row["referenced_column"])
         return result
+
+    async def sequences(self, schema: str = "public") -> list[str]:
+        """Return the names of all sequences in a schema.
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of str
+            Sequence names in alphabetical order, including SERIAL/identity-backed
+            sequences.  Returns ``[]`` when the schema has no sequences.
+        """
+        validate_identifiers(schema)
+        result = await self._db.execute(queries.SEQUENCES, [schema])
+        return [r["sequence_name"] for r in result]
+
+    async def views(self, schema: str = "public") -> list[str]:
+        """Return the names of regular views in a schema (materialized views excluded).
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of str
+            Regular view names in alphabetical order.  Materialized views are
+            excluded.  Returns ``[]`` when the schema has no regular views.
+        """
+        validate_identifiers(schema)
+        result = await self._db.execute(queries.VIEWS, [schema])
+        return [r["table_name"] for r in result]
