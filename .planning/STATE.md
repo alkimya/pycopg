@@ -3,8 +3,9 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: planning
-last_updated: "2026-06-25"
-last_activity: 2026-06-25
+stopped_at: Phase 37 context gathered
+last_updated: "2026-06-25T17:23:04.877Z"
+last_activity: 2026-06-25 — v0.10.0 roadmap created (4 phases, 15 requirements mapped)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -94,9 +95,9 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-25 — milestone v0.9.0 closed + archived; v0.10.0 roadmap created
-Stopped at: ROADMAP.md written (4 phases 37-40, 15/15 requirements mapped); STATE.md + REQUIREMENTS.md traceability updated
-Resume file: None
+Last session: 2026-06-25T17:23:04.854Z
+Stopped at: Phase 37 context gathered
+Resume file: .planning/phases/37-dette-audit/37-CONTEXT.md
 Next action: `/gsd-plan-phase 37`
 
 ## Operator Next Steps
