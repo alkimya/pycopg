@@ -110,6 +110,105 @@ name = db.fetch_val("SELECT name FROM users WHERE id = %s", [1])
 # 'Alice'
 ```
 
+### fetch_all()
+
+Execute SQL and return all rows as a list of dicts. Thin complement to `fetch_one`.
+
+```python
+rows = db.fetch_all("SELECT * FROM users WHERE active = %s", [True])
+# [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}, ...]
+
+# No rows — returns empty list
+rows = db.fetch_all("SELECT * FROM users WHERE id = %s", [9999])
+# []
+```
+
+## CRUD Helpers (v0.9.0)
+
+Flat convenience methods for common single-table operations. All column and table names
+are validated via `validate_identifiers`; values are bound as `%s` (no SQL injection risk).
+Full sync/async parity on `AsyncDatabase`.
+
+### upsert()
+
+Insert a row; on conflict update the specified columns and return the affected row.
+
+```python
+# Insert or update on conflict
+row = db.upsert(
+    "users",
+    {"email": "alice@example.com", "name": "Alice", "active": True},
+    conflict_columns=["email"],
+    update_columns=["name", "active"],
+)
+# {'id': 1, 'email': 'alice@example.com', 'name': 'Alice', 'active': True}
+
+# Conflict columns only (update all non-conflict columns by default)
+row = db.upsert("products", {"sku": "ABC", "price": 9.99}, conflict_columns=["sku"])
+```
+
+### delete_where()
+
+Delete rows matching equality conditions; returns the number of rows deleted.
+
+```python
+count = db.delete_where("users", {"active": False})
+# 3
+
+# Non-empty where is required (guard against accidental full-table delete)
+db.delete_where("users", {})  # raises ValueError
+```
+
+### update_where()
+
+Update rows matching equality conditions; returns the number of rows updated.
+
+```python
+count = db.update_where("users", {"active": False}, {"role": "guest"})
+# 5 (set active=False for all users with role='guest')
+
+# Both values and where must be non-empty dicts
+db.update_where("users", {}, {"id": 1})  # raises ValueError
+```
+
+### exists()
+
+Return `True` if at least one row matches the equality conditions.
+
+```python
+if db.exists("users", {"email": "alice@example.com"}):
+    print("User exists")
+
+# Non-empty where is required
+db.exists("users", {})  # raises ValueError
+```
+
+### count()
+
+Count rows in a table, optionally filtered by equality conditions.
+
+```python
+total = db.count("users")             # all rows
+active = db.count("users", {"active": True})   # filtered
+
+print(f"{active} of {total} users are active")
+```
+
+### paginate()
+
+Return a page of rows from a table with optional ordering and filtering.
+
+```python
+# First page, ordered by created_at descending
+rows = db.paginate("users", limit=20, offset=0, order_by="created_at", descending=True)
+
+# With filter
+rows = db.paginate("orders", limit=10, where={"status": "pending"}, order_by="created_at")
+
+# Multi-column order
+rows = db.paginate("products", limit=50, order_by=["category", "price"])
+```
+
 ## Session Mode
 
 Session mode keeps a single connection open for multiple operations, significantly reducing connection overhead.

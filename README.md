@@ -79,13 +79,16 @@ pycopg organizes database operations into typed accessor namespaces:
 
 | Accessor | Access | Methods |
 | -------- | ------ | ------- |
-| `db.schema.*` | DDL + introspection | `list_schemas`, `list_tables`, `table_info`, `create_index`, … (27 methods) |
+| `db.schema.*` | DDL + introspection | `list_schemas`, `list_tables`, `table_info`, `create_index`, `primary_key`, `describe`, … (32 methods) |
 | `db.admin.*` | Roles & permissions | `create_role`, `grant`, `revoke`, `list_roles`, … (11 methods) |
 | `db.maint.*` | Maintenance | `size`, `vacuum`, `analyze`, `explain`, … (6 methods) |
 | `db.backup.*` | Backup & restore | `pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv` (4 methods) |
 | `db.timescale.*` | TimescaleDB | `create_hypertable`, `enable_compression`, `time_bucket`, `show_chunks`, … (15 methods) |
 | `db.spatial.*` | PostGIS helpers | `contains`, `within`, `intersects`, `create_spatial_index`, … (13 methods) |
 | `db.etl.*` | ETL pipelines | `run`, `history`, `last_run`, `init` (4 methods) |
+
+`Database` and `AsyncDatabase` also expose flat CRUD helpers directly (v0.9.0): `upsert`,
+`delete_where`, `update_where`, `exists`, `count`, `fetch_all`, `paginate`.
 
 All accessors expose an identical async surface on `AsyncDatabase` (e.g. `async_db.admin.*`).
 Flat methods are deprecated as of v0.6.0; see [MIGRATION.md](MIGRATION.md).

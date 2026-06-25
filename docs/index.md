@@ -30,6 +30,8 @@ api-autodoc
 - **Resilience**: Automatic retry with exponential backoff for transient connection errors (NEW in 0.3.0)
 - **Statement Timeout**: Configurable query timeout protection (NEW in 0.3.0)
 - **Session Mode**: Connection reuse for batch operations with `db.session()`
+- **CRUD Helpers**: `upsert`, `delete_where`, `update_where`, `exists`, `count`, `fetch_all`, `paginate` flat on `Database`/`AsyncDatabase` (NEW in 0.9.0)
+- **Schema Introspection**: `primary_key`, `foreign_keys`, `sequences`, `views`, `describe` on `db.schema.*` (NEW in 0.9.0)
 - **High-Performance Inserts**: `insert_batch()` and `copy_insert()` for bulk operations
 - **Connection Pooling**: Built-in pooling with `PooledDatabase` and `AsyncPooledDatabase`
 - **DataFrame Integration**: Seamless pandas/geopandas support

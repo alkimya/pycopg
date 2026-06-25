@@ -94,6 +94,51 @@ name = await db.fetch_val("SELECT name FROM users WHERE id = %s", [1])
 # 'Alice'
 ```
 
+### fetch_all()
+
+Execute SQL and return all rows as a list of dicts.
+
+```python
+rows = await db.fetch_all("SELECT * FROM users WHERE active = %s", [True])
+# [{'id': 1, 'name': 'Alice'}, ...]
+
+rows = await db.fetch_all("SELECT * FROM users WHERE id = %s", [9999])
+# []
+```
+
+## CRUD Helpers (v0.9.0)
+
+All sync CRUD helpers (`upsert`, `delete_where`, `update_where`, `exists`, `count`,
+`fetch_all`, `paginate`) are available on `AsyncDatabase` with the same signatures
+and `await` prefix. Full sync/async parity — see [Database CRUD Helpers](database.md#crud-helpers-v090)
+for parameter details.
+
+```python
+# Upsert
+row = await db.upsert(
+    "users",
+    {"email": "alice@example.com", "name": "Alice"},
+    conflict_columns=["email"],
+)
+
+# Delete matching rows
+count = await db.delete_where("users", {"active": False})
+
+# Update matching rows
+count = await db.update_where("users", {"active": False}, {"role": "guest"})
+
+# Check existence
+if await db.exists("users", {"email": "alice@example.com"}):
+    print("User exists")
+
+# Count rows
+total = await db.count("users")
+active = await db.count("users", {"active": True})
+
+# Paginate
+rows = await db.paginate("users", limit=20, offset=0, order_by="created_at", descending=True)
+```
+
 ## Session Mode
 
 Session mode keeps a single connection open for multiple operations, reducing connection overhead.

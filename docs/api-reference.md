@@ -86,6 +86,21 @@ Database(config: Config)
 | `execute_many` | `sql, params_seq` | `int` | Execute for multiple params |
 | `fetch_one` | `sql, params=None` | `Optional[dict]` | Fetch single row |
 | `fetch_val` | `sql, params=None` | `Any` | Fetch single value |
+| `fetch_all` | `sql, params=None` | `list[dict]` | Fetch all rows as list of dicts |
+
+### CRUD Methods (v0.9.0)
+
+Flat helpers on `Database` for common single-table operations. All column names are validated;
+values are bound as `%s`. Full sync/async parity on `AsyncDatabase`.
+
+| Method | Parameters | Returns |
+|--------|------------|---------|
+| `upsert` | `table, row, conflict_columns, update_columns=None, schema="public"` | `dict \| None` |
+| `delete_where` | `table, where, schema="public"` | `int` |
+| `update_where` | `table, values, where, schema="public"` | `int` |
+| `exists` | `table, where, schema="public"` | `bool` |
+| `count` | `table, where=None, schema="public"` | `int` |
+| `paginate` | `table, limit, offset=0, order_by=None, where=None, descending=False, schema="public"` | `list[dict]` |
 
 ### Context Managers
 
@@ -115,6 +130,18 @@ Database(config: Config)
 | `row_count` | `name, schema="public"` | `int` |
 | `drop_table` | `name, schema="public", if_exists=True, cascade=False` | - |
 | `truncate_table` | `name, schema="public", cascade=False` | - |
+
+### Introspection Methods (v0.9.0)
+
+Available on `db.schema.*` and `async_db.schema.*`.
+
+| Method | Parameters | Returns |
+|--------|------------|---------|
+| `primary_key` | `table, schema="public"` | `dict \| None` |
+| `foreign_keys` | `table, schema="public"` | `list[dict]` |
+| `sequences` | `schema="public"` | `list[str]` |
+| `views` | `schema="public"` | `list[str]` |
+| `describe` | `table, schema="public"` | `dict` |
 
 ### Extension Methods
 
