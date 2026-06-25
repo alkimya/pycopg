@@ -138,6 +138,40 @@ LIST_CONSTRAINTS = """
     ORDER BY c.conname
 """
 
+PRIMARY_KEY = """
+    SELECT
+        c.conname AS constraint_name,
+        a.attname AS column_name
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS k(conkey_element, ord)
+        ON true
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.conkey_element
+    WHERE n.nspname = %s AND t.relname = %s
+    AND c.contype = 'p'
+    ORDER BY k.ord
+"""
+
+FOREIGN_KEYS = """
+    SELECT
+        c.conname AS constraint_name,
+        a_local.attname AS column_name,
+        t_ref.relname AS referenced_table,
+        a_ref.attname AS referenced_column
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    JOIN pg_class t_ref ON t_ref.oid = c.confrelid
+    JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(local_num, ref_num, ord)
+        ON true
+    JOIN pg_attribute a_local ON a_local.attrelid = c.conrelid AND a_local.attnum = k.local_num
+    JOIN pg_attribute a_ref ON a_ref.attrelid = c.confrelid AND a_ref.attnum = k.ref_num
+    WHERE n.nspname = %s AND t.relname = %s
+    AND c.contype = 'f'
+    ORDER BY c.conname, k.ord
+"""
+
 # =============================================================================
 # ROLE QUERIES
 # =============================================================================

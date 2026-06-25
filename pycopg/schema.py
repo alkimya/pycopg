@@ -673,6 +673,71 @@ class SchemaAccessor:
         """
         return self._db.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
+    def primary_key(self, table: str, schema: str = "public") -> dict | None:
+        """Return the primary key constraint for a table, or None if absent.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict or None
+            Dict with keys ``constraint_name`` and ``columns`` (in key order),
+            or ``None`` when the table has no primary key (or does not exist).
+        """
+        validate_identifiers(table, schema)
+        rows = self._db.execute(queries.PRIMARY_KEY, [schema, table])
+        if not rows:
+            return None
+        return {
+            "constraint_name": rows[0]["constraint_name"],
+            "columns": [r["column_name"] for r in rows],
+        }
+
+    def foreign_keys(self, table: str, schema: str = "public") -> list[dict]:
+        """Return all foreign key constraints on a table.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            Each entry has keys ``constraint_name``, ``columns``,
+            ``referenced_table``, and ``referenced_columns`` (columns in key
+            order).  Returns ``[]`` when the table has no foreign keys or does
+            not exist.
+        """
+        validate_identifiers(table, schema)
+        rows = self._db.execute(queries.FOREIGN_KEYS, [schema, table])
+        if not rows:
+            return []
+        # Group flat rows by constraint_name preserving row order.
+        result: list[dict] = []
+        seen: dict[str, dict] = {}
+        for row in rows:
+            name = row["constraint_name"]
+            if name not in seen:
+                entry: dict = {
+                    "constraint_name": name,
+                    "columns": [],
+                    "referenced_table": row["referenced_table"],
+                    "referenced_columns": [],
+                }
+                seen[name] = entry
+                result.append(entry)
+            seen[name]["columns"].append(row["column_name"])
+            seen[name]["referenced_columns"].append(row["referenced_column"])
+        return result
+
 
 class AsyncSchemaAccessor:
     """Async schema helper namespace exposed as ``async_db.schema``.
@@ -1322,3 +1387,68 @@ class AsyncSchemaAccessor:
             List of constraint info dicts.
         """
         return await self._db.execute(queries.LIST_CONSTRAINTS, [schema, table])
+
+    async def primary_key(self, table: str, schema: str = "public") -> dict | None:
+        """Return the primary key constraint for a table, or None if absent.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict or None
+            Dict with keys ``constraint_name`` and ``columns`` (in key order),
+            or ``None`` when the table has no primary key (or does not exist).
+        """
+        validate_identifiers(table, schema)
+        rows = await self._db.execute(queries.PRIMARY_KEY, [schema, table])
+        if not rows:
+            return None
+        return {
+            "constraint_name": rows[0]["constraint_name"],
+            "columns": [r["column_name"] for r in rows],
+        }
+
+    async def foreign_keys(self, table: str, schema: str = "public") -> list[dict]:
+        """Return all foreign key constraints on a table.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            Each entry has keys ``constraint_name``, ``columns``,
+            ``referenced_table``, and ``referenced_columns`` (columns in key
+            order).  Returns ``[]`` when the table has no foreign keys or does
+            not exist.
+        """
+        validate_identifiers(table, schema)
+        rows = await self._db.execute(queries.FOREIGN_KEYS, [schema, table])
+        if not rows:
+            return []
+        # Group flat rows by constraint_name preserving row order.
+        result: list[dict] = []
+        seen: dict[str, dict] = {}
+        for row in rows:
+            name = row["constraint_name"]
+            if name not in seen:
+                entry: dict = {
+                    "constraint_name": name,
+                    "columns": [],
+                    "referenced_table": row["referenced_table"],
+                    "referenced_columns": [],
+                }
+                seen[name] = entry
+                result.append(entry)
+            seen[name]["columns"].append(row["column_name"])
+            seen[name]["referenced_columns"].append(row["referenced_column"])
+        return result
