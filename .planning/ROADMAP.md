@@ -153,7 +153,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 35-02-describe-consolidation-PLAN.md — `describe()` composition helper (one flat dict over table_info/primary_key/foreign_keys/list_indexes) on both accessors + composition-equality/missing-table tests + optional v090 named-surface test [Wave 2]
+- [x] 35-02-describe-consolidation-PLAN.md — `describe()` composition helper (one flat dict over table_info/primary_key/foreign_keys/list_indexes) on both accessors + composition-equality/missing-table tests + optional v090 named-surface test [Wave 2]
 
 **UI hint**: no
 
@@ -210,5 +210,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete | 2026-06-23 |
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete    | 2026-06-24 |
-| 35. Schema Introspection | v0.9.0 | 1/2 | In Progress|  |
+| 35. Schema Introspection | v0.9.0 | 2/2 | Complete   | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 0/TBD | Not started | - |

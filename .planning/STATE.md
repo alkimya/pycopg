@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: executing
-stopped_at: Phase 35 context gathered
-last_updated: "2026-06-25T08:29:08.136Z"
+stopped_at: Completed 35-02-describe-consolidation-PLAN.md
+last_updated: "2026-06-25T08:57:40.978Z"
 last_activity: 2026-06-25 -- Phase 35 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 3
-  percent: 50
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 ## Current Position
 
 Phase: 35 (schema-introspection) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 35
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-06-25 -- Phase 35 execution started
 
 Progress: `░░░░░░░░░░` 0% (0/3 phases)
@@ -50,6 +50,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 | 36. Release v0.9.0 | TBD | 0 | Not started |
 | Phase 34-crud-ergonomics P01 | 56 | 2 tasks | 2 files |
 | Phase 34 P02 | 496 | - tasks | - files |
+| Phase 35 P02 | 8min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 - [Phase ?]: _build_where_dict placed after _build_select_sql in QueryMixin — validate_identifiers-first + values-as-params pattern (T-34-01, T-34-02)
 - [Phase ?]: upsert/delete_where/update_where added to both Database and AsyncDatabase with identical signatures, empty-where guard, RETURNING * for upsert, SET-then-WHERE param order
 - [Phase 34-03]: exists/count/paginate/fetch_all added flat on both classes — ValueError-on-empty-where for exists (pre-cursor), count None-where routes around builder, order_by columns validated, dict_row documented in fetch_all docstring (CRUD-07 part a)
+- [Phase ?]: describe composes table_info/primary_key/foreign_keys/list_indexes into one flat 4-key dict with no new SQL (D-04 anti-drift guarantee; INTRO-05/INTRO-06)
 
 ### Pending Todos
 
@@ -103,7 +105,7 @@ None — start Phase 34 with `/gsd-plan-phase 34`.
 
 ## Session Continuity
 
-Last session: 2026-06-24T19:37:05.329Z
-Stopped at: Phase 35 context gathered
-Resume file: .planning/phases/35-schema-introspection/35-CONTEXT.md
+Last session: 2026-06-25T08:57:40.972Z
+Stopped at: Completed 35-02-describe-consolidation-PLAN.md
+Resume file: None
 Next action: Phase 34 complete — /gsd-verify-phase 34 or proceed to Phase 35

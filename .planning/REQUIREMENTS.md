@@ -41,8 +41,8 @@ and accepts an optional `schema="public"` argument.
 - [ ] **INTRO-02**: User can get a table's foreign keys with `db.schema.foreign_keys(table, schema="public")`, each entry naming the local column(s), referenced table, and referenced column(s)
 - [ ] **INTRO-03**: User can list sequences with `db.schema.sequences(schema="public")`
 - [ ] **INTRO-04**: User can list views with `db.schema.views(schema="public")`
-- [ ] **INTRO-05**: User can get a consolidated table description with `db.schema.describe(table, schema="public")` (columns + types, primary key, foreign keys, indexes) — the all-in-one introspection helper
-- [ ] **INTRO-06**: Every new introspection helper has a working, tested `AsyncDatabase` (`AsyncSchemaAccessor`) equivalent with identical signature, enforced by `test_accessor_parity`
+- [x] **INTRO-05**: User can get a consolidated table description with `db.schema.describe(table, schema="public")` (columns + types, primary key, foreign keys, indexes) — the all-in-one introspection helper
+- [x] **INTRO-06**: Every new introspection helper has a working, tested `AsyncDatabase` (`AsyncSchemaAccessor`) equivalent with identical signature, enforced by `test_accessor_parity`
 
 ### Release
 
@@ -90,8 +90,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INTRO-02 | Phase 35 | Pending |
 | INTRO-03 | Phase 35 | Pending |
 | INTRO-04 | Phase 35 | Pending |
-| INTRO-05 | Phase 35 | Pending |
-| INTRO-06 | Phase 35 | Pending |
+| INTRO-05 | Phase 35 | Complete |
+| INTRO-06 | Phase 35 | Complete |
 | REL-09 | Phase 36 | Pending |
 
 **Coverage:**
