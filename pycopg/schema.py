@@ -1,14 +1,15 @@
 """Schema accessor classes for db.schema.* / async_db.schema.*.
 
 This module provides :class:`SchemaAccessor` and
-:class:`AsyncSchemaAccessor` — the real implementation of the 27
+:class:`AsyncSchemaAccessor` — the real implementation of the 32
 DDL + introspection helper methods, moved verbatim from
 ``Database`` / ``AsyncDatabase`` as part of the v0.6.0 accessor
-reorganisation (D-06).
+reorganisation (D-06) and extended with 5 introspection helpers in
+v0.9.0 (``primary_key``, ``foreign_keys``, ``sequences``, ``views``,
+``describe``).
 
 Both classes are exposed on the parent database via a lazy-cached
-``schema`` property added in plan 02.  The flat ``db.*`` names remain
-as thin deprecated aliases (see :mod:`pycopg.aliases`) until v0.7.0.
+``schema`` property.  The flat ``db.*`` DDL names were removed in v0.7.0.
 """
 
 from __future__ import annotations

@@ -7,8 +7,8 @@ admin (roles & permissions) helper methods, moved verbatim from
 reorganisation (D-06).
 
 Both classes are exposed on the parent database via a lazy-cached
-``admin`` property added in plan 02.  The flat ``db.*`` names remain
-as thin deprecated aliases (see :mod:`pycopg.aliases`) until v0.7.0.
+``admin`` property.  The flat ``db.*`` admin names were removed in
+v0.7.0.
 """
 
 from __future__ import annotations

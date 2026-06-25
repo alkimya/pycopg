@@ -1,13 +1,14 @@
 """TimescaleDB accessor classes for db.timescale.* / async_db.timescale.*.
 
 This module provides :class:`TimescaleAccessor` and
-:class:`AsyncTimescaleAccessor` — the real implementation of the 6
+:class:`AsyncTimescaleAccessor` — the real implementation of the 15
 TimescaleDB helper methods, moved verbatim from ``Database`` /
-``AsyncDatabase`` as part of the v0.6.0 accessor reorganisation (D-06).
+``AsyncDatabase`` as part of the v0.6.0 accessor reorganisation (D-06)
+and extended through v0.8.0.
 
 Both classes are exposed on the parent database via a lazy-cached
-``timescale`` property added in plan 02.  The flat ``db.*`` names remain
-as thin deprecated aliases (see :mod:`pycopg.aliases`) until v0.7.0.
+``timescale`` property.  The flat ``db.*`` timescale names were removed
+in v0.7.0.
 """
 
 from __future__ import annotations

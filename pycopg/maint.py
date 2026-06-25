@@ -6,8 +6,8 @@ maintenance and size helper methods, moved verbatim from ``Database`` /
 ``AsyncDatabase`` as part of the v0.6.0 accessor reorganisation (D-06).
 
 Both classes are exposed on the parent database via a lazy-cached
-``maint`` property added in plan 02.  The flat ``db.*`` names remain
-as thin deprecated aliases (see :mod:`pycopg.aliases`) until v0.7.0.
+``maint`` property.  The flat ``db.*`` maintenance names were removed in
+v0.7.0.
 """
 
 from __future__ import annotations
