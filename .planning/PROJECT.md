@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.8.0 it offers full sync/async feature parity, an accessor-organized public surface (`db.spatial/etl/timescale/admin/maint/backup/schema.*`) with a flat transactional core, PostGIS spatial helpers, a declarative ETL pipeline runner with run tracking, idempotent loads and **watermark-based incremental loading** (`Pipeline.incremental_column`), an **advanced TimescaleDB surface** (`db.timescale.*`, 15 methods — chunk & dimension management, full continuous-aggregate lifecycle, and `time_bucket`/`time_bucket_gapfill` query helpers), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
+A production-ready Python library providing high-level sync and async APIs for PostgreSQL, PostGIS, and TimescaleDB. As of v0.9.0 it offers full sync/async feature parity, an accessor-organized public surface (`db.spatial/etl/timescale/admin/maint/backup/schema.*`) with a flat transactional core, **ergonomic single-row/predicate CRUD helpers** (`upsert`, `delete_where`, `update_where`, `exists`, `count`, `paginate`, `fetch_all`) next to the batch core, **enriched schema introspection** (`db.schema.primary_key/foreign_keys/sequences/views/describe`, 32 methods), PostGIS spatial helpers, a declarative ETL pipeline runner with run tracking, idempotent loads and **watermark-based incremental loading** (`Pipeline.incremental_column`), an **advanced TimescaleDB surface** (`db.timescale.*`, 15 methods — chunk & dimension management, full continuous-aggregate lifecycle, and `time_bucket`/`time_bucket_gapfill` query helpers), numpydoc-documented APIs with an enforced docstring-coverage gate, and a uv-based contributor/CI toolchain — all under a 94% test-coverage ratchet. Published on PyPI as a standalone library and documented on ReadTheDocs.
 
 ## Core Value
 
@@ -10,7 +10,7 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 ## Current State — v0.9.0 SHIPPED 2026-06-25
 
-**Latest shipped:** v0.9.0 "CRUD ergonomique + introspection enrichie" — published to PyPI (`pip install pycopg==0.9.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.9.0`, workflow run 28171811187, GitHub Release published 2026-06-25). Phases 34–36 complete: 12 new public methods at full sync/async parity — 7 flat CRUD helpers (`upsert`, `delete_where`, `update_where`, `exists`, `count`, `fetch_all`, `paginate`) on `Database`/`AsyncDatabase` next to the transactional core, and 5 introspection helpers (`primary_key`, `foreign_keys`, `sequences`, `views`, `describe`) on `db.schema.*` (27→32 methods); CHANGELOG `[0.9.0]` Added-only with code-exact signatures; docs surfaces updated (README counts + flat-CRUD note, `api-reference.md` rows, `database.md`/`async-database.md` CRUD sections); cosmetic debt cleared (CLAUDE.md version line, dangling `pycopg.aliases` xrefs removed from 5 accessor docstrings); 4 gates green at ship (coverage 94.11%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green); clean-venv smoke confirmed `__version__ == "0.9.0"` with the new CRUD + introspection surface importable. (Milestone roll-up into the requirements/decisions log is finalized by `/gsd-complete-milestone v0.9.0`.) WR-01/WR-03 (case-sensitive `time_bucket(` guard, INTERVAL-literal-vs-`%s`) deferred as behavioral — still advisory tech debt.
+**Latest shipped:** v0.9.0 "CRUD ergonomique + introspection enrichie" — published to PyPI (`pip install pycopg==0.9.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.9.0`, workflow run 28171811187, GitHub Release published 2026-06-25). Phases 34–36 complete: 12 new public methods at full sync/async parity — 7 flat CRUD helpers (`upsert`, `delete_where`, `update_where`, `exists`, `count`, `fetch_all`, `paginate`) on `Database`/`AsyncDatabase` next to the transactional core, and 5 introspection helpers (`primary_key`, `foreign_keys`, `sequences`, `views`, `describe`) on `db.schema.*` (27→32 methods); CHANGELOG `[0.9.0]` Added-only with code-exact signatures; docs surfaces updated (README counts + flat-CRUD note, `api-reference.md` rows, `database.md`/`async-database.md` CRUD sections); cosmetic debt cleared (CLAUDE.md version line, dangling `pycopg.aliases` xrefs removed from 5 accessor docstrings); 4 gates green at ship (coverage 94.11%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green); clean-venv smoke confirmed `__version__ == "0.9.0"` with the new CRUD + introspection surface importable. Milestone CLOSED via `/gsd-complete-milestone v0.9.0` (2026-06-25): 15/15 requirements satisfied, audit PASSED, integration WIRED. WR-01/WR-03 (case-sensitive `time_bucket(` guard, INTERVAL-literal-vs-`%s`) deferred as behavioral — still advisory tech debt.
 
 **Previously shipped:** v0.8.0 "TimescaleDB avancé" — published to PyPI (`pip install pycopg==0.8.0`; wheel + sdist live via OIDC trusted publishing, tag `v0.8.0`, workflow run 28044147070). Phases 30–33 verified passed: 9 new time-series methods (chunk & dimension management ×4, continuous aggregate lifecycle ×3, query helpers ×2) on `db.timescale.*` / `async_db.timescale.*` with full sync/async parity; CHANGELOG `[0.8.0]` Added-only; all three docs surfaces updated (`docs/timescaledb.md` Advanced Chunk & Dimension Management section, `api-reference.md` 15-row table, README "15 methods"); 4 gates green at ship (coverage 95.11%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green); clean-venv import smoke printed 0.8.0. (Milestone roll-up into the requirements/decisions log is finalized by `/gsd-complete-milestone v0.8.0`.)
 
@@ -29,23 +29,26 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
-## Current Milestone: v0.9.0 CRUD ergonomique + introspection enrichie
+## Next Milestone Goals
+
+**v1.0.0 (next) — Spatial v2 + stabilisation API:** extend `db.spatial.*` (ST_Union, ST_Simplify, ST_ConvexHull, ST_MakeValid, spatial aggregates, raster?) + freeze the public API for a real 1.0. The forward sequence (see `.planning/FUTURE-MILESTONES.md`) was locked by the user: v0.9.0 CRUD (shipped) → **v1.0.0 spatial v2 + stabilisation API**. Start with `/gsd-new-milestone`; phase numbering continues from Phase 36 (v1.0.0 starts at Phase 37).
+
+<details>
+<summary>v0.9.0 milestone goal & locked decisions (shipped 2026-06-25 — historical reference)</summary>
 
 **Goal:** Additive convenience over the existing API, low risk — ergonomic CRUD helpers + enriched schema introspection, full sync/async parity, zero new runtime dependencies.
 
-**Target features:**
-- **CRUD ergonomics** — `upsert` (singulier), `delete_where`, `update_where`, `exists`, `count`, `paginate`, dict-fetch — convenience over the existing transactional core.
-- **Introspection helpers** — `primary_key()`, `foreign_keys()`, `sequences()`, `views()`, `describe()` — enrich the existing schema-introspection surface.
+**Target features (delivered):**
+- **CRUD ergonomics** — `upsert` (singulier), `delete_where`, `update_where`, `exists`, `count`, `paginate`, `fetch_all` (dict-fetch) — convenience over the existing transactional core.
+- **Introspection helpers** — `primary_key()`, `foreign_keys()`, `sequences()`, `views()`, `describe()` — extended the existing `db.schema.*` surface (27→32).
 
-**Key context:** Started 2026-06-24 via `/gsd-new-milestone`. The forward sequence (see `.planning/FUTURE-MILESTONES.md`) was locked by the user: v0.9.0 CRUD → **v1.0.0 spatial v2 + stabilisation API**. Scope decisions locked at cadrage (2026-06-24):
+**Locked scope decisions (cadrage 2026-06-24):**
 - **Both feature families in one milestone** — CRUD ergonomics + introspection together.
-- **Placement: keep on `db.schema.*` / flat transactional core — NO `db.meta.*` carve.** The v0.6.0 open question (carve introspection into `db.meta.*`) is resolved: stay purely additive, no new accessor, no second deprecation cycle on a just-cleaned surface. The new introspection methods extend `db.schema.*`; the CRUD helpers land where their nearest analogs live (transactional core / `db.schema.*` per builder-pur convention).
+- **Placement: keep on `db.schema.*` / flat transactional core — NO `db.meta.*` carve.** The v0.6.0 open question (carve introspection into `db.meta.*`) was resolved: stay purely additive, no new accessor, no second deprecation cycle on a just-cleaned surface. The new introspection methods extended `db.schema.*`; the CRUD helpers landed on the flat transactional core next to their `*_many` analogs, sharing a `_build_where_dict` pure builder on `QueryMixin`.
 - **Builder-pur + accessor pattern** (`validate_identifiers` first, user values as `%s`, pure `(sql, params)` builders, sync/async parity verified by `test_accessor_parity`) — same as spatial/etl/timescale.
-- **Sync/async parity obligatoire** (Core Value), **zero new runtime dependencies**, coverage ratchet held ≥94% (baseline 95.11% since v0.7.0).
+- **Sync/async parity obligatoire** (Core Value), **zero new runtime dependencies**, coverage ratchet held ≥94%.
 
-Phase numbering continues from Phase 33 (v0.9.0 starts at Phase 34).
-
-**v1.0.0 (next) — Spatial v2 + stabilisation:** extend `db.spatial.*` (ST_Union, ST_Simplify, ST_ConvexHull, ST_MakeValid, spatial aggregates, raster?) + freeze the public API for a real 1.0.
+</details>
 
 <details>
 <summary>v0.8.0 milestone goal & locked decisions (shipped 2026-06-23 — historical reference)</summary>
@@ -164,8 +167,24 @@ Phase numbering continues from Phase 33 (v0.9.0 starts at Phase 34).
 - ✓ Time-series query helpers: `time_bucket` (Apache-free, REAL live output) + `time_bucket_gapfill` (required positional `start`/`finish`, double-bound, TSL-only) with `into="df"/"rows"` routing via local `_to_named_binds`/`_check_into` — v0.8.0 (TS-ADV-06, TS-ADV-07)
 - ✓ Full sync/async parity for all 9 new methods (`AsyncTimescaleAccessor` mirrors every method, `await`ed extension guard) enforced by `test_accessor_parity` + explicit 9-name surface assertion — v0.8.0 (TS-ADV-10)
 - ✓ v0.8.0 released to PyPI via OIDC: version bumped (2 sources), CHANGELOG `[0.8.0]` Added-only, all 3 docs surfaces updated (timescaledb.md Advanced section + api-reference 15-row table + README "15 methods"), 4 gates green (cov 95.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tagged, clean-venv smoke confirmed — v0.8.0 (REL-08)
+- ✓ Shared `_build_where_dict` pure staticmethod on `QueryMixin` — dict of equality conditions → AND-ed `col = %s` fragment, column keys `validate_identifiers`-first, values positionally bound; the single injection-safe WHERE path for all predicate CRUD — v0.9.0 (foundation for CRUD-02..06)
+- ✓ Single-row `db.upsert(table, row, conflict_columns, ...)` returning the affected row via `RETURNING *` (singular complement to `upsert_many`); empty-update-set `ValueError` guard — v0.9.0 (CRUD-01)
+- ✓ Predicate writes `db.delete_where(table, where={...})` / `db.update_where(table, values={...}, where={...})` returning rowcount; empty-where (and empty-values) `ValueError` before any DB round-trip — v0.9.0 (CRUD-02, CRUD-03)
+- ✓ Read helpers without materializing rows: `db.exists(table, where={...}) -> bool` (`SELECT EXISTS`) + `db.count(table, where=None|{...}) -> int` (`SELECT COUNT(*)`, `where=None` routes around the builder) — v0.9.0 (CRUD-04, CRUD-05)
+- ✓ `db.paginate(table, limit, offset=0, order_by=..., where=None, descending=...)` returning page rows — `order_by` identifier-validated, non-str/empty elements rejected, `int`-cast `LIMIT`/`OFFSET`, optional dict-WHERE — v0.9.0 (CRUD-06)
+- ✓ `db.fetch_all(sql, params) -> list[dict]` dict-fetch (twin to `fetch_one`, `dict_row` documented) for ergonomic row access — v0.9.0 (CRUD-07)
+- ✓ Every new CRUD helper has a working, tested `AsyncDatabase` equivalent with identical signature, enforced by the parity surface tests — v0.9.0 (CRUD-08)
+- ✓ Schema introspection on `db.schema.*`: `primary_key(table, schema)` (PK column(s), composite-safe conkey-order) + `foreign_keys(table, schema)` (local/referenced columns grouped by constraint) via `pg_catalog` — v0.9.0 (INTRO-01, INTRO-02)
+- ✓ `db.schema.sequences(schema)` + `db.schema.views(schema)` (`list[str]`, views excludes materialized views) via `information_schema` — v0.9.0 (INTRO-03, INTRO-04)
+- ✓ `db.schema.describe(table, schema)` consolidated dict (columns+types, primary key, foreign keys, indexes) composing `table_info`/`primary_key`/`foreign_keys`/`list_indexes` — no new SQL — v0.9.0 (INTRO-05)
+- ✓ Every new introspection helper has a working, tested `AsyncSchemaAccessor` equivalent with identical signature, enforced by `test_accessor_parity` + `test_schema_v090_surface` — v0.9.0 (INTRO-06)
+- ✓ v0.9.0 released to PyPI via OIDC: version bumped (2 sources, `__version__` dynamic), CHANGELOG `[0.9.0]` Added-only (12 methods, code-exact signatures), docs surfaces updated (README 27→32 + flat-CRUD note, api-reference rows, database/async-database CRUD sections), 4 gates green (cov 94.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tagged, clean-venv smoke confirmed — v0.9.0 (REL-09)
 
 ### Active
+
+<!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
+
+_None — v0.9.0 shipped. Next milestone (v1.0.0 "Spatial v2 + stabilisation API") scope is defined fresh via `/gsd-new-milestone`._
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
@@ -192,23 +211,30 @@ Then **v1.0.0 "Spatial v2 + stabilisation"**.
 
 ## Context
 
-Shipped v0.8.0 (2026-06-23). Purely additive on `pycopg/timescale.py`: 9 new time-series methods (sync + async) grow the `db.timescale.*` surface from 6 to 15 — `show_chunks`/`drop_chunks`/`add_dimension`/`add_reorder_policy` (chunk & dimension management), `create_continuous_aggregate`/`refresh_continuous_aggregate`/`add_continuous_aggregate_policy` (cagg lifecycle via the `connect(autocommit=True)` seam), and `time_bucket`/`time_bucket_gapfill` (query helpers, `into="df"/"rows"`). New milestone-wide `TimescaleError(PycopgError)` in `exceptions.py`; new `TSDB_SHOW_CHUNKS`/`TSDB_DROP_CHUNKS` SQL constants in `queries.py`; new `tests/test_timescale.py` (sync `ts_db` + `async_ts_db` skip-fixtures, two-layer mock + live coverage). Community/TSL-only operations (caggs, gapfill, reorder) tested mock-authoritative + Apache-license-tolerant live. No breaking change, no migration. Zero new runtime dependencies.
+Shipped v0.9.0 (2026-06-25). Purely additive across `pycopg/base.py`, `pycopg/database.py`, `pycopg/async_database.py`, `pycopg/schema.py`, `pycopg/queries.py`: 12 new public methods (sync + async) at full parity — 7 flat CRUD helpers on `Database`/`AsyncDatabase` (`upsert`, `delete_where`, `update_where`, `exists`, `count`, `paginate`, `fetch_all`) sharing a `_build_where_dict` pure staticmethod on `QueryMixin` (the single injection-safe dict→`%s` WHERE path), and 5 introspection helpers on `db.schema.*` (`primary_key`, `foreign_keys`, `sequences`, `views`, `describe`) growing that accessor 27→32. New `PRIMARY_KEY`/`FOREIGN_KEYS` (pg_catalog) + `SEQUENCES`/`VIEWS` (information_schema) SQL constants; `describe` composes existing helpers with no new SQL. No breaking change, no migration. Zero new runtime dependencies.
 Tech stack: Python 3.11+, psycopg 3, psycopg_pool, pandas, geopandas, tenacity, Sphinx; uv toolchain (dev + CI + build), hatchling backend.
-Codebase: ~15,112 LOC lib (`pycopg/`).
-Test coverage: 95.11% with real PostgreSQL (`pycopg_test` + a TimescaleDB-enabled `ts_db` fixture); coverage ratchet at `--cov-fail-under=94`.
-Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; `docs/timescaledb.md` rewritten to first-class `db.timescale.*` calls + Advanced Chunk & Dimension Management section; `api-reference.md` 15-row timescale table; `docs/etl.md` incremental-loading section. CHANGELOG `[0.8.0]` Added-only (no MIGRATION — purely additive).
+Codebase: ~15,400 LOC lib (`pycopg/`).
+Test coverage: 94.11% with real PostgreSQL (`pycopg_test`/`pycopg_test2` + a TimescaleDB-enabled `ts_db` fixture); coverage ratchet at `--cov-fail-under=94`.
+Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs live; README `db.schema.*` 27→32 + flat-CRUD note, `api-reference.md` CRUD + introspection rows, `database.md`/`async-database.md` CRUD Helpers (v0.9.0) sections. CHANGELOG `[0.9.0]` Added-only (no MIGRATION — purely additive).
 
 **Known tech debt:**
 
 - **2 pre-existing flaky full-suite DB tests** (`TestAsyncIntegration::test_async_transaction_fix`, `TestPostGISErrorHandling::test_create_spatial_index_name_parameter`) — `UndefinedTable` fixture-isolation bug in the spatial/integration suites, NOT ETL code; fail identically in isolation; did not affect the coverage threshold. Worth a fixture-isolation fix in a future cleanup. (See STATE.md Deferred Items.)
 - New (v0.7.0): one ~2.7% flaky bound-param test surfaced during Phase 28 (orchestrator-fixed); watch for re-flake. (See RETROSPECTIVE.md.)
-- Coverage-95 stretch still deferred — gate honest at 94 (measured 95.11% at v0.8.0 ship); remaining headroom is DB/IO paths structurally out of scope.
+- Coverage-95 stretch still deferred — gate honest at 94 (measured 94.11% at v0.9.0 ship; v0.9.0 added schema-introspection coverage to clear the ratchet); remaining headroom is DB/IO paths structurally out of scope.
 - `TableNotFound` exported in `__all__` but has no internal raise site (user-`except` only) — benign.
-- `CLAUDE.md` "Version" line still reads v0.5.0 (stale) — actual shipped is v0.8.0; cosmetic doc lag (carried since v0.6.0).
-- Stale `pycopg.aliases` Sphinx cross-reference in accessor docstrings (IN-01/IN-02 carry-forward, cosmetic — `aliases.py` was deleted in v0.7.0).
 - v0.8.0 code-review warnings deferred (advisory, not blocking): WR-01 case-sensitive `time_bucket(` cagg guard; WR-03 INTERVAL-literal-vs-`%s`; `%`/`%s` in caller-supplied structural `aggregates`/`where` breaks the rows/named-bind path (caller-error UX, not injection); IN-03 fragile `chunk_seq` helper.
+- v0.9.0 advisory items (cosmetic, not blocking): `test_sequences_async` asserts `len >= 1` rather than the specific `<table>_id_seq` name (36-REVIEW WR-01); `upsert` docstring missing a `Raises` section (34 IN-03); duplicated `import uuid`/ad-hoc table helpers in async tests (34 IN-04).
+- 4 pre-existing ruff errors (N818/W291/F841/E722) in files NOT modified this milestone — not a quality gate; down from ~35 historically.
+- _Resolved in v0.9.0:_ `CLAUDE.md` "Version" line now reads v0.9.0 (was stale at v0.5.0, carried since v0.6.0); stale `pycopg.aliases` Sphinx cross-references removed from all 5 accessor docstrings (IN-01/IN-02 carry-forward closed).
 - Nyquist: phases 22–24 VALIDATION.md left `draft`/`nyquist_compliant: false` (verified PASSED via VERIFICATION.md; missing formal sign-off, not a coverage gap — see STATE.md Deferred Items).
 - Database class is organized under accessors (`spatial`/`etl`/`timescale`/`admin`/`maint`/`backup`/`schema`) with the transactional core kept flat by design; the public surface is accessor-only (no flat aliases).
+
+**Resolved in v0.9.0:**
+
+- Ergonomic CRUD delivered end-to-end at full sync/async parity (CRUD-01..08): `upsert` (singular), `delete_where`, `update_where`, `exists`, `count`, `paginate`, `fetch_all` on the flat transactional core, all predicate writes sharing one injection-safe `_build_where_dict` builder. Purely additive, no migration.
+- Enriched schema introspection delivered at full parity (INTRO-01..06): `primary_key`, `foreign_keys`, `sequences`, `views`, `describe` extend `db.schema.*` 27→32; the v0.6.0 `db.meta.*` carve question resolved as "stay additive on `db.schema.*`."
+- All of v0.3.0 → v0.9.0 live on PyPI; cosmetic carry-forward debt (CLAUDE.md version line, `pycopg.aliases` xrefs) cleared.
 
 **Resolved in v0.8.0:**
 
@@ -225,7 +251,8 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 
 - TimescaleDB follow-ups (out of v0.8.0 surface): `drop_continuous_aggregate`/`remove_continuous_aggregate_policy` lifecycle removal (TSDB-F01), `time_bucket` `origin`/`offset` alignment (TSDB-F02), `compress_chunk`/`decompress_chunk` per-chunk control (TSDB-F03), `show_chunks` physical-time filters (TSDB-F04).
 - ETL incremental follow-ups: `initial_watermark` first-run bound (ETL-INC-F01), configurable `>=`/lookback boundary (ETL-INC-F02), multi-column watermarks (ETL-INC-F03), advisory-lock concurrency (ETL-INC-F04), CDC/WAL change capture (ETL-INC-F05).
-- v0.9.0 (next candidate): CRUD ergonomique + introspection enrichie. v1.0.0: spatial v2 + API stabilisation.
+- CRUD/introspection follow-ups (v0.9.0 v2 backlog): raw-SQL `where=` escape hatch (CRUD-F01), keyset/cursor pagination (CRUD-F02), page envelope with total/has_next (CRUD-F03), `describe` as dataclass/DataFrame (INTRO-F01), `materialized_views()` + per-view column introspection (INTRO-F02).
+- v1.0.0 (next): spatial v2 + API stabilisation.
 - API-01: Named parameter support (:name syntax)
 - API-02: Connection health checks
 - API-03: Structured logging
@@ -282,7 +309,7 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.6.0: real logic lives in the accessor; old `db.*` becomes the wrapper (D-SCOPE-2) | Makes v0.7.0 alias removal a single-block deletion with no logic touched | ✓ Good — `@deprecated_alias` decorator centralizes warn+delegate; bodies moved verbatim |
 | v0.6.0: all 5 accessors in one milestone (D-SCOPE-3) | Mechanical repetitive work — validate the pattern at Phase 21, replicate Phases 22-24 | ✓ Good — pattern proved once, replicated cleanly across admin/maint/backup/schema |
 | v0.6.0: sync/async parity enforced for every accessor (D-SCOPE-4) | Core value; a method moved on one side but not the other would break parity | ✓ Good — 7-pair `ACCESSOR_PAIRS`, `test_accessor_parity` green both directions |
-| v0.6.0: `db.schema.*` kept as one block, not split into `db.meta.*` | Group by domain (like spatial/etl), not by operation type; carve later on clean surface | ✓ Good — single 27-method accessor; `db.meta.*` carve reconsidered at v0.9.0 |
+| v0.6.0: `db.schema.*` kept as one block, not split into `db.meta.*` | Group by domain (like spatial/etl), not by operation type; carve later on clean surface | ✓ Resolved — v0.9.0 decided AGAINST the carve: introspection stays additive on `db.schema.*` (now 32 methods), no new accessor |
 | v0.6.0: DataFrame methods + transactional core stay flat on `db.*` | Daily-use / core API; accessors are for thematic method families | ✓ Good — `execute`/`session`/`to_dataframe`/… unchanged |
 | v0.6.0: `create_spatial_index`/`list_geometry_columns` → `db.spatial.*`, not `db.schema.*` | Thematic PostGIS coherence over DDL grouping | ✓ Good — relocated verbatim; PostGIS guard now also covers the deprecated flat path (D-06) |
 | v0.6.0: deprecated stubs use `(*args, **kwargs)` signatures (WR-01) | Single uniform decorator beats 56 hand-copied signature wrappers | ✓ Resolved — aliases removed in v0.7.0; IDE signature erasure gone, surface is accessor-only with full type info |
@@ -299,6 +326,11 @@ Docs: numpydoc, `interrogate` 100% (gate ≥95), Sphinx `-W` green, ReadTheDocs 
 | v0.8.0: `add_dimension` uses the TSDB 2.x `by_hash`/`by_range` builder form with construction-time mutual-exclusivity `ValueError`; dup-dimension → `TimescaleError` | 2.28's builder form replaced the legacy positional API; the "non-empty hypertable raises" behavior no longer exists (D-08 reshaped) | ✓ Good — validated against live TSDB 2.28; 13 regression tests |
 | v0.8.0: query helpers use a LOCAL `_to_named_binds`/`_check_into` (not imported from spatial); `into ∈ {df, rows}` (gdf rejected) | Avoid a timescale→spatial import coupling; gdf is meaningless for time-series rows | ✓ Good — local copies, `into="gdf"` raises before any DB call |
 | v0.8.0: D-08 REVERSED at plan time — `time_bucket` Apache-free (REAL live tests) but `gapfill`/caggs/reorder Community/TSL-only | Live verification against local Apache 2.28 contradicted the CONTEXT assumption; tests must not assert features the license lacks | ✓ Good — split verdict: mock-authoritative + license-tolerant `try/except FeatureNotSupported` live |
+| v0.9.0: both feature families (CRUD + introspection) in one milestone | Both purely additive, low-risk, share the builder-pur + parity discipline; one cadrage, one release | ✓ Good — 12 methods shipped at parity, 3 phases, no scope creep |
+| v0.9.0: NO `db.meta.*` carve — introspection extends `db.schema.*`, CRUD lands flat on the transactional core | Stay purely additive; no second deprecation cycle on a just-cleaned surface; resolves the v0.6.0 open question | ✓ Good — `db.schema.*` 27→32, CRUD next to `*_many` analogs, zero deprecation churn |
+| v0.9.0: predicate `where=` is a dict of equality conditions (`{col: val}` → AND-ed `col = %s`), one shared `_build_where_dict` builder | Covers the common case injection-safely (`validate_identifiers` keys, values as `%s`); raw-SQL escape hatch deferred (CRUD-F01) | ✓ Good — single WHERE path for delete/update/exists/count/paginate, sync+async; no consumer hand-rolls SQL |
+| v0.9.0: `describe()` composes existing helpers (`table_info`/`primary_key`/`foreign_keys`/`list_indexes`), no new SQL | One source of truth per fact; guaranteed-consistent flat dict; no `DESCRIBE` constant to drift | ✓ Good — composition-equality test asserts it on both sync and async |
+| v0.9.0: `__version__` stays dynamic via `importlib.metadata`, never hardcoded (D-36-01) | Single canonical version source (`pyproject.toml`); no bump-two-places drift | ✓ Good — clean-venv smoke confirmed `0.9.0` from installed metadata |
 
 ## Evolution
 
@@ -318,6 +350,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-06-25 — milestone v0.9.0 "CRUD ergonomique + introspection enrichie" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.9.0 (CRUD helpers + 32-method `db.schema.*`); Current State → v0.9.0 SHIPPED + milestone-close note; all 15 v0.9.0 requirements (CRUD-01..08, INTRO-01..06, REL-09) + the `_build_where_dict` foundation moved to Validated; Active emptied; "Current Milestone" collapsed to historical reference, forward pointer reframed as "Next Milestone Goals" (v1.0.0 spatial v2 + stabilisation API, starts Phase 37); Context refreshed (~15,400 lib LOC, 94.11% coverage, v0.9.0 advisory debt recorded, CLAUDE.md version + aliases-xref debt marked resolved, CRUD/INTRO-F follow-ups deferred); 5 v0.9.0 Key Decisions added + v0.6.0 `db.meta.*` decision flipped to ✓ Resolved. ROADMAP collapsed + REQUIREMENTS/audit archived to `milestones/v0.9.0-*`. Pre-flight: open-artifact audit clean, 15/15 requirements complete, audit PASSED, integration WIRED. Tag `v0.9.0` already created at Phase 36 (PyPI publish). Next: `/gsd-new-milestone` (v1.0.0).*
+
 *Last updated: 2026-06-12 — Phase 14 complete (spatial helpers : `db.spatial.*`/`async_db.spatial.*` en parité, 11 helpers, builders purs 100% couverts, garde PostGIS, D-01..D-12 actés dans 08-DESIGN.md, gate coverage 92→94 ; SPAT-01..06 validés, vérification 11/11).*
 
 *Last updated: 2026-06-14 — Phase 15 complete + milestone v0.4.0 SHIPPED. Released to PyPI (wheel+sdist via OIDC trusted publishing, tag `v0.4.0`, clean-venv install verified) and ReadTheDocs (green build, Spatial Helpers page live). REL-01..06 satisfied: Sphinx spatial docs + `docs/spatial.md`, version bump 0.4.0, CHANGELOG/MIGRATION, Node 24 CI actions, RTD green, PyPI publish, milestone audit passed (6/6 plans, verification 6/6).*

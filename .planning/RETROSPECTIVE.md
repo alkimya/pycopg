@@ -255,6 +255,52 @@
 
 ---
 
+## Milestone: v0.9.0 — CRUD ergonomique + introspection enrichie
+
+**Shipped:** 2026-06-25
+**Phases:** 3 (34–36) | **Plans:** 7 | **Tasks:** 7
+
+### What Was Built
+
+- **CRUD ergonomics (Phase 34):** a shared `_build_where_dict` pure staticmethod on `QueryMixin` (dict of equality conditions → AND-ed `col = %s`, `validate_identifiers` keys, values as `%s`) feeding seven flat helpers on `Database`/`AsyncDatabase` — `upsert` (single-row `RETURNING *`, empty-update-set guard), `delete_where`/`update_where` (rowcount, empty-where `ValueError` pre-flight), `exists` (`SELECT EXISTS`), `count` (`SELECT COUNT(*)`, `where=None` routes around the builder), `paginate` (validated `order_by`, non-str/empty rejection, int-cast LIMIT/OFFSET, optional dict-WHERE), `fetch_all` (dict-fetch twin to `fetch_one`). Built TDD red→green across 3 dependency-ordered waves (builder → write helpers → read helpers).
+- **Schema introspection (Phase 35):** `primary_key`/`foreign_keys` (pg_catalog, composite-safe conkey-order arrays, grouped by constraint) + `sequences`/`views` (information_schema, views naturally excludes matviews) + `describe` (consolidated dict composing `table_info`/`primary_key`/`foreign_keys`/`list_indexes` — no new SQL) on `SchemaAccessor`/`AsyncSchemaAccessor`, growing `db.schema.*` 27→32. New `PRIMARY_KEY`/`FOREIGN_KEYS`/`SEQUENCES`/`VIEWS` constants in `queries.py`; `test_schema_v090_surface` frozenset surface assertion.
+- **Release (Phase 36):** version bump (pyproject canonical + uv.lock + conf.py; `__version__` stays dynamic via `importlib.metadata`, D-36-01), CHANGELOG `[0.9.0]` Added-only with code-exact signatures for all 12 methods (D-36-03 signature-drift guard), docs surfaces (README 27→32 + flat-CRUD note, api-reference rows, database/async-database CRUD sections), cosmetic-debt cleanup (CLAUDE.md version line, `pycopg.aliases` xrefs removed from 5 accessor docstrings), 4 gates green (cov 94.11%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), human-gated tag `v0.9.0` + OIDC publish (run 28171811187), clean-venv smoke.
+
+### What Worked
+
+- **The builder-pur + accessor pattern is now zero-friction muscle memory.** Three milestones of `validate_identifiers`-first / values-as-`%s` / pure `(sql, params)` discipline meant the entire CRUD + introspection surface dropped in with no design churn — the only new primitive (`_build_where_dict`) is a 25-line staticmethod, and every predicate consumer routes through it (integration check confirmed: no hand-rolled WHERE anywhere).
+- **`describe` as pure composition (no new SQL) eliminated a whole class of drift.** By delegating to the four existing introspection helpers, `describe` has one source of truth per fact; the composition-equality test asserts it can never diverge from the standalone helpers. No `DESCRIBE` constant to maintain.
+- **The 3-source audit cross-reference caught the SUMMARY frontmatter gap and resolved it cleanly.** Phase 34's SUMMARYs omit the `requirements_completed` field — the audit matrix flagged it as "verify manually," the manual check (source methods + parity 26/26 + REQUIREMENTS `[x]`) confirmed satisfied. The audit machinery did exactly what it's for: surfaced a tracking gap without raising a false coverage alarm.
+- **Coverage was actively steered to clear the ratchet, not luck.** 36-01 added a `TestAsyncSchemaIntrospection` class (6 tests) to lift coverage 93.31→94.11% — the ratchet held because the gap was identified and closed, not because it happened to pass.
+- **One-cadrage-two-families worked.** Both additive, low-risk families (CRUD + introspection) shipped in one milestone with no scope creep — the right call for purely-additive convenience work.
+
+### What Was Inefficient
+
+- **Ran sequential-on-main yet again (now the de-facto default since v0.6.0).** No worktrees, single-file-per-phase, local `main` ran well ahead of `origin` for the milestone. Fine for mechanical additive work; executor parallelism stays unused.
+- **`milestone.complete` again could not update STATE.md's "Last Activity Description" field at close** — the same CLI-format-vs-expected-format divergence flagged every milestone since v0.6.0 (now 8th+ occurrence).
+- **MILESTONES.md `Delivered`/`Stats` again needed hand-enrichment** — the CLI creates only the base entry (counts + accomplishments); the one-sentence Delivered summary and Stats block are added manually every milestone (6th occurrence).
+- **REQUIREMENTS.md checkbox-vs-traceability drift recurred** — Phase 35's VERIFICATION noted INTRO-01..04 left "Pending"/unchecked while implementations were fully present; reconciled at Phase 36 release. The phase CLIs update the traceability table but not the inline `[x]` boxes.
+
+### Patterns Established
+
+- **A shared pure builder is the cleanest way to guarantee injection-safety across a method family.** `_build_where_dict` is the single WHERE-construction path for five CRUD methods × two classes — validated once, reused ten times. Future predicate methods should route through it, not re-implement.
+- **Consolidation helpers compose existing helpers, never issue their own SQL.** `describe` sets the precedent: an "all-in-one" view is a composition over standalone primitives, asserted equal by test — never a parallel query that can drift.
+- **Decide explicitly AGAINST deferred carves when the surface is clean.** The v0.6.0 `db.meta.*` question was closed by choosing to stay additive on `db.schema.*` — no new accessor, no deprecation cycle on a just-cleaned surface. "Resolve the old open question" is a legitimate milestone deliverable.
+
+### Key Lessons
+
+1. **Accumulated pattern discipline compounds into near-zero-cost milestones.** v0.9.0 added 12 methods across two families with essentially no design events — the builder-pur/accessor/parity conventions established v0.4.0–v0.8.0 did all the heavy lifting. The investment in conventions pays its largest dividend on the most routine work.
+2. **A good audit surfaces tracking gaps without crying wolf.** The 3-source cross-reference flagged the missing SUMMARY frontmatter as "verify manually" rather than "unsatisfied" — exactly the right severity. Trust the matrix, then do the manual check it asks for.
+3. **The recurring tooling taxes are now certainties to design around, not surprises.** STATE.md "Last Activity Description" drift (8th+), MILESTONES `Delivered`/`Stats` hand-enrichment (6th), REQUIREMENTS checkbox-vs-table drift at close (recurring) — these are overdue CLI fixes, not milestone anomalies. Budget the hand-fix time up front.
+
+### Cost Observations
+
+- Model mix: Opus for orchestration/planning/review/audit, Sonnet for executors/verifier/integration-checker.
+- Sessions: 2026-06-24 (milestone launch + Phases 34–35) → 2026-06-25 (Phase 35 verify + Phase 36 release + close), ~2 days.
+- Notable: 3 phases, 7 plans, smallest milestone since v0.5.0; mature patterns meant zero design churn — the work was almost entirely mechanical additive implementation + a clean human-gated release.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -267,6 +313,7 @@
 | v0.6.0 | 4 (21–24) | 13 | Accessor reorg via `@deprecated_alias` + lazy accessors; prove-once-replicate-N; `-W error` as the load-bearing refactor gate; milestone audit restored |
 | v0.7.0 | 5 (25–29) | 13 | Alias hard-removal (delete-the-wrapper-block) + incremental ETL on the reserved `watermark JSONB`; layered pure→run-log→extract/parity decomposition; review caught real coercion bugs |
 | v0.8.0 | 4 (30–33) | 11 | Advanced TimescaleDB surface (`db.timescale.*` 6→15) on the v0.5.0 autocommit seam; mock-authoritative + license-tolerant testing for Apache/TSL split; plan-time live verification reversed a wrong license assumption (D-08) |
+| v0.9.0 | 3 (34–36) | 7 | Ergonomic CRUD + enriched introspection (12 methods, full parity) via one shared `_build_where_dict` builder + `describe` pure-composition; near-zero design churn from mature patterns; resolved the v0.6.0 `db.meta.*` carve question (decided against) |
 
 ### Cumulative Quality
 
@@ -278,6 +325,7 @@
 | v0.6.0 | 30+ (~1100 tests) | 95.64% | Ratchet held at 94; +56 DB-free alias tests + 7-pair parity; `-W error::DeprecationWarning` green at 1030 unit tests; interrogate 100% |
 | v0.7.0 | 30+ (~1180 tests) | 95.11% | Ratchet held at 94; +114-test `test_alias_removal.py` (AttributeError + WR-01) + 34 DB-free incremental builder tests + live-DB watermark round-trips; `-W error::DeprecationWarning` green (no stubs left); interrogate 100% |
 | v0.8.0 | 31+ (~1288 tests) | 95.11% | Ratchet held at 94; new `test_timescale.py` two-layer (mock SQL-shape + Apache-tolerant live) for 9 methods + 9-name surface parity assertion; `-W error::DeprecationWarning` green; interrogate 100% |
+| v0.9.0 | 31+ (~1331 tests) | 94.11% | Ratchet held at 94; +CRUD unit/integration (`_build_where_dict` + 7 helpers × sync/async) + schema-introspection mock+live + `TestAsyncSchemaIntrospection` to clear the ratchet + `test_schema_v090_surface`; `-W error::DeprecationWarning` green; interrogate 100% |
 
 ### Top Lessons (Verified Across Milestones)
 

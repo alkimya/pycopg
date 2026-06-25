@@ -1,5 +1,29 @@
 # Milestones
 
+## v0.9.0 CRUD ergonomique + introspection enrichie (Shipped: 2026-06-25)
+
+**Phases completed:** 3 phases (34–36), 7 plans, 7 tasks
+
+**Delivered:** A purely-additive convenience release adding 12 new public methods at full sync/async parity. Seven ergonomic CRUD helpers land on the flat transactional core next to their `*_many` batch analogs — `upsert` (single-row `RETURNING *`), `delete_where`, `update_where` (rowcount, empty-where `ValueError` guard), `exists` (`SELECT EXISTS`), `count` (`SELECT COUNT(*)`), `paginate` (validated `order_by`, int-cast limit/offset, optional dict-WHERE), and `fetch_all` (dict-fetch) — all predicate methods sharing one injection-safe `_build_where_dict` pure builder on `QueryMixin` (`validate_identifiers` keys, values as `%s`). Five read-only introspection helpers extend `db.schema.*` (27→32 methods) — `primary_key`/`foreign_keys` (pg_catalog, composite-safe), `sequences`/`views` (information_schema, views excludes matviews), and `describe` (consolidated dict composing four existing helpers, no new SQL). Locked AGAINST a `db.meta.*` carve (resolves the v0.6.0 open question — stay additive on `db.schema.*`). Shipped to PyPI via OIDC under the held ≥94% coverage ratchet, zero new runtime dependencies, no migration. Milestone audit PASSED (15/15 requirements), integration WIRED.
+
+**Key accomplishments:**
+
+- Added `_build_where_dict` pure staticmethod on `QueryMixin` — converts a dict of equality conditions to an AND-ed `col = %s` fragment with validated column keys and positionally-bound params.
+- Added `upsert` (single-row RETURNING *), `delete_where`, and `update_where` predicate writes to both `Database` and `AsyncDatabase` — injection-safe, empty-where guarded, with full sync/async parity.
+- Added `exists` (SELECT EXISTS), `count` (SELECT COUNT(*)), `paginate` (validated order_by + whole-clause DESC + int-cast limit/offset + optional dict-WHERE), and `fetch_all` (list[dict] twin to fetch_one, dict_row documented) to both `Database` and `AsyncDatabase` with full sync/async parity.
+- Four read-only introspection helpers (primary_key, foreign_keys, sequences, views) added to SchemaAccessor and AsyncSchemaAccessor using pg_catalog/information_schema with composite-safe conkey-order column arrays
+- Sync and async describe method added to SchemaAccessor / AsyncSchemaAccessor composing table_info/primary_key/foreign_keys/list_indexes into one guaranteed-consistent flat dict with no new SQL
+- Version bump 0.8.0→0.9.0, Added-only CHANGELOG for 12 new methods, docs surfaces updated (README 27→32 methods), cosmetic debt cleared (aliases xrefs removed), all 4 quality gates green (coverage 94.11%, interrogate 100%, Sphinx -W clean, DeprecationWarning clean).
+- pycopg 0.9.0 tagged, pushed, published to PyPI via GitHub Actions OIDC trusted publishing, and clean-venv smoke confirmed `__version__ == "0.9.0"` with CRUD (`upsert`, `count`) and introspection (`SchemaAccessor.describe`) surface present.
+
+**Stats:**
+
+- Timeline: 2026-06-24 → 2026-06-25 (~2 days)
+- Codebase: ~15,400 LOC lib (`pycopg/`); coverage 94.11% (ratchet ≥94 held)
+- Tag `v0.9.0` (created at Phase 36), PyPI publish run 28171811187, GitHub Release published 2026-06-25
+
+---
+
 ## v0.8.0 TimescaleDB avancé (Shipped: 2026-06-23)
 
 **Phases completed:** 4 phases (30–33), 11 plans, 29 tasks
