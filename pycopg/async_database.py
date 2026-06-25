@@ -1251,9 +1251,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Returns
         -------
         dict or None
-            The affected row as a dict (via RETURNING *). Under DO UPDATE the
-            return is structurally always a dict; None is a defensive guard for
-            a future no-row path and is not reachable under the current SQL.
+            The affected row as a dict (via ``RETURNING *``). Under DO UPDATE
+            the return is structurally always a dict; None is a defensive guard
+            for a future no-row path and is not reachable under the current SQL.
         """
         columns = list(row.keys())
         if update_columns is None:

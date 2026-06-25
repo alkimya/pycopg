@@ -110,7 +110,7 @@ rows = await db.fetch_all("SELECT * FROM users WHERE id = %s", [9999])
 
 All sync CRUD helpers (`upsert`, `delete_where`, `update_where`, `exists`, `count`,
 `fetch_all`, `paginate`) are available on `AsyncDatabase` with the same signatures
-and `await` prefix. Full sync/async parity — see [Database CRUD Helpers](database.md#crud-helpers-v090)
+and `await` prefix. Full sync/async parity — see [Database CRUD Helpers](database.md)
 for parameter details.
 
 ```python

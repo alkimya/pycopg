@@ -3214,3 +3214,120 @@ class TestAsyncDatabaseReadHelpers:
             assert empty == []
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+
+@pytest.mark.asyncio
+class TestAsyncSchemaIntrospection:
+    """35-01/35-02: async schema introspection — primary_key / foreign_keys / sequences / views / describe."""
+
+    def _t(self, prefix="intr"):
+        import uuid
+
+        return f"test_{prefix}_{uuid.uuid4().hex[:8]}"
+
+    async def test_primary_key_async(self, db_config):
+        """async primary_key returns constraint_name + columns for a table with a PK."""
+        db = AsyncDatabase(db_config)
+        t = self._t("pk")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            result = await db.schema.primary_key(t)
+            assert result is not None
+            assert "constraint_name" in result
+            assert result["columns"] == ["id"]
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_primary_key_none_async(self, db_config):
+        """async primary_key returns None for a table with no PK."""
+        db = AsyncDatabase(db_config)
+        t = self._t("npk")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER, name TEXT)',
+                autocommit=True,
+            )
+            result = await db.schema.primary_key(t)
+            assert result is None
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_foreign_keys_async(self, db_config):
+        """async foreign_keys returns FK constraints with referenced table info."""
+        db = AsyncDatabase(db_config)
+        parent = self._t("fkp")
+        child = self._t("fkc")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{parent}" (id INTEGER PRIMARY KEY)',
+                autocommit=True,
+            )
+            await db.execute(
+                f'CREATE TABLE "{child}" (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES "{parent}"(id))',
+                autocommit=True,
+            )
+            fks = await db.schema.foreign_keys(child)
+            assert isinstance(fks, list)
+            assert len(fks) == 1
+            assert fks[0]["referenced_table"] == parent
+            assert fks[0]["columns"] == ["parent_id"]
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{child}" CASCADE', autocommit=True)
+            await db.execute(f'DROP TABLE IF EXISTS "{parent}" CASCADE', autocommit=True)
+
+    async def test_sequences_async(self, db_config):
+        """async sequences returns sequence names in the schema."""
+        db = AsyncDatabase(db_config)
+        t = self._t("seq")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id SERIAL PRIMARY KEY)',
+                autocommit=True,
+            )
+            seqs = await db.schema.sequences("public")
+            assert isinstance(seqs, list)
+            assert len(seqs) >= 1
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_views_async(self, db_config):
+        """async views returns regular view names; excludes materialized views."""
+        db = AsyncDatabase(db_config)
+        view_name = self._t("vw")
+        t = self._t("vwt")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY)',
+                autocommit=True,
+            )
+            await db.execute(
+                f'CREATE VIEW "{view_name}" AS SELECT id FROM "{t}"',
+                autocommit=True,
+            )
+            views = await db.schema.views("public")
+            assert isinstance(views, list)
+            assert view_name in views
+        finally:
+            await db.execute(f'DROP VIEW IF EXISTS "{view_name}"', autocommit=True)
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_describe_async(self, db_config):
+        """async describe returns a dict with columns/primary_key/foreign_keys/indexes keys."""
+        db = AsyncDatabase(db_config)
+        t = self._t("desc")
+        try:
+            await db.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            result = await db.schema.describe(t)
+            assert set(result.keys()) == {"columns", "primary_key", "foreign_keys", "indexes"}
+            assert isinstance(result["columns"], list)
+            assert result["primary_key"] is not None
+            assert result["primary_key"]["columns"] == ["id"]
+            assert result["foreign_keys"] == []
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
