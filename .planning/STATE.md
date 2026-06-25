@@ -4,8 +4,8 @@ milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: verifying
 stopped_at: Completed 35-02-describe-consolidation-PLAN.md
-last_updated: "2026-06-25T13:02:45.282Z"
-last_activity: 2026-06-25 -- Phase 36 execution started
+last_updated: "2026-06-25T13:13:13.478Z"
+last_activity: 2026-06-25
 progress:
   total_phases: 3
   completed_phases: 3
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 ## Current Position
 
-Phase: 36 (release-v090) — EXECUTING
-Plan: 2 of 2
+Phase: 36
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-25 -- Phase 36 execution started
+Last activity: 2026-06-25
 
 Progress: `██████░░░░` 67% (2/3 phases)
 

@@ -18,7 +18,7 @@
 
 - [x] **Phase 34: CRUD Ergonomics** - Convenience CRUD helpers on the flat transactional core (upsert singular, delete_where, update_where, exists, count, paginate, dict-fetch) with full sync/async parity (completed 2026-06-24)
 - [ ] **Phase 35: Schema Introspection** - Enriched `db.schema.*` helpers (primary_key, foreign_keys, sequences, views, describe) with full sync/async parity
-- [ ] **Phase 36: Release v0.9.0** - Version bump, CHANGELOG Added-only, docs surfaces, 4 gates, human-gated OIDC publish + tag + smoke
+- [x] **Phase 36: Release v0.9.0** - Version bump, CHANGELOG Added-only, docs surfaces, 4 gates, human-gated OIDC publish + tag + smoke (completed 2026-06-25)
 
 </details>
 
@@ -220,4 +220,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete    | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete   | 2026-06-25 |
-| 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete   | 2026-06-25 |
+| 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete    | 2026-06-25 |
