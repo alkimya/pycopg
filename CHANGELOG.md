@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-25
+
+### Added
+
+**CRUD ergonomics (7 new methods on `db.*` / `async_db.*`, flat on `Database`/`AsyncDatabase`):**
+
+- `upsert(self, table, row, conflict_columns, update_columns=None, schema="public") -> dict | None` — upsert
+  a single row via `INSERT ... ON CONFLICT DO UPDATE` and return the affected row (or `None` if no row was
+  returned). Column names are validated via `validate_identifiers`; values bound as `%s`.
+- `delete_where(self, table, where, schema="public") -> int` — delete rows matching the given equality
+  conditions; returns the number of rows deleted. `where` must be a non-empty dict (destructive guard —
+  use `db.schema.truncate_table` to affect all rows).
+- `update_where(self, table, values, where, schema="public") -> int` — update rows matching the equality
+  conditions in `where` using the column-value mapping in `values`; returns the number of rows updated.
+  Both `values` and `where` must be non-empty dicts (destructive guard).
+- `exists(self, table, where, schema="public") -> bool` — return `True` if at least one row matches the
+  equality conditions; `False` otherwise. `where` must be non-empty (an existence check with no predicate
+  is meaningless).
+- `count(self, table, where=None, schema="public") -> int` — count rows in a table, optionally filtered
+  by equality conditions. When `where` is `None`, all rows are counted without a WHERE clause.
+- `fetch_all(self, sql, params=None) -> list[dict]` — execute SQL and return all rows as a list of dicts.
+  Thin complement to `fetch_one`; uses the connection's `dict_row` row factory so every row is already a
+  plain dict.
+- `paginate(self, table, limit, offset=0, order_by=None, where=None, descending=False, schema="public") -> list[dict]` —
+  return a page of rows from a table. `order_by` accepts a column name or list of column names (each
+  validated via `validate_identifiers`); `descending=True` adds `DESC` to the ORDER BY clause.
+
+**Schema introspection (5 new methods on `db.schema.*` / `async_db.schema.*`):**
+
+- `primary_key(self, table, schema="public") -> dict | None` — return a dict describing the primary key
+  constraint (`constraint_name`, `columns`) for the given table, or `None` if no primary key exists.
+- `foreign_keys(self, table, schema="public") -> list[dict]` — return a list of dicts, one per foreign key
+  constraint, each containing `constraint_name`, `columns`, `ref_table`, and `ref_columns`.
+- `sequences(self, schema="public") -> list[str]` — return a list of sequence names owned by the given
+  schema, sorted alphabetically.
+- `views(self, schema="public") -> list[str]` — return a list of view names in the given schema, sorted
+  alphabetically. Includes both regular and materialized views.
+- `describe(self, table, schema="public") -> dict` — compose `table_info`, `primary_key`, `foreign_keys`,
+  and `list_indexes` into a single flat dict with keys `columns`, `primary_key`, `foreign_keys`, and
+  `indexes`. No new SQL — anti-drift guarantee (D-04).
+
+All 12 methods have full sync/async parity on `AsyncDatabase` and `AsyncSchemaAccessor`. Zero new runtime
+dependencies.
+
 ## [0.8.0] - 2026-06-23
 
 ### Added
