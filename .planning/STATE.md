@@ -4,12 +4,12 @@ milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
 status: executing
 stopped_at: Phase 35 context gathered
-last_updated: "2026-06-24T19:48:20.069Z"
-last_activity: 2026-06-24 -- Phase 35 planning complete
+last_updated: "2026-06-25T08:29:08.136Z"
+last_activity: 2026-06-25 -- Phase 35 execution started
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 3
+  total_plans: 5
   completed_plans: 3
   percent: 50
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 34 — crud-ergonomics
+**Current focus:** Phase 35 — schema-introspection
 
 ## Current Position
 
-Phase: 34
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-24 -- Phase 35 planning complete
+Phase: 35 (schema-introspection) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 35
+Last activity: 2026-06-25 -- Phase 35 execution started
 
 Progress: `░░░░░░░░░░` 0% (0/3 phases)
 

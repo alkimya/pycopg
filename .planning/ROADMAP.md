@@ -149,7 +149,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 35-01-introspection-helpers-PLAN.md — pg_catalog `primary_key`/`foreign_keys` + `information_schema` `sequences`/`views` on both accessors (4 SQL constants, 8 methods, mock+live tests) [Wave 1]
+- [x] 35-01-introspection-helpers-PLAN.md — pg_catalog `primary_key`/`foreign_keys` + `information_schema` `sequences`/`views` on both accessors (4 SQL constants, 8 methods, mock+live tests) [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -210,5 +210,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 32. Query Helpers & Parity Verification | v0.8.0 | 2/2 | Complete | 2026-06-23 |
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete    | 2026-06-24 |
-| 35. Schema Introspection | v0.9.0 | 0/TBD | Not started | - |
+| 35. Schema Introspection | v0.9.0 | 1/2 | In Progress|  |
 | 36. Release v0.9.0 | v0.9.0 | 0/TBD | Not started | - |
