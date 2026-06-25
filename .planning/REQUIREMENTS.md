@@ -37,10 +37,10 @@ has `table_info`, `row_count`, `list_columns`, `columns_with_types`, `list_index
 `list_constraints`). Each helper reads `information_schema` / `pg_catalog`, validates identifiers,
 and accepts an optional `schema="public"` argument.
 
-- [ ] **INTRO-01**: User can get a table's primary-key column(s) with `db.schema.primary_key(table, schema="public")`
-- [ ] **INTRO-02**: User can get a table's foreign keys with `db.schema.foreign_keys(table, schema="public")`, each entry naming the local column(s), referenced table, and referenced column(s)
-- [ ] **INTRO-03**: User can list sequences with `db.schema.sequences(schema="public")`
-- [ ] **INTRO-04**: User can list views with `db.schema.views(schema="public")`
+- [x] **INTRO-01**: User can get a table's primary-key column(s) with `db.schema.primary_key(table, schema="public")`
+- [x] **INTRO-02**: User can get a table's foreign keys with `db.schema.foreign_keys(table, schema="public")`, each entry naming the local column(s), referenced table, and referenced column(s)
+- [x] **INTRO-03**: User can list sequences with `db.schema.sequences(schema="public")`
+- [x] **INTRO-04**: User can list views with `db.schema.views(schema="public")`
 - [x] **INTRO-05**: User can get a consolidated table description with `db.schema.describe(table, schema="public")` (columns + types, primary key, foreign keys, indexes) — the all-in-one introspection helper
 - [x] **INTRO-06**: Every new introspection helper has a working, tested `AsyncDatabase` (`AsyncSchemaAccessor`) equivalent with identical signature, enforced by `test_accessor_parity`
 
@@ -86,10 +86,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CRUD-06 | Phase 34 | Complete |
 | CRUD-07 | Phase 34 | Complete |
 | CRUD-08 | Phase 34 | Complete |
-| INTRO-01 | Phase 35 | Pending |
-| INTRO-02 | Phase 35 | Pending |
-| INTRO-03 | Phase 35 | Pending |
-| INTRO-04 | Phase 35 | Pending |
+| INTRO-01 | Phase 35 | Complete |
+| INTRO-02 | Phase 35 | Complete |
+| INTRO-03 | Phase 35 | Complete |
+| INTRO-04 | Phase 35 | Complete |
 | INTRO-05 | Phase 35 | Complete |
 | INTRO-06 | Phase 35 | Complete |
 | REL-09 | Phase 36 | Pending |

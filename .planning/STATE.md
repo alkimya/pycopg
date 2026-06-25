@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
-status: executing
+status: completed
 stopped_at: Completed 35-02-describe-consolidation-PLAN.md
-last_updated: "2026-06-25T08:57:40.978Z"
-last_activity: 2026-06-25 -- Phase 35 execution started
+last_updated: "2026-06-25T09:03:30.281Z"
+last_activity: 2026-06-25 -- Phase 35 executed + verified (5/5 criteria, 31/31 tests)
 progress:
   total_phases: 2
   completed_phases: 2
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 35 — schema-introspection
+**Current focus:** Phase 36 — Release v0.9.0 (Phases 34 + 35 complete)
 
 ## Current Position
 
-Phase: 35 (schema-introspection) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-06-25 -- Phase 35 execution started
+Phase: 35 (schema-introspection) — COMPLETE (verified PASSED)
+Plan: 2 of 2 complete
+Status: Phase 35 complete — next: Phase 36 (Release v0.9.0)
+Last activity: 2026-06-25 -- Phase 35 executed + verified (5/5 criteria, 31/31 tests)
 
-Progress: `░░░░░░░░░░` 0% (0/3 phases)
+Progress: `██████░░░░` 67% (2/3 phases)
 
 ## Performance Metrics
 
@@ -45,12 +45,9 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
-| 34. CRUD Ergonomics | TBD | 0 | Not started |
-| 35. Schema Introspection | TBD | 0 | Not started |
+| 34. CRUD Ergonomics | 3 | 3 | Complete |
+| 35. Schema Introspection | 2 | 2 | Complete (verified PASSED) |
 | 36. Release v0.9.0 | TBD | 0 | Not started |
-| Phase 34-crud-ergonomics P01 | 56 | 2 tasks | 2 files |
-| Phase 34 P02 | 496 | - tasks | - files |
-| Phase 35 P02 | 8min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -72,7 +69,7 @@ Progress: `░░░░░░░░░░` 0% (0/3 phases)
 
 ### Pending Todos
 
-None — start Phase 34 with `/gsd-plan-phase 34`.
+None — Phases 34 + 35 complete. Next: plan Phase 36 (Release v0.9.0) with `/gsd-plan-phase 36`.
 
 ### Blockers/Concerns
 
@@ -108,4 +105,4 @@ None — start Phase 34 with `/gsd-plan-phase 34`.
 Last session: 2026-06-25T08:57:40.972Z
 Stopped at: Completed 35-02-describe-consolidation-PLAN.md
 Resume file: None
-Next action: Phase 34 complete — /gsd-verify-phase 34 or proceed to Phase 35
+Next action: Phase 35 complete + verified — proceed to Phase 36 (Release v0.9.0) with /gsd-plan-phase 36
