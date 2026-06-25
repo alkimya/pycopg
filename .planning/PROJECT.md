@@ -29,9 +29,21 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 **Previously shipped (v0.4.0):** uv toolchain; residual security/robustness fixes (B1/B2/B3/B5); full sync/async parity (13 mirrored methods); wired `base.py`/`queries.py` abstractions; numpydoc docs with `interrogate ≥ 95`; `db.spatial.*` (11 helpers); coverage ratchet 70→94.
 
+## Current Milestone: v0.10.0 Durcissement & Performance
+
+**Goal:** Assainir et optimiser le socle avant le gel 1.0 — solder la dette technique, débusquer les problèmes nouveaux par outillage, monter la couverture à 95%, et router les volumes par COPY sous garde-fou de benchmarks. Durcissement interne : aucun changement d'API public cassant, parité sync/async maintenue, zéro nouvelle dépendance runtime (benchmarks en dev-group).
+
+**Target features:**
+- **Audit / durcissement** — solder la dette connue (flaky tests fixture-isolation, 4 erreurs ruff N818/W291/F841/E722, warnings WR/IN v0.8-0.9, monkeypatches morts, `TableNotFound` sans raise), passe de découverte outillée (`gsd-code-review`/audit + scan code mort), couverture → 95% (cliquet reporté depuis v0.4.0), sign-off Nyquist phases 22-24.
+- **Performance** — `from_dataframe` + ETL load routés via COPY (levier I/O 10-50×, éviter `astype(object)`/`to_dict` inutiles), micro-opts `insert_batch` (placeholder invariant hoisté), suite de benchmarks garde-fou (anti-régression).
+
+**Phase numbering:** continue depuis Phase 36 — v0.10.0 démarre à la Phase 37.
+
+**Décision de cadrage (2026-06-25) — split assumé :** le périmètre v1.0.0 initial (spatial v2 + stabilisation + audit + perf) était trop large pour un seul milestone. Scindé en deux courts : **v0.10.0 = durcissement + perf (CE milestone)**, puis **v1.0.0 = spatial v2 + gel API**. Progression semver `0.9.0 → 0.10.0 → 1.0.0`, conforme au principe « une famille par milestone ».
+
 ## Next Milestone Goals
 
-**v1.0.0 (next) — Spatial v2 + stabilisation API:** extend `db.spatial.*` (ST_Union, ST_Simplify, ST_ConvexHull, ST_MakeValid, spatial aggregates, raster?) + freeze the public API for a real 1.0. The forward sequence (see `.planning/FUTURE-MILESTONES.md`) was locked by the user: v0.9.0 CRUD (shipped) → **v1.0.0 spatial v2 + stabilisation API**. Start with `/gsd-new-milestone`; phase numbering continues from Phase 36 (v1.0.0 starts at Phase 37).
+**v1.0.0 (après v0.10.0) — Spatial v2 + gel API:** étendre `db.spatial.*` (traitement géométrique `ST_Union`/`ST_Simplify`/`ST_ConvexHull`/`ST_MakeValid`/`ST_Difference`/`ST_Intersection`, agrégats spatiaux `ST_Union(agg)`/`ST_Collect`/`ST_Extent`, sérialisation `ST_AsGeoJSON`/`ST_AsText`/`ST_AsMVT` ; raster reporté post-1.0) + figer l'API publique pour un vrai 1.0 (SemVer + politique de dépréciation, revue de cohérence/homogénéisation, mypy strict bloquant + typage `py.typed` complété, items API tirés du backlog : named params `:name`, health checks, isolation level + savepoints, structured logging). Cadre validé le 2026-06-25 ; voir `.planning/FUTURE-MILESTONES.md`.
 
 <details>
 <summary>v0.9.0 milestone goal & locked decisions (shipped 2026-06-25 — historical reference)</summary>
@@ -184,16 +196,12 @@ Every public method in Database must have a working, tested equivalent in AsyncD
 
 <!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
 
-_None — v0.9.0 shipped. Next milestone (v1.0.0 "Spatial v2 + stabilisation API") scope is defined fresh via `/gsd-new-milestone`._
+**v0.10.0 "Durcissement & Performance"** — assainir + optimiser le socle avant le gel 1.0 ; durcissement interne, non-cassant, parité sync/async maintenue. Full REQ-ID list in `.planning/REQUIREMENTS.md`.
 
-<!-- Current scope. Building toward these. Full REQ-ID list in REQUIREMENTS.md. -->
+- **Audit / durcissement :** solder la dette connue (flaky tests fixture-isolation, ruff N818/W291/F841/E722, warnings WR/IN v0.8-0.9, monkeypatches morts, `TableNotFound` sans raise), découverte outillée (`gsd-code-review`/audit + scan code mort), couverture → 95%, sign-off Nyquist 22-24.
+- **Performance :** `from_dataframe` + ETL load via COPY (levier I/O), micro-opts `insert_batch`, suite de benchmarks garde-fou.
 
-**v0.9.0 "CRUD ergonomique + introspection enrichie"** — additive convenience over the existing API, full sync/async parity, low risk. Full REQ-ID list in `.planning/REQUIREMENTS.md`.
-
-- **CRUD ergonomics:** `upsert` (singulier), `delete_where`, `update_where`, `exists`, `count`, `paginate`, dict-fetch.
-- **Introspection helpers:** `primary_key()`, `foreign_keys()`, `sequences()`, `views()`, `describe()` — extend `db.schema.*` (no `db.meta.*` carve).
-
-Then **v1.0.0 "Spatial v2 + stabilisation"**.
+Then **v1.0.0 "Spatial v2 + gel API"** (axes spatial + stabilisation).
 
 ### Out of Scope
 
@@ -350,6 +358,8 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+*Last updated: 2026-06-25 — milestone v0.10.0 "Durcissement & Performance" started via `/gsd-new-milestone`. Cadrage (2026-06-25) : la cible v1.0.0 d'origine (spatial v2 + stabilisation API) a été élargie en discussion à 4 axes (spatial, stabilisation, audit, performance) puis **scindée** par décision utilisateur en deux milestones courts — **v0.10.0 = durcissement + perf (CE milestone)** puis v1.0.0 = spatial v2 + gel API. Scope v0.10.0 verrouillé : Axe Audit (solder dette connue, découverte outillée `gsd-code-review`/scan code mort, couverture → 95%, sign-off Nyquist 22-24) + Axe Performance (`from_dataframe`/ETL load via COPY, micro-opts `insert_batch`, benchmarks garde-fou). Durcissement interne : non-cassant, parité sync/async (Core Value), zéro nouvelle dépendance runtime. "Current Milestone" → v0.10.0 ; "Next Milestone Goals" → v1.0.0 ; Active set au scope v0.10.0. Phase numbering continues from Phase 36 (v0.10.0 démarre à la Phase 37). Suite validée (FUTURE-MILESTONES) : v1.0.0 spatial v2 + gel API.*
+
 *Last updated: 2026-06-25 — milestone v0.9.0 "CRUD ergonomique + introspection enrichie" CLOSED via `/gsd-complete-milestone`. Full PROJECT.md evolution review: "What This Is" → v0.9.0 (CRUD helpers + 32-method `db.schema.*`); Current State → v0.9.0 SHIPPED + milestone-close note; all 15 v0.9.0 requirements (CRUD-01..08, INTRO-01..06, REL-09) + the `_build_where_dict` foundation moved to Validated; Active emptied; "Current Milestone" collapsed to historical reference, forward pointer reframed as "Next Milestone Goals" (v1.0.0 spatial v2 + stabilisation API, starts Phase 37); Context refreshed (~15,400 lib LOC, 94.11% coverage, v0.9.0 advisory debt recorded, CLAUDE.md version + aliases-xref debt marked resolved, CRUD/INTRO-F follow-ups deferred); 5 v0.9.0 Key Decisions added + v0.6.0 `db.meta.*` decision flipped to ✓ Resolved. ROADMAP collapsed + REQUIREMENTS/audit archived to `milestones/v0.9.0-*`. Pre-flight: open-artifact audit clean, 15/15 requirements complete, audit PASSED, integration WIRED. Tag `v0.9.0` already created at Phase 36 (PyPI publish). Next: `/gsd-new-milestone` (v1.0.0).*
 
 *Last updated: 2026-06-12 — Phase 14 complete (spatial helpers : `db.spatial.*`/`async_db.spatial.*` en parité, 11 helpers, builders purs 100% couverts, garde PostGIS, D-01..D-12 actés dans 08-DESIGN.md, gate coverage 92→94 ; SPAT-01..06 validés, vérification 11/11).*

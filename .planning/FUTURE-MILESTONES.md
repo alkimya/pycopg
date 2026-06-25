@@ -38,9 +38,24 @@ Confort utilisateur additif : `upsert` (singulier), `delete_where`, `update_wher
 `count`, `paginate`, fetch en dict ; introspection : `primary_key()`, `foreign_keys()`,
 `sequences()`, `views()`, `describe()`. Faible risque, pur confort au-dessus de l'API.
 
-### v1.0.0 — Spatial v2 + stabilisation  *(candidat)*
-Étendre `db.spatial.*` (ST_Union, ST_Simplify, ST_ConvexHull, ST_MakeValid, agrégats spatiaux,
-raster ?) + figer l'API publique pour un vrai 1.0.
+### v0.10.0 — Durcissement & Performance  *(en cours — démarré 2026-06-25)*
+Assainir + optimiser le socle **avant** le gel 1.0. Issu du split de la cible v1.0.0 initiale
+(devenue trop large à 4 axes au cadrage du 2026-06-25) : on sort les axes **audit** et **performance**
+dans un milestone court qui précède le 1.0.
+- **Audit / durcissement** : solder la dette connue (flaky tests, ruff, warnings WR/IN, code mort,
+  `TableNotFound` sans raise), découverte outillée (`gsd-code-review`/scan code mort), couverture → 95%,
+  sign-off Nyquist 22-24.
+- **Performance** : `from_dataframe` + ETL load via COPY (levier I/O 10-50×), micro-opts `insert_batch`,
+  suite de benchmarks garde-fou (anti-régression).
+- Durcissement interne : non-cassant, parité sync/async, zéro nouvelle dépendance runtime.
+
+### v1.0.0 — Spatial v2 + gel API  *(candidat — après v0.10.0)*
+Étendre `db.spatial.*` : **traitement géométrique** (ST_Union, ST_Simplify, ST_ConvexHull, ST_MakeValid,
+ST_Difference/Intersection), **agrégats spatiaux** (ST_Union agg, ST_Collect, ST_Extent), **sérialisation**
+(ST_AsGeoJSON, ST_AsText, ST_AsMVT) — **raster reporté post-1.0**. Puis **figer l'API publique** pour un
+vrai 1.0 : SemVer + politique de dépréciation, revue de cohérence/homogénéisation, mypy strict bloquant
++ typage `py.typed` complété, et items API tirés du backlog (named params `:name`, health checks,
+isolation level + savepoints, structured logging).
 
 ## Idées plus lointaines / à re-litiger
 - ETL cross-DB et sources/sinks DataFrame/CSV/parquet (v0.5.0 est same-DB only).

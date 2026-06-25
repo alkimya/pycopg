@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.9.0
-milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
-status: Awaiting next milestone
-stopped_at: Milestone v0.9.0 complete + archived
-last_updated: "2026-06-25T14:11:43.329Z"
-last_activity: 2026-06-25 — Milestone v0.9.0 completed and archived
+milestone: v0.10.0
+milestone_name: Durcissement & Performance
+status: planning
+last_updated: "2026-06-25T15:19:01.966Z"
+last_activity: 2026-06-25
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 ## Current Position
 
-Phase: Milestone v0.9.0 complete + archived
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-25 — Milestone v0.9.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-25 — Milestone v0.10.0 started
 
 ## Performance Metrics
 
