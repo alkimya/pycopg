@@ -164,7 +164,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 **Requirements**: REL-09
 **Success Criteria** (what must be TRUE):
 
-  1. Version is bumped to 0.9.0 in both canonical sources (`pyproject.toml` and the in-package `__version__`), and CHANGELOG `[0.9.0]` Added-only entry covers all new CRUD and introspection methods
+  1. Version is bumped to 0.9.0 in the single canonical source (`pyproject.toml`); `__version__` is derived dynamically via `importlib.metadata.version("pycopg")` and updates automatically — do NOT hardcode it (see 36-CONTEXT D-36-01). CHANGELOG `[0.9.0]` Added-only entry covers all new CRUD and introspection methods
   2. All 4 quality gates pass: coverage ratchet ≥94%, interrogate ≥95, Sphinx `-W` clean, `-W error::DeprecationWarning` green
   3. Docs surfaces updated: README method counts reflect new helpers, `api-reference.md` rows added, `docs/*.md` pages cover the new methods with numpydoc-consistent shallow docstrings
   4. Tag `v0.9.0` pushed and PyPI wheel+sdist published via OIDC trusted publishing (human-gated at the irreversible publish step); clean-venv `pip install pycopg==0.9.0` smoke prints 0.9.0

@@ -66,6 +66,7 @@ Progress: `██████░░░░` 67% (2/3 phases)
 - [Phase ?]: upsert/delete_where/update_where added to both Database and AsyncDatabase with identical signatures, empty-where guard, RETURNING * for upsert, SET-then-WHERE param order
 - [Phase 34-03]: exists/count/paginate/fetch_all added flat on both classes — ValueError-on-empty-where for exists (pre-cursor), count None-where routes around builder, order_by columns validated, dict_row documented in fetch_all docstring (CRUD-07 part a)
 - [Phase ?]: describe composes table_info/primary_key/foreign_keys/list_indexes into one flat 4-key dict with no new SQL (D-04 anti-drift guarantee; INTRO-05/INTRO-06)
+- [Phase 36 discuss 2026-06-25]: release v0.9.0 = 2 plans (36-01 content: pyproject bump + CHANGELOG [0.9.0] Added-only + docs of 12 new methods + README counts + cosmetic-debt cleanup; 36-02 release: gates + tag + OIDC publish human-gated + clean-venv smoke). D-36-01: bump ONLY pyproject (single canonical source; __version__ dynamic — never hardcode); ROADMAP criterion #1 corrected. D-36-03: CHANGELOG signature-drift guard (v0.8.0 caught 4). D-36-04: cosmetic debt (CLAUDE.md Version line, dead aliases xref, WR-01/WR-03) SOLDERED in 36-01 per user. See 36-CONTEXT.md.
 
 ### Pending Todos
 
