@@ -173,7 +173,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 36-01-PLAN.md — Content & Docs: version bump (pyproject/uv.lock/conf.py), CHANGELOG [0.9.0] Added-only (12 methods), docs surfaces, cosmetic-debt cleanup (D-36-04), 4-gate baseline [Wave 1]
+- [x] 36-01-PLAN.md — Content & Docs: version bump (pyproject/uv.lock/conf.py), CHANGELOG [0.9.0] Added-only (12 methods), docs surfaces, cosmetic-debt cleanup (D-36-04), 4-gate baseline [Wave 1]
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -220,4 +220,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 33. Release v0.8.0 | v0.8.0 | 3/3 | Complete | 2026-06-23 |
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete    | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete   | 2026-06-25 |
-| 36. Release v0.9.0 | v0.9.0 | 0/TBD | Not started | - |
+| 36. Release v0.9.0 | v0.9.0 | 1/2 | In Progress|  |

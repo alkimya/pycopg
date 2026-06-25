@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.9.0
 milestone_name: "**Goal**: v0.9.0 is published to PyPI with all quality gates green, documentation updated, and a clean-venv smoke confirming the new surface is importable and functional"
-status: completed
+status: executing
 stopped_at: Completed 35-02-describe-consolidation-PLAN.md
-last_updated: "2026-06-25T09:03:30.281Z"
-last_activity: 2026-06-25 -- Phase 35 executed + verified (5/5 criteria, 31/31 tests)
+last_updated: "2026-06-25T12:49:19.362Z"
+last_activity: 2026-06-25 -- Phase 36 execution started
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_plans: 7
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-23 after v0.8.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 36 — Release v0.9.0 (Phases 34 + 35 complete)
+**Current focus:** Phase 36 — release-v090
 
 ## Current Position
 
-Phase: 35 (schema-introspection) — COMPLETE (verified PASSED)
-Plan: 2 of 2 complete
-Status: Phase 35 complete — next: Phase 36 (Release v0.9.0)
-Last activity: 2026-06-25 -- Phase 35 executed + verified (5/5 criteria, 31/31 tests)
+Phase: 36 (release-v090) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-06-25 -- Phase 36 execution started
 
 Progress: `██████░░░░` 67% (2/3 phases)
 
@@ -48,6 +48,7 @@ Progress: `██████░░░░` 67% (2/3 phases)
 | 34. CRUD Ergonomics | 3 | 3 | Complete |
 | 35. Schema Introspection | 2 | 2 | Complete (verified PASSED) |
 | 36. Release v0.9.0 | TBD | 0 | Not started |
+| Phase 36 P01 | 60m | 5 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,8 @@ Progress: `██████░░░░` 67% (2/3 phases)
 - [Phase 34-03]: exists/count/paginate/fetch_all added flat on both classes — ValueError-on-empty-where for exists (pre-cursor), count None-where routes around builder, order_by columns validated, dict_row documented in fetch_all docstring (CRUD-07 part a)
 - [Phase ?]: describe composes table_info/primary_key/foreign_keys/list_indexes into one flat 4-key dict with no new SQL (D-04 anti-drift guarantee; INTRO-05/INTRO-06)
 - [Phase 36 discuss 2026-06-25]: release v0.9.0 = 2 plans (36-01 content: pyproject bump + CHANGELOG [0.9.0] Added-only + docs of 12 new methods + README counts + cosmetic-debt cleanup; 36-02 release: gates + tag + OIDC publish human-gated + clean-venv smoke). D-36-01: bump ONLY pyproject (single canonical source; __version__ dynamic — never hardcode); ROADMAP criterion #1 corrected. D-36-03: CHANGELOG signature-drift guard (v0.8.0 caught 4). D-36-04: cosmetic debt (CLAUDE.md Version line, dead aliases xref, WR-01/WR-03) SOLDERED in 36-01 per user. See 36-CONTEXT.md.
+- [Phase ?]: Version bump 0.8.0->0.9.0
+- [Phase ?]: 36-01 gate baseline recorded for 36-02 re-confirm
 
 ### Pending Todos
 
@@ -103,7 +106,7 @@ None — Phases 34 + 35 complete. Next: plan Phase 36 (Release v0.9.0) with `/gs
 
 ## Session Continuity
 
-Last session: 2026-06-25T08:57:40.972Z
+Last session: 2026-06-25T12:49:19.356Z
 Stopped at: Completed 35-02-describe-consolidation-PLAN.md
 Resume file: None
 Next action: Phase 35 complete + verified — proceed to Phase 36 (Release v0.9.0) with /gsd-plan-phase 36

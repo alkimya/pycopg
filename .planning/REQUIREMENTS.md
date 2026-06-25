@@ -46,7 +46,7 @@ and accepts an optional `schema="public"` argument.
 
 ### Release
 
-- [ ] **REL-09**: v0.9.0 released to PyPI via OIDC trusted publishing — version bumped in both sources, CHANGELOG `[0.9.0]` Added-only (purely additive, no MIGRATION needed), docs surfaces updated (README method counts, api-reference, relevant `docs/*.md`), all gates green (coverage ratchet ≥94%, interrogate ≥95, Sphinx `-W` clean, `-W error::DeprecationWarning` green), tagged, clean-venv import smoke confirmed
+- [x] **REL-09**: v0.9.0 released to PyPI via OIDC trusted publishing — version bumped in both sources, CHANGELOG `[0.9.0]` Added-only (purely additive, no MIGRATION needed), docs surfaces updated (README method counts, api-reference, relevant `docs/*.md`), all gates green (coverage ratchet ≥94%, interrogate ≥95, Sphinx `-W` clean, `-W error::DeprecationWarning` green), tagged, clean-venv import smoke confirmed
 
 ## v2 Requirements
 
@@ -92,7 +92,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INTRO-04 | Phase 35 | Complete |
 | INTRO-05 | Phase 35 | Complete |
 | INTRO-06 | Phase 35 | Complete |
-| REL-09 | Phase 36 | Pending |
+| REL-09 | Phase 36 | Complete |
 
 **Coverage:**
 
