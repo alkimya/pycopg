@@ -1246,3 +1246,50 @@ class TestIntrospectionHelpers:
                     db.execute(f'DROP {kind} IF EXISTS "{name}"', autocommit=True)
                 except Exception:
                     pass
+
+    def test_describe_keys_and_composition_equality(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """describe returns the 4-key dict; each sub-value equals the standalone helper."""
+        parent_table = temp_table_name + "_par"
+        child_table = temp_table_name + "_chd"
+        cleanup_table(parent_table)
+        cleanup_table(child_table)
+        db.execute(
+            f'CREATE TABLE "{parent_table}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+        db.execute(
+            f"""
+            CREATE TABLE "{child_table}" (
+                id SERIAL PRIMARY KEY,
+                parent_id INTEGER REFERENCES "{parent_table}"(id)
+            )
+            """,
+            autocommit=True,
+        )
+        db.execute(
+            f'CREATE INDEX ON "{child_table}" (parent_id)',
+            autocommit=True,
+        )
+
+        result = db.schema.describe(child_table)
+
+        # Exact key set
+        assert set(result) == {"columns", "primary_key", "foreign_keys", "indexes"}
+
+        # Composition equality — each sub-value equals the standalone helper output (D-04)
+        assert result["columns"] == db.schema.table_info(child_table)
+        assert result["primary_key"] == db.schema.primary_key(child_table)
+        assert result["foreign_keys"] == db.schema.foreign_keys(child_table)
+        assert result["indexes"] == db.schema.list_indexes(child_table)
+
+    def test_describe_missing_table_returns_empty(self, db):
+        """describe on a nonexistent table returns all-empty/None sub-values (D-06)."""
+        result = db.schema.describe("no_such_table_xyzzy_35_02")
+        assert result == {
+            "columns": [],
+            "primary_key": None,
+            "foreign_keys": [],
+            "indexes": [],
+        }

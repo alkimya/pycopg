@@ -1195,6 +1195,45 @@ class TestDatabaseIntrospectionHelpers:
         result = db.schema.views("public")
         assert result == []
 
+    @patch("pycopg.database.psycopg")
+    def test_describe_composes_four_helpers(self, mock_psycopg, config):
+        """describe returns a flat 4-key dict by composing the four standalone helpers."""
+        # Patch each composed helper directly so describe's composition contract is
+        # tested without fighting the shared-fetchall mock cursor limitation.
+        db = self._make_db(mock_psycopg, config, [])
+        expected_columns = [{"column_name": "id", "data_type": "integer"}]
+        expected_pk = {"constraint_name": "t_pkey", "columns": ["id"]}
+        expected_fks = []
+        expected_indexes = [{"index_name": "t_pkey", "index_type": "btree"}]
+        with (
+            patch.object(
+                db.schema, "table_info", return_value=expected_columns
+            ) as m_ti,
+            patch.object(
+                db.schema, "primary_key", return_value=expected_pk
+            ) as m_pk,
+            patch.object(
+                db.schema, "foreign_keys", return_value=expected_fks
+            ) as m_fk,
+            patch.object(
+                db.schema, "list_indexes", return_value=expected_indexes
+            ) as m_li,
+        ):
+            result = db.schema.describe("some_table", "public")
+
+        # Exact key set
+        assert set(result) == {"columns", "primary_key", "foreign_keys", "indexes"}
+        # Each sub-value is the standalone helper's exact output
+        assert result["columns"] == expected_columns
+        assert result["primary_key"] == expected_pk
+        assert result["foreign_keys"] == expected_fks
+        assert result["indexes"] == expected_indexes
+        # Each helper was called exactly once with positional table+schema args
+        m_ti.assert_called_once_with("some_table", "public")
+        m_pk.assert_called_once_with("some_table", "public")
+        m_fk.assert_called_once_with("some_table", "public")
+        m_li.assert_called_once_with("some_table", "public")
+
 
 class TestDatabaseDropTable:
     """Tests for drop_table method."""

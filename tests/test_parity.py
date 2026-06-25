@@ -98,6 +98,40 @@ def test_timescale_v080_surface():
         ), f"{cls.__name__} is missing v0.8.0 method(s): {sorted(missing)}"
 
 
+def test_schema_v090_surface():
+    """Assert both schema accessors expose the 5 new v0.9.0 introspection methods.
+
+    A named frozenset of the v0.9.0 SchemaAccessor surface — the Phase 35
+    additions (``primary_key``, ``foreign_keys``, ``sequences``, ``views``,
+    ``describe``) — must be a subset of the public members of BOTH
+    :class:`SchemaAccessor` and :class:`AsyncSchemaAccessor`, so a silently
+    dropped or renamed method fails loudly.  This complements the bidirectional
+    set-diff in :func:`test_accessor_parity` (which only checks sync/async
+    symmetry, not that the methods exist at all).
+
+    Per-method signature parity is intentionally deferred;
+    ``ACCESSOR_PAIRS`` is not touched.
+    """
+    v090_surface = frozenset(
+        {
+            "primary_key",
+            "foreign_keys",
+            "sequences",
+            "views",
+            "describe",
+        }
+    )
+
+    for cls in (SchemaAccessor, AsyncSchemaAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v090_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing v0.9.0 method(s): {sorted(missing)}"
+
+
 class TestAsyncParity:
     """Test that AsyncDatabase maintains parity with Database API."""
 
