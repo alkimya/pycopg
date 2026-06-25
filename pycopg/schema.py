@@ -774,6 +774,36 @@ class SchemaAccessor:
         result = self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
 
+    def describe(self, table: str, schema: str = "public") -> dict:
+        """Return a consolidated introspection snapshot for a table.
+
+        Composes the four standalone helpers into one flat dict.  No new SQL
+        is executed — each sub-value is the exact output of its helper, so the
+        shapes can never drift from the standalone methods (D-04).
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict
+            Flat dict with exactly the keys ``columns``, ``primary_key``,
+            ``foreign_keys``, and ``indexes``.  Each value is the output of
+            the corresponding standalone helper.  For a nonexistent table all
+            sub-values are their empty/None defaults: ``columns=[]``,
+            ``primary_key=None``, ``foreign_keys=[]``, ``indexes=[]``.
+        """
+        return {
+            "columns": self.table_info(table, schema),
+            "primary_key": self.primary_key(table, schema),
+            "foreign_keys": self.foreign_keys(table, schema),
+            "indexes": self.list_indexes(table, schema),
+        }
+
 
 class AsyncSchemaAccessor:
     """Async schema helper namespace exposed as ``async_db.schema``.
@@ -1524,3 +1554,33 @@ class AsyncSchemaAccessor:
         validate_identifiers(schema)
         result = await self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
+
+    async def describe(self, table: str, schema: str = "public") -> dict:
+        """Return a consolidated introspection snapshot for a table.
+
+        Composes the four standalone helpers into one flat dict.  No new SQL
+        is executed — each sub-value is the exact output of its helper, so the
+        shapes can never drift from the standalone methods (D-04).
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict
+            Flat dict with exactly the keys ``columns``, ``primary_key``,
+            ``foreign_keys``, and ``indexes``.  Each value is the output of
+            the corresponding standalone helper.  For a nonexistent table all
+            sub-values are their empty/None defaults: ``columns=[]``,
+            ``primary_key=None``, ``foreign_keys=[]``, ``indexes=[]``.
+        """
+        return {
+            "columns": await self.table_info(table, schema),
+            "primary_key": await self.primary_key(table, schema),
+            "foreign_keys": await self.foreign_keys(table, schema),
+            "indexes": await self.list_indexes(table, schema),
+        }
