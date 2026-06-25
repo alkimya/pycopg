@@ -169,7 +169,16 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   3. Docs surfaces updated: README method counts reflect new helpers, `api-reference.md` rows added, `docs/*.md` pages cover the new methods with numpydoc-consistent shallow docstrings
   4. Tag `v0.9.0` pushed and PyPI wheel+sdist published via OIDC trusted publishing (human-gated at the irreversible publish step); clean-venv `pip install pycopg==0.9.0` smoke prints 0.9.0
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+**Wave 1**
+
+- [ ] 36-01-PLAN.md — Content & Docs: version bump (pyproject/uv.lock/conf.py), CHANGELOG [0.9.0] Added-only (12 methods), docs surfaces, cosmetic-debt cleanup (D-36-04), 4-gate baseline [Wave 1]
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 36-02-PLAN.md — Release & Smoke: re-confirm 4 gates + local build, human-gated tag/Release/OIDC PyPI publish, clean-venv `pip install pycopg==0.9.0` smoke [Wave 2]
+
 **UI hint**: no
 
 ## Progress
