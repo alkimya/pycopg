@@ -1086,6 +1086,116 @@ class TestDatabaseConstraints:
         assert len(constraints) == 2
 
 
+class TestDatabaseIntrospectionHelpers:
+    """Mock-based unit tests for primary_key, foreign_keys, sequences, views."""
+
+    def _make_db(self, mock_psycopg, config, fetchall_value):
+        """Helper: set up mock cursor with given fetchall return value."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("col",)]
+        mock_cursor.fetchall.return_value = fetchall_value
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+        return Database(config)
+
+    @patch("pycopg.database.psycopg")
+    def test_primary_key(self, mock_psycopg, config):
+        """primary_key reshapes constraint+column rows into dict with constraint_name and columns."""
+        rows = [
+            {"constraint_name": "users_pkey", "column_name": "id"},
+        ]
+        db = self._make_db(mock_psycopg, config, rows)
+        result = db.schema.primary_key("users")
+        assert result == {"constraint_name": "users_pkey", "columns": ["id"]}
+
+    @patch("pycopg.database.psycopg")
+    def test_primary_key_composite(self, mock_psycopg, config):
+        """primary_key returns columns in key order for composite PK."""
+        rows = [
+            {"constraint_name": "org_user_pkey", "column_name": "org_id"},
+            {"constraint_name": "org_user_pkey", "column_name": "user_id"},
+        ]
+        db = self._make_db(mock_psycopg, config, rows)
+        result = db.schema.primary_key("org_user")
+        assert result == {
+            "constraint_name": "org_user_pkey",
+            "columns": ["org_id", "user_id"],
+        }
+
+    @patch("pycopg.database.psycopg")
+    def test_primary_key_none(self, mock_psycopg, config):
+        """primary_key returns None when the table has no primary key."""
+        db = self._make_db(mock_psycopg, config, [])
+        result = db.schema.primary_key("no_pk_table")
+        assert result is None
+
+    @patch("pycopg.database.psycopg")
+    def test_foreign_keys(self, mock_psycopg, config):
+        """foreign_keys groups rows into list[dict] with exactly the 4 core keys."""
+        rows = [
+            {
+                "constraint_name": "orders_user_id_fkey",
+                "column_name": "user_id",
+                "referenced_table": "users",
+                "referenced_column": "id",
+            }
+        ]
+        db = self._make_db(mock_psycopg, config, rows)
+        result = db.schema.foreign_keys("orders")
+        assert len(result) == 1
+        entry = result[0]
+        assert set(entry.keys()) == {
+            "constraint_name",
+            "columns",
+            "referenced_table",
+            "referenced_columns",
+        }
+        assert entry["constraint_name"] == "orders_user_id_fkey"
+        assert entry["columns"] == ["user_id"]
+        assert entry["referenced_table"] == "users"
+        assert entry["referenced_columns"] == ["id"]
+
+    @patch("pycopg.database.psycopg")
+    def test_foreign_keys_empty(self, mock_psycopg, config):
+        """foreign_keys returns [] when the table has no foreign keys."""
+        db = self._make_db(mock_psycopg, config, [])
+        result = db.schema.foreign_keys("no_fk_table")
+        assert result == []
+
+    @patch("pycopg.database.psycopg")
+    def test_sequences(self, mock_psycopg, config):
+        """sequences returns list[str] of sequence names."""
+        rows = [{"sequence_name": "users_id_seq"}, {"sequence_name": "orders_id_seq"}]
+        db = self._make_db(mock_psycopg, config, rows)
+        result = db.schema.sequences("public")
+        assert result == ["users_id_seq", "orders_id_seq"]
+
+    @patch("pycopg.database.psycopg")
+    def test_sequences_empty(self, mock_psycopg, config):
+        """sequences returns [] for a schema with no sequences."""
+        db = self._make_db(mock_psycopg, config, [])
+        result = db.schema.sequences("empty_schema")
+        assert result == []
+
+    @patch("pycopg.database.psycopg")
+    def test_views(self, mock_psycopg, config):
+        """views returns list[str] of regular view names."""
+        rows = [{"table_name": "active_users"}, {"table_name": "recent_orders"}]
+        db = self._make_db(mock_psycopg, config, rows)
+        result = db.schema.views("public")
+        assert result == ["active_users", "recent_orders"]
+
+    @patch("pycopg.database.psycopg")
+    def test_views_empty(self, mock_psycopg, config):
+        """views returns [] for a schema with no regular views."""
+        db = self._make_db(mock_psycopg, config, [])
+        result = db.schema.views("public")
+        assert result == []
+
+
 class TestDatabaseDropTable:
     """Tests for drop_table method."""
 

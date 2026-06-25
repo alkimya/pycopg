@@ -1103,3 +1103,146 @@ class TestDatabaseReadHelpers:
             f'SELECT id FROM "{temp_table_name}" WHERE id = 9999'
         )
         assert empty == []
+
+
+class TestIntrospectionHelpers:
+    """Live-DB tests for primary_key, foreign_keys, sequences, views helpers."""
+
+    def test_primary_key_single_column(self, db, temp_table_name, cleanup_table):
+        """primary_key returns constraint_name + ['id'] for a single-column PK table."""
+        cleanup_table(temp_table_name)
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, name TEXT)',
+            autocommit=True,
+        )
+        result = db.schema.primary_key(temp_table_name)
+        assert result is not None
+        assert "constraint_name" in result
+        assert result["columns"] == ["id"]
+
+    def test_primary_key_composite(self, db, temp_table_name, cleanup_table):
+        """primary_key returns columns in key order for a composite PK."""
+        cleanup_table(temp_table_name)
+        db.execute(
+            f"""
+            CREATE TABLE "{temp_table_name}" (
+                org_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                data TEXT,
+                PRIMARY KEY (org_id, user_id)
+            )
+            """,
+            autocommit=True,
+        )
+        result = db.schema.primary_key(temp_table_name)
+        assert result is not None
+        assert result["columns"] == ["org_id", "user_id"]
+
+    def test_primary_key_no_pk(self, db, temp_table_name, cleanup_table):
+        """primary_key returns None for a table with no primary key."""
+        cleanup_table(temp_table_name)
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (val TEXT)',
+            autocommit=True,
+        )
+        result = db.schema.primary_key(temp_table_name)
+        assert result is None
+
+    def test_primary_key_nonexistent_table(self, db):
+        """primary_key returns None for a nonexistent table (no error raised)."""
+        result = db.schema.primary_key("this_table_does_not_exist_xyz")
+        assert result is None
+
+    def test_foreign_keys_basic(self, db, temp_table_name, cleanup_table):
+        """foreign_keys returns one entry with the correct keys for a single FK."""
+        ref_table = temp_table_name + "_ref"
+        fk_table = temp_table_name + "_fk"
+        cleanup_table(ref_table)
+        cleanup_table(fk_table)
+        db.execute(
+            f'CREATE TABLE "{ref_table}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+        db.execute(
+            f"""
+            CREATE TABLE "{fk_table}" (
+                id SERIAL PRIMARY KEY,
+                ref_id INTEGER REFERENCES "{ref_table}"(id)
+            )
+            """,
+            autocommit=True,
+        )
+        result = db.schema.foreign_keys(fk_table)
+        assert len(result) == 1
+        entry = result[0]
+        assert set(entry.keys()) == {
+            "constraint_name",
+            "columns",
+            "referenced_table",
+            "referenced_columns",
+        }
+        assert entry["columns"] == ["ref_id"]
+        assert entry["referenced_table"] == ref_table
+        assert entry["referenced_columns"] == ["id"]
+
+    def test_foreign_keys_empty(self, db, temp_table_name, cleanup_table):
+        """foreign_keys returns [] for a table with no foreign keys."""
+        cleanup_table(temp_table_name)
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+        result = db.schema.foreign_keys(temp_table_name)
+        assert result == []
+
+    def test_foreign_keys_nonexistent_table(self, db):
+        """foreign_keys returns [] for a nonexistent table (no error raised)."""
+        result = db.schema.foreign_keys("this_table_does_not_exist_xyz")
+        assert result == []
+
+    def test_sequences_includes_serial(self, db, temp_table_name, cleanup_table):
+        """sequences returns the _id_seq created for a SERIAL column."""
+        cleanup_table(temp_table_name)
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY)',
+            autocommit=True,
+        )
+        seq_name = f"{temp_table_name}_id_seq"
+        result = db.schema.sequences("public")
+        assert isinstance(result, list)
+        assert seq_name in result
+
+    def test_views_excludes_materialized_view(self, db, temp_table_name, cleanup_table):
+        """views returns regular view names but excludes materialized view names."""
+        cleanup_table(temp_table_name)
+        view_name = temp_table_name + "_view"
+        matview_name = temp_table_name + "_matview"
+        # Create base table for the views
+        db.execute(
+            f'CREATE TABLE "{temp_table_name}" (id SERIAL PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        # Create a regular view
+        db.execute(
+            f'CREATE VIEW "{view_name}" AS SELECT id, val FROM "{temp_table_name}"',
+            autocommit=True,
+        )
+        # Create a materialized view
+        db.execute(
+            f'CREATE MATERIALIZED VIEW "{matview_name}" AS SELECT id FROM "{temp_table_name}"',
+            autocommit=True,
+        )
+        try:
+            regular_views = db.schema.views("public")
+            assert view_name in regular_views
+            assert matview_name not in regular_views
+        finally:
+            # Clean up views (CASCADE handles the table dependency)
+            for name, kind in [
+                (matview_name, "MATERIALIZED VIEW"),
+                (view_name, "VIEW"),
+            ]:
+                try:
+                    db.execute(f'DROP {kind} IF EXISTS "{name}"', autocommit=True)
+                except Exception:
+                    pass
