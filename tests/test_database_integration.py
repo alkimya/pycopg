@@ -1294,7 +1294,7 @@ class TestIntrospectionHelpers:
             "indexes": [],
         }
 
-    def test_truncate_table_missing_raises_TableNotFound(self, db):
+    def test_truncate_table_missing_raises_table_not_found(self, db):
         """truncate_table on a nonexistent table raises TableNotFound (DEBT-05)."""
         missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
         with pytest.raises(TableNotFound):
