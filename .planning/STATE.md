@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
-status: executing
-stopped_at: Phase 40 Plan 01 complete — gates verified green
-last_updated: "2026-06-26T22:44:01.339Z"
-last_activity: 2026-06-26 -- Phase 40 execution started
+status: verifying
+stopped_at: Phase 40 Plan 02 complete — v0.10.0 shipped to PyPI, clean-venv smoke passed
+last_updated: "2026-06-26T22:57:59.252Z"
+last_activity: 2026-06-26 -- v0.10.0 milestone complete — pycopg 0.10.0 live on PyPI
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
-  percent: 75
+  completed_plans: 12
+  percent: 100
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 ## Current Position
 
-Phase: 40 (release-v0-10-0) — EXECUTING
-Plan: 2 of 2
-Status: Ready to execute
-Last activity: 2026-06-26 -- Phase 40 execution started
+Phase: 40 (release-v0-10-0) — COMPLETE
+Plan: 2 of 2 (all plans complete)
+Status: Milestone v0.10.0 shipped — pycopg 0.10.0 live on PyPI
+Last activity: 2026-06-26 -- v0.10.0 milestone complete — pycopg 0.10.0 live on PyPI
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
@@ -120,11 +120,12 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T22:44:01.332Z
-Stopped at: Phase 40 Plan 01 complete — gates verified green
+Last session: 2026-06-26T22:58:00Z
+Stopped at: v0.10.0 milestone complete — Phase 40 Plan 02 done, pycopg 0.10.0 live on PyPI, clean-venv smoke passed
 Resume file: None
-Next action: `/gsd-execute-phase 37` (Plan 05)
+Next action: Plan v1.0.0 milestone (spatial v2 + API freeze)
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 37` to continue Phase 37 with Plan 05
+- v0.10.0 SHIPPED: pycopg 0.10.0 is live on PyPI — <https://pypi.org/project/pycopg/0.10.0/>
+- Next milestone: v1.0.0 — spatial v2 + API freeze (run `/gsd-plan-milestone v1.0.0` to plan)
