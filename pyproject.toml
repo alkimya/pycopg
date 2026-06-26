@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pycopg"
-version = "0.9.0"
+version = "0.10.0"
 description = "High-level Python API for PostgreSQL/PostGIS/TimescaleDB"
 readme = "README.md"
 license = "MIT"
