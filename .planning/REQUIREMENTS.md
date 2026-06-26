@@ -35,7 +35,7 @@ Requirements for the v0.10.0 release. Each maps to exactly one roadmap phase.
 - [x] **PERF-01**: `from_dataframe` (sync + async) route les inserts via le protocole COPY au lieu de `df.to_sql(con=engine)`, en préservant le contrat observable (`if_exists` fail/replace/append, `index`, `primary_key`) ; un test démontre le gain de débit sur un volume représentatif.
 - [x] **PERF-02**: Le chemin de load ETL (`append`/`replace`) route via COPY et évite la matérialisation `astype(object)` + `to_dict(orient="records")` inutile sur gros frames, sans changer le contrat de `db.etl.run()` (statut/compte/parité).
 - [x] **PERF-03**: `insert_batch` hoiste le placeholder de ligne invariant hors de la boucle par ligne (micro-optimisation) ; comportement strictement inchangé, couvert par un test de non-régression.
-- [ ] **PERF-04**: Une suite de benchmarks reproductible (dev-group, sans nouvelle dépendance runtime) mesure les chemins d'insertion (`insert_batch`, `copy_insert`, `from_dataframe`, ETL load) et sert de garde-fou anti-régression ; protocole documenté (comment lancer, comment lire).
+- [x] **PERF-04**: Une suite de benchmarks reproductible (dev-group, sans nouvelle dépendance runtime) mesure les chemins d'insertion (`insert_batch`, `copy_insert`, `from_dataframe`, ETL load) et sert de garde-fou anti-régression ; protocole documenté (comment lancer, comment lire).
 - [x] **PERF-05**: Tout changement de chemin d'insertion (PERF-01/PERF-02) conserve la parité sync/async — vérifiée par les tests de parité existants (`test_parity`/`test_accessor_parity`) et un test de comportement async dédié.
 
 ### Release (REL)
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-03 | Phase 38 | Complete |
 | PERF-05 | Phase 38 | Complete |
 | COV-01 | Phase 39 | Complete |
-| PERF-04 | Phase 39 | Pending |
+| PERF-04 | Phase 39 | Complete |
 | REL-10 | Phase 40 | Pending |
 
 **Coverage:**

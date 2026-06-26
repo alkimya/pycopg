@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
-status: executing
-stopped_at: "Completed 39-01-PLAN.md (COV-01: coverage 94→95%, --cov-fail-under=95 gate green)"
-last_updated: "2026-06-26T18:59:27.788Z"
+status: verifying
+stopped_at: "Completed 39-02-PLAN.md (PERF-04: benchmarks/ package + make bench + README regression protocol)"
+last_updated: "2026-06-26T19:06:37.185Z"
 last_activity: 2026-06-26 -- Phase 39 execution started
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 50
+  completed_plans: 10
+  percent: 75
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 Phase: 39 (couverture-benchmarks) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-26 -- Phase 39 execution started
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
@@ -62,6 +62,7 @@ Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 | Phase 38 P02 | 12m | 3 tasks | 4 files |
 | Phase 38 P03 | 2m 53s | 2 tasks | 3 files |
 | Phase 39-couverture-benchmarks P01 | 24min | 3 tasks | 7 files |
+| Phase 39-couverture-benchmarks P02 | 10min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,7 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 - [Phase 37 P04]: DEBT-03a resolved — WR-01 case-insensitive time_bucket guard (select_sql.lower()), upsert Raises docstrings (sync + async), test_sequences_async asserts f"{t}_id_seq" in seqs, import uuid de-duplicated to top-level in test_async_database.py
 - [Phase ?]: Phase 38-01: D-01 Hybrid DDL+COPY for from_dataframe — head(0).to_sql for schema, _stream_df_copy/async for rows; D-04 replace two-phase documented; D-03 separate psycopg connection
 - [Phase ?]: COV-01: D-04a honored — bump was last act after tests committed and measured >=95%; 15 new behavioral tests (async insert_batch + ETL dry_run watermark), 6 justified pragma: no cover, final coverage 95.74%
+- [Phase ?]: Phase 39-02 (PERF-04): stdlib benchmark runner for 4 insertion paths; D-03 honored (zero timing assertions); load_mode=replace for ETL COPY seam; make bench = python -m benchmarks (caller controls PGDATABASE)
 
 ### Pending Todos
 
@@ -113,8 +115,8 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T18:59:27.779Z
-Stopped at: Completed 39-01-PLAN.md (COV-01: coverage 94→95%, --cov-fail-under=95 gate green)
+Last session: 2026-06-26T19:06:37.178Z
+Stopped at: Completed 39-02-PLAN.md (PERF-04: benchmarks/ package + make bench + README regression protocol)
 Resume file: None
 Next action: `/gsd-execute-phase 37` (Plan 05)
 

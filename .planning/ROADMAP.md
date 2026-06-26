@@ -111,7 +111,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 - [x] **Phase 37: Dette & Audit** (5 plans, 3 waves) - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24 (completed 2026-06-26)
 - [x] **Phase 38: Performance COPY** - Router `from_dataframe` + ETL load via COPY, micro-opt `insert_batch`, parité sync/async vérifiée (completed 2026-06-26)
-- [ ] **Phase 39: Couverture & Benchmarks** - Lever le cliquet de couverture à 95%, écrire la suite de benchmarks garde-fou
+- [x] **Phase 39: Couverture & Benchmarks** - Lever le cliquet de couverture à 95%, écrire la suite de benchmarks garde-fou (completed 2026-06-26)
 - [ ] **Phase 40: Release v0.10.0** - Bump version, CHANGELOG, 4 gates verts, tag + PyPI OIDC publish + smoke
 
 ## Phase Details
@@ -184,7 +184,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 **Wave 1** *(both plans independent — zero files_modified overlap)*
 
 - [x] 39-01-PLAN.md — COV-01: new behavioral tests (TestAsyncInsertBatch live-DB L685–718 + sync/async ETL dry_run watermark/transform), justified `pragma: no cover` (first use), then bump `--cov-fail-under=94`→`95` as the last act + `benchmarks/*` coverage omit
-- [ ] 39-02-PLAN.md — PERF-04: stdlib-only `benchmarks/` runner (4 insertion paths head-to-head, `python -m benchmarks`/`make bench`, comparative table + speedup), documented regression protocol in `benchmarks/README.md`
+- [x] 39-02-PLAN.md — PERF-04: stdlib-only `benchmarks/` runner (4 insertion paths head-to-head, `python -m benchmarks`/`make bench`, comparative table + speedup), documented regression protocol in `benchmarks/README.md`
 
 ### Phase 40: Release v0.10.0
 
@@ -242,5 +242,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete    | 2026-06-26 |
-| 39. Couverture & Benchmarks | v0.10.0 | 1/2 | In Progress|  |
+| 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete   | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
