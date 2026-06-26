@@ -179,7 +179,12 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   2. Une suite de benchmarks (dev-group, sans nouvelle dépendance runtime) mesure les chemins `insert_batch`, `copy_insert`, `from_dataframe`, ETL load sur un volume représentatif (ex. 100k lignes) et produit des résultats comparatifs lisibles
   3. Le protocole de benchmark est documenté (comment lancer, comment lire les résultats, comment interpréter une régression)
 
-**Plans**: TBD
+**Plans**: 2 plans (1 wave)
+
+**Wave 1** *(both plans independent — zero files_modified overlap)*
+
+- [ ] 39-01-PLAN.md — COV-01: new behavioral tests (TestAsyncInsertBatch live-DB L685–718 + sync/async ETL dry_run watermark/transform), justified `pragma: no cover` (first use), then bump `--cov-fail-under=94`→`95` as the last act + `benchmarks/*` coverage omit
+- [ ] 39-02-PLAN.md — PERF-04: stdlib-only `benchmarks/` runner (4 insertion paths head-to-head, `python -m benchmarks`/`make bench`, comparative table + speedup), documented regression protocol in `benchmarks/README.md`
 
 ### Phase 40: Release v0.10.0
 
@@ -237,5 +242,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete    | 2026-06-26 |
-| 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
+| 39. Couverture & Benchmarks | v0.10.0 | 0/2 | Planned | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
