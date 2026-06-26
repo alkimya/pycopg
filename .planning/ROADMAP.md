@@ -163,7 +163,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 — Plan 02 reuses the helpers; Plan 03 shares database.py/async_database.py)*
 
-- [ ] 38-02-PLAN.md — ETL load seam: `append`/`replace` stream via COPY inline on the transaction cursor (upsert stays on INSERT ON CONFLICT), `db.etl.run()` contract unchanged (PERF-02, PERF-05)
+- [x] 38-02-PLAN.md — ETL load seam: `append`/`replace` stream via COPY inline on the transaction cursor (upsert stays on INSERT ON CONFLICT), `db.etl.run()` contract unchanged (PERF-02, PERF-05)
 - [ ] 38-03-PLAN.md — `insert_batch` (sync+async) hoist invariant `row_placeholders` out of the per-row loop, byte-exact non-regression test (PERF-03, PERF-05)
 
 **UI hint**: no
@@ -236,6 +236,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
-| 38. Performance COPY | v0.10.0 | 1/3 | In Progress|  |
+| 38. Performance COPY | v0.10.0 | 2/3 | In Progress|  |
 | 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
