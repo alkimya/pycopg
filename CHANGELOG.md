@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-26
+
+### Changed
+
+- `from_dataframe` (sync and async) now streams rows via the psycopg COPY
+  protocol using a Hybrid DDL+COPY approach (`df.head(0).to_sql` for schema
+  creation, then COPY for row streaming), yielding higher-throughput bulk
+  insertion for large DataFrames. The `if_exists`, `index`, `primary_key`,
+  and `dtype` contract is preserved. See `benchmarks/` and
+  `benchmarks/README.md` for a reproducible, on-demand comparison of
+  all four insertion paths.
+- The ETL `append` and `replace` load paths now stream rows inline via COPY
+  on the transaction cursor, eliminating the intermediate
+  `astype(object) + to_dict(orient="records")` materialization. The `upsert`
+  path continues to use `INSERT … ON CONFLICT DO UPDATE` (unchanged).
+- `insert_batch` hoists the invariant row-placeholder string out of the
+  per-row loop (byte-exact SQL and parameter order preserved).
+- Test coverage ratchet raised from 94% to 95% (`--cov-fail-under=95`);
+  measured at 95.74%.
+
+### Fixed
+
+- **Audit BLOCKERs (5 security/correctness fixes):** `explain()` format
+  argument is now validated against a whitelist (`text`, `json`, `xml`,
+  `yaml`) before EXPLAIN SQL is constructed; `validate_identifiers` is now
+  called before `df.to_sql()` in `from_dataframe` and before `gdf.to_postgis()`
+  in `from_geodataframe` (sync and async); `pg_dump` and `pg_restore`
+  CLI argument expansion now rejects values starting with `-` or containing
+  control characters (flag-injection guard); `pg_restore` now raises
+  `FileNotFoundError` for missing non-`.sql` input files instead of misrouting
+  them to psql.
+- Three previously-flaky tests (`test_async_transaction_fix`,
+  `test_create_spatial_index_name_parameter`, and the watermark bound-param
+  test) now pass deterministically under `pytest-randomly` via fixture-isolation
+  fixes (UUID table names, connection teardown in `finally`, pool-state reset).
+- Residual ruff errors (`N818` suppressed via per-file-ignore on
+  `pycopg/exceptions.py`, `W291`, `F841`, `E722`) resolved; `ruff check
+  pycopg tests` now exits 0.
+- `TableNotFound` now has a real raise site in `truncate_table` (sync and
+  async): it is raised when the target table does not exist, resolving the
+  exported-but-never-raised inconsistency.
+- Advisory code-review warnings from v0.8.0 and v0.9.0 closed or justified
+  in-milestone (connection-limit integer guard, async `stream()` session
+  parity, libpq option sanitization, `TimescaleError` export, watermark
+  decoder unknown-tag branch).
+
 ## [0.9.0] - 2026-06-25
 
 ### Added
@@ -326,7 +372,9 @@ examples, watermark-column requirements, and backfill/reset instructions.
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/alkimya/pycopg/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/alkimya/pycopg/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/alkimya/pycopg/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/alkimya/pycopg/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alkimya/pycopg/compare/v0.5.0...v0.6.0
