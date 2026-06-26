@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
-stopped_at: Phase 37 Plan 02 complete
-last_updated: "2026-06-26T08:00:00.000Z"
-last_activity: 2026-06-26 -- Phase 37 Plan 02 executed (tests/ ruff-clean, DEBT-04 resolved)
+stopped_at: Phase 37 Plan 03 complete
+last_updated: "2026-06-26T07:30:29Z"
+last_activity: 2026-06-26 -- Phase 37 Plan 03 executed (DEBT-01 fixture-isolation de-flake, 3 flaky tests fixed)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
-  percent: 40
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 ## Current Position
 
 Phase: 37 (dette-audit) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
-Last activity: 2026-06-26 -- Phase 37 Plan 02 complete (tests/ ruff-clean, DEBT-04 resolved)
+Last activity: 2026-06-26 -- Phase 37 Plan 03 complete (DEBT-01 fixture-isolation de-flake resolved)
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
@@ -71,6 +71,8 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 - [Phase ?]: Phase 37 (37-01): vulture + pytest-randomly added to dev-group; vulture allowlist as .py whitelist file; seed lists only the 4 public-exception false positives, scan-driven refinement deferred to Plan 05 (D-07)
 - [Phase 37 P02]: D-01b applied — 34 ruff errors in tests/ fixed mechanically (W291×5, F841×24, E722×5); live run exposed 3 more F841 than RESEARCH predicted (truncated output); `uv run ruff check pycopg tests` exits 0
 - [Phase 37 P02]: D-04 resolved — dead db.role_exists + db.has_extension monkeypatches removed from async_db fixture in test_sql_injection.py; live real_schema.has_extension patch preserved
+- [Phase 37 P03]: D-05 resolved — test_async_transaction_fix uses yielded psycopg conn inside transaction() (avoids auto-commit ProgrammingError); RESET application_name in finally prevents pool state leak; test_create_spatial_index_name_parameter uses UUID table name; watermark spy tests annotated with DEBT-01 rationale; full suite 1332 passed deterministically under pytest-randomly
+- [Phase 37 P03]: 3 pre-existing PostGIS env failures (PostGIS not installed in pycopg_test2) logged for Plan 05 disposition
 
 ### Pending Todos
 
@@ -78,8 +80,8 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ### Blockers/Concerns
 
-- 2 pre-existing flaky full-suite DB tests (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`) — fixture-isolation bug, targeted by DEBT-01 in Phase 37.
-- One ~2.7% flaky bound-param test surfaced during Phase 28 — also targeted by DEBT-01.
+- RESOLVED (Plan 37-03): `test_async_transaction_fix`, `test_create_spatial_index_name_parameter`, ~2.7% bound-param watermark test — all DEBT-01 fixture-isolation fixes applied; full suite 1332 passed under pytest-randomly
+- 3 pre-existing PostGIS env failures (test_postgis_errors.py) — PostGIS not installed in pycopg_test2; for Plan 05 disposition
 - Local `pycopg_test` DB unusable since 2026-06-24 (TSDB catalog mismatch) — run DB/parity tests with `PGDATABASE=pycopg_test2`.
 
 ## Deferred Items
@@ -101,11 +103,11 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T08:00:00.000Z
-Stopped at: Phase 37 Plan 02 complete
-Resume file: .planning/phases/37-dette-audit/37-02-SUMMARY.md
-Next action: `/gsd-execute-phase 37` (Plan 03)
+Last session: 2026-06-26T07:30:29Z
+Stopped at: Phase 37 Plan 03 complete
+Resume file: .planning/phases/37-dette-audit/37-03-SUMMARY.md
+Next action: `/gsd-execute-phase 37` (Plan 04)
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 37` to continue Phase 37 with Plan 03
+- Run `/gsd-execute-phase 37` to continue Phase 37 with Plan 04

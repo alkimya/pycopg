@@ -136,7 +136,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 37-03-PLAN.md — De-flake the 3 flaky tests (fixture isolation) + prove determinism under pytest-randomly (DEBT-01)
+- [x] 37-03-PLAN.md — De-flake the 3 flaky tests (fixture isolation) + prove determinism under pytest-randomly (DEBT-01)
 - [ ] 37-04-PLAN.md — TableNotFound raise site in truncate_table (sync+async) + DEBT-03a advisory fixes (DEBT-05, DEBT-03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -225,7 +225,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
-| 37. Dette & Audit | v0.10.0 | 2/5 | In Progress|  |
+| 37. Dette & Audit | v0.10.0 | 3/5 | In Progress|  |
 | 38. Performance COPY | v0.10.0 | 0/TBD | Not started | - |
 | 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |

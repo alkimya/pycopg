@@ -11,7 +11,7 @@ Requirements for the v0.10.0 release. Each maps to exactly one roadmap phase.
 
 ### Dette technique (DEBT)
 
-- [ ] **DEBT-01**: Les tests flaky par isolation de fixture (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`, le ~2.7% bound-param) passent de façon déterministe en suite complète (`uv run pytest`), sans `-o addopts=""` ni ordre particulier.
+- [x] **DEBT-01**: Les tests flaky par isolation de fixture (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`, le ~2.7% bound-param) passent de façon déterministe en suite complète (`uv run pytest`), sans `-o addopts=""` ni ordre particulier.
 - [x] **DEBT-02**: Les 4 erreurs ruff résiduelles (N818/W291/F841/E722) sont corrigées — `uv run ruff check pycopg tests` retourne 0 erreur.
 - [ ] **DEBT-03**: Les warnings advisory recensés v0.8-0.9 sont soldés ou explicitement clos avec justification : WR-01 garde `time_bucket(` insensible à la casse, WR-03 INTERVAL-literal-vs-`%s`, `%`/`%s` dans le SQL structurel fourni par l'appelant, IN-03 helper `chunk_seq` fragile, et les advisory v0.9 (`test_sequences_async` assertion sur le nom de séquence, `upsert` docstring section `Raises`, duplications `import uuid`/helpers ad-hoc dans les tests async).
 - [x] **DEBT-04**: Le code mort de test est retiré — monkeypatches morts du fixture async de `test_sql_injection.py` (WR-02) supprimés.
@@ -77,7 +77,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DEBT-01 | Phase 37 | Pending |
+| DEBT-01 | Phase 37 | Complete |
 | DEBT-02 | Phase 37 | Complete |
 | DEBT-03 | Phase 37 | Pending |
 | DEBT-04 | Phase 37 | Pending |
