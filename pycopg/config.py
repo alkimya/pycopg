@@ -17,7 +17,9 @@ try:
     from dotenv import load_dotenv
 
     HAS_DOTENV = True
-except ImportError:
+except (
+    ImportError
+):  # pragma: no cover — python-dotenv ImportError only fires when package absent; --all-extras always installs it
     HAS_DOTENV = False
 
     def load_dotenv(dotenv_path=None, *, override: bool = False, **kwargs):

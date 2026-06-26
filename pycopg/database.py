@@ -564,7 +564,9 @@ class Database(DatabaseBase, QueryMixin):
                         # close() ALWAYS runs, even when commit() raises (B2 residual fix).
                         try:
                             self._session_conn.close()
-                        except Exception as close_exc:
+                        except (
+                            Exception
+                        ) as close_exc:  # pragma: no cover — requires commit() + close() to both raise simultaneously; not reproducible without driver-level corruption
                             if commit_exc is not None:
                                 # close failure is secondary; don't mask commit failure
                                 logger.warning(

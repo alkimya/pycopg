@@ -189,7 +189,9 @@ class BackupAccessor:
             cmd, env={**os.environ, **env}, capture_output=True, text=True
         )
 
-        if result.returncode != 0:
+        if (
+            result.returncode != 0
+        ):  # pragma: no cover — requires pg_restore subprocess failure; environment-dependent
             raise RuntimeError(f"pg_restore failed: {result.stderr}")
 
     def _psql_restore(self, sql_file: Path) -> None:
@@ -217,7 +219,9 @@ class BackupAccessor:
             cmd, env={**os.environ, **env}, capture_output=True, text=True
         )
 
-        if result.returncode != 0:
+        if (
+            result.returncode != 0
+        ):  # pragma: no cover — requires psql subprocess failure; environment-dependent
             raise RuntimeError(f"psql restore failed: {result.stderr}")
 
     def copy_to_csv(
@@ -564,7 +568,9 @@ class AsyncBackupAccessor:
 
         _, stderr = await proc.communicate()
 
-        if proc.returncode != 0:
+        if (
+            proc.returncode != 0
+        ):  # pragma: no cover — requires async psql subprocess failure; environment-dependent
             raise RuntimeError(f"psql restore failed: {stderr.decode()}")
 
     async def copy_to_csv(

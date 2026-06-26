@@ -41,7 +41,9 @@ try:
     from importlib.metadata import PackageNotFoundError, version
 
     __version__ = version("pycopg")
-except PackageNotFoundError:
+except (
+    PackageNotFoundError
+):  # pragma: no cover — PackageNotFoundError only fires when package is not installed; never hit in test env
     __version__ = "0.0.0+unknown"
 __all__ = [
     # Core

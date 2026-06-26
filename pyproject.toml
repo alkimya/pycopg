@@ -97,12 +97,12 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=pycopg --cov-report=term-missing --cov-report=html --cov-fail-under=94"
+addopts = "-v --cov=pycopg --cov-report=term-missing --cov-report=html --cov-fail-under=95"
 asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["pycopg"]
-omit = ["*/tests/*", "*/venv/*"]
+omit = ["*/tests/*", "*/venv/*", "benchmarks/*"]
 
 [tool.coverage.report]
 exclude_lines = [
