@@ -4,14 +4,14 @@ milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
 stopped_at: Phase 37 Plan 04 complete
-last_updated: "2026-06-26T07:45:00Z"
-last_activity: 2026-06-26 -- Phase 37 Plan 04 executed (DEBT-05 TableNotFound raise site + DEBT-03a advisory fixes)
+last_updated: "2026-06-26T08:48:35.051Z"
+last_activity: 2026-06-26 -- Phase 37 Plan 04 complete (DEBT-05 TableNotFound raise site + DEBT-03a advisory fixes)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 25
 ---
 
 # Project State

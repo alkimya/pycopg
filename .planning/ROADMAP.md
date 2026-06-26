@@ -109,7 +109,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Milestone Goal:** Assainir et optimiser le socle avant le gel 1.0 — solder la dette technique, passer une passe outillée d'audit et de code mort, monter la couverture à 95%, et router les volumes par COPY sous garde-fou de benchmarks. Non-cassant, zéro nouvelle dépendance runtime.
 
-- [ ] **Phase 37: Dette & Audit** (5 plans, 3 waves) - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24
+- [x] **Phase 37: Dette & Audit** (5 plans, 3 waves) - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24 (completed 2026-06-26)
 - [ ] **Phase 38: Performance COPY** - Router `from_dataframe` + ETL load via COPY, micro-opt `insert_batch`, parité sync/async vérifiée
 - [ ] **Phase 39: Couverture & Benchmarks** - Lever le cliquet de couverture à 95%, écrire la suite de benchmarks garde-fou
 - [ ] **Phase 40: Release v0.10.0** - Bump version, CHANGELOG, 4 gates verts, tag + PyPI OIDC publish + smoke
@@ -141,7 +141,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 37-05-PLAN.md — vulture scan + /gsd-code-review audit + NYQ-01 sign-off + consolidated 37-DECISIONS.md (AUDIT-01, AUDIT-02, NYQ-01, DEBT-03b)
+- [x] 37-05-PLAN.md — vulture scan + /gsd-code-review audit + NYQ-01 sign-off + consolidated 37-DECISIONS.md (AUDIT-01, AUDIT-02, NYQ-01, DEBT-03b)
 
 ### Phase 38: Performance COPY
 
@@ -225,7 +225,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
-| 37. Dette & Audit | v0.10.0 | 4/5 | In Progress|  |
+| 37. Dette & Audit | v0.10.0 | 5/5 | Complete   | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 0/TBD | Not started | - |
 | 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
