@@ -117,53 +117,72 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 ## Phase Details
 
 ### Phase 37: Dette & Audit
+
 **Goal**: La base de code est propre et auditée — dette technique connue soldée, passe outillée terminée, Nyquist en règle
 **Depends on**: Nothing (first phase of v0.10.0)
 **Requirements**: DEBT-01, DEBT-02, DEBT-03, DEBT-04, DEBT-05, AUDIT-01, AUDIT-02, NYQ-01
 **Success Criteria** (what must be TRUE):
+
   1. `uv run pytest` en suite complète passe de façon déterministe — les trois tests flaky (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`, bound-param ~2.7%) ne failent plus par isolation de fixture
   2. `uv run ruff check pycopg tests` retourne exactement 0 erreur (N818/W291/F841/E722 corrigées)
   3. Chaque warning advisory v0.8-0.9 (WR-01, WR-03, %/`%s` structurel, IN-03 `chunk_seq`, advisory v0.9) est soit corrigé dans le code, soit clos avec une justification consignée dans un fichier de décision
   4. `TableNotFound` a soit un site de raise interne réel, soit est retiré de `__all__` — l'incohérence est résolue et documentée
-  5. Les VALIDATION.md des phases 22-24 sont à `nyquist_compliant: true` (PASSED) ; un rapport d'audit classé HIGH/MEDIUM/LOW existe pour `pycopg/`, chaque finding HIGH/MEDIUM ayant une disposition ; une allowlist vulture documente les faux positifs de code mort
-**Plans**: 5 plans (3 waves)
+  5. Les VALIDATION.md des phases 22-24 sont à `nyquist_compliant: true` (PASSED) ; un rapport d'audit classé HIGH/MEDIUM/LOW existe pour `pycopg/`, chaque finding HIGH/MEDIUM ayant une disposition ; une allowlist vulture documente les faux positifs de code mort**Plans**: 5 plans (3 waves)
+
+**Wave 1**
+
 - [ ] 37-01-PLAN.md — Tooling + ruff config: [tool.ruff.lint] migration, N818 per-file-ignore, vulture + pytest-randomly dev-group, seed vulture allowlist (DEBT-02, AUDIT-02)
 - [ ] 37-02-PLAN.md — Test lint fixes (31× W291/F841/E722) + remove dead async monkeypatches (DEBT-02, DEBT-04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 37-03-PLAN.md — De-flake the 3 flaky tests (fixture isolation) + prove determinism under pytest-randomly (DEBT-01)
 - [ ] 37-04-PLAN.md — TableNotFound raise site in truncate_table (sync+async) + DEBT-03a advisory fixes (DEBT-05, DEBT-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 37-05-PLAN.md — vulture scan + /gsd-code-review audit + NYQ-01 sign-off + consolidated 37-DECISIONS.md (AUDIT-01, AUDIT-02, NYQ-01, DEBT-03b)
 
 ### Phase 38: Performance COPY
+
 **Goal**: Les chemins d'insertion à volume (`from_dataframe`, ETL load, `insert_batch`) sont optimisés via COPY et micro-opts, avec parité sync/async maintenue
 **Depends on**: Phase 37
 **Requirements**: PERF-01, PERF-02, PERF-03, PERF-05
 **Success Criteria** (what must be TRUE):
+
   1. `db.from_dataframe()` et `async_db.from_dataframe()` routent via le protocole COPY (`psycopg` COPY) au lieu de `df.to_sql(con=engine)`, en préservant le contrat `if_exists`/`index`/`primary_key` — un test vérifie le comportement observable
   2. Le chemin de load ETL (`append`/`replace`) route via COPY sans matérialiser `astype(object)` + `to_dict(orient="records")` sur les gros DataFrames — `db.etl.run()` retourne le même statut/compte qu'avant
   3. `insert_batch` hoiste le placeholder de ligne invariant hors de la boucle — comportement byte-exact identique, couvert par un test de non-régression
   4. Les tests de parité existants (`test_parity`/`test_accessor_parity`) restent verts après tous les changements de routage — aucune régression de parité sync/async
+
 **Plans**: TBD
 **UI hint**: no
 
 ### Phase 39: Couverture & Benchmarks
+
 **Goal**: Le cliquet de couverture est tenu à 95% et une suite de benchmarks reproductible documente les gains COPY
 **Depends on**: Phase 38
 **Requirements**: COV-01, PERF-04
 **Success Criteria** (what must be TRUE):
+
   1. `uv run pytest` mesure ≥95% de couverture et `--cov-fail-under=95` est vert en CI (le fichier de config pytest reflète le nouveau seuil)
   2. Une suite de benchmarks (dev-group, sans nouvelle dépendance runtime) mesure les chemins `insert_batch`, `copy_insert`, `from_dataframe`, ETL load sur un volume représentatif (ex. 100k lignes) et produit des résultats comparatifs lisibles
   3. Le protocole de benchmark est documenté (comment lancer, comment lire les résultats, comment interpréter une régression)
+
 **Plans**: TBD
 
 ### Phase 40: Release v0.10.0
+
 **Goal**: v0.10.0 est publié sur PyPI avec tous les gates verts et le CHANGELOG documentant les gains de durcissement et de performance
 **Depends on**: Phase 39
 **Requirements**: REL-10
 **Success Criteria** (what must be TRUE):
+
   1. La version est bumpée dans les deux sources canoniques (`pyproject.toml` + `docs/conf.py`) ; `__version__` reste dynamique via `importlib.metadata` et retourne `"0.10.0"` après install propre
   2. CHANGELOG `[0.10.0]` documente le durcissement (dette soldée, audit, couverture 95%) et la performance (gains COPY mesurés)
   3. Les 4 gates sont verts : couverture ≥95%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green
   4. Le tag `v0.10.0` est créé, la wheel + sdist sont publiées sur PyPI via OIDC trusted publishing, et un smoke clean-venv confirme `__version__ == "0.10.0"`
+
 **Plans**: TBD
 
 ## Progress

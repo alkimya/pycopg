@@ -4,7 +4,7 @@ milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: planning
 stopped_at: Phase 37 context gathered
-last_updated: "2026-06-25T17:23:04.877Z"
+last_updated: "2026-06-26T06:39:02.238Z"
 last_activity: 2026-06-25 — v0.10.0 roadmap created (4 phases, 15 requirements mapped)
 progress:
   total_phases: 4
