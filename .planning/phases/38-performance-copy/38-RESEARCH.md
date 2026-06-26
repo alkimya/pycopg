@@ -676,17 +676,19 @@ PERF-01/02/03 ne changent pas la surface d'authentification, de session manageme
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Helper partagé: module-level dans `database.py` ou module `_copy_helpers.py` séparé?**
    - Ce qu'on sait: `etl.py` importe déjà depuis `database.py` (validation utilities)
    - Incertitude: ajouter un import circulaire potentiel si `database.py` importe depuis `etl.py`
    - Recommandation: helper défini dans `database.py` (sync) et `async_database.py` (async), `etl.py` importe depuis ces modules (déjà le cas pour d'autres utilitaires). Alternative: dupliquer les ~12 lignes dans `etl.py` pour éviter tout risque de couplage.
+   - **RESOLVED (Plan 38-01 / 38-02):** helpers `_stream_df_copy` (sync) et `_async_stream_df_copy` (async) définis dans `database.py` / `async_database.py` ; `etl.py` les importe au niveau module (runtime, hors `TYPE_CHECKING`). Pas de cycle au chargement : `database.py`/`async_database.py` n'importent `etl.py` que paresseusement (dans les méthodes) et sous `TYPE_CHECKING`. Fallback documenté : import local dans le seam si un cycle apparaît.
 
 2. **upsert dans le seam ETL: la matérialisation `astype(object).to_dict` reste-t-elle nécessaire?**
    - Ce qu'on sait: `upsert` reste sur `INSERT … ON CONFLICT` (D-02c) — les builders `_build_upsert_sql` prennent `rows: list[dict]`
    - Incertitude: si les builders sont refactorisés pour accepter un DataFrame directement, l'upsert pourrait aussi éviter la matérialisation
    - Recommandation planner: conserver la matérialisation pour `upsert` en Phase 38, reporter l'optimisation upsert-path si nécessaire.
+   - **RESOLVED (Plan 38-02, D-02c):** en Phase 38, `upsert` conserve sa matérialisation `list[dict]` via `_build_upsert_sql` (COPY ne supporte pas `ON CONFLICT`). L'optimisation du chemin upsert est explicitement reportée (hors périmètre Phase 38).
 
 ---
 

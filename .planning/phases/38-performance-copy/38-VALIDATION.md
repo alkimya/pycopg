@@ -79,6 +79,8 @@ created: 2026-06-26
 
 ## Validation Sign-Off
 
+> **`nyquist_compliant` / `wave_0_complete` are set to `true` POST-EXECUTION**, once the Wave 0 test files exist and the sign-off checklist below is verified green. Pre-execution they are `false` by design — structural Nyquist coverage is already sound (every task carries an `<automated>` verify, no watch-mode flags, no 3-consecutive unverified tasks).
+
 - [ ] All tasks have `<automated>` verify or Wave 0 dependencies
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Wave 0 covers all MISSING references
