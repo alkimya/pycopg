@@ -112,7 +112,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 - [x] **Phase 37: Dette & Audit** (5 plans, 3 waves) - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24 (completed 2026-06-26)
 - [x] **Phase 38: Performance COPY** - Router `from_dataframe` + ETL load via COPY, micro-opt `insert_batch`, parité sync/async vérifiée (completed 2026-06-26)
 - [x] **Phase 39: Couverture & Benchmarks** - Lever le cliquet de couverture à 95%, écrire la suite de benchmarks garde-fou (completed 2026-06-26)
-- [ ] **Phase 40: Release v0.10.0** - Bump version (3 sources), CHANGELOG, 4 gates verts, tag + human-gated OIDC PyPI publish + smoke
+- [x] **Phase 40: Release v0.10.0** - Bump version (3 sources), CHANGELOG, 4 gates verts, tag + human-gated OIDC PyPI publish + smoke (completed 2026-06-26)
 
 ## Phase Details
 
@@ -206,7 +206,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 2** *(blocked on Wave 1 — needs the bumped/committed release commit)*
 
-- [ ] 40-02-PLAN.md — Ship: annotated tag `v0.10.0`, human-gated OIDC PyPI publish via GitHub Release, clean-venv smoke confirms `__version__ == "0.10.0"` (REL-10)
+- [x] 40-02-PLAN.md — Ship: annotated tag `v0.10.0`, human-gated OIDC PyPI publish via GitHub Release, clean-venv smoke confirms `__version__ == "0.10.0"` (REL-10)
 
 ## Progress
 
@@ -251,4 +251,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete    | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete    | 2026-06-26 |
-| 40. Release v0.10.0 | v0.10.0 | 1/2 | In Progress|  |
+| 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete   | 2026-06-26 |
