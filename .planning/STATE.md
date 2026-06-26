@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: verifying
-stopped_at: "Completed 39-02-PLAN.md (PERF-04: benchmarks/ package + make bench + README regression protocol)"
-last_updated: "2026-06-26T19:24:43.821Z"
+stopped_at: Phase 40 context gathered
+last_updated: "2026-06-26T20:33:45.762Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 4
@@ -115,9 +115,9 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T19:06:37.178Z
-Stopped at: Completed 39-02-PLAN.md (PERF-04: benchmarks/ package + make bench + README regression protocol)
-Resume file: None
+Last session: 2026-06-26T20:33:45.746Z
+Stopped at: Phase 40 context gathered
+Resume file: .planning/phases/40-release-v0-10-0/40-CONTEXT.md
 Next action: `/gsd-execute-phase 37` (Plan 05)
 
 ## Operator Next Steps
