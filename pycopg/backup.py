@@ -154,11 +154,14 @@ class BackupAccessor:
 
         input_file = Path(input_file)
 
-        # Check if it's a plain SQL file
-        if input_file.suffix == ".sql" or not input_file.exists():
-            # Use psql for plain format
+        # Plain SQL files always go to psql, regardless of existence (CR-05)
+        if input_file.suffix == ".sql":
             self._psql_restore(input_file)
             return
+
+        # Non-.sql (archive format): require the file to exist (CR-05)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Backup file not found: {input_file}")
 
         cmd = build_pg_restore_cmd(
             host=self._db.config.host,
@@ -488,11 +491,14 @@ class AsyncBackupAccessor:
         """
         input_file = Path(input_file)
 
-        # Check if it's a plain SQL file
-        if input_file.suffix == ".sql" or not input_file.exists():
-            # Use psql for plain format
+        # Plain SQL files always go to psql, regardless of existence (CR-05)
+        if input_file.suffix == ".sql":
             await self._psql_restore(input_file)
             return
+
+        # Non-.sql (archive format): require the file to exist (CR-05)
+        if not input_file.exists():
+            raise FileNotFoundError(f"Backup file not found: {input_file}")
 
         cmd = build_pg_restore_cmd(
             host=self._db.config.host,
