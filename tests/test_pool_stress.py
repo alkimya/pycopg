@@ -37,7 +37,7 @@ class TestPoolStressScenarios:
 
             # Try to acquire one more - should timeout
             with pytest.raises(PoolTimeout):
-                with pool.connection() as conn3:
+                with pool.connection():
                     pass  # Should never reach here
 
         finally:
@@ -45,7 +45,7 @@ class TestPoolStressScenarios:
             for ctx, conn in held_connections:
                 try:
                     ctx.__exit__(None, None, None)
-                except:
+                except Exception:
                     pass
             pool.close()
 
@@ -125,7 +125,7 @@ class TestPoolStressScenarios:
             # Cleanup
             try:
                 pool.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-            except:
+            except Exception:
                 pass
             pool.close()
 

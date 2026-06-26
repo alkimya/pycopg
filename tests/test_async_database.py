@@ -62,7 +62,7 @@ class TestAsyncDatabaseInit:
         """Test creating from URL."""
         mock_from_url.return_value = Config()
 
-        db = AsyncDatabase.from_url("postgresql://user:pass@host/db")
+        AsyncDatabase.from_url("postgresql://user:pass@host/db")
 
         mock_from_url.assert_called_once_with("postgresql://user:pass@host/db")
 
@@ -128,7 +128,7 @@ class TestAsyncDatabaseConnection:
 
             db = AsyncDatabase(config)
 
-            async with db.connect(autocommit=True) as conn:
+            async with db.connect(autocommit=True):
                 pass
 
             call_kwargs = mock_class.connect.call_args[1]
@@ -166,7 +166,7 @@ class TestAsyncDatabaseExecute:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            result = await db.execute("SELECT * FROM users WHERE id = %s", [1])
+            await db.execute("SELECT * FROM users WHERE id = %s", [1])
 
             cursor_mock.execute.assert_called_once()
             call_args = cursor_mock.execute.call_args[0]

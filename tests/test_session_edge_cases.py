@@ -50,12 +50,12 @@ class TestSessionExceptionScenarios:
             assert outer_session.in_session
 
             # Try to open nested session - should raise
-            with pytest.raises(RuntimeError) as exc_info:
-                with outer_session.session() as inner_session:
+            with pytest.raises(RuntimeError) as exc_info_nested:
+                with outer_session.session():
                     pass  # Should never reach here
 
             # Error message should be clear
-            assert "Already in session" in str(exc_info.value)
+            assert "Already in session" in str(exc_info_nested.value)
 
         # After outer session exits, should be able to open new session
         assert not db.in_session
@@ -65,7 +65,7 @@ class TestSessionExceptionScenarios:
         db = Database(db_config)
 
         # Use session with a query error inside
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception):
             with db.session() as session:
                 # This query will fail (table doesn't exist)
                 session.execute("SELECT * FROM nonexistent_table_xyz123")

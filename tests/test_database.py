@@ -36,7 +36,7 @@ class TestDatabaseInit:
         """Test creating from URL."""
         mock_from_url.return_value = Config()
 
-        db = Database.from_url("postgresql://user:pass@host/db")
+        Database.from_url("postgresql://user:pass@host/db")
 
         mock_from_url.assert_called_once_with("postgresql://user:pass@host/db")
 
@@ -65,7 +65,7 @@ class TestDatabaseConnection:
 
         db = Database(config)
 
-        with db.connect(autocommit=True) as conn:
+        with db.connect(autocommit=True):
             pass
 
         # Check autocommit was passed
@@ -101,7 +101,7 @@ class TestDatabaseConnection:
 
         db = Database(config)
 
-        with db.cursor(autocommit=True) as cur:
+        with db.cursor(autocommit=True):
             pass
 
         mock_conn.commit.assert_not_called()
@@ -141,7 +141,7 @@ class TestDatabaseExecute:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        result = db.execute("SELECT * FROM users WHERE id = %s", [1])
+        db.execute("SELECT * FROM users WHERE id = %s", [1])
 
         mock_cursor.execute.assert_called_once_with(
             "SELECT * FROM users WHERE id = %s", [1]
@@ -591,7 +591,7 @@ class TestDatabaseSession:
 
         with db.session() as session:
             assert session.in_session is True
-            result = session.execute("SELECT 1")
+            session.execute("SELECT 1")
 
         assert db.in_session is False
         mock_conn.commit.assert_called()
@@ -607,7 +607,7 @@ class TestDatabaseSession:
 
         db = Database(config)
 
-        with db.session(autocommit=True) as session:
+        with db.session(autocommit=True):
             pass
 
         # In autocommit mode, commit should not be called

@@ -47,7 +47,7 @@ class TestPostGISErrorHandling:
             # Temp tables auto-cleanup, but be explicit
             try:
                 db.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-            except:
+            except Exception:
                 pass
 
     def test_create_spatial_index_on_nonexistent_table(self, db_config):
@@ -143,7 +143,7 @@ class TestPostGISErrorHandling:
         finally:
             try:
                 db.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-            except:
+            except Exception:
                 pass
 
     def test_spatial_operations_error_messages_are_helpful(self, db_config):
@@ -179,5 +179,5 @@ class TestPostGISErrorHandling:
         finally:
             try:
                 db.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
-            except:
+            except Exception:
                 pass

@@ -288,7 +288,7 @@ class TestDatabaseEngine:
 
     def test_to_dataframe(self, db, temp_table_name, cleanup_table):
         """Test converting table to DataFrame."""
-        pd = pytest.importorskip("pandas")
+        pytest.importorskip("pandas")
         cleanup_table(temp_table_name)
 
         # Create and populate table

@@ -100,9 +100,9 @@ def setup_db():
     # Insert data
     print("Inserting data...")
     conn.execute("""
-        INSERT INTO test_schema.authors (name, email) 
-        VALUES 
-            ('Alice', 'alice@example.com'), 
+        INSERT INTO test_schema.authors (name, email)
+        VALUES
+            ('Alice', 'alice@example.com'),
             ('Bob', 'bob@example.com'),
             ('Charlie', 'charlie@example.com')
     """)
@@ -113,8 +113,8 @@ def setup_db():
     """)
 
     conn.execute("""
-        INSERT INTO test_schema.articles (title, author_id, content, published_date, is_published) 
-        VALUES 
+        INSERT INTO test_schema.articles (title, author_id, content, published_date, is_published)
+        VALUES
             ('My First Post', 1, 'Hello world', '2023-01-01', true),
             ('Python Tips', 1, 'Use pycopg', '2023-01-02', true),
             ('Bob''s Thoughts', 2, 'Thinking...', '2023-01-03', false)

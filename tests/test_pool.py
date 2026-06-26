@@ -14,7 +14,7 @@ class TestPooledDatabase:
     @patch("pycopg.pool.ConnectionPool")
     def test_init(self, mock_pool_class, config):
         """Test initialization creates pool."""
-        db = PooledDatabase(config, min_size=5, max_size=20)
+        PooledDatabase(config, min_size=5, max_size=20)
 
         mock_pool_class.assert_called_once()
         call_kwargs = mock_pool_class.call_args[1]
@@ -25,7 +25,7 @@ class TestPooledDatabase:
     @patch("pycopg.pool.ConnectionPool")
     def test_init_custom_options(self, mock_pool_class, config):
         """Test initialization with custom pool options."""
-        db = PooledDatabase(
+        PooledDatabase(
             config,
             min_size=2,
             max_size=10,
@@ -47,7 +47,7 @@ class TestPooledDatabase:
         """Test creating from environment."""
         mock_from_env.return_value = Config()
 
-        db = PooledDatabase.from_env(min_size=3, max_size=15)
+        PooledDatabase.from_env(min_size=3, max_size=15)
 
         mock_from_env.assert_called_once()
         call_kwargs = mock_pool_class.call_args[1]
@@ -60,7 +60,7 @@ class TestPooledDatabase:
         """Test creating from URL."""
         mock_from_url.return_value = Config()
 
-        db = PooledDatabase.from_url(
+        PooledDatabase.from_url(
             "postgresql://user:pass@host/db",
             min_size=4,
             max_size=16,
@@ -126,7 +126,7 @@ class TestPooledDatabase:
         mock_pool_class.return_value = mock_pool
 
         db = PooledDatabase(config)
-        result = db.execute("SELECT * FROM test WHERE id = %s", [1])
+        db.execute("SELECT * FROM test WHERE id = %s", [1])
 
         mock_cursor.execute.assert_called_once_with(
             "SELECT * FROM test WHERE id = %s", [1]
@@ -279,7 +279,7 @@ class TestAsyncPooledDatabase:
     @patch("pycopg.pool.AsyncConnectionPool")
     def test_init(self, mock_pool_class, config):
         """Test initialization creates async pool."""
-        db = AsyncPooledDatabase(config, min_size=5, max_size=20)
+        AsyncPooledDatabase(config, min_size=5, max_size=20)
 
         mock_pool_class.assert_called_once()
         call_kwargs = mock_pool_class.call_args[1]
@@ -293,7 +293,7 @@ class TestAsyncPooledDatabase:
         """Test creating from environment."""
         mock_from_env.return_value = Config()
 
-        db = AsyncPooledDatabase.from_env(min_size=3, max_size=15)
+        AsyncPooledDatabase.from_env(min_size=3, max_size=15)
 
         mock_from_env.assert_called_once()
 
@@ -303,7 +303,7 @@ class TestAsyncPooledDatabase:
         """Test creating from URL."""
         mock_from_url.return_value = Config()
 
-        db = AsyncPooledDatabase.from_url(
+        AsyncPooledDatabase.from_url(
             "postgresql://user:pass@host/db",
             min_size=4,
             max_size=16,
