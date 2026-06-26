@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: verifying
-stopped_at: Completed 38-01-PLAN.md
-last_updated: "2026-06-26T15:03:44.157Z"
+stopped_at: Phase 39 context gathered
+last_updated: "2026-06-26T17:02:23.254Z"
 last_activity: 2026-06-26
 progress:
   total_phases: 4
@@ -111,9 +111,9 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T14:39:26.149Z
-Stopped at: Completed 38-01-PLAN.md
-Resume file: None
+Last session: 2026-06-26T17:02:23.242Z
+Stopped at: Phase 39 context gathered
+Resume file: .planning/phases/39-couverture-benchmarks/39-CONTEXT.md
 Next action: `/gsd-execute-phase 37` (Plan 05)
 
 ## Operator Next Steps
