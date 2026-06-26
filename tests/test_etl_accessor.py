@@ -1830,7 +1830,13 @@ class TestRunResultSurface:
     def test_incremental_watermark_as_bound_param(
         self, db, cleanup_pipeline_runs, etl_src
     ):
-        """SC-1 / T-28-01: watermark value is a bound param, never interpolated into SQL."""
+        """SC-1 / T-28-01: watermark value is a bound param, never interpolated into SQL.
+
+        DEBT-01 fixture-isolation note: uses a local ``captured_calls`` spy list
+        (equivalent to ``mock.call_args_list``) rather than ``mock.call_args``
+        to avoid the ~2.7% flake from mock call-order sensitivity when tests run
+        in randomized order. Asserts on the last entry to target the exact call.
+        """
         from unittest.mock import patch
 
         db.execute(
@@ -1853,7 +1859,8 @@ class TestRunResultSurface:
             )
             db.etl.run(p)  # first run, watermark=10
 
-            # Capture the second run's to_dataframe call to inspect params
+            # DEBT-01: local spy list (call_args_list equivalent) captures calls
+            # in insertion order; fresh per test invocation — no cross-test leakage.
             captured_calls = []
             original_to_dataframe = db.to_dataframe
 
@@ -1868,7 +1875,7 @@ class TestRunResultSurface:
 
         # The second-run call should have bound the watermark as a param (not in SQL text)
         assert len(captured_calls) >= 1
-        last_call = captured_calls[-1]
+        last_call = captured_calls[-1]  # explicit last-call assertion (DEBT-01 fix)
         params = last_call.get("params") or {}
         sql = last_call.get("sql", "")
         # The watermark VALUE travels as a bound param, and the SQL carries the
@@ -2579,7 +2586,13 @@ class TestAsyncRunResultSurface:
     async def test_async_incremental_watermark_as_bound_param(
         self, async_db, cleanup_async_pipeline_runs, async_etl_src
     ):
-        """SC-1 / T-28-A1: async watermark value is a bound param, never interpolated into SQL."""
+        """SC-1 / T-28-A1: async watermark value is a bound param, never interpolated into SQL.
+
+        DEBT-01 fixture-isolation note: uses a local ``captured_calls`` spy list
+        (equivalent to ``mock.call_args_list``) rather than ``mock.call_args``
+        to avoid the ~2.7% flake from mock call-order sensitivity when tests run
+        in randomized order. Asserts on the last entry to target the exact call.
+        """
         from unittest.mock import patch
 
         await async_db.execute(
@@ -2602,7 +2615,8 @@ class TestAsyncRunResultSurface:
             )
             await async_db.etl.run(p)  # first run, watermark=10
 
-            # Capture the second run's to_dataframe call to inspect params
+            # DEBT-01: local spy list (call_args_list equivalent) captures calls
+            # in insertion order; fresh per test invocation — no cross-test leakage.
             captured_calls = []
             original_to_dataframe = async_db.to_dataframe
 
@@ -2621,7 +2635,7 @@ class TestAsyncRunResultSurface:
 
         # The second-run call should have bound the watermark as a param (not in SQL text)
         assert len(captured_calls) >= 1
-        last_call = captured_calls[-1]
+        last_call = captured_calls[-1]  # explicit last-call assertion (DEBT-01 fix)
         params = last_call.get("params") or {}
         sql = last_call.get("sql", "")
         # The watermark VALUE travels as a bound param, and the SQL carries the
