@@ -5,6 +5,8 @@ Tests graceful error handling for spatial operations when PostGIS is not availab
 or when called with invalid parameters.
 """
 
+import uuid
+
 import pytest
 
 from pycopg import Database
@@ -117,7 +119,9 @@ class TestPostGISErrorHandling:
 
         db = Database(db_config)
 
-        table_name = "test_spatial_custom_name"
+        # Use a per-run UUID table name to prevent TEMP TABLE collision when
+        # the same connection is reused across test runs (fixture-isolation fix).
+        table_name = f"test_spatial_{uuid.uuid4().hex[:8]}"
         custom_index_name = "my_custom_gist_idx"
 
         try:

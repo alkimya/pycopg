@@ -96,21 +96,35 @@ class TestAsyncIntegration:
         assert result[0]["val"] == 1
 
     async def test_async_transaction_fix(self, db_config):
-        """Test the transaction reuse fix on a real DB."""
+        """Test the transaction reuse fix on a real DB.
+
+        Verifies that the session connection is reused across a transaction
+        (the SET persists on the same connection after the transaction commits).
+        Uses the yielded psycopg connection inside the transaction to avoid
+        triggering the cursor-level auto-commit inside a transaction context.
+        Resets application_name in a finally block so recycled pool connections
+        do not carry stale state to subsequent tests (connection-state isolation fix).
+        """
         db = AsyncDatabase(db_config)
 
         # Test session reuse
         async with db.session() as session:
-            # We are in a session
-            # Start a transaction inside the session
-            async with session.transaction():
-                # This should reuse the session connection
-                # To verify, we can set a session variable
-                await session.execute("SET application_name = 'pycopg_test_trans'")
+            try:
+                # Start a transaction inside the session; use the yielded
+                # psycopg AsyncConnection directly to SET inside the txn
+                # (session.execute() would trigger auto-commit, which is
+                # forbidden while a psycopg Transaction context is active).
+                async with session.transaction() as conn:
+                    await conn.execute("SET application_name = 'pycopg_test_trans'")
 
-            # Check if variable persisted (it should if connection was reused)
-            res = await session.execute("SHOW application_name")
-            assert res[0]["application_name"] == "pycopg_test_trans"
+                # After the transaction commits the connection is still open
+                # and reused by the session — the SET persists.
+                res = await session.execute("SHOW application_name")
+                assert res[0]["application_name"] == "pycopg_test_trans"
+            finally:
+                # Reset connection state so recycled connections don't leak
+                # application_name to unrelated tests.
+                await session.execute("RESET application_name")
 
     async def test_async_list_columns(self, db_config):
         db = AsyncDatabase(db_config)
