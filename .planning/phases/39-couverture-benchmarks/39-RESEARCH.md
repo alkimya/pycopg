@@ -989,16 +989,18 @@ No ASVS categories apply to test-only + dev-only changes.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Is `async_database.py` L1239–1240 genuinely uncovered?**
    - What we know: `test_from_dataframe_real_db_applies_pk` (L2956) exists and calls `await db.from_dataframe(df, t, primary_key="id")`.
    - What's unclear: If this test runs against real DB (`db_config` fixture), why are L1239-1240 not hit?
    - Recommendation: Planner should verify by running that specific test with `--cov-report=term-missing` to confirm; may be a false report due to async exception hiding.
+   - **RESOLVED (planning 2026-06-26):** The planner deliberately does NOT target L1239–1240 — it is a likely false/marginal report. COV-01 instead closes the gap via the higher-value, unambiguous pool `async_database.py insert_batch` L685–718 (≈34 lines > the ~26-line need), which alone clears 95%. Plan 39-01 Task 3 reconfirms the exact missed set via `--cov-report=term-missing` before bumping the gate, so any residual L1239–1240 status is observed (not assumed) at execution time.
 
 2. **ETL benchmark — should `pipeline_runs` table be cleaned up between benchmark runs?**
    - What we know: `db.etl.run()` auto-initializes `pipeline_runs`. Multiple benchmark runs accumulate rows.
    - Recommendation: Truncate `pipeline_runs` in benchmark teardown, or use a unique pipeline name per run.
+   - **RESOLVED (planning 2026-06-26):** Plan 39-02 Task 1 action truncates `pipeline_runs` in the benchmark teardown so repeat runs stay comparable (chosen over per-run unique pipeline names to keep the run-log table from growing unboundedly across benchmark invocations).
 
 ---
 
