@@ -334,6 +334,109 @@ class TestDatabaseEngine:
         assert results[2]["value"] == 30
 
 
+class TestFromDataframeCopy:
+    """PERF-01: from_dataframe routes row data via COPY, not via df.to_sql data path."""
+
+    def test_from_dataframe_copy_path(self, db, cleanup_table):
+        """to_sql called exactly once on head(0) DDL; data loaded via COPY."""
+        from unittest.mock import patch
+
+        import pandas as pd
+
+        t = f"test_copy_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+        df = pd.DataFrame({"id": [1, 2, 3], "val": ["a", "b", "c"]})
+        original_to_sql = pd.DataFrame.to_sql
+        to_sql_calls = []
+
+        def spy_to_sql(self, *args, **kwargs):
+            to_sql_calls.append(len(self))
+            return original_to_sql(self, *args, **kwargs)
+
+        with patch.object(pd.DataFrame, "to_sql", spy_to_sql):
+            db.from_dataframe(df, t)
+
+        rows = db.execute(f'SELECT COUNT(*) AS n FROM public."{t}"')
+        assert rows[0]["n"] == 3, "All data rows must be present via COPY"
+        assert len(to_sql_calls) == 1, "to_sql must be called exactly once (DDL only)"
+        assert to_sql_calls[0] == 0, f"to_sql called on head(0), not {to_sql_calls[0]}-row df"
+
+    def test_from_dataframe_replace(self, db, cleanup_table):
+        """if_exists='replace' drops and recreates table; only new rows remain."""
+        pd = pytest.importorskip("pandas")
+
+        t = f"test_copy_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+
+        df_orig = pd.DataFrame({"x": [10, 20, 30]})
+        db.from_dataframe(df_orig, t)
+
+        df_new = pd.DataFrame({"x": [100, 200]})
+        db.from_dataframe(df_new, t, if_exists="replace")
+
+        rows = db.execute(f'SELECT x FROM public."{t}" ORDER BY x')
+        assert len(rows) == 2
+        assert rows[0]["x"] == 100
+        assert rows[1]["x"] == 200
+
+    def test_from_dataframe_append(self, db, cleanup_table):
+        """if_exists='append' adds rows; total row count equals sum of both loads."""
+        pd = pytest.importorskip("pandas")
+
+        t = f"test_copy_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+
+        df1 = pd.DataFrame({"x": [1, 2]})
+        db.from_dataframe(df1, t)
+
+        df2 = pd.DataFrame({"x": [3, 4, 5]})
+        db.from_dataframe(df2, t, if_exists="append")
+
+        rows = db.execute(f'SELECT COUNT(*) AS n FROM public."{t}"')
+        assert rows[0]["n"] == 5
+
+    def test_from_dataframe_index_true(self, db, cleanup_table):
+        """index=True: index column(s) appear in the table and values round-trip (D-01a)."""
+        pd = pytest.importorskip("pandas")
+
+        t = f"test_copy_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+
+        df = pd.DataFrame({"val": ["alpha", "beta", "gamma"]}, index=[10, 20, 30])
+        df.index.name = "my_idx"
+        db.from_dataframe(df, t, index=True)
+
+        rows = db.execute(f'SELECT my_idx, val FROM public."{t}" ORDER BY my_idx')
+        assert len(rows) == 3
+        assert rows[0]["my_idx"] == 10
+        assert rows[0]["val"] == "alpha"
+        assert rows[2]["my_idx"] == 30
+        assert rows[2]["val"] == "gamma"
+
+    def test_from_dataframe_nan_null(self, db, cleanup_table):
+        """NaN in a float column and NaT in a datetime column land as SQL NULL."""
+        import pandas as pd
+
+        t = f"test_copy_{uuid.uuid4().hex[:8]}"
+        cleanup_table(t)
+
+        df = pd.DataFrame(
+            {
+                "score": [1.5, float("nan"), 3.0],
+                "ts": pd.to_datetime(["2024-01-01", None, "2024-01-03"]),
+            }
+        )
+        db.from_dataframe(df, t)
+
+        rows = db.execute(
+            f'SELECT score, ts FROM public."{t}" ORDER BY COALESCE(score, -999)'
+        )
+        null_score_rows = [r for r in rows if r["score"] is None]
+        null_ts_rows = [r for r in rows if r["ts"] is None]
+        assert len(null_score_rows) == 1, "NaN in float column must become SQL NULL"
+        assert len(null_ts_rows) == 1, "NaT in datetime column must become SQL NULL"
+
+
 class TestDatabaseDDL:
     """Test DDL operations (DROP TABLE, CREATE/DROP INDEX, CREATE/DROP SCHEMA)."""
 

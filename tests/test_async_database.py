@@ -651,8 +651,34 @@ class TestAsyncDatabaseDataFrame:
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
 
-        # We mock df.to_sql to verify it's called correctly
-        with patch.object(df, "to_sql") as mock_to_sql:
+        # Mock db.connect() for the COPY phase (new Hybrid DDL+COPY path)
+        mock_copy_ctx = MagicMock()
+        mock_copy_ctx.write_row = AsyncMock()
+        mock_cur = MagicMock()
+        mock_cur.rowcount = 0
+
+        @asynccontextmanager
+        async def mock_copy_cm(sql):
+            yield mock_copy_ctx
+
+        mock_cur.copy = mock_copy_cm
+
+        @asynccontextmanager
+        async def mock_cursor_cm(*args, **kwargs):
+            yield mock_cur
+
+        mock_psycopg_conn = MagicMock()
+        mock_psycopg_conn.cursor = mock_cursor_cm
+        mock_psycopg_conn.commit = AsyncMock()
+
+        @asynccontextmanager
+        async def mock_connect_cm(**kwargs):
+            yield mock_psycopg_conn
+
+        db.connect = mock_connect_cm
+
+        # Patch pd.DataFrame.to_sql at the class level so head(0).to_sql is captured
+        with patch("pandas.DataFrame.to_sql") as mock_to_sql:
             await db.from_dataframe(df, "users")
 
             mock_to_sql.assert_called_once()
@@ -671,7 +697,33 @@ class TestAsyncDatabaseDataFrame:
         db = AsyncDatabase(config)
         db._async_engine = mock_engine
 
-        with patch.object(df, "to_sql") as mock_to_sql:
+        # Mock db.connect() for the COPY phase
+        mock_copy_ctx = MagicMock()
+        mock_copy_ctx.write_row = AsyncMock()
+        mock_cur = MagicMock()
+        mock_cur.rowcount = 0
+
+        @asynccontextmanager
+        async def mock_copy_cm(sql):
+            yield mock_copy_ctx
+
+        mock_cur.copy = mock_copy_cm
+
+        @asynccontextmanager
+        async def mock_cursor_cm(*args, **kwargs):
+            yield mock_cur
+
+        mock_psycopg_conn = MagicMock()
+        mock_psycopg_conn.cursor = mock_cursor_cm
+        mock_psycopg_conn.commit = AsyncMock()
+
+        @asynccontextmanager
+        async def mock_connect_cm(**kwargs):
+            yield mock_psycopg_conn
+
+        db.connect = mock_connect_cm
+
+        with patch("pandas.DataFrame.to_sql") as mock_to_sql:
             await db.from_dataframe(df, "users", if_exists="append")
 
             call_kwargs = mock_to_sql.call_args[1]
@@ -2824,7 +2876,33 @@ class TestAsyncDatabaseCorrectnessFixes:
         mock_schema.add_primary_key = AsyncMock()
         db._schema = mock_schema
 
-        with patch.object(df, "to_sql"):
+        # Mock db.connect() for the COPY phase (new Hybrid DDL+COPY path)
+        mock_copy_ctx = MagicMock()
+        mock_copy_ctx.write_row = AsyncMock()
+        mock_cur = MagicMock()
+        mock_cur.rowcount = 0
+
+        @asynccontextmanager
+        async def mock_copy_cm(sql):
+            yield mock_copy_ctx
+
+        mock_cur.copy = mock_copy_cm
+
+        @asynccontextmanager
+        async def mock_cursor_cm(*args, **kwargs):
+            yield mock_cur
+
+        mock_psycopg_conn = MagicMock()
+        mock_psycopg_conn.cursor = mock_cursor_cm
+        mock_psycopg_conn.commit = AsyncMock()
+
+        @asynccontextmanager
+        async def mock_connect_cm(**kwargs):
+            yield mock_psycopg_conn
+
+        db.connect = mock_connect_cm
+
+        with patch("pandas.DataFrame.to_sql"):
             await db.from_dataframe(df, "users", primary_key="id")
 
         mock_schema.add_primary_key.assert_awaited_once_with("users", "id", "public")
@@ -2844,7 +2922,33 @@ class TestAsyncDatabaseCorrectnessFixes:
         mock_schema.add_primary_key = AsyncMock()
         db._schema = mock_schema
 
-        with patch.object(df, "to_sql"):
+        # Mock db.connect() for the COPY phase
+        mock_copy_ctx = MagicMock()
+        mock_copy_ctx.write_row = AsyncMock()
+        mock_cur = MagicMock()
+        mock_cur.rowcount = 0
+
+        @asynccontextmanager
+        async def mock_copy_cm(sql):
+            yield mock_copy_ctx
+
+        mock_cur.copy = mock_copy_cm
+
+        @asynccontextmanager
+        async def mock_cursor_cm(*args, **kwargs):
+            yield mock_cur
+
+        mock_psycopg_conn = MagicMock()
+        mock_psycopg_conn.cursor = mock_cursor_cm
+        mock_psycopg_conn.commit = AsyncMock()
+
+        @asynccontextmanager
+        async def mock_connect_cm(**kwargs):
+            yield mock_psycopg_conn
+
+        db.connect = mock_connect_cm
+
+        with patch("pandas.DataFrame.to_sql"):
             await db.from_dataframe(df, "users", primary_key="id", if_exists="append")
 
         mock_schema.add_primary_key.assert_not_called()
@@ -3326,3 +3430,37 @@ class TestAsyncSchemaIntrospection:
         missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
         with pytest.raises(TableNotFound):
             await db.schema.truncate_table(missing)
+
+
+@pytest.mark.asyncio
+class TestAsyncFromDataframeCopy:
+    """PERF-05: async from_dataframe routes row data via COPY (parity with sync)."""
+
+    async def test_from_dataframe_copy_path(self, db_config):
+        """to_sql called exactly once on head(0) DDL; data loaded via async COPY."""
+        from unittest.mock import patch
+
+        import pandas as pd
+
+        db = AsyncDatabase(db_config)
+        t = f"test_acopy_{uuid.uuid4().hex[:8]}"
+        df = pd.DataFrame({"id": [1, 2, 3], "val": ["x", "y", "z"]})
+        original_to_sql = pd.DataFrame.to_sql
+        to_sql_calls = []
+
+        def spy_to_sql(self, *args, **kwargs):
+            to_sql_calls.append(len(self))
+            return original_to_sql(self, *args, **kwargs)
+
+        try:
+            with patch.object(pd.DataFrame, "to_sql", spy_to_sql):
+                await db.from_dataframe(df, t)
+
+            rows = await db.execute(f'SELECT COUNT(*) AS n FROM public."{t}"')
+            assert rows[0]["n"] == 3, "All data rows must be present via async COPY"
+            assert len(to_sql_calls) == 1, "to_sql must be called exactly once (DDL only)"
+            assert to_sql_calls[0] == 0, (
+                f"to_sql called on head(0), not {to_sql_calls[0]}-row df"
+            )
+        finally:
+            await db.execute(f'DROP TABLE IF EXISTS public."{t}" CASCADE', autocommit=True)
