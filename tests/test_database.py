@@ -902,6 +902,41 @@ class TestDatabaseInsertBatch:
 
         assert result == 1
 
+    @patch("pycopg.database.psycopg")
+    def test_insert_batch_placeholder_hoist_regression(self, mock_psycopg, config):
+        """PERF-03: non-regression pin — insert_batch SQL/params shape unchanged after hoist.
+
+        Inserts 3 rows with 2 columns, captures the SQL and params passed to
+        cur.execute, and asserts byte-exact VALUES shape:
+        - exactly one ``(%s, %s)`` placeholder tuple per row
+        - params is the flat list of row values in column order
+        """
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.rowcount = 3
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        rows = [
+            {"name": "Alice", "score": 10},
+            {"name": "Bob", "score": 20},
+            {"name": "Carol", "score": 30},
+        ]
+        result = db.insert_batch("scores", rows)
+
+        assert result == 3
+        # Capture the SQL and params passed to cur.execute
+        call_args = mock_cursor.execute.call_args
+        sql_called, params_called = call_args[0]
+
+        # SQL must contain exactly 3 placeholder tuples — one per row
+        assert sql_called.count("(%s, %s)") == 3
+        # params must be the flat row values in column order (name, score)
+        assert list(params_called) == ["Alice", 10, "Bob", 20, "Carol", 30]
+
 
 class TestDatabaseBatchStreamNotify:
     """PAR-03: edge cases for the sync mirrors insert_many/upsert_many/stream/notify."""
