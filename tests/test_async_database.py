@@ -3464,3 +3464,37 @@ class TestAsyncFromDataframeCopy:
             )
         finally:
             await db.execute(f'DROP TABLE IF EXISTS public."{t}" CASCADE', autocommit=True)
+
+
+class TestAsyncStreamDfCopyValidation:
+    """`_async_stream_df_copy` enforces builder-pur (38-REVIEW CR-01/CR-02, PERF-05 parity).
+
+    Async mirror of TestStreamDfCopyValidation — the async COPY chokepoint must
+    reject invalid identifiers before any COPY SQL is issued.
+    """
+
+    @pytest.mark.asyncio
+    async def test_async_stream_df_copy_rejects_invalid_column(self):
+        """An invalid column name raises InvalidIdentifier before COPY runs."""
+        import pandas as pd
+
+        from pycopg.async_database import _async_stream_df_copy
+
+        df = pd.DataFrame({"id": [1, 2], "bad; DROP TABLE x": [3, 4]})
+        cur = MagicMock()
+        with pytest.raises(InvalidIdentifier):
+            await _async_stream_df_copy(cur, df, "t", "public", list(df.columns))
+        cur.copy.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_async_stream_df_copy_rejects_invalid_table(self):
+        """An invalid table name raises InvalidIdentifier before COPY runs."""
+        import pandas as pd
+
+        from pycopg.async_database import _async_stream_df_copy
+
+        df = pd.DataFrame({"id": [1, 2]})
+        cur = MagicMock()
+        with pytest.raises(InvalidIdentifier):
+            await _async_stream_df_copy(cur, df, "t; DROP TABLE x", "public", list(df.columns))
+        cur.copy.assert_not_called()

@@ -1423,10 +1423,9 @@ class ETLAccessor:
                         if pipeline.load_mode == "replace":
                             cur.execute(truncate_sql)
                         if pipeline.load_mode in ("append", "replace"):
-                            _stream_df_copy(
+                            rows_loaded += _stream_df_copy(
                                 cur, df, pipeline.target, pipeline.schema, columns
                             )
-                            rows_loaded += cur.rowcount
                         else:  # upsert
                             cur.execute(insert_sql, insert_params)
                             rows_loaded += cur.rowcount
@@ -2103,10 +2102,9 @@ class AsyncETLAccessor:
                         if pipeline.load_mode == "replace":
                             await cur.execute(truncate_sql)
                         if pipeline.load_mode in ("append", "replace"):
-                            await _async_stream_df_copy(
+                            rows_loaded += await _async_stream_df_copy(
                                 cur, df, pipeline.target, pipeline.schema, columns
                             )
-                            rows_loaded += cur.rowcount
                         else:  # upsert
                             await cur.execute(insert_sql, insert_params)
                             rows_loaded += cur.rowcount

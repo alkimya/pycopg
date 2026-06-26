@@ -1824,3 +1824,37 @@ class TestDatabaseCursorTransactionSessionPaths:
         mock_psycopg.connect.assert_not_called()
 
         db._session_conn = None
+
+
+class TestStreamDfCopyValidation:
+    """`_stream_df_copy` enforces the builder-pur invariant (38-REVIEW CR-01/CR-02).
+
+    The COPY-streaming helper is the single chokepoint every COPY caller
+    (``from_dataframe`` and the ETL ``append``/``replace`` seam) funnels through,
+    so it must reject invalid identifiers *before* any COPY SQL is issued.
+    """
+
+    def test_stream_df_copy_rejects_invalid_column(self):
+        """An invalid column name raises InvalidIdentifier before COPY runs."""
+        import pandas as pd
+
+        from pycopg.database import _stream_df_copy
+
+        df = pd.DataFrame({"id": [1, 2], "bad; DROP TABLE x": [3, 4]})
+        cur = MagicMock()
+        with pytest.raises(InvalidIdentifier):
+            _stream_df_copy(cur, df, "t", "public", list(df.columns))
+        # Validation ran before any SQL was issued — no injection surface.
+        cur.copy.assert_not_called()
+
+    def test_stream_df_copy_rejects_invalid_table(self):
+        """An invalid table name raises InvalidIdentifier before COPY runs."""
+        import pandas as pd
+
+        from pycopg.database import _stream_df_copy
+
+        df = pd.DataFrame({"id": [1, 2]})
+        cur = MagicMock()
+        with pytest.raises(InvalidIdentifier):
+            _stream_df_copy(cur, df, "t; DROP TABLE x", "public", list(df.columns))
+        cur.copy.assert_not_called()

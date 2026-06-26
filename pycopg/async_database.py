@@ -74,9 +74,12 @@ async def _async_stream_df_copy(
     DataFrame contains NaN (numpy uniform-array constraint).
 
     The caller is fully responsible for the connection lifecycle: this helper
-    never opens a connection, never calls ``await conn.commit()``, and never
-    invokes ``validate_identifiers`` — those are the caller's job
-    (builder-pur invariant).
+    never opens a connection and never calls ``await conn.commit()``.  It DOES
+    validate ``table``, ``schema`` and every column via ``validate_identifiers``
+    before interpolating them into the COPY statement (builder-pur invariant),
+    exactly like ``copy_insert``.  Centralising validation here guarantees every
+    COPY caller — ``from_dataframe`` and the async ETL ``append``/``replace``
+    seam — gets identifier validation in one place (38-REVIEW CR-01/CR-02).
 
     .. note::
        Do NOT call the sync ``_stream_df_copy`` from an async context — the
@@ -109,6 +112,11 @@ async def _async_stream_df_copy(
     """
     if df.empty:
         return 0
+
+    # Builder-pur: validate every identifier before it is interpolated into the
+    # COPY statement (matches copy_insert). Restores the validation the old ETL
+    # append/replace paths inherited from _build_insert_sql (38-REVIEW CR-01/CR-02).
+    validate_identifiers(table, schema, *columns)
 
     cols_str = ", ".join(columns)
     null_mask = df.isna().values  # shape (n_rows, n_cols) — pre-computed once
