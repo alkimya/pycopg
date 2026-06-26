@@ -9,7 +9,7 @@ import uuid
 import pytest
 
 from pycopg import Database
-from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable, TableNotFound
 
 
 @pytest.fixture
@@ -1293,3 +1293,9 @@ class TestIntrospectionHelpers:
             "foreign_keys": [],
             "indexes": [],
         }
+
+    def test_truncate_table_missing_raises_TableNotFound(self, db):
+        """truncate_table on a nonexistent table raises TableNotFound (DEBT-05)."""
+        missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
+        with pytest.raises(TableNotFound):
+            db.schema.truncate_table(missing)

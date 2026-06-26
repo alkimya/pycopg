@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 import pytest
 
 from pycopg import AsyncDatabase, Config
-from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable, InvalidIdentifier
+from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable, InvalidIdentifier, TableNotFound
 from pycopg.utils import validate_identifier
 
 
@@ -3331,3 +3331,12 @@ class TestAsyncSchemaIntrospection:
             assert result["foreign_keys"] == []
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_truncate_table_missing_raises_TableNotFound(self, db_config):
+        """async truncate_table on a nonexistent table raises TableNotFound (DEBT-05)."""
+        import uuid
+
+        db = AsyncDatabase(db_config)
+        missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
+        with pytest.raises(TableNotFound):
+            await db.schema.truncate_table(missing)
