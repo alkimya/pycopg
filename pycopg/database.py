@@ -1272,6 +1272,22 @@ class Database(DatabaseBase, QueryMixin):
     ) -> None:
         """Create or append to table from pandas DataFrame.
 
+        Uses a two-phase Hybrid DDL+COPY strategy (D-01/D-04):
+
+        1. **DDL phase** — ``df_ddl.head(0).to_sql(con=engine, ...)`` creates or
+           replaces the empty typed table via SQLAlchemy/pandas.  This commit
+           happens on the engine connection and preserves ``if_exists``,
+           ``dtype``, and ``index`` semantics.
+        2. **COPY phase** — row data is streamed via ``psycopg COPY FROM STDIN``
+           on a separate ``self.connect()`` connection (D-03), which is committed
+           after the COPY block closes.
+
+        **D-04 two-phase contract for ``if_exists='replace'``:** The DDL commit
+        (table dropped and recreated empty) happens before the COPY load.  If the
+        COPY step fails, the table will exist but be empty.  This matches the
+        pre-existing ``replace`` semantics ("drop and rebuild") and has always been
+        the observable behaviour of ``from_dataframe``; it is now made explicit.
+
         Parameters
         ----------
         df : pd.DataFrame
@@ -1285,20 +1301,37 @@ class Database(DatabaseBase, QueryMixin):
         primary_key : str or list of str, optional
             Column(s) to set as primary key after creation.
         index : bool, optional
-            Write DataFrame index as column, by default False.
+            Write DataFrame index as a column, by default False.
+            The index column(s) are promoted via ``reset_index()`` so they
+            appear identically in both the DDL schema and the COPY stream (D-01a).
         dtype : dict, optional
             Dict of column name to SQLAlchemy types.
         """
         validate_identifiers(table, schema)
-        df.to_sql(
+
+        # D-01a: promote index columns into the frame so DDL and COPY see the same columns
+        df_ddl = df.reset_index() if index else df
+
+        # Step 1 — DDL: create/replace/append the empty typed schema
+        # index=False because df_ddl already contains the index column(s) as regular columns
+        df_ddl.head(0).to_sql(
             name=table,
             con=self.engine,
             schema=schema,
             if_exists=if_exists,
-            index=index,
+            index=False,
             dtype=dtype,
         )
+        # DDL commits on the engine (D-04: two-phase accepted for replace)
 
+        # Step 2 — COPY: stream row data on a separate psycopg connection (D-03)
+        columns = list(df_ddl.columns)  # derived from df_ddl (not df) — must match DDL
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                _stream_df_copy(cur, df_ddl, table, schema, columns)
+            conn.commit()
+
+        # Step 3 — PK (unchanged path, post-load)
         if primary_key and if_exists != "append":
             self.schema.add_primary_key(table, primary_key, schema)
 
