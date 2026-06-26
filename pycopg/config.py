@@ -5,9 +5,12 @@ Loads database credentials from environment variables or .env file.
 """
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
+
+from pycopg.exceptions import ConfigurationError
 
 # python-dotenv is optional
 try:
@@ -20,6 +23,42 @@ except ImportError:
     def load_dotenv(dotenv_path=None, *, override: bool = False, **kwargs):
         """No-op when python-dotenv is not installed."""
         pass
+
+
+# Safe GUC option key: must be a valid identifier-like name (WR-04)
+_SAFE_OPTION_KEY_RE = re.compile(r"^[a-z_][a-z0-9_.]*$", re.IGNORECASE)
+
+
+def _validate_libpq_option(key: str, value: str) -> None:
+    """Validate a libpq GUC option key/value before interpolating into the options string.
+
+    Rejects keys that do not match the GUC identifier pattern and values that
+    contain characters that are special in the libpq options string (space,
+    single-quote, backslash).  These characters could inject additional -c
+    flags or break the options string parsed by libpq (WR-04).
+
+    Parameters
+    ----------
+    key : str
+        GUC parameter name (e.g. 'search_path').
+    value : str
+        GUC parameter value.
+
+    Raises
+    ------
+    ConfigurationError
+        If the key or value contains unsafe characters.
+    """
+    if not _SAFE_OPTION_KEY_RE.match(key):
+        raise ConfigurationError(
+            f"Unsafe option key {key!r}: must match pattern [a-z_][a-z0-9_.]* "
+            "(e.g. 'search_path', 'application_name')"
+        )
+    if " " in value or "'" in value or "\\" in value:
+        raise ConfigurationError(
+            f"Unsafe option value for {key!r}: value must not contain spaces, "
+            "single-quotes, or backslashes (libpq options injection)"
+        )
 
 
 @dataclass
@@ -167,6 +206,7 @@ class Config:
         if self.statement_timeout is not None:
             options_parts.append(f"-c statement_timeout={self.statement_timeout}")
         for key, value in self.options.items():
+            _validate_libpq_option(key, value)
             options_parts.append(f"-c {key}={value}")
         if options_parts:
             parts.append(f"options={' '.join(options_parts)}")
@@ -235,6 +275,7 @@ class Config:
         if self.statement_timeout is not None:
             options_parts.append(f"-c statement_timeout={self.statement_timeout}")
         for key, value in self.options.items():
+            _validate_libpq_option(key, value)
             options_parts.append(f"-c {key}={value}")
         if options_parts:
             params["options"] = " ".join(options_parts)
