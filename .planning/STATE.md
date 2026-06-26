@@ -4,8 +4,8 @@ milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: verifying
 stopped_at: "Completed 39-02-PLAN.md (PERF-04: benchmarks/ package + make bench + README regression protocol)"
-last_updated: "2026-06-26T19:06:37.185Z"
-last_activity: 2026-06-26 -- Phase 39 execution started
+last_updated: "2026-06-26T19:24:43.821Z"
+last_activity: 2026-06-26
 progress:
   total_phases: 4
   completed_phases: 3
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 ## Current Position
 
-Phase: 39 (couverture-benchmarks) — EXECUTING
-Plan: 2 of 2
+Phase: 40
+Plan: Not started
 Status: Phase complete — ready for verification
-Last activity: 2026-06-26 -- Phase 39 execution started
+Last activity: 2026-06-26
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 

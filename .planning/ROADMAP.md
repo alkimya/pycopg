@@ -242,5 +242,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete    | 2026-06-26 |
-| 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete   | 2026-06-26 |
+| 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete    | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
