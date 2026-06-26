@@ -67,8 +67,11 @@ async def _async_stream_df_copy(
 
     Converts NaN/NaT/pd.NA/None to SQL NULL per-value using a pre-computed
     boolean mask (``df.isna().values``).  Row values are read from
-    ``df.values`` (object array) which preserves ``pandas.Timestamp`` and
-    ``numpy.int64`` objects without a full-frame type conversion.
+    ``df.to_numpy(dtype=object)`` (object array) which preserves
+    ``pandas.Timestamp``, ``numpy.int64``, and other per-column Python types
+    without a full-frame type conversion.  Using ``df.values`` instead would
+    silently upcast integer columns to ``float64`` when any column in the
+    DataFrame contains NaN (numpy uniform-array constraint).
 
     The caller is fully responsible for the connection lifecycle: this helper
     never opens a connection, never calls ``await conn.commit()``, and never
@@ -109,7 +112,11 @@ async def _async_stream_df_copy(
 
     cols_str = ", ".join(columns)
     null_mask = df.isna().values  # shape (n_rows, n_cols) — pre-computed once
-    row_values = df.values  # object array — preserves Timestamp, np.int64
+    # to_numpy(dtype=object) forces an object array so each element retains its
+    # Python / pandas type (int stays int, not float64 when mixed with NaN cols).
+    # df.values would silently upcast int64 columns to float64 whenever any other
+    # column contains NaN (numpy uniform-array constraint).
+    row_values = df.to_numpy(dtype=object)
 
     async with cur.copy(f"COPY {schema}.{table} ({cols_str}) FROM STDIN") as copy:
         for i, row in enumerate(row_values):

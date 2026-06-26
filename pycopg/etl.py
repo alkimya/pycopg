@@ -37,8 +37,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from pycopg import queries
-from pycopg.async_database import _async_stream_df_copy  # noqa: F401 (used in seam Task 2)
-from pycopg.database import _stream_df_copy  # noqa: F401 (used in seam Task 2)
+from pycopg.async_database import _async_stream_df_copy
+from pycopg.database import _stream_df_copy
 from pycopg.exceptions import (  # noqa: F401
     ETLError,
     ETLTargetNotFoundError,
@@ -1350,22 +1350,30 @@ class ETLAccessor:
                     ) from exc
 
             # ------------------------------------------------------------------
-            # 3. ROWS: NaN/NaT → None (RESEARCH Q2 / D-07)
+            # 3. ROWS: early-exit on empty + derive columns (D-02b / D-02c)
             # ------------------------------------------------------------------
-            rows = (
-                df.astype(object).where(pd.notnull(df), None).to_dict(orient="records")
-            )
-
             # No rows to load (empty extract, or transforms dropped every row):
             # record success with 0 rows_loaded and NO watermark — even if a
             # raw_watermark was captured above, a no-load run must not advance
             # the watermark.  The prior successful watermark is preserved by
             # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
-            if not rows:
+            if df.empty:
                 self._end_run(run_id, "success", rows_extracted, 0)
                 return self._fetch_run_result(run_id)
 
-            columns = list(rows[0].keys())
+            columns = list(df.columns)
+
+            # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
+            # append/replace stream directly via COPY — no full-frame astype(object)
+            # materialization needed (D-02 / D-02c / PERF-02).
+            if pipeline.load_mode == "upsert":
+                rows = (
+                    df.astype(object)
+                    .where(pd.notnull(df), None)
+                    .to_dict(orient="records")
+                )
+            else:
+                rows = []  # unused for append/replace COPY path
 
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
@@ -1388,39 +1396,40 @@ class ETLAccessor:
                 )
 
             # ------------------------------------------------------------------
-            # 5. BUILD LOAD SQL (Plan 01 pure builders — never the public batch methods)
+            # 5. BUILD LOAD SQL (pure builders — upsert only; COPY needs no INSERT SQL)
             # ------------------------------------------------------------------
-            if pipeline.load_mode == "append":
-                insert_sql, insert_params = _build_insert_sql(
-                    pipeline.target, columns, rows, pipeline.schema
-                )
-            elif pipeline.load_mode == "upsert":
+            if pipeline.load_mode == "upsert":
                 insert_sql, insert_params = _build_upsert_sql(
                     pipeline.target,
                     rows,
                     list(pipeline.conflict_columns),
                     schema=pipeline.schema,
                 )
-            else:  # replace
+            elif pipeline.load_mode == "replace":
                 truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
-                insert_sql, insert_params = _build_insert_sql(
-                    pipeline.target, columns, rows, pipeline.schema
-                )
+
+            # append: no SQL builder — rows stream via COPY below
 
             # ------------------------------------------------------------------
-            # 6. ATOMIC LOAD — the seam (RESEARCH Q1 / SC-3)
-            #    Execute (sql, params) directly on the txn-yielded conn.
-            #    Never call the public batch-write methods inside this block
-            #    (those acquire self.cursor() which commits at exit — crashes
-            #    or breaks atomicity inside an explicit transaction).
+            # 6. ATOMIC LOAD — the seam (RESEARCH Q1 / SC-3 / D-02a)
+            #    append/replace: COPY inline on the transaction cursor.
+            #    upsert: INSERT … ON CONFLICT via execute() (D-02c).
+            #    Never call copy_insert() here — it opens its own connection +
+            #    commit, breaking run-log atomicity (D-02a / T-38-06).
             # ------------------------------------------------------------------
             with self._db.session():
                 with self._db.transaction() as conn:
                     with conn.cursor() as cur:
                         if pipeline.load_mode == "replace":
                             cur.execute(truncate_sql)
-                        cur.execute(insert_sql, insert_params)
-                        rows_loaded += cur.rowcount
+                        if pipeline.load_mode in ("append", "replace"):
+                            _stream_df_copy(
+                                cur, df, pipeline.target, pipeline.schema, columns
+                            )
+                            rows_loaded += cur.rowcount
+                        else:  # upsert
+                            cur.execute(insert_sql, insert_params)
+                            rows_loaded += cur.rowcount
 
         except Exception as exc:
             self._end_run(
@@ -2019,22 +2028,30 @@ class AsyncETLAccessor:
                     ) from exc
 
             # ------------------------------------------------------------------
-            # 3. ROWS: NaN/NaT → None (RESEARCH Q2 / D-07)
+            # 3. ROWS: early-exit on empty + derive columns (D-02b / D-02c)
             # ------------------------------------------------------------------
-            rows = (
-                df.astype(object).where(pd.notnull(df), None).to_dict(orient="records")
-            )
-
             # No rows to load (empty extract, or transforms dropped every row):
             # record success with 0 rows_loaded and NO watermark — even if a
             # raw_watermark was captured above, a no-load run must not advance
             # the watermark.  The prior successful watermark is preserved by
             # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
-            if not rows:
+            if df.empty:
                 await self._end_run(run_id, "success", rows_extracted, 0)
                 return await self._fetch_run_result(run_id)
 
-            columns = list(rows[0].keys())
+            columns = list(df.columns)
+
+            # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
+            # append/replace stream directly via COPY — no full-frame astype(object)
+            # materialization needed (D-02 / D-02c / PERF-02).
+            if pipeline.load_mode == "upsert":
+                rows = (
+                    df.astype(object)
+                    .where(pd.notnull(df), None)
+                    .to_dict(orient="records")
+                )
+            else:
+                rows = []  # unused for append/replace COPY path
 
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
@@ -2059,36 +2076,40 @@ class AsyncETLAccessor:
                 )
 
             # ------------------------------------------------------------------
-            # 5. BUILD LOAD SQL (Plan 01 pure builders — never the public batch methods)
+            # 5. BUILD LOAD SQL (pure builders — upsert only; COPY needs no INSERT SQL)
             # ------------------------------------------------------------------
-            if pipeline.load_mode == "append":
-                insert_sql, insert_params = _build_insert_sql(
-                    pipeline.target, columns, rows, pipeline.schema
-                )
-            elif pipeline.load_mode == "upsert":
+            if pipeline.load_mode == "upsert":
                 insert_sql, insert_params = _build_upsert_sql(
                     pipeline.target,
                     rows,
                     list(pipeline.conflict_columns),
                     schema=pipeline.schema,
                 )
-            else:  # replace
+            elif pipeline.load_mode == "replace":
                 truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
-                insert_sql, insert_params = _build_insert_sql(
-                    pipeline.target, columns, rows, pipeline.schema
-                )
+
+            # append: no SQL builder — rows stream via COPY below
 
             # ------------------------------------------------------------------
-            # 6. ATOMIC LOAD — async seam (RESEARCH §7 / SC-3)
-            #    Execute (sql, params) directly on the txn-yielded conn.
+            # 6. ATOMIC LOAD — async seam (RESEARCH §7 / SC-3 / D-02a)
+            #    append/replace: COPY inline on the transaction cursor.
+            #    upsert: INSERT … ON CONFLICT via execute() (D-02c).
+            #    Never call copy_insert() here — it opens its own connection +
+            #    commit, breaking run-log atomicity (D-02a / T-38-06).
             # ------------------------------------------------------------------
             async with self._db.session():
                 async with self._db.transaction() as conn:
                     async with conn.cursor() as cur:
                         if pipeline.load_mode == "replace":
                             await cur.execute(truncate_sql)
-                        await cur.execute(insert_sql, insert_params)
-                        rows_loaded += cur.rowcount
+                        if pipeline.load_mode in ("append", "replace"):
+                            await _async_stream_df_copy(
+                                cur, df, pipeline.target, pipeline.schema, columns
+                            )
+                            rows_loaded += cur.rowcount
+                        else:  # upsert
+                            await cur.execute(insert_sql, insert_params)
+                            rows_loaded += cur.rowcount
 
         except Exception as exc:
             await self._end_run(
