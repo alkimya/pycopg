@@ -77,6 +77,7 @@ class PooledDatabase:
             reconnect_failed=reconnect_failed,
             check=check or ConnectionPool.check_connection,
             kwargs={"row_factory": dict_row},
+            open=True,
         )
 
     @classmethod
