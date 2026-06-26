@@ -3166,13 +3166,17 @@ class TestAsyncDatabaseCRUDErgonomics:
                 autocommit=True,
             )
             # Insert path
-            row = await db.upsert(t, {"id": 1, "name": "Alice", "email": "a@x.com"}, ["id"])
+            row = await db.upsert(
+                t, {"id": 1, "name": "Alice", "email": "a@x.com"}, ["id"]
+            )
             assert isinstance(row, dict)
             assert row["id"] == 1
             assert row["name"] == "Alice"
 
             # Update path
-            row2 = await db.upsert(t, {"id": 1, "name": "Alice", "email": "new@x.com"}, ["id"])
+            row2 = await db.upsert(
+                t, {"id": 1, "name": "Alice", "email": "new@x.com"}, ["id"]
+            )
             assert isinstance(row2, dict)
             assert row2["email"] == "new@x.com"
         finally:
@@ -3302,9 +3306,7 @@ class TestAsyncDatabaseReadHelpers:
             assert isinstance(rows[0], dict)
             assert rows[0]["id"] == 1
 
-            empty = await db.fetch_all(
-                f'SELECT id FROM "{t}" WHERE id = 9999'
-            )
+            empty = await db.fetch_all(f'SELECT id FROM "{t}" WHERE id = 9999')
             assert empty == []
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
@@ -3368,7 +3370,9 @@ class TestAsyncSchemaIntrospection:
             assert fks[0]["columns"] == ["parent_id"]
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{child}" CASCADE', autocommit=True)
-            await db.execute(f'DROP TABLE IF EXISTS "{parent}" CASCADE', autocommit=True)
+            await db.execute(
+                f'DROP TABLE IF EXISTS "{parent}" CASCADE', autocommit=True
+            )
 
     async def test_sequences_async(self, db_config):
         """async sequences returns sequence names including the expected <table>_id_seq."""
@@ -3416,7 +3420,12 @@ class TestAsyncSchemaIntrospection:
                 autocommit=True,
             )
             result = await db.schema.describe(t)
-            assert set(result.keys()) == {"columns", "primary_key", "foreign_keys", "indexes"}
+            assert set(result.keys()) == {
+                "columns",
+                "primary_key",
+                "foreign_keys",
+                "indexes",
+            }
             assert isinstance(result["columns"], list)
             assert result["primary_key"] is not None
             assert result["primary_key"]["columns"] == ["id"]
@@ -3458,12 +3467,16 @@ class TestAsyncFromDataframeCopy:
 
             rows = await db.execute(f'SELECT COUNT(*) AS n FROM public."{t}"')
             assert rows[0]["n"] == 3, "All data rows must be present via async COPY"
-            assert len(to_sql_calls) == 1, "to_sql must be called exactly once (DDL only)"
-            assert to_sql_calls[0] == 0, (
-                f"to_sql called on head(0), not {to_sql_calls[0]}-row df"
-            )
+            assert (
+                len(to_sql_calls) == 1
+            ), "to_sql must be called exactly once (DDL only)"
+            assert (
+                to_sql_calls[0] == 0
+            ), f"to_sql called on head(0), not {to_sql_calls[0]}-row df"
         finally:
-            await db.execute(f'DROP TABLE IF EXISTS public."{t}" CASCADE', autocommit=True)
+            await db.execute(
+                f'DROP TABLE IF EXISTS public."{t}" CASCADE', autocommit=True
+            )
 
 
 class TestAsyncStreamDfCopyValidation:
@@ -3496,5 +3509,83 @@ class TestAsyncStreamDfCopyValidation:
         df = pd.DataFrame({"id": [1, 2]})
         cur = MagicMock()
         with pytest.raises(InvalidIdentifier):
-            await _async_stream_df_copy(cur, df, "t; DROP TABLE x", "public", list(df.columns))
+            await _async_stream_df_copy(
+                cur, df, "t; DROP TABLE x", "public", list(df.columns)
+            )
         cur.copy.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Phase 39 Plan 01 — COV-01: async insert_batch live-DB behavioral tests
+# (covers async_database.py L685–718 — the 34-line pool)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def async_insert_table(db_config):
+    """Create a fresh table for insert_batch tests; drop on teardown."""
+    tbl = f"async_ib_{uuid.uuid4().hex[:8]}"
+    adb = AsyncDatabase(db_config)
+    await adb.execute(
+        f'CREATE TABLE public."{tbl}" (id INTEGER, val FLOAT, label TEXT)',
+        autocommit=True,
+    )
+    yield tbl
+    await adb.execute(
+        f'DROP TABLE IF EXISTS public."{tbl}" CASCADE',
+        autocommit=True,
+    )
+
+
+@pytest.fixture
+async def async_insert_table_pk(db_config):
+    """Create a fresh table with PRIMARY KEY for on_conflict tests; drop on teardown."""
+    tbl = f"async_ib_pk_{uuid.uuid4().hex[:8]}"
+    adb = AsyncDatabase(db_config)
+    await adb.execute(
+        f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val FLOAT, label TEXT)',
+        autocommit=True,
+    )
+    yield tbl
+    await adb.execute(
+        f'DROP TABLE IF EXISTS public."{tbl}" CASCADE',
+        autocommit=True,
+    )
+
+
+class TestAsyncInsertBatch:
+    """Async insert_batch live-DB behavioral tests (COV-01 — async_database.py L685–718)."""
+
+    async def test_async_insert_batch_basic(self, db_config, async_insert_table):
+        """insert_batch with 3 rows returns 3 and COUNT(*) equals 3."""
+        db = AsyncDatabase(db_config)
+        rows = [{"id": i, "val": float(i), "label": f"r{i}"} for i in range(3)]
+        n = await db.insert_batch(async_insert_table, rows)
+        assert n == 3
+        count = await db.execute(f'SELECT COUNT(*) AS n FROM "{async_insert_table}"')
+        assert count[0]["n"] == 3
+
+    async def test_async_insert_batch_empty_returns_zero(
+        self, db_config, async_insert_table
+    ):
+        """insert_batch with empty rows returns 0 (covers L685–686 early return)."""
+        db = AsyncDatabase(db_config)
+        n = await db.insert_batch(async_insert_table, [])
+        assert n == 0
+
+    async def test_async_insert_batch_on_conflict_do_nothing(
+        self, db_config, async_insert_table_pk
+    ):
+        """Re-insert a duplicate row with on_conflict='DO NOTHING' returns 0 (covers L698)."""
+        db = AsyncDatabase(db_config)
+        rows = [{"id": 1, "val": 1.0, "label": "a"}]
+        await db.insert_batch(async_insert_table_pk, rows)
+        n = await db.insert_batch(async_insert_table_pk, rows, on_conflict="DO NOTHING")
+        assert n == 0  # conflict suppressed, no new row
+
+    async def test_async_insert_batch_multi_batch(self, db_config, async_insert_table):
+        """Insert 1001 rows with batch_size=500 returns 1001 (covers inner loop iteration >=2)."""
+        db = AsyncDatabase(db_config)
+        rows = [{"id": i, "val": float(i), "label": f"r{i}"} for i in range(1001)]
+        n = await db.insert_batch(async_insert_table, rows, batch_size=500)
+        assert n == 1001
