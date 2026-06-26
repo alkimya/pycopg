@@ -4,8 +4,8 @@ milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
 stopped_at: Phase 37 Plan 04 complete
-last_updated: "2026-06-26T08:48:35.051Z"
-last_activity: 2026-06-26 -- Phase 37 Plan 04 complete (DEBT-05 TableNotFound raise site + DEBT-03a advisory fixes)
+last_updated: "2026-06-26T08:57:37.339Z"
+last_activity: 2026-06-26
 progress:
   total_phases: 4
   completed_phases: 1
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 ## Current Position
 
-Phase: 37 (dette-audit) — EXECUTING
-Plan: 5 of 5
+Phase: 38
+Plan: Not started
 Status: Ready to execute
-Last activity: 2026-06-26 -- Phase 37 Plan 04 complete (DEBT-05 TableNotFound raise site + DEBT-03a advisory fixes)
+Last activity: 2026-06-26
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 

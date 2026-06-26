@@ -13,13 +13,13 @@ Requirements for the v0.10.0 release. Each maps to exactly one roadmap phase.
 
 - [x] **DEBT-01**: Les tests flaky par isolation de fixture (`test_async_transaction_fix`, `test_create_spatial_index_name_parameter`, le ~2.7% bound-param) passent de façon déterministe en suite complète (`uv run pytest`), sans `-o addopts=""` ni ordre particulier.
 - [x] **DEBT-02**: Les 4 erreurs ruff résiduelles (N818/W291/F841/E722) sont corrigées — `uv run ruff check pycopg tests` retourne 0 erreur.
-- [ ] **DEBT-03**: Les warnings advisory recensés v0.8-0.9 sont soldés ou explicitement clos avec justification : WR-01 garde `time_bucket(` insensible à la casse, WR-03 INTERVAL-literal-vs-`%s`, `%`/`%s` dans le SQL structurel fourni par l'appelant, IN-03 helper `chunk_seq` fragile, et les advisory v0.9 (`test_sequences_async` assertion sur le nom de séquence, `upsert` docstring section `Raises`, duplications `import uuid`/helpers ad-hoc dans les tests async).
+- [x] **DEBT-03**: Les warnings advisory recensés v0.8-0.9 sont soldés ou explicitement clos avec justification : WR-01 garde `time_bucket(` insensible à la casse, WR-03 INTERVAL-literal-vs-`%s`, `%`/`%s` dans le SQL structurel fourni par l'appelant, IN-03 helper `chunk_seq` fragile, et les advisory v0.9 (`test_sequences_async` assertion sur le nom de séquence, `upsert` docstring section `Raises`, duplications `import uuid`/helpers ad-hoc dans les tests async).
 - [x] **DEBT-04**: Le code mort de test est retiré — monkeypatches morts du fixture async de `test_sql_injection.py` (WR-02) supprimés.
 - [x] **DEBT-05**: `TableNotFound` est cohérent — soit doté d'un site de raise interne réel, soit retiré de `__all__` ; l'incohérence « exportée mais jamais levée » est résolue et documentée.
 
 ### Audit outillé (AUDIT)
 
-- [ ] **AUDIT-01**: Une passe `gsd-code-review`/audit sur l'ensemble de `pycopg/` produit un rapport classé par sévérité ; chaque finding HIGH/MEDIUM est corrigé ou explicitement déféré avec justification consignée.
+- [x] **AUDIT-01**: Une passe `gsd-code-review`/audit sur l'ensemble de `pycopg/` produit un rapport classé par sévérité ; chaque finding HIGH/MEDIUM est corrigé ou explicitement déféré avec justification consignée.
 - [x] **AUDIT-02**: Un scan de code mort (vulture/coverage) sur `pycopg/` identifie le code non-atteint ; le code mort confirmé est retiré et les faux positifs sont documentés (allowlist).
 
 ### Couverture (COV)
@@ -28,7 +28,7 @@ Requirements for the v0.10.0 release. Each maps to exactly one roadmap phase.
 
 ### Nyquist (NYQ)
 
-- [ ] **NYQ-01**: Les VALIDATION.md des phases 22-24 (restés `draft`/`nyquist_compliant: false`) sont signés-off (`nyquist_compliant: true`, PASSED) ou explicitement clos avec justification — la dette de sign-off Nyquist est soldée.
+- [x] **NYQ-01**: Les VALIDATION.md des phases 22-24 (restés `draft`/`nyquist_compliant: false`) sont signés-off (`nyquist_compliant: true`, PASSED) ou explicitement clos avec justification — la dette de sign-off Nyquist est soldée.
 
 ### Performance (PERF)
 
@@ -82,9 +82,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEBT-03 | Phase 37 | Partial (D-03a done P04; D-03b deferred P05) |
 | DEBT-04 | Phase 37 | Complete |
 | DEBT-05 | Phase 37 | Complete |
-| AUDIT-01 | Phase 37 | Pending |
+| AUDIT-01 | Phase 37 | Complete |
 | AUDIT-02 | Phase 37 | Complete |
-| NYQ-01 | Phase 37 | Pending |
+| NYQ-01 | Phase 37 | Complete |
 | PERF-01 | Phase 38 | Pending |
 | PERF-02 | Phase 38 | Pending |
 | PERF-03 | Phase 38 | Pending |
