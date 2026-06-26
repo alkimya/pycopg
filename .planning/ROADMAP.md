@@ -109,7 +109,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Milestone Goal:** Assainir et optimiser le socle avant le gel 1.0 — solder la dette technique, passer une passe outillée d'audit et de code mort, monter la couverture à 95%, et router les volumes par COPY sous garde-fou de benchmarks. Non-cassant, zéro nouvelle dépendance runtime.
 
-- [ ] **Phase 37: Dette & Audit** - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24
+- [ ] **Phase 37: Dette & Audit** (5 plans, 3 waves) - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24
 - [ ] **Phase 38: Performance COPY** - Router `from_dataframe` + ETL load via COPY, micro-opt `insert_batch`, parité sync/async vérifiée
 - [ ] **Phase 39: Couverture & Benchmarks** - Lever le cliquet de couverture à 95%, écrire la suite de benchmarks garde-fou
 - [ ] **Phase 40: Release v0.10.0** - Bump version, CHANGELOG, 4 gates verts, tag + PyPI OIDC publish + smoke
@@ -126,7 +126,12 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
   3. Chaque warning advisory v0.8-0.9 (WR-01, WR-03, %/`%s` structurel, IN-03 `chunk_seq`, advisory v0.9) est soit corrigé dans le code, soit clos avec une justification consignée dans un fichier de décision
   4. `TableNotFound` a soit un site de raise interne réel, soit est retiré de `__all__` — l'incohérence est résolue et documentée
   5. Les VALIDATION.md des phases 22-24 sont à `nyquist_compliant: true` (PASSED) ; un rapport d'audit classé HIGH/MEDIUM/LOW existe pour `pycopg/`, chaque finding HIGH/MEDIUM ayant une disposition ; une allowlist vulture documente les faux positifs de code mort
-**Plans**: TBD
+**Plans**: 5 plans (3 waves)
+- [ ] 37-01-PLAN.md — Tooling + ruff config: [tool.ruff.lint] migration, N818 per-file-ignore, vulture + pytest-randomly dev-group, seed vulture allowlist (DEBT-02, AUDIT-02)
+- [ ] 37-02-PLAN.md — Test lint fixes (31× W291/F841/E722) + remove dead async monkeypatches (DEBT-02, DEBT-04)
+- [ ] 37-03-PLAN.md — De-flake the 3 flaky tests (fixture isolation) + prove determinism under pytest-randomly (DEBT-01)
+- [ ] 37-04-PLAN.md — TableNotFound raise site in truncate_table (sync+async) + DEBT-03a advisory fixes (DEBT-05, DEBT-03)
+- [ ] 37-05-PLAN.md — vulture scan + /gsd-code-review audit + NYQ-01 sign-off + consolidated 37-DECISIONS.md (AUDIT-01, AUDIT-02, NYQ-01, DEBT-03b)
 
 ### Phase 38: Performance COPY
 **Goal**: Les chemins d'insertion à volume (`from_dataframe`, ETL load, `insert_batch`) sont optimisés via COPY et micro-opts, avec parité sync/async maintenue
@@ -201,7 +206,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
-| 37. Dette & Audit | v0.10.0 | 0/TBD | Not started | - |
+| 37. Dette & Audit | v0.10.0 | 0/5 | Not started | - |
 | 38. Performance COPY | v0.10.0 | 0/TBD | Not started | - |
 | 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
