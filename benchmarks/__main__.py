@@ -29,7 +29,6 @@ import pandas as pd
 from pycopg import Database
 from pycopg.etl import Pipeline
 
-
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
@@ -232,7 +231,9 @@ def _print_table(n_rows: int, runs: int, results: dict[str, int]) -> None:
         Mapping of method label to median elapsed time in nanoseconds.
     """
     sep_total = _COL_METHOD + _COL_ROWS_S + _COL_MS + _COL_SPEEDUP + 9
-    header_title = f"pycopg insertion benchmark — {n_rows:,} rows, {runs} runs (warmup=1)"
+    header_title = (
+        f"pycopg insertion benchmark — {n_rows:,} rows, {runs} runs (warmup=1)"
+    )
     print()
     print(header_title)
     print("=" * max(len(header_title), sep_total))
@@ -244,7 +245,15 @@ def _print_table(n_rows: int, runs: int, results: dict[str, int]) -> None:
         f"{'speedup vs insert_batch':<{_COL_SPEEDUP}}"
     )
     print(col_h)
-    print("-" * _COL_METHOD + "-+-" + "-" * _COL_ROWS_S + "-+-" + "-" * _COL_MS + "-+-" + "-" * _COL_SPEEDUP)
+    print(
+        "-" * _COL_METHOD
+        + "-+-"
+        + "-" * _COL_ROWS_S
+        + "-+-"
+        + "-" * _COL_MS
+        + "-+-"
+        + "-" * _COL_SPEEDUP
+    )
 
     baseline_ns = results.get("insert_batch", 1)
 
