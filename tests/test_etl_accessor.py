@@ -2992,3 +2992,166 @@ class TestAsyncRunResultSurface:
         assert nrows[0]["watermark"] is None
         # Prior success watermark must be preserved
         assert await async_db.etl._read_watermark("awm_allnull_test") == w0
+
+
+# ---------------------------------------------------------------------------
+# Phase 38 Plan 02: ETL COPY-path tests (PERF-02 / D-02 / D-02c)
+# ---------------------------------------------------------------------------
+
+
+class TestETLCopyPath:
+    """Behavioral tests for the COPY load seam introduced in Plan 38-02.
+
+    Verifies that append/replace modes stream rows via COPY (exact rows_loaded
+    from cur.rowcount), NaN/NaT cells land as SQL NULL, and upsert continues
+    to work via INSERT ON CONFLICT (D-02c).  No timing assertions (D-06).
+    """
+
+    # ------------------------------------------------------------------
+    # COPY path — exact rows_loaded for append and replace (PERF-02 / D-02b)
+    # ------------------------------------------------------------------
+
+    def test_etl_run_copy_path_rows_loaded_replace(
+        self, db, cleanup_pipeline_runs
+    ):
+        """replace mode: result.rows_loaded equals exact DataFrame row count (COPY rowcount).
+
+        Proves the COPY seam sets cur.rowcount correctly through
+        _stream_df_copy on the transaction cursor (D-02 / D-02b).
+        """
+        tbl = f"etl_copy_rep_{uuid.uuid4().hex[:8]}"
+        expected_rows = 5
+        p = Pipeline(
+            name="copy_replace_rows",
+            source=f"SELECT generate_series(1, {expected_rows}) AS id, 'v' AS val",
+            target=tbl,
+            load_mode="replace",
+        )
+        try:
+            result = db.etl.run(p)
+        finally:
+            db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert result.status == "success"
+        assert result.rows_loaded == expected_rows
+
+    def test_etl_run_copy_path_rows_loaded_append(
+        self, db, cleanup_pipeline_runs
+    ):
+        """append mode: result.rows_loaded equals exact DataFrame row count (COPY rowcount).
+
+        Proves the COPY seam sets cur.rowcount correctly through
+        _stream_df_copy on the transaction cursor (D-02 / D-02b).
+        """
+        tbl = f"etl_copy_app_{uuid.uuid4().hex[:8]}"
+        expected_rows = 3
+        # Create the target table first (append requires pre-existing table)
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER, val TEXT)',
+            autocommit=True,
+        )
+        p = Pipeline(
+            name="copy_append_rows",
+            source=f"SELECT generate_series(1, {expected_rows}) AS id, 'w' AS val",
+            target=tbl,
+            load_mode="append",
+        )
+        try:
+            result = db.etl.run(p)
+        finally:
+            db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert result.status == "success"
+        assert result.rows_loaded == expected_rows
+
+    # ------------------------------------------------------------------
+    # NaN / NaT → SQL NULL via ETL COPY path (D-02 / PERF-02)
+    # ------------------------------------------------------------------
+
+    def test_etl_run_copy_nan_null(self, db, cleanup_pipeline_runs):
+        """NaN in a float column and NaT in a datetime column land as SQL NULL via COPY path.
+
+        Uses a replace Pipeline so the target table is created by the ETL
+        seam (head(0).to_sql DDL step).  Confirms the _stream_df_copy null-
+        mask mechanism works through the ETL seam, not just from_dataframe.
+        """
+        tbl = f"etl_copy_nan_{uuid.uuid4().hex[:8]}"
+
+        def inject_nulls(df):
+            """Add a float column with NaN and a datetime column with NaT."""
+            df = df.copy()
+            df["score"] = [float("nan"), 2.5]
+            df["ts"] = pd.to_datetime([None, "2024-06-01"])
+            return df
+
+        p = Pipeline(
+            name="copy_nan_null",
+            source="SELECT generate_series(1, 2) AS id",
+            target=tbl,
+            load_mode="replace",
+            transform=inject_nulls,
+        )
+        try:
+            result = db.etl.run(p)
+            # Read back the rows and check nulls
+            rows = db.execute(
+                f'SELECT id, score, ts FROM public."{tbl}" ORDER BY id'
+            )
+        finally:
+            db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert result.status == "success"
+        assert result.rows_loaded == 2
+
+        # Row 1: score is NaN → NULL, ts is NaT → NULL
+        assert rows[0]["score"] is None, "NaN in float column must land as SQL NULL"
+        assert rows[0]["ts"] is None, "NaT in datetime column must land as SQL NULL"
+
+        # Row 2: score and ts are real values
+        assert rows[1]["score"] == pytest.approx(2.5)
+        assert rows[1]["ts"] is not None
+
+    # ------------------------------------------------------------------
+    # upsert path still works via INSERT ON CONFLICT (D-02c)
+    # ------------------------------------------------------------------
+
+    def test_etl_run_upsert_unchanged(self, db, cleanup_pipeline_runs):
+        """upsert mode: INSERT ON CONFLICT path unchanged after COPY seam rewrite (D-02c).
+
+        Ensures that routing append/replace through COPY did not accidentally
+        break the upsert path, which must stay on _build_upsert_sql.
+        """
+        tbl = f"etl_copy_upsert_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        # Seed one row
+        db.execute(f'INSERT INTO public."{tbl}" VALUES (1, \'old\')', autocommit=True)
+
+        p = Pipeline(
+            name="copy_upsert_check",
+            source="SELECT 1 AS id, 'new' AS val",
+            target=tbl,
+            load_mode="upsert",
+            conflict_columns=["id"],
+        )
+        try:
+            result = db.etl.run(p)
+            rows = db.execute(f'SELECT id, val FROM public."{tbl}"')
+        finally:
+            db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert result.status == "success"
+        assert result.rows_loaded == 1
+        assert len(rows) == 1
+        assert rows[0]["id"] == 1
+        assert rows[0]["val"] == "new"  # upsert updated the existing row
