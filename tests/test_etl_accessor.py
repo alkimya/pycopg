@@ -2089,6 +2089,148 @@ class TestRunResultSurface:
         # microseconds preserved on watermark_recorded
         assert r2.watermark_recorded.microsecond == 123456
 
+    # -----------------------------------------------------------------------
+    # Phase 39 Plan 01 — COV-01: sync dry_run watermark + transform branch tests
+    # (etl.py L1215, L1224, L1226, L1241, L1248-1249)
+    # -----------------------------------------------------------------------
+
+    def test_dry_run_incremental_string_watermark(self, db, cleanup_pipeline_runs):
+        """Covers etl.py L1226 — str watermark branch in sync dry_run."""
+        src = f"str_wm_src_{uuid.uuid4().hex[:8]}"
+        dst = f"str_wm_dst_{uuid.uuid4().hex[:8]}"
+        try:
+            db.execute(
+                f'CREATE TABLE public."{src}" (code TEXT, val INTEGER)',
+                autocommit=True,
+            )
+            db.execute(
+                f"INSERT INTO public.\"{src}\" VALUES ('beta', 2), ('alpha', 1)",
+                autocommit=True,
+            )
+            db.execute(
+                f'CREATE TABLE public."{dst}" (code TEXT, val INTEGER)',
+                autocommit=True,
+            )
+            p = Pipeline(
+                name=f"str_wm_{uuid.uuid4().hex[:6]}",
+                source=src,
+                target=dst,
+                load_mode="upsert",
+                conflict_columns=["code"],
+                incremental_column="code",
+            )
+            db.etl.init()  # ensure pipeline_runs exists before dry_run on incremental
+            result = db.etl.run(p, dry_run=True)
+            assert result.status == "dry_run"
+            assert isinstance(result.watermark_recorded, str)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{dst}" CASCADE', autocommit=True)
+
+    def test_dry_run_incremental_timestamp_watermark(self, db, cleanup_pipeline_runs):
+        """Covers etl.py L1224 — Timestamp.to_pydatetime() branch in sync dry_run."""
+        src = f"ts_wm_src_{uuid.uuid4().hex[:8]}"
+        dst = f"ts_wm_dst_{uuid.uuid4().hex[:8]}"
+        try:
+            db.execute(
+                f'CREATE TABLE public."{src}" (ts TIMESTAMP, val INTEGER)',
+                autocommit=True,
+            )
+            db.execute(
+                f"INSERT INTO public.\"{src}\" VALUES ('2026-01-01 10:00:00', 1), ('2026-01-02 12:00:00', 2)",
+                autocommit=True,
+            )
+            db.execute(
+                f'CREATE TABLE public."{dst}" (ts TIMESTAMP, val INTEGER)',
+                autocommit=True,
+            )
+            p = Pipeline(
+                name=f"ts_wm_{uuid.uuid4().hex[:6]}",
+                source=src,
+                target=dst,
+                load_mode="upsert",
+                conflict_columns=["ts"],
+                incremental_column="ts",
+            )
+            db.etl.init()  # ensure pipeline_runs exists before dry_run on incremental
+            result = db.etl.run(p, dry_run=True)
+            assert result.status == "dry_run"
+            assert isinstance(result.watermark_recorded, datetime)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{dst}" CASCADE', autocommit=True)
+
+    def test_dry_run_incremental_column_missing_raises(self, db, cleanup_pipeline_runs):
+        """Covers etl.py L1215 — ETLError when incremental_column not in extracted batch."""
+        src = f"missing_col_src_{uuid.uuid4().hex[:8]}"
+        dst = f"missing_col_dst_{uuid.uuid4().hex[:8]}"
+        try:
+            db.execute(
+                f'CREATE TABLE public."{src}" (id INTEGER, val TEXT)',
+                autocommit=True,
+            )
+            db.execute(
+                f"INSERT INTO public.\"{src}\" VALUES (1, 'a')",
+                autocommit=True,
+            )
+            db.execute(
+                f'CREATE TABLE public."{dst}" (id INTEGER, val TEXT)',
+                autocommit=True,
+            )
+            p = Pipeline(
+                name=f"missing_col_{uuid.uuid4().hex[:6]}",
+                source=src,
+                target=dst,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="nonexistent",
+            )
+            db.etl.init()  # ensure pipeline_runs exists before dry_run on incremental
+            with pytest.raises(ETLError):
+                db.etl.run(p, dry_run=True)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{dst}" CASCADE', autocommit=True)
+
+    def test_dry_run_transform_single_callable(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """Covers etl.py L1241 — single callable transform in dry_run path."""
+
+        def double_val(df):
+            df = df.copy()
+            df["id"] = df["id"] * 2
+            return df
+
+        p = Pipeline(
+            name=f"dry_transform_single_{uuid.uuid4().hex[:6]}",
+            source="SELECT 5 AS id, 'x' AS val",
+            target=etl_table,
+            load_mode="replace",
+            transform=double_val,
+        )
+        result = db.etl.run(p, dry_run=True)
+        assert result.status == "dry_run"
+        assert result.rows_extracted == 1
+
+    def test_dry_run_transform_step_raises_etl_transform_error(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """Covers etl.py L1248-1249 — transform step raises ETLTransformError in dry_run."""
+
+        def bad_transform(df):
+            raise ValueError("boom")
+
+        p = Pipeline(
+            name=f"dry_transform_raises_{uuid.uuid4().hex[:6]}",
+            source="SELECT 1 AS id, 'v' AS val",
+            target=etl_table,
+            load_mode="replace",
+            transform=bad_transform,
+        )
+        with pytest.raises(ETLTransformError):
+            db.etl.run(p, dry_run=True)
+
 
 # ---------------------------------------------------------------------------
 # Phase 20 behavioral async tests — async_db.etl.run/history/last_run/dry_run
@@ -2993,6 +3135,128 @@ class TestAsyncRunResultSurface:
         # Prior success watermark must be preserved
         assert await async_db.etl._read_watermark("awm_allnull_test") == w0
 
+    # -----------------------------------------------------------------------
+    # Phase 39 Plan 01 — COV-01: async dry_run watermark + transform branch tests
+    # (etl.py L1891, L1900, L1902, L1916-1919, L1922-1925)
+    # -----------------------------------------------------------------------
+
+    async def test_async_dry_run_incremental_string_watermark(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """Covers etl.py L1902 — str watermark branch in async dry_run."""
+        src = f"a_str_wm_src_{uuid.uuid4().hex[:8]}"
+        dst = f"a_str_wm_dst_{uuid.uuid4().hex[:8]}"
+        try:
+            await async_db.execute(
+                f'CREATE TABLE public."{src}" (code TEXT, val INTEGER)',
+                autocommit=True,
+            )
+            await async_db.execute(
+                f"INSERT INTO public.\"{src}\" VALUES ('beta', 2), ('alpha', 1)",
+                autocommit=True,
+            )
+            await async_db.execute(
+                f'CREATE TABLE public."{dst}" (code TEXT, val INTEGER)',
+                autocommit=True,
+            )
+            p = Pipeline(
+                name=f"a_str_wm_{uuid.uuid4().hex[:6]}",
+                source=src,
+                target=dst,
+                load_mode="upsert",
+                conflict_columns=["code"],
+                incremental_column="code",
+            )
+            await async_db.etl.init()  # ensure pipeline_runs exists before dry_run on incremental
+            result = await async_db.etl.run(p, dry_run=True)
+            assert result.status == "dry_run"
+            assert isinstance(result.watermark_recorded, str)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True
+            )
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{dst}" CASCADE', autocommit=True
+            )
+
+    async def test_async_dry_run_incremental_timestamp_watermark(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """Covers etl.py L1900 — Timestamp.to_pydatetime() branch in async dry_run."""
+        src = f"a_ts_wm_src_{uuid.uuid4().hex[:8]}"
+        dst = f"a_ts_wm_dst_{uuid.uuid4().hex[:8]}"
+        try:
+            await async_db.execute(
+                f'CREATE TABLE public."{src}" (ts TIMESTAMP, val INTEGER)',
+                autocommit=True,
+            )
+            await async_db.execute(
+                f"INSERT INTO public.\"{src}\" VALUES ('2026-01-01 10:00:00', 1), ('2026-01-02 12:00:00', 2)",
+                autocommit=True,
+            )
+            await async_db.execute(
+                f'CREATE TABLE public."{dst}" (ts TIMESTAMP, val INTEGER)',
+                autocommit=True,
+            )
+            p = Pipeline(
+                name=f"a_ts_wm_{uuid.uuid4().hex[:6]}",
+                source=src,
+                target=dst,
+                load_mode="upsert",
+                conflict_columns=["ts"],
+                incremental_column="ts",
+            )
+            await async_db.etl.init()  # ensure pipeline_runs exists before dry_run on incremental
+            result = await async_db.etl.run(p, dry_run=True)
+            assert result.status == "dry_run"
+            assert isinstance(result.watermark_recorded, datetime)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True
+            )
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{dst}" CASCADE', autocommit=True
+            )
+
+    async def test_async_dry_run_transform_single_callable(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """Covers etl.py L1916-1919 — single callable transform in async dry_run path."""
+
+        def double_val(df):
+            df = df.copy()
+            df["id"] = df["id"] * 2
+            return df
+
+        p = Pipeline(
+            name=f"a_dry_transform_single_{uuid.uuid4().hex[:6]}",
+            source="SELECT 5 AS id, 'x' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+            transform=double_val,
+        )
+        result = await async_db.etl.run(p, dry_run=True)
+        assert result.status == "dry_run"
+        assert result.rows_extracted == 1
+
+    async def test_async_dry_run_transform_step_raises(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """Covers etl.py L1922-1925 — transform step raises ETLTransformError in async dry_run."""
+
+        def bad_transform(df):
+            raise ValueError("async boom")
+
+        p = Pipeline(
+            name=f"a_dry_transform_raises_{uuid.uuid4().hex[:6]}",
+            source="SELECT 1 AS id, 'v' AS val",
+            target=async_etl_table,
+            load_mode="replace",
+            transform=bad_transform,
+        )
+        with pytest.raises(ETLTransformError):
+            await async_db.etl.run(p, dry_run=True)
+
 
 # ---------------------------------------------------------------------------
 # Phase 38 Plan 02: ETL COPY-path tests (PERF-02 / D-02 / D-02c)
@@ -3011,9 +3275,7 @@ class TestETLCopyPath:
     # COPY path — exact rows_loaded for append and replace (PERF-02 / D-02b)
     # ------------------------------------------------------------------
 
-    def test_etl_run_copy_path_rows_loaded_replace(
-        self, db, cleanup_pipeline_runs
-    ):
+    def test_etl_run_copy_path_rows_loaded_replace(self, db, cleanup_pipeline_runs):
         """replace mode: result.rows_loaded equals exact DataFrame row count (COPY rowcount).
 
         Proves the COPY seam sets cur.rowcount correctly through
@@ -3030,16 +3292,12 @@ class TestETLCopyPath:
         try:
             result = db.etl.run(p)
         finally:
-            db.execute(
-                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
-            )
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         assert result.status == "success"
         assert result.rows_loaded == expected_rows
 
-    def test_etl_run_copy_path_rows_loaded_append(
-        self, db, cleanup_pipeline_runs
-    ):
+    def test_etl_run_copy_path_rows_loaded_append(self, db, cleanup_pipeline_runs):
         """append mode: result.rows_loaded equals exact DataFrame row count (COPY rowcount).
 
         Proves the COPY seam sets cur.rowcount correctly through
@@ -3061,9 +3319,7 @@ class TestETLCopyPath:
         try:
             result = db.etl.run(p)
         finally:
-            db.execute(
-                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
-            )
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         assert result.status == "success"
         assert result.rows_loaded == expected_rows
@@ -3098,13 +3354,9 @@ class TestETLCopyPath:
         try:
             result = db.etl.run(p)
             # Read back the rows and check nulls
-            rows = db.execute(
-                f'SELECT id, score, ts FROM public."{tbl}" ORDER BY id'
-            )
+            rows = db.execute(f'SELECT id, score, ts FROM public."{tbl}" ORDER BY id')
         finally:
-            db.execute(
-                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
-            )
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         assert result.status == "success"
         assert result.rows_loaded == 2
@@ -3133,7 +3385,7 @@ class TestETLCopyPath:
             autocommit=True,
         )
         # Seed one row
-        db.execute(f'INSERT INTO public."{tbl}" VALUES (1, \'old\')', autocommit=True)
+        db.execute(f"INSERT INTO public.\"{tbl}\" VALUES (1, 'old')", autocommit=True)
 
         p = Pipeline(
             name="copy_upsert_check",
@@ -3146,9 +3398,7 @@ class TestETLCopyPath:
             result = db.etl.run(p)
             rows = db.execute(f'SELECT id, val FROM public."{tbl}"')
         finally:
-            db.execute(
-                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
-            )
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
 
         assert result.status == "success"
         assert result.rows_loaded == 1
