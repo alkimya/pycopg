@@ -1024,8 +1024,11 @@ class TestDatabaseTruncate:
         """Test basic truncate."""
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.description = None
-        mock_cursor.fetchall.return_value = []
+        # truncate_table() now runs a table_exists() pre-check (DEBT-05) before
+        # the TRUNCATE — return a non-empty result so the table is seen to exist
+        # and truncate proceeds rather than raising TableNotFound.
+        mock_cursor.description = [("exists",)]
+        mock_cursor.fetchall.return_value = [{"exists": True}]
         mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
         mock_cursor.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value = mock_cursor
