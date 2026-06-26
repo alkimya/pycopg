@@ -159,7 +159,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 38-01-PLAN.md — `from_dataframe` (sync+async) → Hybrid DDL+COPY: `head(0).to_sql` DDL + `_stream_df_copy`/`_async_stream_df_copy` helpers; preserves `if_exists`/`index`/`primary_key`/`dtype` (PERF-01, PERF-05)
+- [x] 38-01-PLAN.md — `from_dataframe` (sync+async) → Hybrid DDL+COPY: `head(0).to_sql` DDL + `_stream_df_copy`/`_async_stream_df_copy` helpers; preserves `if_exists`/`index`/`primary_key`/`dtype` (PERF-01, PERF-05)
 
 **Wave 2** *(blocked on Wave 1 — Plan 02 reuses the helpers; Plan 03 shares database.py/async_database.py)*
 
@@ -236,6 +236,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
-| 38. Performance COPY | v0.10.0 | 0/3 | Planned | - |
+| 38. Performance COPY | v0.10.0 | 1/3 | In Progress|  |
 | 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |

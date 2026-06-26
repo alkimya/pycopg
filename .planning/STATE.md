@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
-stopped_at: Phase 38 context gathered
-last_updated: "2026-06-26T12:18:22.477Z"
+stopped_at: Completed 38-01-PLAN.md
+last_updated: "2026-06-26T12:33:42.475Z"
 last_activity: 2026-06-26 -- Phase 38 execution started
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 6
   percent: 25
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 ## Current Position
 
 Phase: 38 (performance-copy) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 38
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-06-26 -- Phase 38 execution started
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
@@ -58,6 +58,7 @@ Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 | 35. Schema Introspection | 2 | 2 | Complete (verified PASSED 5/5) |
 | 36. Release v0.9.0 | 2 | 2 | Complete (verified PASSED 9/9) |
 | Phase 37 P01 | 8min | 3 tasks | 3 files |
+| Phase 38 P01 | 11m 20s | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,7 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 - [Phase 37 P03]: 3 pre-existing PostGIS env failures (PostGIS not installed in pycopg_test2) logged for Plan 05 disposition
 - [Phase 37 P04]: DEBT-05 resolved — TableNotFound raised in truncate_table (sync + async) after table_exists guard; validate_identifiers runs first (builder-pur invariant preserved); TDD RED/GREEN committed
 - [Phase 37 P04]: DEBT-03a resolved — WR-01 case-insensitive time_bucket guard (select_sql.lower()), upsert Raises docstrings (sync + async), test_sequences_async asserts f"{t}_id_seq" in seqs, import uuid de-duplicated to top-level in test_async_database.py
+- [Phase ?]: Phase 38-01: D-01 Hybrid DDL+COPY for from_dataframe — head(0).to_sql for schema, _stream_df_copy/async for rows; D-04 replace two-phase documented; D-03 separate psycopg connection
 
 ### Pending Todos
 
@@ -107,9 +109,9 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T11:17:56.618Z
-Stopped at: Phase 38 context gathered
-Resume file: .planning/phases/38-performance-copy/38-CONTEXT.md
+Last session: 2026-06-26T12:33:42.468Z
+Stopped at: Completed 38-01-PLAN.md
+Resume file: None
 Next action: `/gsd-execute-phase 37` (Plan 05)
 
 ## Operator Next Steps
