@@ -52,6 +52,75 @@ if TYPE_CHECKING:
     from pycopg.timescale import AsyncTimescaleAccessor
 
 
+async def _async_stream_df_copy(
+    cur,
+    df: pd.DataFrame,
+    table: str,
+    schema: str,
+    columns: list[str],
+) -> int:
+    """Stream DataFrame rows into ``COPY … FROM STDIN`` on the provided async cursor.
+
+    Async mirror of :func:`pycopg.database._stream_df_copy`.  Uses
+    ``async with cur.copy(...)`` and ``await copy.write_row(...)`` for the
+    psycopg AsyncCopy protocol.
+
+    Converts NaN/NaT/pd.NA/None to SQL NULL per-value using a pre-computed
+    boolean mask (``df.isna().values``).  Row values are read from
+    ``df.values`` (object array) which preserves ``pandas.Timestamp`` and
+    ``numpy.int64`` objects without a full-frame type conversion.
+
+    The caller is fully responsible for the connection lifecycle: this helper
+    never opens a connection, never calls ``await conn.commit()``, and never
+    invokes ``validate_identifiers`` — those are the caller's job
+    (builder-pur invariant).
+
+    .. note::
+       Do NOT call the sync ``_stream_df_copy`` from an async context — the
+       sync context manager blocks the event loop.
+
+    Parameters
+    ----------
+    cur : psycopg.AsyncCursor
+        An open psycopg async cursor.  May be a plain cursor or a
+        transaction cursor (e.g. from the async ETL seam).  Provided by
+        the caller; this helper does not acquire a connection.
+    df : pandas.DataFrame
+        Source data.  Must already have its index promoted to columns if
+        ``index=True`` was requested (i.e. pass ``df_ddl = df.reset_index()``
+        before calling).
+    table : str
+        Target table name (already validated by the caller).
+    schema : str
+        Target schema name (already validated by the caller).
+    columns : list of str
+        Ordered list of column names that matches the DDL column order.
+        Must be derived from ``df.columns`` (after any ``reset_index``).
+
+    Returns
+    -------
+    int
+        Number of rows written (``cur.rowcount`` read after the COPY block
+        closes — reading it inside the block returns 0 or -1 on some
+        psycopg versions).
+    """
+    if df.empty:
+        return 0
+
+    cols_str = ", ".join(columns)
+    null_mask = df.isna().values  # shape (n_rows, n_cols) — pre-computed once
+    row_values = df.values  # object array — preserves Timestamp, np.int64
+
+    async with cur.copy(f"COPY {schema}.{table} ({cols_str}) FROM STDIN") as copy:
+        for i, row in enumerate(row_values):
+            null_row = null_mask[i]
+            await copy.write_row(
+                [None if null_row[j] else row[j] for j in range(len(row))]
+            )
+
+    return cur.rowcount
+
+
 class AsyncDatabase(DatabaseBase, QueryMixin):
     """Async PostgreSQL interface.
 
