@@ -68,6 +68,8 @@ dev = [
     "ruff>=0.1.0",
     "interrogate>=1.7.0",
     "mypy>=2.1.0",
+    "vulture>=2.9.1",
+    "pytest-randomly>=3.15.0",
 ]
 
 [project.urls]
@@ -82,8 +84,16 @@ packages = ["pycopg"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# N818: The 4 exception names below (ExtensionNotAvailable, TableNotFound,
+# InvalidIdentifier, DatabaseExists) are exported in __all__ — renaming them to add
+# an "Error" suffix is a breaking public-API change. Reconsider at the v1.0.0 API freeze.
+"pycopg/exceptions.py" = ["N818"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
