@@ -132,7 +132,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 **Wave 1**
 
 - [x] 37-01-PLAN.md — Tooling + ruff config: [tool.ruff.lint] migration, N818 per-file-ignore, vulture + pytest-randomly dev-group, seed vulture allowlist (DEBT-02, AUDIT-02)
-- [ ] 37-02-PLAN.md — Test lint fixes (31× W291/F841/E722) + remove dead async monkeypatches (DEBT-02, DEBT-04)
+- [x] 37-02-PLAN.md — Test lint fixes (34× W291/F841/E722) + remove dead async monkeypatches (DEBT-02, DEBT-04)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -225,7 +225,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 34. CRUD Ergonomics | v0.9.0 | 3/3 | Complete | 2026-06-24 |
 | 35. Schema Introspection | v0.9.0 | 2/2 | Complete | 2026-06-25 |
 | 36. Release v0.9.0 | v0.9.0 | 2/2 | Complete | 2026-06-25 |
-| 37. Dette & Audit | v0.10.0 | 1/5 | In Progress|  |
+| 37. Dette & Audit | v0.10.0 | 2/5 | In Progress|  |
 | 38. Performance COPY | v0.10.0 | 0/TBD | Not started | - |
 | 39. Couverture & Benchmarks | v0.10.0 | 0/TBD | Not started | - |
 | 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |

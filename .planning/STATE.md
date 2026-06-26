@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
-stopped_at: Phase 37 context gathered
-last_updated: "2026-06-26T06:59:44.924Z"
-last_activity: 2026-06-26 -- Phase 37 execution started
+stopped_at: Phase 37 Plan 02 complete
+last_updated: "2026-06-26T08:00:00.000Z"
+last_activity: 2026-06-26 -- Phase 37 Plan 02 executed (tests/ ruff-clean, DEBT-04 resolved)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 40
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 ## Current Position
 
 Phase: 37 (dette-audit) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
-Last activity: 2026-06-26 -- Phase 37 execution started
+Last activity: 2026-06-26 -- Phase 37 Plan 02 complete (tests/ ruff-clean, DEBT-04 resolved)
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
@@ -69,6 +69,8 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 - [Phase ?]: Phase 37 (37-01): N818 suppressed via ruff per-file-ignore on pycopg/exceptions.py, NOT renamed — public exception names, rename deferred to v1.0.0 API freeze (D-01a)
 - [Phase ?]: Phase 37 (37-01): vulture + pytest-randomly added to dev-group; vulture allowlist as .py whitelist file; seed lists only the 4 public-exception false positives, scan-driven refinement deferred to Plan 05 (D-07)
+- [Phase 37 P02]: D-01b applied — 34 ruff errors in tests/ fixed mechanically (W291×5, F841×24, E722×5); live run exposed 3 more F841 than RESEARCH predicted (truncated output); `uv run ruff check pycopg tests` exits 0
+- [Phase 37 P02]: D-04 resolved — dead db.role_exists + db.has_extension monkeypatches removed from async_db fixture in test_sql_injection.py; live real_schema.has_extension patch preserved
 
 ### Pending Todos
 
@@ -85,10 +87,10 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 | Category | Item | Status |
 | -------- | ---- | ------ |
 | nyquist | Phase 22/23/24 VALIDATION.md left `draft` | TARGETED by NYQ-01 in Phase 37 |
-| tech_debt | WR-02: dead monkeypatches in `test_sql_injection.py` async fixture | TARGETED by DEBT-04 in Phase 37 |
+| tech_debt | WR-02: dead monkeypatches in `test_sql_injection.py` async fixture | RESOLVED — Plan 37-02 (DEBT-04) |
 | tech_debt | v0.8.0 review warnings: WR-01, WR-03, `%`-in-structural-SQL, IN-03 `chunk_seq` | TARGETED by DEBT-03 in Phase 37 |
 | tech_debt | v0.9.0 advisory: `test_sequences_async` weak assertion; `upsert` docstring missing `Raises`; dup `import uuid`/ad-hoc helpers | TARGETED by DEBT-03 in Phase 37 |
-| tech_debt | 4 pre-existing ruff errors (N818/W291/F841/E722) | TARGETED by DEBT-02 in Phase 37 |
+| tech_debt | 4 pre-existing ruff errors (N818/W291/F841/E722) | RESOLVED — Plans 37-01+02 (DEBT-02); ruff exits 0 |
 | tech_debt | `TableNotFound` exported but never raised internally | TARGETED by DEBT-05 in Phase 37 |
 | future | TSDB-F01: `drop_continuous_aggregate` / `remove_continuous_aggregate_policy` removal | deferred from v0.8.0 |
 | future | TSDB-F02: `time_bucket` `origin`/`offset` alignment params | deferred from v0.8.0 |
@@ -99,11 +101,11 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T06:59:36.640Z
-Stopped at: Phase 37 context gathered
-Resume file: .planning/phases/37-dette-audit/37-CONTEXT.md
-Next action: `/gsd-plan-phase 37`
+Last session: 2026-06-26T08:00:00.000Z
+Stopped at: Phase 37 Plan 02 complete
+Resume file: .planning/phases/37-dette-audit/37-02-SUMMARY.md
+Next action: `/gsd-execute-phase 37` (Plan 03)
 
 ## Operator Next Steps
 
-- Run `/gsd-plan-phase 37` to plan Phase 37: Dette & Audit
+- Run `/gsd-execute-phase 37` to continue Phase 37 with Plan 03
