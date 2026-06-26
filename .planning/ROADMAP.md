@@ -112,7 +112,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 - [x] **Phase 37: Dette & Audit** (5 plans, 3 waves) - Corriger la dette accumulée (flaky tests, ruff, warnings advisory, code mort, TableNotFound) + passe d'audit outillée + sign-off Nyquist 22-24 (completed 2026-06-26)
 - [x] **Phase 38: Performance COPY** - Router `from_dataframe` + ETL load via COPY, micro-opt `insert_batch`, parité sync/async vérifiée (completed 2026-06-26)
 - [x] **Phase 39: Couverture & Benchmarks** - Lever le cliquet de couverture à 95%, écrire la suite de benchmarks garde-fou (completed 2026-06-26)
-- [ ] **Phase 40: Release v0.10.0** - Bump version, CHANGELOG, 4 gates verts, tag + PyPI OIDC publish + smoke
+- [ ] **Phase 40: Release v0.10.0** - Bump version (3 sources), CHANGELOG, 4 gates verts, tag + human-gated OIDC PyPI publish + smoke
 
 ## Phase Details
 
@@ -193,12 +193,20 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 **Requirements**: REL-10
 **Success Criteria** (what must be TRUE):
 
-  1. La version est bumpée dans les deux sources canoniques (`pyproject.toml` + `docs/conf.py`) ; `__version__` reste dynamique via `importlib.metadata` et retourne `"0.10.0"` après install propre
-  2. CHANGELOG `[0.10.0]` documente le durcissement (dette soldée, audit, couverture 95%) et la performance (gains COPY mesurés)
+  1. La version est bumpée dans les **trois** sources canoniques (`pyproject.toml` + `uv.lock` + `docs/conf.py`, per REL-10/CONTEXT) ; `__version__` reste dynamique via `importlib.metadata` et retourne `"0.10.0"` après install propre
+  2. CHANGELOG `[0.10.0]` documente le durcissement (dette soldée, audit, couverture 95%) et la performance (gains COPY documentés qualitativement, pointeur `benchmarks/`) — strict Keep a Changelog (`### Changed` + `### Fixed` seulement, pas de `### Added`)
   3. Les 4 gates sont verts : couverture ≥95%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` green
-  4. Le tag `v0.10.0` est créé, la wheel + sdist sont publiées sur PyPI via OIDC trusted publishing, et un smoke clean-venv confirme `__version__ == "0.10.0"`
+  4. Le tag `v0.10.0` est créé, la wheel + sdist sont publiées sur PyPI via OIDC trusted publishing (human-gated), et un smoke clean-venv confirme `__version__ == "0.10.0"`
 
-**Plans**: TBD
+**Plans**: 2 plans (2 waves)
+
+**Wave 1**
+
+- [ ] 40-01-PLAN.md — Prep & verify: bump version in 3 canonical sources (`pyproject.toml` + `uv.lock` via `uv lock` + `docs/conf.py`), author `[0.10.0]` CHANGELOG (Changed + Fixed only, qualitative COPY perf + benchmarks pointer, D-01..D-04), verify 4 gates green (REL-10)
+
+**Wave 2** *(blocked on Wave 1 — needs the bumped/committed release commit)*
+
+- [ ] 40-02-PLAN.md — Ship: annotated tag `v0.10.0`, human-gated OIDC PyPI publish via GitHub Release, clean-venv smoke confirms `__version__ == "0.10.0"` (REL-10)
 
 ## Progress
 
@@ -243,4 +251,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete    | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete    | 2026-06-26 |
-| 40. Release v0.10.0 | v0.10.0 | 0/TBD | Not started | - |
+| 40. Release v0.10.0 | v0.10.0 | 0/2 | Not started | - |
