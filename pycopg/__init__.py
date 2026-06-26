@@ -22,6 +22,7 @@ from pycopg.exceptions import (
     MigrationError,
     PycopgError,
     TableNotFound,
+    TimescaleError,
 )
 from pycopg.maint import AsyncMaintAccessor, MaintAccessor
 from pycopg.migrations import Migrator
@@ -85,6 +86,7 @@ __all__ = [
     "ETLTransformError",
     "ExtensionNotAvailable",
     "TableNotFound",
+    "TimescaleError",
     "InvalidIdentifier",
     "MigrationError",
     # Utilities
