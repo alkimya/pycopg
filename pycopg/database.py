@@ -673,6 +673,13 @@ class Database(DatabaseBase, QueryMixin):
             The affected row as a dict (via ``RETURNING *``). Under DO UPDATE
             the return is structurally always a dict; None is a defensive guard
             for a future no-row path and is not reachable under the current SQL.
+
+        Raises
+        ------
+        ValueError
+            If ``update_columns`` resolves to an empty list — i.e. all columns
+            in ``row`` are also listed in ``conflict_columns`` and no explicit
+            ``update_columns`` override is given.
         """
         columns = list(row.keys())
         if update_columns is None:

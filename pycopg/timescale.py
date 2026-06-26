@@ -966,7 +966,7 @@ class TimescaleAccessor:
         """
         validate_identifiers(view_name, schema)
 
-        if "time_bucket(" not in select_sql:
+        if "time_bucket(" not in select_sql.lower():
             raise ValueError(
                 "select_sql must contain a time_bucket(...) grouping. "
                 "A continuous aggregate without time_bucket is almost certainly a user error."
@@ -1943,7 +1943,7 @@ class AsyncTimescaleAccessor:
         """
         validate_identifiers(view_name, schema)
 
-        if "time_bucket(" not in select_sql:
+        if "time_bucket(" not in select_sql.lower():
             raise ValueError(
                 "select_sql must contain a time_bucket(...) grouping. "
                 "A continuous aggregate without time_bucket is almost certainly a user error."

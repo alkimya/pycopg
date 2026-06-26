@@ -1,6 +1,7 @@
 """Tests for pycopg.async_database module."""
 
 import inspect
+import uuid
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
@@ -2583,8 +2584,6 @@ class TestAsyncDatabaseConstraintsIntegration:
 
     @staticmethod
     def _tname():
-        import uuid
-
         return f"test_async_{uuid.uuid4().hex[:8]}"
 
     async def test_add_primary_key_applies_constraint(self, db_config):
@@ -2855,8 +2854,6 @@ class TestAsyncDatabaseCorrectnessFixes:
         import pandas as pd
 
         db = AsyncDatabase(db_config)
-        import uuid
-
         t = f"test_c1_{uuid.uuid4().hex[:8]}"
         df = pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
         try:
@@ -2925,8 +2922,6 @@ class TestAsyncDatabaseCorrectnessFixes:
 
     async def test_table_info_fields_match_sync(self, db_config):
         """PAR-07: async/sync table_info return the same dict keys."""
-        import uuid
-
         from pycopg import Database
 
         t = f"test_ti_{uuid.uuid4().hex[:8]}"
@@ -2959,8 +2954,6 @@ class TestAsyncDatabaseCoverageFill:
 
     @staticmethod
     def _t():
-        import uuid
-
         return f"test_acov_{uuid.uuid4().hex[:8]}"
 
     async def test_copy_insert(self, db_config):
@@ -3057,14 +3050,10 @@ class TestAsyncDatabaseCRUDErgonomics:
     """34-02: upsert / delete_where / update_where async live-DB tests."""
 
     def _t(self):
-        import uuid
-
         return f"test_crud_{uuid.uuid4().hex[:8]}"
 
     async def test_upsert_async(self, db_config):
         """async upsert inserts a row and returns full row dict, then updates it."""
-        import uuid
-
         db = AsyncDatabase(db_config)
         t = f"test_upsert_{uuid.uuid4().hex[:8]}"
         try:
@@ -3087,8 +3076,6 @@ class TestAsyncDatabaseCRUDErgonomics:
 
     async def test_delete_where_async(self, db_config):
         """async delete_where deletes matching rows and returns the count."""
-        import uuid
-
         db = AsyncDatabase(db_config)
         t = f"test_delw_{uuid.uuid4().hex[:8]}"
         try:
@@ -3119,8 +3106,6 @@ class TestAsyncDatabaseReadHelpers:
     """34-03: exists / count / paginate / fetch_all async live-DB tests."""
 
     def _t(self, prefix="crud"):
-        import uuid
-
         return f"test_{prefix}_{uuid.uuid4().hex[:8]}"
 
     async def test_exists_async(self, db_config):
@@ -3226,8 +3211,6 @@ class TestAsyncSchemaIntrospection:
     """35-01/35-02: async schema introspection — primary_key / foreign_keys / sequences / views / describe."""
 
     def _t(self, prefix="intr"):
-        import uuid
-
         return f"test_{prefix}_{uuid.uuid4().hex[:8]}"
 
     async def test_primary_key_async(self, db_config):
@@ -3284,7 +3267,7 @@ class TestAsyncSchemaIntrospection:
             await db.execute(f'DROP TABLE IF EXISTS "{parent}" CASCADE', autocommit=True)
 
     async def test_sequences_async(self, db_config):
-        """async sequences returns sequence names in the schema."""
+        """async sequences returns sequence names including the expected <table>_id_seq."""
         db = AsyncDatabase(db_config)
         t = self._t("seq")
         try:
@@ -3294,7 +3277,7 @@ class TestAsyncSchemaIntrospection:
             )
             seqs = await db.schema.sequences("public")
             assert isinstance(seqs, list)
-            assert len(seqs) >= 1
+            assert f"{t}_id_seq" in seqs
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
@@ -3339,8 +3322,6 @@ class TestAsyncSchemaIntrospection:
 
     async def test_truncate_table_missing_raises_table_not_found(self, db_config):
         """async truncate_table on a nonexistent table raises TableNotFound (DEBT-05)."""
-        import uuid
-
         db = AsyncDatabase(db_config)
         missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
         with pytest.raises(TableNotFound):
