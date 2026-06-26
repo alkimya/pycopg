@@ -1,4 +1,4 @@
-.PHONY: install test lint format build
+.PHONY: install test lint format build bench
 
 install:
 	uv sync --all-extras --dev
@@ -15,3 +15,6 @@ format:
 
 build:
 	uv build
+
+bench:
+	python -m benchmarks
