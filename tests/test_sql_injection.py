@@ -69,8 +69,6 @@ def async_db(config):
     All other schema methods retain real validation behaviour.
     """
     db = AsyncDatabase(config)
-    db.role_exists = AsyncMock(return_value=False)
-    db.has_extension = AsyncMock(return_value=True)
     db.execute = AsyncMock(return_value=[])
     db.execute_many = AsyncMock(return_value=0)
     # Create a real schema accessor (no DB connection needed — __init__ only stores _db).
