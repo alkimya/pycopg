@@ -667,7 +667,13 @@ def _decode_watermark(envelope: dict):
         return datetime.fromisoformat(value)
     if tag == "int":
         return int(value)
-    return str(value)
+    if tag == "str":
+        return str(value)
+    raise ETLError(
+        f"Unknown watermark type tag {tag!r} in envelope {envelope!r}. "
+        "Watermark envelope may be corrupted; supported tags are: "
+        "'datetime', 'int', 'str'."
+    )
 
 
 def _step_label(fn: object) -> str:
