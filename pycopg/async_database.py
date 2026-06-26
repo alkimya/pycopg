@@ -694,10 +694,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             for i in range(0, len(rows), batch_size):
                 batch = rows[i : i + batch_size]
 
+                row_placeholders = ", ".join(["%s"] * len(columns))
                 placeholders = []
                 params = []
                 for row in batch:
-                    row_placeholders = ", ".join(["%s"] * len(columns))
                     placeholders.append(f"({row_placeholders})")
                     params.extend(row.get(col) for col in columns)
 

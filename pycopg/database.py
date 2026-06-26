@@ -1043,10 +1043,10 @@ class Database(DatabaseBase, QueryMixin):
                 batch = rows[i : i + batch_size]
 
                 # Build VALUES (...), (...), ...
+                row_placeholders = ", ".join(["%s"] * len(columns))
                 placeholders = []
                 params = []
                 for row in batch:
-                    row_placeholders = ", ".join(["%s"] * len(columns))
                     placeholders.append(f"({row_placeholders})")
                     params.extend(row.get(col) for col in columns)
 
