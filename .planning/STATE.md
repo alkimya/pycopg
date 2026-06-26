@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
-stopped_at: Phase 37 Plan 03 complete
-last_updated: "2026-06-26T07:30:29Z"
-last_activity: 2026-06-26 -- Phase 37 Plan 03 executed (DEBT-01 fixture-isolation de-flake, 3 flaky tests fixed)
+stopped_at: Phase 37 Plan 04 complete
+last_updated: "2026-06-26T07:45:00Z"
+last_activity: 2026-06-26 -- Phase 37 Plan 04 executed (DEBT-05 TableNotFound raise site + DEBT-03a advisory fixes)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 ## Current Position
 
 Phase: 37 (dette-audit) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
-Last activity: 2026-06-26 -- Phase 37 Plan 03 complete (DEBT-01 fixture-isolation de-flake resolved)
+Last activity: 2026-06-26 -- Phase 37 Plan 04 complete (DEBT-05 TableNotFound raise site + DEBT-03a advisory fixes)
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
@@ -73,6 +73,8 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 - [Phase 37 P02]: D-04 resolved — dead db.role_exists + db.has_extension monkeypatches removed from async_db fixture in test_sql_injection.py; live real_schema.has_extension patch preserved
 - [Phase 37 P03]: D-05 resolved — test_async_transaction_fix uses yielded psycopg conn inside transaction() (avoids auto-commit ProgrammingError); RESET application_name in finally prevents pool state leak; test_create_spatial_index_name_parameter uses UUID table name; watermark spy tests annotated with DEBT-01 rationale; full suite 1332 passed deterministically under pytest-randomly
 - [Phase 37 P03]: 3 pre-existing PostGIS env failures (PostGIS not installed in pycopg_test2) logged for Plan 05 disposition
+- [Phase 37 P04]: DEBT-05 resolved — TableNotFound raised in truncate_table (sync + async) after table_exists guard; validate_identifiers runs first (builder-pur invariant preserved); TDD RED/GREEN committed
+- [Phase 37 P04]: DEBT-03a resolved — WR-01 case-insensitive time_bucket guard (select_sql.lower()), upsert Raises docstrings (sync + async), test_sequences_async asserts f"{t}_id_seq" in seqs, import uuid de-duplicated to top-level in test_async_database.py
 
 ### Pending Todos
 
@@ -90,10 +92,10 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 | -------- | ---- | ------ |
 | nyquist | Phase 22/23/24 VALIDATION.md left `draft` | TARGETED by NYQ-01 in Phase 37 |
 | tech_debt | WR-02: dead monkeypatches in `test_sql_injection.py` async fixture | RESOLVED — Plan 37-02 (DEBT-04) |
-| tech_debt | v0.8.0 review warnings: WR-01, WR-03, `%`-in-structural-SQL, IN-03 `chunk_seq` | TARGETED by DEBT-03 in Phase 37 |
-| tech_debt | v0.9.0 advisory: `test_sequences_async` weak assertion; `upsert` docstring missing `Raises`; dup `import uuid`/ad-hoc helpers | TARGETED by DEBT-03 in Phase 37 |
+| tech_debt | v0.8.0 review warnings: WR-01 (RESOLVED Plan 37-04), WR-03, `%`-in-structural-SQL, IN-03 `chunk_seq` | WR-01 RESOLVED; WR-03/%-SQL/IN-03 deferred to Plan 37-05 per DEBT-03b |
+| tech_debt | v0.9.0 advisory: `test_sequences_async` weak assertion; `upsert` docstring missing `Raises`; dup `import uuid`/ad-hoc helpers | RESOLVED — Plan 37-04 (DEBT-03a); all 4 items closed |
 | tech_debt | 4 pre-existing ruff errors (N818/W291/F841/E722) | RESOLVED — Plans 37-01+02 (DEBT-02); ruff exits 0 |
-| tech_debt | `TableNotFound` exported but never raised internally | TARGETED by DEBT-05 in Phase 37 |
+| tech_debt | `TableNotFound` exported but never raised internally | RESOLVED — Plan 37-04 (DEBT-05); raise site in truncate_table (sync + async) |
 | future | TSDB-F01: `drop_continuous_aggregate` / `remove_continuous_aggregate_policy` removal | deferred from v0.8.0 |
 | future | TSDB-F02: `time_bucket` `origin`/`offset` alignment params | deferred from v0.8.0 |
 | future | TSDB-F03: `compress_chunk` / `decompress_chunk` per-chunk control | deferred from v0.8.0 |
@@ -103,11 +105,11 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T07:30:29Z
-Stopped at: Phase 37 Plan 03 complete
-Resume file: .planning/phases/37-dette-audit/37-03-SUMMARY.md
-Next action: `/gsd-execute-phase 37` (Plan 04)
+Last session: 2026-06-26T07:45:00Z
+Stopped at: Phase 37 Plan 04 complete
+Resume file: .planning/phases/37-dette-audit/37-04-SUMMARY.md
+Next action: `/gsd-execute-phase 37` (Plan 05)
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 37` to continue Phase 37 with Plan 04
+- Run `/gsd-execute-phase 37` to continue Phase 37 with Plan 05
