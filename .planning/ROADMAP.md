@@ -202,7 +202,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 **Wave 1**
 
-- [ ] 40-01-PLAN.md — Prep & verify: bump version in 3 canonical sources (`pyproject.toml` + `uv.lock` via `uv lock` + `docs/conf.py`), author `[0.10.0]` CHANGELOG (Changed + Fixed only, qualitative COPY perf + benchmarks pointer, D-01..D-04), verify 4 gates green (REL-10)
+- [x] 40-01-PLAN.md — Prep & verify: bump version in 3 canonical sources (`pyproject.toml` + `uv.lock` via `uv lock` + `docs/conf.py`), author `[0.10.0]` CHANGELOG (Changed + Fixed only, qualitative COPY perf + benchmarks pointer, D-01..D-04), verify 4 gates green (REL-10)
 
 **Wave 2** *(blocked on Wave 1 — needs the bumped/committed release commit)*
 
@@ -251,4 +251,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 37. Dette & Audit | v0.10.0 | 5/5 | Complete    | 2026-06-26 |
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete    | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete    | 2026-06-26 |
-| 40. Release v0.10.0 | v0.10.0 | 0/2 | Not started | - |
+| 40. Release v0.10.0 | v0.10.0 | 1/2 | In Progress|  |

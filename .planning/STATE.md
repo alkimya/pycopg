@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
 status: executing
-stopped_at: Phase 40 context gathered
-last_updated: "2026-06-26T21:22:42.149Z"
-last_activity: 2026-06-26 -- Phase 40 planning complete
+stopped_at: Phase 40 Plan 01 complete — gates verified green
+last_updated: "2026-06-26T22:44:01.339Z"
+last_activity: 2026-06-26 -- Phase 40 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
   percent: 75
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Phase 39 — couverture-benchmarks
+**Current focus:** Phase 40 — release-v0-10-0
 
 ## Current Position
 
-Phase: 40
-Plan: Not started
+Phase: 40 (release-v0-10-0) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-06-26 -- Phase 40 planning complete
+Last activity: 2026-06-26 -- Phase 40 execution started
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
@@ -63,6 +63,7 @@ Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 | Phase 38 P03 | 2m 53s | 2 tasks | 3 files |
 | Phase 39-couverture-benchmarks P01 | 24min | 3 tasks | 7 files |
 | Phase 39-couverture-benchmarks P02 | 10min | 2 tasks | 4 files |
+| Phase 40-release-v0-10-0 P01 | 9min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,10 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 - [Phase ?]: Phase 38-01: D-01 Hybrid DDL+COPY for from_dataframe — head(0).to_sql for schema, _stream_df_copy/async for rows; D-04 replace two-phase documented; D-03 separate psycopg connection
 - [Phase ?]: COV-01: D-04a honored — bump was last act after tests committed and measured >=95%; 15 new behavioral tests (async insert_batch + ETL dry_run watermark), 6 justified pragma: no cover, final coverage 95.74%
 - [Phase ?]: Phase 39-02 (PERF-04): stdlib benchmark runner for 4 insertion paths; D-03 honored (zero timing assertions); load_mode=replace for ETL COPY seam; make bench = python -m benchmarks (caller controls PGDATABASE)
+- [Phase ?]: D-01 applied: CHANGELOG [0.10.0] uses Changed + Fixed only (no Added) — first release with no new public API
+- [Phase ?]: D-02 applied: COPY gains documented qualitatively with pointer to benchmarks/ (no hardcoded speedup numbers)
+- [Phase ?]: D-04 applied: no v1.0.0/freeze/deprecation signaling in [0.10.0] CHANGELOG entry
+- [Phase ?]: Deviation fix (Rule 2): ConnectionPool open=True in pool.py to silence psycopg_pool DeprecationWarning (df2f94f)
 
 ### Pending Todos
 
@@ -115,9 +120,9 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-26T20:33:45.746Z
-Stopped at: Phase 40 context gathered
-Resume file: .planning/phases/40-release-v0-10-0/40-CONTEXT.md
+Last session: 2026-06-26T22:44:01.332Z
+Stopped at: Phase 40 Plan 01 complete — gates verified green
+Resume file: None
 Next action: `/gsd-execute-phase 37` (Plan 05)
 
 ## Operator Next Steps

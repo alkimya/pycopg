@@ -40,7 +40,7 @@ Requirements for the v0.10.0 release. Each maps to exactly one roadmap phase.
 
 ### Release (REL)
 
-- [ ] **REL-10**: v0.10.0 publié sur PyPI via OIDC trusted publishing — version bumpée (`pyproject.toml` canonique + `uv.lock` + `docs/conf.py` ; `__version__` reste dynamique via `importlib.metadata`), CHANGELOG `[0.10.0]` (durcissement + perf, gains COPY documentés), 4 gates verts (couverture ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tag `v0.10.0` + smoke clean-venv confirmant `__version__ == "0.10.0"`.
+- [x] **REL-10**: v0.10.0 publié sur PyPI via OIDC trusted publishing — version bumpée (`pyproject.toml` canonique + `uv.lock` + `docs/conf.py` ; `__version__` reste dynamique via `importlib.metadata`), CHANGELOG `[0.10.0]` (durcissement + perf, gains COPY documentés), 4 gates verts (couverture ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`), tag `v0.10.0` + smoke clean-venv confirmant `__version__ == "0.10.0"`.
 
 ## v2 Requirements
 
@@ -91,7 +91,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-05 | Phase 38 | Complete |
 | COV-01 | Phase 39 | Complete |
 | PERF-04 | Phase 39 | Complete |
-| REL-10 | Phase 40 | Pending |
+| REL-10 | Phase 40 | Complete |
 
 **Coverage:**
 
