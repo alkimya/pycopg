@@ -24,7 +24,7 @@ Requirements for the v0.10.0 release. Each maps to exactly one roadmap phase.
 
 ### Couverture (COV)
 
-- [ ] **COV-01**: Le cliquet de couverture passe de 94 à 95% (`--cov-fail-under=95` dans la config pytest), mesuré ≥95% et tenu vert en CI.
+- [x] **COV-01**: Le cliquet de couverture passe de 94 à 95% (`--cov-fail-under=95` dans la config pytest), mesuré ≥95% et tenu vert en CI.
 
 ### Nyquist (NYQ)
 
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-02 | Phase 38 | Complete |
 | PERF-03 | Phase 38 | Complete |
 | PERF-05 | Phase 38 | Complete |
-| COV-01 | Phase 39 | Pending |
+| COV-01 | Phase 39 | Complete |
 | PERF-04 | Phase 39 | Pending |
 | REL-10 | Phase 40 | Pending |
 
