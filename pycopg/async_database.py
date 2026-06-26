@@ -993,6 +993,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         dtype : dict, optional
             Dict of column name to SQLAlchemy types.
         """
+        validate_identifiers(table, schema)
         async with self.async_engine.connect() as conn:
             await conn.run_sync(
                 lambda sync_conn: df.to_sql(
@@ -1099,6 +1100,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             raise ExtensionNotAvailable(
                 "PostGIS extension not installed. Run db.schema.create_extension('postgis')"
             )
+
+        validate_identifiers(table, schema)
 
         # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
         if srid is None:
@@ -1405,15 +1408,15 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         dict
             Row dicts.
         """
-        async with self.connect() as conn:
-            async with conn.cursor(row_factory=dict_row) as cur:
-                await cur.execute(sql, params)
-                while True:
-                    rows = await cur.fetchmany(batch_size)
-                    if not rows:
-                        break
-                    for row in rows:
-                        yield row
+        # Use session-aware cursor() — mirrors Database.stream() parity (WR-02)
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            while True:
+                rows = await cur.fetchmany(batch_size)
+                if not rows:
+                    break
+                for row in rows:
+                    yield row
 
     # =========================================================================
     # LISTEN/NOTIFY

@@ -1230,6 +1230,7 @@ class Database(DatabaseBase, QueryMixin):
         dtype : dict, optional
             Dict of column name to SQLAlchemy types.
         """
+        validate_identifiers(table, schema)
         df.to_sql(
             name=table,
             con=self.engine,
@@ -1324,6 +1325,8 @@ class Database(DatabaseBase, QueryMixin):
             raise ExtensionNotAvailable(
                 "PostGIS extension not installed. Run db.schema.create_extension('postgis')"
             )
+
+        validate_identifiers(table, schema)
 
         # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
         if srid is None:
