@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
-status: verifying
+status: executing
 stopped_at: Phase 40 context gathered
-last_updated: "2026-06-26T20:33:45.762Z"
-last_activity: 2026-06-26
+last_updated: "2026-06-26T21:22:42.149Z"
+last_activity: 2026-06-26 -- Phase 40 planning complete
 progress:
   total_phases: 4
   completed_phases: 3
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 Phase: 40
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-26
+Status: Ready to execute
+Last activity: 2026-06-26 -- Phase 40 planning complete
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
