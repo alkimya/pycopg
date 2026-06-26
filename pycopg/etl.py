@@ -37,6 +37,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from pycopg import queries
+from pycopg.async_database import _async_stream_df_copy  # noqa: F401 (used in seam Task 2)
+from pycopg.database import _stream_df_copy  # noqa: F401 (used in seam Task 2)
 from pycopg.exceptions import (  # noqa: F401
     ETLError,
     ETLTargetNotFoundError,
