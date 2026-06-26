@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.10.0
 milestone_name: Durcissement & Performance
-status: planning
+status: executing
 stopped_at: Phase 37 context gathered
-last_updated: "2026-06-26T06:39:02.238Z"
-last_activity: 2026-06-25 — v0.10.0 roadmap created (4 phases, 15 requirements mapped)
+last_updated: "2026-06-26T06:59:44.924Z"
+last_activity: 2026-06-26 -- Phase 37 execution started
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 5
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-25 after v0.9.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** v0.10.0 "Durcissement & Performance" — Phases 37-40. Start with `/gsd-plan-phase 37`.
+**Current focus:** Phase 37 — dette-audit
 
 ## Current Position
 
-Phase: 37 (not started)
-Plan: —
-Status: Roadmap defined — ready to plan Phase 37
-Last activity: 2026-06-25 — v0.10.0 roadmap created (4 phases, 15 requirements mapped)
+Phase: 37 (dette-audit) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-06-26 -- Phase 37 execution started
 
 Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 
@@ -57,6 +57,7 @@ Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 | 34. CRUD Ergonomics | 3 | 3 | Complete (verified PASSED 13/13) |
 | 35. Schema Introspection | 2 | 2 | Complete (verified PASSED 5/5) |
 | 36. Release v0.9.0 | 2 | 2 | Complete (verified PASSED 9/9) |
+| Phase 37 P01 | 8min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Progress: [ Phase 37 · Phase 38 · Phase 39 · Phase 40 ] — 0/4 complete
 v0.10.0 cadrage (2026-06-25): split assumé — v0.10.0 = durcissement + perf (ce milestone), puis v1.0.0 = spatial v2 + gel API. Non-cassant, zéro nouvelle dépendance runtime (benchmarks en dev-group). Phase ordering: Dette & Audit first (clean base), then COPY perf (PERF-01..03 + parity), then coverage lift + benchmarks (COV-01 lands AFTER perf additions that raise coverage; PERF-04 benchmark suite lands here too), then release.
 
 Full decision log lives in PROJECT.md (Key Decisions table).
+
+- [Phase ?]: Phase 37 (37-01): N818 suppressed via ruff per-file-ignore on pycopg/exceptions.py, NOT renamed — public exception names, rename deferred to v1.0.0 API freeze (D-01a)
+- [Phase ?]: Phase 37 (37-01): vulture + pytest-randomly added to dev-group; vulture allowlist as .py whitelist file; seed lists only the 4 public-exception false positives, scan-driven refinement deferred to Plan 05 (D-07)
 
 ### Pending Todos
 
@@ -95,7 +99,7 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 ## Session Continuity
 
-Last session: 2026-06-25T17:23:04.854Z
+Last session: 2026-06-26T06:59:36.640Z
 Stopped at: Phase 37 context gathered
 Resume file: .planning/phases/37-dette-audit/37-CONTEXT.md
 Next action: `/gsd-plan-phase 37`
