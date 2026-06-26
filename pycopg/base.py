@@ -14,6 +14,43 @@ from pycopg.config import Config
 from pycopg.utils import validate_identifiers, validate_timestamp
 
 
+def _validate_cli_pattern(value: str, context: str) -> None:
+    """Guard CLI pattern values passed to pg_dump/pg_restore -t/-T/-n flags.
+
+    pg_dump accepts table/schema PATTERNS (wildcards, 'schema.table'), so
+    strict SQL identifier validation is too restrictive.  The minimum guard
+    is to reject values that start with '-' (flag injection) or contain
+    control characters and newlines (which could subvert shell logging).
+
+    Parameters
+    ----------
+    value : str
+        Pattern value to validate.
+    context : str
+        Human-readable context for the error message (e.g. 'tables').
+
+    Raises
+    ------
+    ValueError
+        If the value looks like a flag or contains unsafe characters.
+    """
+    if not value:
+        raise ValueError(f"Empty value in {context} list")
+    if value.startswith("-"):
+        raise ValueError(
+            f"Invalid {context} value {value!r}: values starting with '-' are "
+            "not permitted (possible flag injection)"
+        )
+    # Reject control characters (NUL, newlines, tabs, etc.) as they are never
+    # valid in pg_dump pattern arguments.
+    for ch in value:
+        if ord(ch) < 0x20:
+            raise ValueError(
+                f"Invalid {context} value {value!r}: contains control character "
+                f"U+{ord(ch):04X} which is not permitted"
+            )
+
+
 class DatabaseBase(ABC):
     """Abstract base class for Database and AsyncDatabase.
 
@@ -336,15 +373,18 @@ def build_pg_dump_cmd(
     if jobs > 1 and format == "directory":
         cmd.extend(["-j", str(jobs)])
 
-    # Tables
+    # Tables — guard against flag injection (CR-04)
     if tables:
         for table in tables:
+            _validate_cli_pattern(table, "tables")
             cmd.extend(["-t", table])
     if exclude_tables:
         for table in exclude_tables:
+            _validate_cli_pattern(table, "exclude_tables")
             cmd.extend(["-T", table])
     if schemas:
         for schema in schemas:
+            _validate_cli_pattern(schema, "schemas")
             cmd.extend(["-n", schema])
 
     # Output
@@ -444,12 +484,14 @@ def build_pg_restore_cmd(
     if no_privileges:
         cmd.append("--no-privileges")
 
-    # Tables/Schemas
+    # Tables/Schemas — guard against flag injection (CR-04)
     if tables:
         for table in tables:
+            _validate_cli_pattern(table, "tables")
             cmd.extend(["-t", table])
     if schemas:
         for schema in schemas:
+            _validate_cli_pattern(schema, "schemas")
             cmd.extend(["-n", schema])
 
     cmd.append(str(Path(input_file)))
@@ -521,6 +563,12 @@ def build_role_options(
     if replication:
         options.append("REPLICATION")
     if connection_limit != -1:
+        # Runtime int guard — consistent with number_partitions in timescale.py (WR-01)
+        if isinstance(connection_limit, bool) or not isinstance(connection_limit, int):
+            raise TypeError(
+                f"connection_limit must be an int, "
+                f"got {type(connection_limit).__name__!r}"
+            )
         options.append(f"CONNECTION LIMIT {connection_limit}")
     if password:
         # Append placeholder only; caller binds the actual secret value
