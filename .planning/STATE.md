@@ -90,9 +90,11 @@ Full decision log lives in PROJECT.md (Key Decisions table).
 
 | Category | Item | Status |
 | -------- | ---- | ------ |
-| nyquist | Phase 22/23/24 VALIDATION.md left `draft` | TARGETED by NYQ-01 in Phase 37 |
+| consolidated journal | Phase 37 closed-with-justification dispositions + sign-offs | **All recorded in `.planning/phases/37-dette-audit/37-DECISIONS.md` (D-09)** — DEBT-03b closures, AUDIT-01 dispositions, NYQ-01 sign-off, DEBT-05 note, vulture allowlist rationale, Plan 03 isolation result |
+| nyquist | Phase 22/23/24 VALIDATION.md left `draft` | **CLOSED — NYQ-01 (Plan 37-05)**: promoted 22-24 to nyquist_compliant via `v0.6.0-MILESTONE-AUDIT.md`; sign-off in `37-DECISIONS.md` §3 |
+| audit | AUDIT-01 code review (`37-REVIEW.md`): 5 BLOCKERS + 6 warnings | **DISPOSITIONED — Plan 37-05**: 5 BLOCKERS + 5 warnings FIXED in-phase (53 regression tests); 37-REVIEW:WR-03 (`copy_insert` session bypass) deferred-to-v1.0.0 with justification in `37-DECISIONS.md` §2 |
 | tech_debt | WR-02: dead monkeypatches in `test_sql_injection.py` async fixture | RESOLVED — Plan 37-02 (DEBT-04) |
-| tech_debt | v0.8.0 review warnings: WR-01 (RESOLVED Plan 37-04), WR-03, `%`-in-structural-SQL, IN-03 `chunk_seq` | WR-01 RESOLVED; WR-03/%-SQL/IN-03 deferred to Plan 37-05 per DEBT-03b |
+| tech_debt | v0.8.0 review warnings: WR-01 (RESOLVED Plan 37-04), WR-03, `%`-in-structural-SQL, IN-03 `chunk_seq` | WR-01 RESOLVED; v0.8.0:WR-03/%-SQL/IN-03 **CLOSED-with-justification (deferred v1.0.0)** in `37-DECISIONS.md` §1 (DEBT-03b) |
 | tech_debt | v0.9.0 advisory: `test_sequences_async` weak assertion; `upsert` docstring missing `Raises`; dup `import uuid`/ad-hoc helpers | RESOLVED — Plan 37-04 (DEBT-03a); all 4 items closed |
 | tech_debt | 4 pre-existing ruff errors (N818/W291/F841/E722) | RESOLVED — Plans 37-01+02 (DEBT-02); ruff exits 0 |
 | tech_debt | `TableNotFound` exported but never raised internally | RESOLVED — Plan 37-04 (DEBT-05); raise site in truncate_table (sync + async) |
