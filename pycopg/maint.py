@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
 
+# Whitelist of valid PostgreSQL EXPLAIN output formats (CR-01)
+_VALID_EXPLAIN_FORMATS = {"text", "json", "xml", "yaml"}
+
 
 class MaintAccessor:
     """Maintenance helper namespace exposed as ``db.maint``.
@@ -183,7 +186,13 @@ class MaintAccessor:
         list of str
             Query plan lines.
         """
-        options = [f"FORMAT {format.upper()}"]
+        fmt = format.lower()
+        if fmt not in _VALID_EXPLAIN_FORMATS:
+            raise ValueError(
+                f"explain(): format must be one of {sorted(_VALID_EXPLAIN_FORMATS)}, "
+                f"got {format!r}"
+            )
+        options = [f"FORMAT {fmt.upper()}"]
         if analyze:
             options.append("ANALYZE")
 
@@ -352,7 +361,13 @@ class AsyncMaintAccessor:
         list of str
             Query plan lines.
         """
-        options = [f"FORMAT {format.upper()}"]
+        fmt = format.lower()
+        if fmt not in _VALID_EXPLAIN_FORMATS:
+            raise ValueError(
+                f"explain(): format must be one of {sorted(_VALID_EXPLAIN_FORMATS)}, "
+                f"got {format!r}"
+            )
+        options = [f"FORMAT {fmt.upper()}"]
         if analyze:
             options.append("ANALYZE")
 
