@@ -16,7 +16,8 @@ findings:
   warning: 3
   info: 2
   total: 7
-status: issues_found
+status: resolved
+resolved_in: 863e894
 ---
 
 # Phase 38: Code Review Report
@@ -24,7 +25,23 @@ status: issues_found
 **Reviewed:** 2026-06-26
 **Depth:** standard
 **Files Reviewed:** 7
-**Status:** issues_found
+**Status:** resolved (fixes committed in 863e894)
+
+## Resolution (2026-06-26 — commit 863e894)
+
+| ID | Disposition |
+|----|-------------|
+| CR-01 | **FIXED** — `validate_identifiers(table, schema, *columns)` added inside both COPY helpers (the single chokepoint every caller funnels through), matching the `copy_insert` reference convention. Identifier *quoting* was intentionally **not** added: the codebase convention is validate-then-reject (mixed-case/reserved/space names raise `InvalidIdentifier` library-wide via `validate_identifier`), so the "mixed-case column" angle is a pre-existing trait shared by `copy_insert`/`insert_batch`, not a new regression — out of scope for this non-breaking perf phase. |
+| CR-02 | **FIXED** — same helper-internal validation closes the ETL `append` (zero-validation) and `replace` (column-validation) regression, since both seam paths call the helper. |
+| WR-01 | **FIXED** — `TestStreamDfCopyValidation` (sync) + `TestAsyncStreamDfCopyValidation` (async) assert an invalid table/column raises `InvalidIdentifier` before `cur.copy` is ever called. |
+| WR-02 | **FIXED** — the ETL seam now consumes the helper's return value (`rows_loaded += _stream_df_copy(...)` / `await`), which additionally corrects a latent `rows_loaded` bug for empty `replace` (where `cur.rowcount` previously carried the preceding TRUNCATE). |
+| WR-03 | **ACCEPTED (by design, D-04)** — the `replace` two-phase non-atomicity is an explicit, documented Phase 38 decision (CONTEXT.md D-04 + method docstring). A user-facing README note is deferred polish, not a code defect. |
+| IN-01 | **FIXED** — helper docstrings updated to state they validate identifiers themselves. |
+| IN-02 | **Acknowledged** — optional readability cleanup; no defect, no action. |
+
+Verification: full suite **1402 passed**, 11 skipped, coverage **94.26%** (≥94 gate); ruff clean. The 3 `test_postgis_errors.py` failures are pre-existing PostGIS-not-installed env failures (not regressions).
+
+---
 
 ## Summary
 
