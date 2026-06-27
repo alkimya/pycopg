@@ -43,11 +43,18 @@ jobs:
 
       - name: Set up test database
         env:
+          PGHOST: localhost
+          PGUSER: postgres
           PGPASSWORD: postgres
+          PGPORT: "5432"
         run: |
           psql -h localhost -U postgres -c "CREATE DATABASE pycopg_test;"
           psql -h localhost -U postgres -d pycopg_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
           psql -h localhost -U postgres -d pycopg_test -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+          # Seed the canonical test_schema (authors/categories/articles/...) that the
+          # integration tests rely on. Previously only run locally by developers, so a
+          # fresh CI database lacked it and test_integration.py failed with UndefinedTable.
+          uv run python tests/setup_test_db.py
 
       - name: Run tests
         env:
