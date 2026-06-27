@@ -119,14 +119,17 @@ class TestPostGISErrorHandling:
 
         db = Database(db_config)
 
-        # Use a per-run UUID table name to prevent TEMP TABLE collision when
-        # the same connection is reused across test runs (fixture-isolation fix).
+        # Use a per-run UUID table name to avoid collisions across runs.
         table_name = f"test_spatial_{uuid.uuid4().hex[:8]}"
         custom_index_name = "my_custom_gist_idx"
 
         try:
-            # Create table with geometry column (requires PostGIS)
-            db.execute(f"CREATE TEMP TABLE {table_name} (id INTEGER, geom GEOMETRY)")
+            # Use a regular (non-TEMP) table: db.execute and create_spatial_index
+            # may run on different pooled connections, and a TEMP table is
+            # session-local (pg_temp) — invisible to the connection that builds
+            # the index, which raised UndefinedTable. A committed regular table in
+            # public is visible across the pool; the finally block drops it.
+            db.execute(f"CREATE TABLE {table_name} (id INTEGER, geom GEOMETRY)")
 
             # Create spatial index with custom name
             db.spatial.create_spatial_index(table_name, "geom", name=custom_index_name)
