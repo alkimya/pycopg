@@ -1,11 +1,19 @@
 ---
 title: Investigate & green the CI test suite (caggs live + integration isolation)
-status: pending
+status: resolved
 priority: high
 created: 2026-06-26
+resolved: 2026-06-27
+resolution: "Fixed in v0.10.1 (PR #1 + release 924279e). 1 real lib bug (caggs refresh full-refresh NULL-typing) + 3 test/CI gaps fixed; tests.yml now GREEN across 3.11/3.12/3.13. v0.10.1 shipped to PyPI."
 source: v0.10.0 release (Phase 40) — user flagged red CI on the release push
 relates_to: [REL-10]
 ---
+
+> **RESOLVED 2026-06-27 in v0.10.1.** `tests.yml` is now green on main. The caggs
+> `IndeterminateDatatype` was a real bug in `refresh_continuous_aggregate` (full-refresh
+> sent untyped NULL params) — fixed via literal-NULL rendering. The policy `run_job`,
+> `test_schema` CI seed, and PostGIS TEMP-table issues were test/CI gaps, all fixed.
+> See memory `ci-publish-decoupling-gate-fidelity.md`. (mypy stays continue-on-error.)
 
 ## Context
 
