@@ -104,7 +104,7 @@ Breaking changes allowed; every break served via `@deprecated_alias`/`Deprecatio
 Explicitly excluded from 1.0. Documented to prevent scope creep.
 
 | Feature | Reason |
-|---------|--------|
+| --- | --- |
 | `:name` parameter translator | psycopg3-native `%(name)s` chosen (PARAM-01); a hand-rolled `:name`→`%(name)s` parser is too fragile to freeze under SemVer (must handle `::cast`, quoted literals) |
 | Raster support | Large distinct PostGIS subsystem, not core to "no raw SQL"; post-1.0 (RASTER-F01) |
 | structlog / logging framework dependency | Library rule: callers own the logging stack; stdlib `logging` + `NullHandler` is the correct integration (LOG-01) |
@@ -120,37 +120,39 @@ Explicitly excluded from 1.0. Documented to prevent scope creep.
 Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
-|-------------|-------|--------|
-| SPAT2-01 | Phase TBD | Pending |
-| SPAT2-02 | Phase TBD | Pending |
-| SPAT2-03 | Phase TBD | Pending |
-| SPAT2-04 | Phase TBD | Pending |
-| SPAT2-05 | Phase TBD | Pending |
-| SPAT2-06 | Phase TBD | Pending |
-| SPAT2-07 | Phase TBD | Pending |
-| SPAT2-08 | Phase TBD | Pending |
-| SPAT2-09 | Phase TBD | Pending |
-| SPAT2-10 | Phase TBD | Pending |
-| SPAT2-11 | Phase TBD | Pending |
-| SPAT2-12 | Phase TBD | Pending |
-| SPAT2-13 | Phase TBD | Pending |
-| TXN-01 | Phase TBD | Pending |
-| TXN-02 | Phase TBD | Pending |
-| PARAM-01 | Phase TBD | Pending |
-| HEALTH-01 | Phase TBD | Pending |
-| LOG-01 | Phase TBD | Pending |
-| FREEZE-01 | Phase TBD | Pending |
-| FREEZE-02 | Phase TBD | Pending |
-| FREEZE-03 | Phase TBD | Pending |
-| FREEZE-04 | Phase TBD | Pending |
-| FREEZE-05 | Phase TBD | Pending |
-| REL-11 | Phase TBD | Pending |
+| --- | --- | --- |
+| SPAT2-01 | Phase 42 | Pending |
+| SPAT2-02 | Phase 42 | Pending |
+| SPAT2-03 | Phase 42 | Pending |
+| SPAT2-04 | Phase 42 | Pending |
+| SPAT2-05 | Phase 42 | Pending |
+| SPAT2-06 | Phase 42 | Pending |
+| SPAT2-07 | Phase 43 | Pending |
+| SPAT2-08 | Phase 43 | Pending |
+| SPAT2-09 | Phase 43 | Pending |
+| SPAT2-10 | Phase 44 | Pending |
+| SPAT2-11 | Phase 44 | Pending |
+| SPAT2-12 | Phase 44 | Pending |
+| SPAT2-13 | Phase 44 | Pending |
+| TXN-01 | Phase 45 | Pending |
+| TXN-02 | Phase 45 | Pending |
+| PARAM-01 | Phase 45 | Pending |
+| HEALTH-01 | Phase 45 | Pending |
+| LOG-01 | Phase 45 | Pending |
+| FREEZE-01 | Phase 41 | Pending |
+| FREEZE-02 | Phase 41 | Pending |
+| FREEZE-03 | Phase 41 | Pending |
+| FREEZE-04 | Phase 41 | Pending |
+| FREEZE-05 | Phase 46 | Pending |
+| REL-11 | Phase 47 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 24 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 24 ⚠️ (resolved by roadmapper)
+- Mapped to phases: 24 (roadmap complete)
+- Unmapped: 0
 
 ---
+
 *Requirements defined: 2026-06-27*
-*Last updated: 2026-06-27 after initial definition*
+*Last updated: 2026-06-27 — traceability table populated by roadmapper (Phases 41-47)*

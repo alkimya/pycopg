@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: planning
-last_updated: "2026-06-27T10:29:30.391Z"
+last_updated: "2026-06-27T11:00:00.000Z"
 last_activity: 2026-06-27
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
-**Current focus:** Planning next milestone — v1.0.0 Spatial v2 + gel API (`/gsd-new-milestone`)
+
+**Current focus:** v1.0.0 Spatial v2 + gel API — roadmap created, ready to plan Phase 41
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap defined — Phase 41 next)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-06-27 — Milestone v1.0.0 started
+Status: Roadmap ready
+Last activity: 2026-06-27 — Roadmap created (7 phases: 41-47, 24 requirements mapped)
 
 ## Performance Metrics
 
@@ -37,6 +38,18 @@ Last activity: 2026-06-27 — Milestone v1.0.0 started
 - interrogate: gate ≥95 (measured 100%)
 - Sphinx `-W`: clean
 - `-W error::DeprecationWarning`: green
+
+**v1.0.0 phases (Phases 41-47):**
+
+| Phase | Plans | Complete | Status |
+| ----- | ----- | -------- | ------ |
+| 41. API Homogenization | ? | 0 | Not started |
+| 42. Spatial v2 — Processing Helpers | ? | 0 | Not started |
+| 43. Spatial v2 — Spatial Aggregates | ? | 0 | Not started |
+| 44. Spatial v2 — Serialization + MVT | ? | 0 | Not started |
+| 45. API Completeness Gaps + Structured Logging | ? | 0 | Not started |
+| 46. mypy Strict + py.typed Gate | ? | 0 | Not started |
+| 47. Release v1.0.0 | ? | 0 | Not started |
 
 **v0.10.0 phases (all complete, shipped 2026-06-26):**
 
@@ -53,14 +66,26 @@ Last activity: 2026-06-27 — Milestone v1.0.0 started
 
 v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, no public API change. Split decision (2026-06-25): v0.10.0 = durcissement + perf, then v1.0.0 = spatial v2 + gel API. Full v0.10.0 decision log lives in PROJECT.md (Key Decisions table) and the per-phase `*-SUMMARY.md` / `37-DECISIONS.md` files.
 
+**v1.0.0 roadmap locked (2026-06-27):** 7 phases (41-47), dependency-fixed build order confirmed by research/SUMMARY.md.
+
+- Phase 41 (Homogenization) MUST precede all spatial work — new builders adopt `filter=` from day one and exception renames precede mypy-strict.
+- Phases 42-44 are sequential spatial sub-phases: processing → aggregates → serialization/MVT.
+- Phase 45 (API gaps + logging) is purely additive to the flat core; no dependency on spatial.py.
+- Phase 46 (mypy strict) is LAST before release — all renaming, new builders, and signatures must be complete first. Start by measuring error count.
+- Phase 47 (Release) closes the milestone.
+
+**Key cross-cutting constraints for all spatial phases:** `validate_identifiers` is line 1 of every new SQL builder + a dedicated injection test (the v0.10.0 COPY-rewrite green-suite lesson). Full sync/async parity enforced by `test_accessor_parity`. Zero new runtime dependencies.
+
 ### Pending Todos
 
-- None — v0.10.0 closed. Next: `/gsd-new-milestone` (v1.0.0 Spatial v2 + gel API).
+- None — roadmap created. Next: `/gsd-plan-phase 41`.
 
 ### Blockers/Concerns
 
 - Local `pycopg_test` DB unusable since 2026-06-24 (TSDB catalog mismatch) — run DB/parity tests with `PGDATABASE=pycopg_test2` (PostGIS now enabled on it). Carries into v1.0.0.
-- v0.10.0 non-blocking carry-forward (see Deferred Items + `milestones/v0.10.0-MILESTONE-AUDIT.md`): phases 38/39 Nyquist VALIDATION.md draft; `vulture` not wired into Makefile/CI; DEBT-03b + copy_insert session-bypass deferred to v1.0.0.
+- v0.10.0 non-blocking carry-forward: phases 38/39 Nyquist VALIDATION.md draft; `vulture` not wired into Makefile/CI; DEBT-03b + copy_insert session-bypass deferred to v1.0.0.
+- Phase 46 (mypy strict) error count unknown until Phase 46 starts — measure first. If >100 errors, plan as multi-session.
+- Phase 44 (as_mvt) MVT decode strategy in CI must be decided at plan time (structural byte check vs. mapbox-vector-tile parser).
 
 ## Deferred Items
 
@@ -76,14 +101,16 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 | future | TSDB-F04: `show_chunks` physical-time filters | deferred from v0.8.0 |
 | future | ETL-INC-F01..F05: incremental ETL follow-ups | deferred to a future ETL milestone |
 | v2 | CRUD-F01..F03, INTRO-F01..F02 | deferred from v0.9.0 cadrage |
+| v2 | SPAT-F01: gridSize precision on overlay functions (GEOS ≥ 3.9) | deferred from v1.0.0 cadrage |
+| v2 | RASTER-F01: PostGIS raster I/O | deferred post-1.0 per 2026-06-27 cadrage |
 
 ## Session Continuity
 
-Last session: 2026-06-26T22:58:00Z
-Stopped at: v0.10.0 milestone complete — Phase 40 Plan 02 done, pycopg 0.10.0 live on PyPI, clean-venv smoke passed
+Last session: 2026-06-27T11:00:00Z
+Stopped at: Roadmap created — 7 phases (41-47), 24/24 requirements mapped, ROADMAP.md + STATE.md + REQUIREMENTS.md written
 Resume file: None
-Next action: Plan v1.0.0 milestone (spatial v2 + API freeze)
+Next action: Plan Phase 41 with `/gsd-plan-phase 41`
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Start Phase 41 with `/gsd-plan-phase 41`
