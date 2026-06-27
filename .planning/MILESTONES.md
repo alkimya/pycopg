@@ -1,5 +1,26 @@
 # Milestones
 
+## v0.10.0 Durcissement & Performance (Shipped: 2026-06-27)
+
+**Phases completed:** 4 phases, 12 plans, 30 tasks
+
+**Key accomplishments:**
+
+- Migrated ruff to the modern `[tool.ruff.lint]` layout with a documented N818 per-file-ignore for the public exceptions, and installed `vulture` + `pytest-randomly` in the dev-group with a seeded dead-code allowlist.
+- Mechanical fix of 34 ruff errors in tests/ (W291/F841/E722) + removal of two dead v0.7.0 monkeypatches from the SQL injection async fixture — `uv run ruff check pycopg tests` now exits 0.
+- Root-cause fix for 3 known DEBT-01 flaky tests: async connection-state leak stopped with RESET application_name, TEMP TABLE collision eliminated via UUID naming, watermark mock spy confirmed deterministic — full suite stable under pytest-randomly across multiple seeds
+- TableNotFound now has a real internal raise site in `truncate_table` (sync + async TDD), WR-01 guard is case-insensitive, upsert docstrings document the ValueError, sequences test asserts the specific name, and import uuid is de-duplicated.
+- Applied 10 of 11 AUDIT-01 findings with full sync/async parity + 53 regression tests (5 SQL/CLI-injection BLOCKERS hardened, 1 copy_insert session bypass deferred), refined the vulture allowlist (no dead code), retroactively signed off phases 22-24 to nyquist_compliant via the surviving milestone-audit doc, and consolidated every closure into 37-DECISIONS.md (D-09)
+- Two module-level COPY streaming helpers (`_stream_df_copy` / `_async_stream_df_copy`) plus `from_dataframe` (sync + async) rewritten to Hybrid DDL+COPY, routing row data through psycopg COPY instead of `df.to_sql`.
+- ETL append/replace load seam rewritten to stream rows inline via COPY on the transaction cursor, eliminating full-frame astype(object)+to_dict materialization; upsert path unchanged (INSERT ON CONFLICT).
+- Hoisted `row_placeholders = ", ".join(["%s"] * len(columns))` out of the per-row loop in both sync and async `insert_batch`; byte-exact SQL/params guaranteed by a mock-based non-regression test.
+- Coverage ratchet lifted from 94% to 95% via 15 new real behavioral tests (async insert_batch + ETL dry_run watermark/transform) and 6 justified pragma: no cover annotations on genuinely-unreachable defensive lines; gate bumped to --cov-fail-under=95, measured 95.74%
+- Stdlib-only benchmark runner measuring insert_batch / copy_insert / from_dataframe / etl.run(replace) with rows/s, median_ms, and speedup table — zero timing assertions (D-03), ETL via COPY seam, `make bench` target, full regression protocol in README
+- v0.10.0 "Durcissement & Performance" tree prepared — version bumped in all 3 sources, Keep-a-Changelog [0.10.0] entry authored (Changed + Fixed, no Added), and all 4 release gates verified green (96.32% coverage, 100% interrogate, Sphinx -W clean, DeprecationWarning-error suite clean)
+- pycopg v0.10.0 shipped to PyPI via OIDC trusted-publishing (human-gated GitHub Release), annotated tag v0.10.0 on commit ab1bac6, clean-venv smoke confirmed `__version__ == '0.10.0'` from the live PyPI artifact
+
+---
+
 ## v0.9.0 CRUD ergonomique + introspection enrichie (Shipped: 2026-06-25)
 
 **Phases completed:** 3 phases (34–36), 7 plans, 7 tasks
