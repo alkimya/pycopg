@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.10.0
-milestone_name: Durcissement & Performance
-status: Awaiting next milestone
-stopped_at: v0.10.0 milestone complete — Phase 40 Plan 02 done, pycopg 0.10.0 live on PyPI, clean-venv smoke passed
-last_updated: "2026-06-27T09:02:35.239Z"
-last_activity: 2026-06-27 — Milestone v0.10.0 completed and archived
+milestone: v1.0.0
+milestone_name: Spatial v2 + gel API
+status: planning
+last_updated: "2026-06-27T10:29:30.391Z"
+last_activity: 2026-06-27
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 ## Current Position
 
-Phase: Milestone v0.10.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-27 — Milestone v0.10.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-06-27 — Milestone v1.0.0 started
 
 ## Performance Metrics
 
