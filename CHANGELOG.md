@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-06-27
+
+### Fixed
+
+- `refresh_continuous_aggregate` (sync and async) no longer fails with
+  `psycopg.errors.IndeterminateDatatype` on a full refresh (the default — both
+  `window_start` and `window_end` `None`) against a Community/TSL TimescaleDB.
+  Absent window bounds are now rendered as the SQL literal `NULL` rather than
+  untyped bind parameters, which TimescaleDB's `"any"`-typed window arguments
+  could not type-infer under psycopg's extended protocol. Present `datetime`
+  bounds are still passed as typed parameters. The bug was present since the
+  continuous-aggregate API shipped in v0.8.0 and was masked on Apache-licensed
+  builds (which raise `FeatureNotSupported` before parameter binding).
+
 ## [0.10.0] - 2026-06-26
 
 ### Changed
