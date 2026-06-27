@@ -1476,7 +1476,12 @@ class TestRefreshContinuousAggregateMock:
     """
 
     def test_refresh_continuous_aggregate_sql_shape_both_none(self, config):
-        """Both-None window → params [None, None] (full refresh) via autocommit seam."""
+        """Both-None window → literal NULL bounds, no params (full refresh) via autocommit seam.
+
+        Absent bounds render as the SQL literal ``NULL`` rather than untyped bind
+        parameters — an untyped ``NULL`` parameter cannot be type-inferred against
+        TimescaleDB's ``"any"`` window arguments (IndeterminateDatatype).
+        """
         from unittest.mock import patch
 
         from pycopg.schema import SchemaAccessor
@@ -1501,14 +1506,15 @@ class TestRefreshContinuousAggregateMock:
             params = call_args[0][1]
 
         assert (
-            sql == "CALL refresh_continuous_aggregate('public.metrics_hourly', %s, %s)"
+            sql
+            == "CALL refresh_continuous_aggregate('public.metrics_hourly', NULL, NULL)"
         )
-        assert params == [None, None]
+        assert params == []
         # db.execute must NOT be called for the refresh statement
         db.execute.assert_not_called()
 
     def test_refresh_continuous_aggregate_sql_shape_with_start(self, config):
-        """datetime start + None end → correct params (one-sided window)."""
+        """datetime start + None end → typed start param, literal NULL end (one-sided window)."""
         from unittest.mock import patch
 
         from pycopg.schema import SchemaAccessor
@@ -1530,9 +1536,14 @@ class TestRefreshContinuousAggregateMock:
                 "metrics_hourly", window_start=start
             )
             call_args = conn_mock.execute.call_args
+            sql = call_args[0][0]
             params = call_args[0][1]
 
-        assert params == [start, None]
+        assert (
+            sql
+            == "CALL refresh_continuous_aggregate('public.metrics_hourly', %s, NULL)"
+        )
+        assert params == [start]
 
     def test_refresh_continuous_aggregate_str_bound_raises_before_seam(self, config):
         """str window bound raises ValueError before the autocommit seam is opened."""
@@ -1597,9 +1608,10 @@ class TestRefreshContinuousAggregateMock:
             params = call_args[0][1]
 
         assert (
-            sql == "CALL refresh_continuous_aggregate('public.metrics_hourly', %s, %s)"
+            sql
+            == "CALL refresh_continuous_aggregate('public.metrics_hourly', NULL, NULL)"
         )
-        assert params == [None, None]
+        assert params == []
         # db.execute must NOT be called for the refresh statement
         db.execute.assert_not_called()
 
@@ -2004,8 +2016,12 @@ class TestAddContinuousAggregatePolicyLive:
                     )
                     assert len(rows) >= 1
                     job_id = rows[0]["job_id"]
-                    # Exercise the job on-demand.
-                    ts_db.execute(f"CALL run_job({job_id})")
+                    # Exercise the job on-demand.  run_job for a continuous-
+                    # aggregate refresh policy internally calls
+                    # refresh_continuous_aggregate, which cannot run inside a
+                    # transaction block — use a dedicated autocommit connection.
+                    with ts_db.connect(autocommit=True) as conn:
+                        conn.execute(f"CALL run_job({job_id})")
                 except FeatureNotSupported:
                     # Apache license — expected on local/CI.
                     pass
@@ -2056,8 +2072,12 @@ class TestAddContinuousAggregatePolicyLive:
                     )
                     assert len(rows) >= 1
                     job_id = rows[0]["job_id"]
-                    # Exercise the job on-demand.
-                    await async_ts_db.execute(f"CALL run_job({job_id})")
+                    # Exercise the job on-demand.  run_job for a continuous-
+                    # aggregate refresh policy internally calls
+                    # refresh_continuous_aggregate, which cannot run inside a
+                    # transaction block — use a dedicated autocommit connection.
+                    async with async_ts_db.connect(autocommit=True) as conn:
+                        await conn.execute(f"CALL run_job({job_id})")
                 except FeatureNotSupported:
                     # Apache license — expected on local/CI.
                     pass

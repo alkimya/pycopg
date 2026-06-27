@@ -1055,10 +1055,25 @@ class TimescaleAccessor:
                 "Run db.schema.create_extension('timescaledb')"
             )
 
-        sql = f"CALL refresh_continuous_aggregate('{schema}.{view_name}', %s, %s)"
+        # Render absent bounds as the literal SQL ``NULL`` rather than an
+        # untyped bind parameter.  TimescaleDB's
+        # ``refresh_continuous_aggregate(cagg, window_start "any", window_end "any")``
+        # cannot infer the type of an untyped ``NULL`` parameter under psycopg's
+        # extended protocol — a ``CALL ... (%s, %s)`` with ``None`` bounds raises
+        # ``IndeterminateDatatype: could not determine data type of parameter $1``
+        # on a Community-licensed build.  A literal ``NULL`` constant carries no
+        # parameter to type-infer, and a present datetime bound is still passed as
+        # a typed parameter (resolving cleanly against the ``"any"`` argument).
+        start_sql = "%s" if window_start is not None else "NULL"
+        end_sql = "%s" if window_end is not None else "NULL"
+        params = [b for b in (window_start, window_end) if b is not None]
+        sql = (
+            f"CALL refresh_continuous_aggregate('{schema}.{view_name}', "
+            f"{start_sql}, {end_sql})"
+        )
 
         with self._db.connect(autocommit=True) as conn:
-            conn.execute(sql, [window_start, window_end])
+            conn.execute(sql, params)
 
     def add_continuous_aggregate_policy(
         self,
@@ -2024,10 +2039,20 @@ class AsyncTimescaleAccessor:
                 "Run db.schema.create_extension('timescaledb')"
             )
 
-        sql = f"CALL refresh_continuous_aggregate('{schema}.{view_name}', %s, %s)"
+        # Render absent bounds as the literal SQL ``NULL`` rather than an untyped
+        # bind parameter (see the sync mirror): TimescaleDB's ``"any"``-typed
+        # window arguments cannot infer the type of an untyped ``NULL`` parameter,
+        # raising ``IndeterminateDatatype`` on a Community-licensed build.
+        start_sql = "%s" if window_start is not None else "NULL"
+        end_sql = "%s" if window_end is not None else "NULL"
+        params = [b for b in (window_start, window_end) if b is not None]
+        sql = (
+            f"CALL refresh_continuous_aggregate('{schema}.{view_name}', "
+            f"{start_sql}, {end_sql})"
+        )
 
         async with self._db.connect(autocommit=True) as conn:
-            await conn.execute(sql, [window_start, window_end])
+            await conn.execute(sql, params)
 
     async def add_continuous_aggregate_policy(
         self,
