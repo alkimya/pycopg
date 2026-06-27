@@ -1,551 +1,635 @@
-# Architecture Patterns: v0.8.0 TimescaleDB Advanced Features
+# Architecture Research
 
-**Domain:** TimescaleDB 2.x advanced features integrated into an existing pure-builder + lazy-accessor + sync/async-parity architecture
-**Researched:** 2026-06-22
-**Confidence:** HIGH — based on direct source-code reading of all required files + live TimescaleDB 2.x API documentation
+**Domain:** High-level Python library API for PostgreSQL/PostGIS/TimescaleDB (v1.0.0 integration)
+**Researched:** 2026-06-27
+**Confidence:** HIGH (based on direct code inspection of spatial.py, base.py, database.py, async_database.py, exceptions.py, and PROJECT.md)
+
+## How v1.0.0 Features Integrate with the Existing Architecture
+
+This document answers the four integration questions for the v1.0.0 "Spatial v2 + API freeze" milestone.
+All claims are derived from direct source reading.
+
+---
+
+## 1. Spatial v2: Builder Shape Analysis
+
+### Existing builder taxonomy (spatial.py)
+
+The current 11 helpers split into two builder shapes:
+
+| Shape | Helpers | Characteristic |
+|-------|---------|----------------|
+| Geometry-resolver | `contains`, `intersects`, `dwithin`, `distance`, `nearest` | Takes `point=/wkt=/geojson=/ref=` — resolves input geometry via `_resolve_geometry()` |
+| Column-only | `within`, `area`, `perimeter`, `centroid`, `buffer`, `transform` | Operates on table columns; no input geometry |
+
+### Processing helpers (ST_Union pairwise, ST_Simplify, ST_ConvexHull, ST_MakeValid, ST_Difference, ST_Intersection)
+
+These operate on **existing table geometry columns**, not on a caller-supplied input geometry.
+They belong to the column-only builder shape. No `_resolve_geometry()` involvement.
+
+Two sub-shapes within processing:
+
+**Unary column operations** (ST_Simplify, ST_ConvexHull, ST_MakeValid):
+
+Follow `build_buffer_sql` / `build_transform_sql` exactly:
+- `validate_identifiers(table, schema, geom)` first
+- Scalar parameter (e.g. `tolerance`) as `%s`
+- Output is a geometry column — `into="gdf"` valid
+- `_append_tail(sql, where, order_by, limit, has_where=False)` as tail
+
+Example builder shape for `build_simplify_sql`:
+```python
+build_simplify_sql(table, geom, schema, *, tolerance, columns, where, order_by, limit)
+# SELECT {cols}, ST_Simplify(t.{geom}, %s) AS geometry_simplified
+# FROM {schema}.{table} AS t
+```
+
+**Binary column operations** (ST_Difference, ST_Intersection):
+```python
+build_difference_sql(table, geom_a, geom_b, schema, *, columns, where, order_by, limit)
+# SELECT {cols}, ST_Difference(t.{geom_a}, t.{geom_b}) AS geometry_diff
+# FROM {schema}.{table} AS t
+```
+Both `geom_a` and `geom_b` are table columns, both identifier-validated.
+`into="gdf"` valid (result is a geometry). No new builder infrastructure needed.
+
+**ST_Union pairwise** (two geometry columns in same row):
+Same binary column shape as ST_Difference. Distinct from the aggregate ST_Union (see below).
+
+### Spatial aggregates (ST_Union agg, ST_Collect, ST_Extent)
+
+Aggregates are a **new builder shape** with distinct characteristics:
+- Returns one row (or one row per group) — not one row per table row
+- Optional `group_by` parameter changes cardinality from scalar to grouped
+- `ST_Extent` returns box2d, not geometry — `into="gdf"` must be blocked
+
+Proposed builder:
+```python
+build_spatial_aggregate_sql(
+    table: str,
+    geom: str,
+    schema: str = "public",
+    *,
+    aggregate: str,            # "union" | "collect" | "extent"
+    group_by: list[str] | None = None,
+    where: str | None = None,
+) -> tuple[str, list]:
+    # validate table/schema/geom, validate_identifiers(*group_by) if provided
+    # SELECT {group_cols}, ST_Union(t.{geom}) AS geometry_union
+    # FROM {schema}.{table} AS t [WHERE {where}] [GROUP BY {group_cols}]
+```
+
+Return type: `list[dict]` always (ungrouped = one-element list; grouped = multiple rows).
+Using `list[dict]` for both avoids a `dict | list[dict]` union type.
+
+`ST_Extent` returns box2d text — add `"spatial_extent"` (or `"extent"`) to `_SCALAR_HELPERS`
+in `spatial.py` so `into="gdf"` raises `ValueError` for that specific aggregate.
+
+### ST_AsMVT: dedicated method with bytes return
+
+ST_AsMVT is an aggregate that returns **bytes** (binary Mapbox Vector Tile data). It composes:
+1. `ST_TileEnvelope(zoom, x, y)` — tile bounding box
+2. `ST_AsMVTGeom(geom, envelope)` — project features into tile pixel space
+3. `ST_AsMVT(q, layer, extent, geom_name)` — outer aggregate over the projected rows
+
+Integration decision: ST_AsMVT lives in `db.spatial.*` (same accessor, same PostGIS guard),
+but as a **dedicated method returning `bytes` unconditionally** with no `into=` parameter.
+
+```python
+# accessor method (always returns bytes, no into=)
+def as_mvt(
+    self,
+    table: str,
+    zoom: int,
+    x: int,
+    y: int,
+    geom: str = "geometry",
+    schema: str = "public",
+    layer: str = "default",
+    columns: list[str] | None = None,
+    where: str | None = None,
+) -> bytes:
+    sql, params = build_as_mvt_sql(...)
+    result = self._db.execute(sql, params)
+    return result[0]["st_asmvt"] if result else b""
+```
+
+The builder `build_as_mvt_sql` returns `(sql, params)` exactly like all builders.
+The accessor extracts the bytes field. No changes to `_run()` or `_check_into()`.
+
+Parity: `AsyncSpatialAccessor.as_mvt()` awaits `self._db.execute()`, returns bytes.
+
+### Serialization helpers (ST_AsGeoJSON, ST_AsText)
+
+Operate on a table geometry column, return **text per row**. Column-only builder shape.
+`into="rows"` only (text output, not geometry). Add both to `_SCALAR_HELPERS`.
+
+```python
+build_as_geojson_sql(table, geom, schema, *, columns, where, order_by, limit)
+# SELECT {cols}, ST_AsGeoJSON(t.{geom}) AS geojson FROM {schema}.{table} AS t
+```
+
+### Summary: new vs. modified components for Spatial v2
+
+| File | Change | Details |
+|------|--------|---------|
+| `pycopg/spatial.py` | Modified | 8-10 new `build_*_sql` builders (column-only + aggregate shape) |
+| `pycopg/spatial.py` | Modified | `_SCALAR_HELPERS` extended with `"extent"`, `"as_geojson"`, `"as_text"` |
+| `pycopg/spatial.py` | Modified | `SpatialAccessor` + `AsyncSpatialAccessor`: 8-10 new methods + `as_mvt` |
+| `pycopg/spatial.py` | Unchanged | `_VALID_INTO` stays `("rows", "gdf")` — no new values |
+| `pycopg/queries.py` | Possibly minor | SQL constants for MVT composition if inline gets complex |
+| All other files | Unchanged | No changes to base.py, database.py, async_database.py |
+
+No new modules. `AsyncSpatialAccessor` mirrors every new method.
+The existing `_check_postgis()` / `_run()` infrastructure is reused identically.
+
+---
+
+## 2. Transaction Control: Isolation Level and Savepoints
+
+### Psycopg3 API (verified via live inspection)
+
+```python
+psycopg.IsolationLevel  # IntEnum: READ_UNCOMMITTED(1), READ_COMMITTED(2),
+                        #          REPEATABLE_READ(3), SERIALIZABLE(4)
+conn.set_isolation_level(value: IsolationLevel | None)  # connection-level setter
+conn.transaction(savepoint_name: str | None = None, force_rollback: bool = False)
+```
+
+Isolation level is a **connection-level** setting applied before any statement executes.
+Savepoints are nested transactions managed by `conn.transaction(savepoint_name=...)`.
+
+### Placement: flat transactional core only
+
+Both features belong on `Database.transaction()` / `AsyncDatabase.transaction()` — NOT on
+any accessor. They are transaction scoping concerns.
+
+**Current `Database.transaction()` signature:**
+```python
+@contextmanager
+def transaction(self) -> Iterator[psycopg.Connection]:
+```
+
+**Proposed extension:**
+```python
+@contextmanager
+def transaction(
+    self,
+    isolation_level: psycopg.IsolationLevel | None = None,
+    savepoint_name: str | None = None,
+) -> Iterator[psycopg.Connection]:
+```
+
+**Sync implementation logic:**
+```python
+if self._session_conn is not None:
+    # savepoint on existing session connection (isolation_level ignored — already set)
+    with self._session_conn.transaction(savepoint_name=savepoint_name):
+        yield self._session_conn
+else:
+    conn = self._connect_with_retry()
+    if isolation_level is not None:
+        conn.set_isolation_level(isolation_level)
+    try:
+        with conn.transaction(savepoint_name=savepoint_name):
+            yield conn
+    finally:
+        conn.close()
+```
+
+Note: `isolation_level` in session mode is a no-op (the connection already exists and may
+have had prior statements). Raise `ValueError` if caller passes `isolation_level` while in
+session mode — fail loudly rather than silently ignoring it.
+
+**Session-mode isolation level:** Add `isolation_level` to `session()` as well:
+```python
+@contextmanager
+def session(
+    self,
+    autocommit: bool = False,
+    isolation_level: psycopg.IsolationLevel | None = None,
+) -> Iterator[Database]:
+    conn = psycopg.connect(**self.config.connect_params(), autocommit=autocommit)
+    if isolation_level is not None:
+        conn.set_isolation_level(isolation_level)
+    self._session_conn = conn
+    ...  # existing finally logic unchanged
+```
+
+**ETL autocommit isolation seam:** The ETL accessor opens its own dedicated
+`connect(autocommit=True)` connection for run-log writes, fully bypassing `_session_conn`.
+This seam is unaffected — no changes needed in `pycopg/etl.py`.
+
+**Sync/async parity:** `AsyncDatabase.transaction()` gains the same two parameters.
+`psycopg.AsyncConnection` exposes `set_isolation_level()` and
+`conn.transaction(savepoint_name=...)` identically. The async implementation is a direct
+`await` mirror. `AsyncDatabase.session()` gains `isolation_level` the same way.
+
+**`DatabaseBase` changes:** None. `DatabaseBase` holds `config` only. Isolation level and
+savepoints are execution-time concerns handled in `Database` / `AsyncDatabase` only.
+
+---
+
+## 3. Named Params, Health Checks, Structured Logging
+
+### Named params: flat transactional core
+
+**Placement:** `Database.execute()` / `AsyncDatabase.execute()` — type widening only.
+
+Psycopg3 already supports `%(name)s`-style placeholders when `params` is a `dict`.
+The feature translates `:name` markers (user-facing ergonomic syntax) to `%(name)s`:
+
+```python
+# pycopg/utils.py — new pure helper, no I/O
+import re
+
+def _rewrite_named_params(sql: str, params: dict) -> tuple[str, dict]:
+    """Rewrite :name markers to %(name)s for psycopg dict-params."""
+    out = re.sub(r':([A-Za-z_][A-Za-z0-9_]*)', r'%(\1)s', sql)
+    return out, params
+```
+
+`execute()` signature widening:
+```python
+def execute(
+    self,
+    sql: str,
+    params: Sequence | dict | None = None,
+    autocommit: bool = False,
+) -> list[dict]:
+    if isinstance(params, dict):
+        sql, params = _rewrite_named_params(sql, params)
+    ...  # existing cursor logic
+```
+
+This is NOT a `QueryMixin` builder — it is a low-level SQL-string preprocessor in
+`pycopg/utils.py`. Every method that calls `cur.execute()` via `execute()` benefits.
+
+**Parity:** `AsyncDatabase.execute()` gains the same `params: Sequence | dict | None` type.
+Same `_rewrite_named_params` helper from `utils.py` is shared (it is pure/sync, safe to
+call in both paths).
+
+**Note:** `_to_named_binds` in `spatial.py` rewrites `%s` → `:pN` for SQLAlchemy `text()`.
+Named params for `execute()` do the opposite (`:name` → `%(name)s` for psycopg). These are
+separate concerns and must not share implementation.
+
+### Health checks: flat transactional core
+
+**Placement:** `db.health()` as a flat method on `Database` / `AsyncDatabase` — NOT an accessor.
+Health checks are a connection/instance concern, not domain-specific.
+
+```python
+def health(self) -> dict:
+    """Check database connection health.
+
+    Returns
+    -------
+    dict
+        Keys: "connected" (bool), "latency_ms" (float), "server_version" (str).
+
+    Raises
+    ------
+    ConnectionError
+        If the connection check fails.
+    """
+    import time
+    t0 = time.perf_counter()
+    result = self.execute("SELECT version()")
+    latency = (time.perf_counter() - t0) * 1000
+    return {
+        "connected": True,
+        "latency_ms": round(latency, 2),
+        "server_version": result[0]["version"] if result else "",
+    }
+```
+
+Uses a fresh connection (not `_session_conn`) when not in session mode — same as regular
+`execute()`. Returns `dict` so callers can log/inspect all fields. No new accessor needed.
+
+**Parity:** `AsyncDatabase.health()` is a direct `async def` mirror.
+
+### Structured logging: new cross-cutting module
+
+**Placement:** New `pycopg/logging.py` (new file) — shared by sync and async paths.
+
+The existing `database.py` already uses `logger = logging.getLogger(__name__)`. The goal is
+to add structured context (table name, row count, duration) without changing the public API
+and without adding a runtime dependency (`structlog` is out — "zero new runtime deps" Core Value).
+
+```python
+# pycopg/logging.py
+import logging
+import time
+from contextlib import contextmanager
+from typing import Any
+
+def get_logger(name: str) -> logging.Logger:
+    """Return a logger under the pycopg hierarchy."""
+    return logging.getLogger(f"pycopg.{name}")
+
+@contextmanager
+def log_operation(logger: logging.Logger, operation: str, **context: Any):
+    """Log start/end/error of an operation with structured context dict."""
+    t0 = time.perf_counter()
+    logger.debug("start", extra={"operation": operation, **context})
+    try:
+        yield
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        logger.debug("done", extra={"operation": operation, "elapsed_ms": elapsed_ms, **context})
+    except Exception as exc:
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        logger.warning(
+            "error",
+            extra={"operation": operation, "error": str(exc), "elapsed_ms": elapsed_ms, **context},
+        )
+        raise
+```
+
+Integration via `with log_operation(...)` wrappers in key methods — zero public API change.
+Target wrap points: `execute`, `from_dataframe`, `insert_batch`, `copy_insert`.
+
+Users configure structured log handlers on Python's standard `logging` module.
+
+**Parity:** The same `logging.py` is shared by sync and async paths.
+The `@contextmanager` version works in both (it yields synchronously; the async body runs
+between enter and exit).
+
+---
+
+## 4. API Freeze and Homogenization
+
+### Return-shape conventions
+
+The existing return-shape landscape is already largely coherent:
+- `execute()`, `fetch_all()`: `list[dict]`
+- `fetch_one()`: `dict | None`
+- `fetch_val()`: `Any`
+- `spatial.*` with `into="rows"`: `list[dict]`
+- `spatial.*` with `into="gdf"`: `gpd.GeoDataFrame`
+- `timescale.time_bucket()` with `into="df"`: `pd.DataFrame`
+
+New spatial v2 methods must be consistent from day one:
+- `spatial.aggregate.*` → `list[dict]` always (ungrouped or grouped)
+- `spatial.as_mvt()` → `bytes` always (no `into=`)
+- `spatial.as_geojson()`, `spatial.as_text()` → `list[dict]` via `into="rows"` only
+
+### `into=` parameter conventions across accessors
+
+Two distinct `_VALID_INTO` sets exist intentionally:
+- `spatial.py`: `("rows", "gdf")` — GeoDataFrame for geometry results
+- `timescale.py`: `("df", "rows")` — pandas DataFrame for time-series results
+
+These are correct and should not be merged — they reflect genuine semantic differences.
+What needs documenting: the API reference must explicitly explain `into="gdf"` (GeoDataFrame)
+vs `into="df"` (pandas DataFrame) so users understand the distinction.
+
+### The `where=` naming collision — critical seam
+
+| Method family | `where=` type | Semantics |
+|--------------|--------------|----------|
+| `db.spatial.*` (all 11 current helpers) | `str \| None` | Raw SQL fragment appended by `_append_tail` |
+| `db.delete_where`, `db.update_where`, `db.exists`, `db.count`, `db.paginate` | `dict \| None` | Dict of equality conditions via `_build_where_dict` |
+
+These are two different features sharing the same parameter name across different surfaces.
+
+**Recommended resolution (Option B — rename spatial `where=` to `filter=`):**
+
+Given that breaking changes are explicitly allowed in v1.0.0 (last window before API freeze)
+and this is the most consequential consistency seam, rename spatial `where=` → `filter=` on
+all 11 existing spatial helpers, plus all new spatial v2 helpers. Serve via `DeprecationWarning`
+aliases + MIGRATION entry (same pattern as v0.6→v0.7 alias removal).
+
+After the rename:
+- `where=` always means dict-of-equality conditions (CRUD helpers)
+- `filter=` always means raw SQL fragment (spatial/timescale raw filter)
+
+The 11 current spatial methods must all change simultaneously in the homogenization phase.
+New spatial v2 builders must use `filter=` from day one.
+
+**Alternative (Option A — no rename):** Keep both as-is, document the distinction. Lower
+cost but leaves a permanent inconsistency in the frozen 1.0 API. Not recommended given the
+"last window" framing.
+
+### Exception-naming homogenization (N818)
+
+Current hierarchy (from `exceptions.py`):
+```
+PycopgError
+├── ConnectionError        # builtin name conflict (lower priority)
+├── ConfigurationError     # consistent
+├── ExtensionNotAvailable  # N818: not Error-suffixed
+├── TableNotFound          # N818: not Error-suffixed
+├── InvalidIdentifier      # N818: not Error-suffixed
+├── MigrationError         # consistent
+├── DatabaseExists         # N818: not Error-suffixed
+├── TimescaleError         # consistent
+├── ETLError               # consistent
+├── ETLTransformError      # consistent
+└── ETLTargetNotFoundError # consistent
+```
+
+N818 violations (ruff rule: exception class names should end in Error):
+- `ExtensionNotAvailable` → `ExtensionNotAvailableError`
+- `TableNotFound` → `TableNotFoundError`
+- `InvalidIdentifier` → `InvalidIdentifierError`
+- `DatabaseExists` → `DatabaseExistsError`
+
+All four appear in user-facing `__all__`, docs, and `except` clauses in user code.
+Serve via `DeprecationWarning` aliases in `exceptions.py` + MIGRATION entry.
+
+`ConnectionError` conflicts with the Python builtin. Options: rename to
+`DatabaseConnectionError` or keep as-is. Defer this rename — the current name shadows the
+builtin only inside pycopg's own namespace, not globally. Mypy-strict may or may not flag it.
+
+### Build order recommendation
+
+Dependency chain drives this order:
+
+```
+Phase A: Homogenization pass (FIRST)
+  ├── Exception renames (add old names as DeprecationWarning aliases)
+  ├── Spatial where= → filter= (add where= as DeprecationWarning alias on all 11 methods)
+  ├── into= documentation pass (no code change, doc only)
+  └── Any other cosmetic seams (return-type annotations, docstring updates for ruff)
+
+Phase B: Spatial v2 (SECOND)
+  ├── New spatial builders: column-only processing shape (simplify, convex_hull, make_valid,
+  │   difference, intersection) — all use filter= from day one
+  ├── New spatial builders: aggregate shape (union_agg, collect, extent)
+  ├── New spatial builders: serialization (as_geojson, as_text, as_mvt)
+  └── Sync + async parity (SpatialAccessor + AsyncSpatialAccessor)
+
+Phase C: API completeness gaps (THIRD)
+  ├── transaction(isolation_level=, savepoint_name=) — sync + async
+  ├── session(isolation_level=) — sync + async
+  ├── Named params: _rewrite_named_params in utils.py + execute() type widening
+  └── db.health() — sync + async
+
+Phase D: Structured logging (FOURTH)
+  └── pycopg/logging.py + log_operation wrappers in key methods
+
+Phase E: mypy strict + py.typed (LAST)
+  ├── Flip mypy to blocking in CI (remove continue-on-error)
+  ├── Complete py.typed (all public signatures annotated)
+  └── Fix any remaining type errors from phases A-D
+```
+
+**Why this order:**
+
+1. Homogenization BEFORE spatial v2: new spatial builders must use the renamed `filter=`
+   parameter from day one. Building Spatial v2 first and then renaming means an immediate
+   double-rename on new code.
+
+2. Homogenization BEFORE mypy-strict: renaming `ExtensionNotAvailable` to
+   `ExtensionNotAvailableError` changes `except` clauses and type annotations across the
+   codebase (~30+ sites). Doing it before strict means fixing annotations once, not twice.
+
+3. Spatial v2 BEFORE transaction control: spatial v2 is purely additive to an existing
+   accessor. Transaction control touches the flat core's existing method signatures.
+   Stabilize the accessor surface before modifying the core seam.
+
+4. Logging BEFORE mypy-strict: `log_operation` wrappers introduce new `extra={}` dict
+   arguments that may require type annotations that mypy-strict will flag.
+
+5. mypy-strict LAST: it freezes the type surface. All renaming, parameter additions, and
+   annotation work must be complete before the gate is raised to blocking.
 
 ---
 
 ## System Overview
 
-The existing architecture is frozen and must be integrated WITH, not redesigned. Five integration seams are relevant for v0.8.0:
-
-1. **`pycopg/timescale.py`** — the `TimescaleAccessor` / `AsyncTimescaleAccessor` pair that holds all new methods. Today it has 6 methods (hypertable, compression, retention). New methods are ADDED here only.
-2. **`pycopg/queries.py`** — `*_SQL` constants for parameterized queries. Management commands that return results go here; DDL-shaped commands too complex for a constant live inline in `timescale.py`.
-3. **`tests/test_parity.py` `ACCESSOR_PAIRS`** — already includes `(TimescaleAccessor, AsyncTimescaleAccessor)`. No registry change is needed; all new methods are automatically verified by the existing data-driven `test_accessor_parity` test as long as they appear on both sync and async classes.
-4. **`self._db.connect(autocommit=True)`** — the ETL precedent for statements that cannot run inside a transaction block. This seam MUST be used for `create_continuous_aggregate` and `refresh_continuous_aggregate` (and optionally `add_continuous_aggregate_policy`).
-5. **`into=` parameter pattern from `spatial.py`** — the standard for query helpers that return rows or DataFrames.
-
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│                    Public API (accessor surface)                       │
-│  db.timescale.*          async_db.timescale.*                         │
-│                                                                        │
-│  EXISTING (unchanged):                                                 │
-│    create_hypertable     enable_compression    add_compression_policy │
-│    add_retention_policy  list_hypertables      hypertable_info         │
-│                                                                        │
-│  NEW (v0.8.0):                                                         │
-│    show_chunks           drop_chunks           add_dimension           │
-│    add_reorder_policy                                                  │
-│    create_continuous_aggregate ─── requires autocommit seam           │
-│    refresh_continuous_aggregate ── requires autocommit seam           │
-│    add_continuous_aggregate_policy                                     │
-│    time_bucket           time_bucket_gapfill   (query helpers)        │
-├──────────────────────────────────────────────────────────────────────┤
-│                  pycopg/timescale.py  (MODIFIED)                       │
-│  TimescaleAccessor / AsyncTimescaleAccessor                            │
-│                                                                        │
-│  Extension guard pattern (sync):                                       │
-│    if not self._db.schema.has_extension("timescaledb"): raise         │
-│  Extension guard pattern (async):                                      │
-│    if not await self._db.schema.has_extension("timescaledb"): raise  │
-│                                                                        │
-│  Autocommit seam (new, mirrors ETL):                                   │
-│    with self._db.connect(autocommit=True) as conn: ...                │
-│  Async autocommit seam:                                                │
-│    async with self._db.connect(autocommit=True) as conn: ...          │
-├──────────────────────────────────────────────────────────────────────┤
-│                  pycopg/queries.py  (MODIFIED)                         │
-│  New constants added to TIMESCALEDB QUERIES section:                   │
-│    TSDB_SHOW_CHUNKS  TSDB_DROP_CHUNKS                                  │
-│    TSDB_LIST_CONTINUOUS_AGGREGATES                                     │
-├──────────────────────────────────────────────────────────────────────┤
-│    pycopg/database.py / async_database.py / base.py  (UNCHANGED)      │
-│    tests/test_parity.py  ACCESSOR_PAIRS  (UNCHANGED)                  │
-│    pycopg/spatial.py / etl.py / admin.py / schema.py  (UNCHANGED)    │
-└──────────────────────────────────────────────────────────────────────┘
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                     Public API Surface                       │
+├─────────────────────────────────────────────────────────────┤
+│  Flat Transactional Core (database.py / async_database.py)   │
+│  execute(params: Sequence|dict) / session(isolation_level=)  │
+│  transaction(isolation_level=, savepoint_name=) / health()   │
+│  insert_batch / copy_insert / upsert / fetch_one / paginate  │
+│  (ALL v0.9.0 flat CRUD helpers — unchanged)                  │
+├──────────────────────────────────────────────────────────────┤
+│  Accessor Namespace (lazy, cached properties on Database)    │
+│  ┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │  spatial     │ │  schema  │ │timescale │ │   etl    │   │
+│  │  (v2 +11    │ │  (32     │ │  (15     │ │  (incr.  │   │
+│  │   methods)  │ │  methods)│ │  methods)│ │  ETL)    │   │
+│  └──────────────┘ └──────────┘ └──────────┘ └──────────┘   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                     │
+│  │  admin   │ │  maint   │ │  backup  │                     │
+│  └──────────┘ └──────────┘ └──────────┘                     │
+├──────────────────────────────────────────────────────────────┤
+│  Builder Layer (pure functions, no I/O, shared sync/async)   │
+│  spatial.py builders / base.py QueryMixin / timescale.py    │
+│  NEW: _rewrite_named_params (utils.py)                      │
+│  NEW: build_simplify_sql / build_aggregate_sql / etc.       │
+├──────────────────────────────────────────────────────────────┤
+│  Cross-cutting                                               │
+│  logging.py (NEW) / exceptions.py (renamed) / utils.py      │
+│  config.py / queries.py (minor additions)                    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### New vs. modified components — complete map
+
+| Component | Status | Nature of change |
+|-----------|--------|-----------------|
+| `pycopg/spatial.py` | Modified | 8-10 new `build_*_sql` builders; 8-10 new accessor methods + `as_mvt`; `_SCALAR_HELPERS` extended |
+| `pycopg/database.py` | Modified | `transaction()` gains `isolation_level`, `savepoint_name`; `session()` gains `isolation_level`; `execute()` params type widened; `health()` added |
+| `pycopg/async_database.py` | Modified | Mirror of all database.py changes (parity) |
+| `pycopg/exceptions.py` | Modified | 4 renames with old names as `DeprecationWarning` aliases |
+| `pycopg/utils.py` | Modified | `_rewrite_named_params()` added |
+| `pycopg/logging.py` | New file | `get_logger()` + `log_operation()` context manager |
+| `pycopg/base.py` | Unchanged | `DatabaseBase` / `QueryMixin` have no transaction or isolation seam |
+| `pycopg/queries.py` | Minor | SQL constants for MVT/aggregate queries if inline gets complex |
+| All other accessors | Unchanged | admin, maint, backup, schema, timescale, etl |
 
 ---
 
-## Feature Classification by Integration Pattern
-
-### Pattern 1 — Pure-builder-shaped: validate + `%s` + return None or rows
-
-These are standard TimescaleDB management commands that take identifier arguments and return nothing (or return a set of rows from a TimescaleDB system function). They follow the exact same pattern as the existing 6 methods on `TimescaleAccessor`:
-
-1. `_check_timescaledb()` guard first
-2. `validate_identifiers(...)` for table/schema/column names
-3. `validate_interval(...)` for interval strings
-4. `self._db.execute(sql, params)` where all user values travel as `%s`
-
-**Methods in this pattern:**
-
-| Method | Purpose | Returns |
-| --- | --- | --- |
-| `show_chunks(table, schema, older_than, newer_than)` | List chunks for a hypertable | `list[str]` — chunk names |
-| `drop_chunks(table, schema, older_than, newer_than)` | Drop matching chunks | `list[str]` — names of dropped chunks |
-| `add_dimension(table, column, schema, number_partitions, chunk_time_interval)` | Add hash or interval partitioning dimension | `None` |
-| `add_reorder_policy(table, index_name, schema, if_not_exists)` | Add chunk reorder policy | `None` |
-| `add_continuous_aggregate_policy(view_name, start_offset, end_offset, schedule_interval, if_not_exists)` | Add auto-refresh policy for a cagg | `None` |
-
-For `show_chunks` and `drop_chunks`, the `older_than` / `newer_than` parameters are interval strings (validated with `validate_interval`) or `None`. These map to `CALL show_chunks(relation, older_than => INTERVAL %s, ...)` — user values always travel as `%s`.
-
-**Critical note on `add_dimension`:** The TimescaleDB API requires the hypertable to be empty at the time `add_dimension` is called. This is not enforced by pycopg (caller's responsibility); document it in the docstring as a `Raises` entry pointing to the TimescaleDB requirement.
-
-**Critical note on `add_reorder_policy` parameter `index_name`:** This is NOT a schema-qualified identifier — it is the index name as a plain TEXT argument in the TimescaleDB function, but it must still be validated with `validate_identifier` before interpolation into the SQL string, because TimescaleDB's `add_reorder_policy` takes it as a TEXT literal that is internally cast.
-
-### Pattern 2 — Autocommit-seam: cannot run inside a transaction block
-
-These two methods issue TimescaleDB operations that run across multiple internal transactions or manipulate the materialization threshold. They CANNOT run inside a PostgreSQL transaction block — attempting to do so raises a TimescaleDB error.
-
-**Methods requiring the autocommit seam:**
-
-| Method | Why |
-| --- | --- |
-| `create_continuous_aggregate(view_name, query, schema, with_no_data)` | `CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)` requires autocommit unless `WITH NO DATA` is specified |
-| `refresh_continuous_aggregate(view_name, window_start, window_end)` | `CALL refresh_continuous_aggregate(...)` cannot run inside a transaction block (confirmed by TimescaleDB issue #2876) |
-
-**The transaction-block restriction confirmed:**
-
-- `refresh_continuous_aggregate()` uses two internal transactions: one to update the invalidation threshold, one to materialize. It is not possible to run this inside a caller-supplied transaction block.
-- `CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)` can be run inside a transaction block ONLY when `WITH NO DATA` is specified. The default (with data) materializes immediately and has the same dual-transaction requirement.
-
-**Design decision for `create_continuous_aggregate`:** Always use the autocommit seam, even when `with_no_data=True`. This is simpler and safer than conditional connection routing: the method always opens a fresh autocommit connection, regardless of `with_no_data`. The `with_no_data` parameter defaults to `False` (materialize on creation) to match the TimescaleDB 2.x default behavior.
-
-**Implementation — sync:**
-
-```python
-def create_continuous_aggregate(
-    self,
-    view_name: str,
-    query: str,
-    schema: str = "public",
-    with_no_data: bool = False,
-) -> None:
-    if not self._db.schema.has_extension("timescaledb"):
-        raise ExtensionNotAvailable(...)
-    validate_identifiers(view_name, schema)
-    # 'query' is a raw SQL fragment supplied by caller — not identifier-validated.
-    # Security boundary: same as the spatial 'where=' raw fragment.
-    no_data_clause = " WITH NO DATA" if with_no_data else ""
-    sql = (
-        f"CREATE MATERIALIZED VIEW {schema}.{view_name}"
-        f" WITH (timescaledb.continuous) AS {query}{no_data_clause}"
-    )
-    # Must run outside any transaction block — use dedicated autocommit connection.
-    with self._db.connect(autocommit=True) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-
-async def create_continuous_aggregate(self, ...) -> None:
-    if not await self._db.schema.has_extension("timescaledb"):
-        raise ExtensionNotAvailable(...)
-    validate_identifiers(view_name, schema)
-    no_data_clause = " WITH NO DATA" if with_no_data else ""
-    sql = (
-        f"CREATE MATERIALIZED VIEW {schema}.{view_name}"
-        f" WITH (timescaledb.continuous) AS {query}{no_data_clause}"
-    )
-    async with self._db.connect(autocommit=True) as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(sql)
-```
-
-**Implementation — `refresh_continuous_aggregate`:**
-
-```python
-def refresh_continuous_aggregate(
-    self,
-    view_name: str,
-    window_start,          # interval string, timestamp, or None
-    window_end,            # interval string, timestamp, or None
-    schema: str = "public",
-) -> None:
-    if not self._db.schema.has_extension("timescaledb"):
-        raise ExtensionNotAvailable(...)
-    validate_identifiers(view_name, schema)
-    # window_start / window_end are user values — always %s params.
-    sql = "CALL refresh_continuous_aggregate(%s, %s, %s)"
-    params = [f"{schema}.{view_name}", window_start, window_end]
-    with self._db.connect(autocommit=True) as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-```
-
-The async version is identical with `async with` / `await`.
-
-**Critical async gotcha (from Phase 23 MEMORY):** The async extension guard MUST `await` the check:
-
-```python
-if not await self._db.schema.has_extension("timescaledb"):
-```
-
-Forgetting the `await` causes the guard to always evaluate to `False` (a coroutine object is truthy), silently bypassing the guard. This was a known gotcha when spatial/schema were relocated in v0.6.0.
-
-### Pattern 3 — Query helpers with `into=` return: DataFrame/rows
-
-`time_bucket` and `time_bucket_gapfill` are SQL expression helpers — they produce aggregated time-series rows from a user-specified table. They are NOT management commands; they return data. The spatial accessor's `into="rows"/"df"` pattern is the correct precedent.
-
-**Why they belong in `TimescaleAccessor` and not as raw SQL:** The user would need to know `time_bucket()` and `time_bucket_gapfill()` function signatures, interval formatting, and GROUP BY semantics. pycopg adds value by validating identifiers, building the parameterized query structure, and returning a DataFrame. However, the aggregate expression (e.g., `avg(temperature)`, `max(cpu)`) is user-supplied.
-
-**The query-builder boundary:** pycopg is explicitly NOT a query builder (out of scope). The approach that stays within bounds: accept a user-supplied aggregate expression string as a raw fragment (same as spatial's `where=` parameter — raw fragment, caller's responsibility). The method validates identifiers for table/schema/time_column and bucket_interval, then constructs:
-
-```sql
-SELECT time_bucket(%s, {time_column}) AS bucket, {aggregate}
-FROM {schema}.{table}
-GROUP BY bucket
-ORDER BY bucket
-```
-
-where `bucket_interval` travels as `%s`, identifiers are validated before interpolation, and `aggregate` is a raw SQL fragment from the caller (documented as "caller's responsibility" in the numpydoc).
-
-**Signature design:**
-
-```python
-def time_bucket(
-    self,
-    table: str,
-    time_column: str,
-    bucket_interval: str,          # e.g. "1 hour", "15 minutes"
-    aggregate: str,                # raw SQL fragment: "avg(temperature)"
-    schema: str = "public",
-    where: str | None = None,      # raw filter fragment, caller's responsibility
-    order_by: str = "bucket",
-    limit: int | None = None,
-    into: str = "rows",            # "rows" → list[dict], "df" → pd.DataFrame
-) -> list[dict] | pd.DataFrame:
-```
-
-`time_bucket_gapfill` adds `start` and `finish` parameters (the gap-fill range bounds) and requires TimescaleDB 2.x; these are passed as `%s` params.
-
-```python
-def time_bucket_gapfill(
-    self,
-    table: str,
-    time_column: str,
-    bucket_interval: str,
-    aggregate: str,
-    start,           # timestamp or None — %s param for the range start
-    finish,          # timestamp or None — %s param for the range end
-    schema: str = "public",
-    where: str | None = None,
-    order_by: str = "bucket",
-    limit: int | None = None,
-    into: str = "rows",
-) -> list[dict] | pd.DataFrame:
-```
-
-**`into=` implementation for `time_bucket` / `time_bucket_gapfill`:** These methods return tabular data with no geometry column. Therefore `into="gdf"` is INVALID (no geometry to build a GeoDataFrame from). Only `into="rows"` (→ `list[dict]` via `self._db.execute`) and `into="df"` (→ `pd.DataFrame` via `self._db.to_dataframe`) are valid. Note that spatial uses `into="gdf"` but the timescale query helpers use `into="df"` (pandas DataFrame, not GeoDataFrame).
-
-**New `into=` validator for timescale query helpers:**
-
-```python
-_VALID_TSDB_INTO = ("rows", "df")
-
-def _check_tsdb_into(into: str) -> None:
-    if into not in _VALID_TSDB_INTO:
-        raise ValueError(f"into must be one of {_VALID_TSDB_INTO}, got {into!r}")
-```
-
-**`into="df"` path:** calls `self._db.to_dataframe(sql, params)`. This already exists on `Database` and `AsyncDatabase` (flat transactional core — unchanged). The async variant calls `await self._db.to_dataframe(sql, params)`.
-
----
-
-## `show_chunks` / `drop_chunks` Return Type Decision
-
-**`show_chunks` return type: `list[str]`**
-
-The TimescaleDB `show_chunks()` function returns a set of REGCLASS values (chunk names). Wrap in a `SELECT show_chunks(...)::text` and fetch — each row yields the chunk name as a string. Return `list[str]` (not `list[dict]`) — chunk names are the only useful value and a flat list is more ergonomic.
-
-**SQL constant for `show_chunks`:**
-
-```sql
-TSDB_SHOW_CHUNKS = """
-    SELECT show_chunks(%s, older_than => %s, newer_than => %s)::text AS chunk_name
-"""
-```
-
-Note: `older_than` and `newer_than` can be `None` — psycopg sends `None` as SQL `NULL`, which TimescaleDB interprets as "no filter" for these parameters. The REGCLASS is cast to text so it is a plain string in the result.
-
-**`drop_chunks` return type: `list[str]`**
-
-`drop_chunks()` returns the names of dropped chunks (one per row). Same pattern: `list[str]`.
-
-```sql
-TSDB_DROP_CHUNKS = """
-    SELECT drop_chunks(%s, older_than => %s, newer_than => %s)::text AS chunk_name
-"""
-```
-
----
-
-## Data Flow: New Methods
-
-### show_chunks / drop_chunks
-
-```text
-db.timescale.show_chunks(table, schema, older_than, newer_than)
-    |
-    +-- _check_timescaledb guard (self._db.schema.has_extension)
-    +-- validate_identifiers(table, schema)
-    +-- validate_interval(older_than) if not None
-    +-- validate_interval(newer_than) if not None
-    |
-    +-- sql, params = TSDB_SHOW_CHUNKS, [f"{schema}.{table}", older_than, newer_than]
-    +-- rows = self._db.execute(sql, params)
-    +-- return [row["chunk_name"] for row in rows]
-```
-
-### add_dimension
-
-```text
-db.timescale.add_dimension(table, column, schema, number_partitions, chunk_time_interval)
-    |
-    +-- _check_timescaledb guard
-    +-- validate_identifiers(table, column, schema)
-    +-- exactly one of number_partitions / chunk_time_interval must be non-None
-    +-- validate_interval(chunk_time_interval) if set
-    |
-    +-- Build inline SQL (too parameterized for a single constant):
-    |     if number_partitions:
-    |       sql = "SELECT add_dimension(%s, by_hash(%s, %s))"
-    |       params = [f"{schema}.{table}", column, number_partitions]
-    |     elif chunk_time_interval:
-    |       sql = "SELECT add_dimension(%s, by_range(%s, INTERVAL %s))"
-    |       params = [f"{schema}.{table}", column, chunk_time_interval]
-    +-- self._db.execute(sql, params)
-```
-
-Note: `add_dimension` in TimescaleDB 2.x uses the `by_hash()` / `by_range()` sub-function syntax, unlike the older flat-parameter API. The `column` argument is passed as `%s` to `by_hash`/`by_range` (not identifier-interpolated at the SQL level), because these are called as PostgreSQL functions that accept the column name as TEXT.
-
-### create_continuous_aggregate / refresh_continuous_aggregate
-
-See Pattern 2 above — both always use the dedicated autocommit connection seam.
-
-### time_bucket / time_bucket_gapfill
-
-```text
-db.timescale.time_bucket(table, time_column, bucket_interval, aggregate, schema, ...)
-    |
-    +-- _check_timescaledb guard
-    +-- _check_tsdb_into(into)
-    +-- validate_identifiers(table, time_column, schema)
-    +-- validate_interval(bucket_interval)
-    |
-    +-- Build SQL:
-    |     cols_part = f"time_bucket(%s, {time_column}) AS bucket, {aggregate}"
-    |     sql = f"SELECT {cols_part} FROM {schema}.{table}"
-    |     params = [bucket_interval]
-    |     if where: sql += f" WHERE {where}"
-    |     sql += f" GROUP BY bucket ORDER BY {order_by}"
-    |     if limit: sql += f" LIMIT {int(limit)}"
-    |
-    +-- if into == "rows": return self._db.execute(sql, params)
-    +-- if into == "df":   return self._db.to_dataframe(sql, params)
-```
-
----
-
-## `queries.py` Changes
-
-### New constants to add to the `# TIMESCALEDB QUERIES` section
-
-```python
-TSDB_SHOW_CHUNKS = """
-    SELECT show_chunks(%s, older_than => %s, newer_than => %s)::text AS chunk_name
-"""
-
-TSDB_DROP_CHUNKS = """
-    SELECT drop_chunks(%s, older_than => %s, newer_than => %s)::text AS chunk_name
-"""
-
-TSDB_LIST_CONTINUOUS_AGGREGATES = """
-    SELECT
-        view_schema AS schema,
-        view_name,
-        materialization_hypertable_schema,
-        materialization_hypertable_name,
-        compression_enabled
-    FROM timescaledb_information.continuous_aggregates
-    ORDER BY view_schema, view_name
-"""
-```
-
-`TSDB_LIST_CONTINUOUS_AGGREGATES` is an optional convenience method (`list_continuous_aggregates`) that parallels `list_hypertables` — useful for inspecting what caggs exist. Not strictly required for the main feature set but rounds out the continuous aggregate lifecycle.
-
-### Existing constants UNCHANGED
-
-All 2 existing TimescaleDB constants (`LIST_HYPERTABLES`, `HYPERTABLE_INFO`) stay exactly as-is.
-
----
-
-## `ACCESSOR_PAIRS` / Parity Test Wiring
-
-**`tests/test_parity.py` — NO CHANGES REQUIRED.**
-
-`ACCESSOR_PAIRS` already contains `(TimescaleAccessor, AsyncTimescaleAccessor)`. The `test_accessor_parity` test iterates all public methods on both classes and asserts they match. Adding new methods to BOTH `TimescaleAccessor` AND `AsyncTimescaleAccessor` is sufficient — the test catches any asymmetry automatically.
-
-**The only parity enforcement needed:** every new method added to `TimescaleAccessor` must have an exact-name, exact-signature mirror on `AsyncTimescaleAccessor` with `async def` and `await` instead of `def` and synchronous calls. The test will fail if any method is missing on either side.
-
----
-
-## Extension Guard: Sync vs Async Consistency
-
-The existing sync methods use:
-
-```python
-if not self._db.schema.has_extension("timescaledb"):
-    raise ExtensionNotAvailable(...)
-```
-
-The existing async methods correctly use:
-
-```python
-if not await self._db.schema.has_extension("timescaledb"):
-    raise ExtensionNotAvailable(...)
-```
-
-All new methods MUST follow the same pattern. The async guard is the historically problematic one (Phase 23 gotcha documented in MEMORY): forgetting `await` makes the guard always False (a coroutine is truthy). Every new async method must be audited for this before shipping.
-
----
-
-## Files Modified vs Unchanged
-
-### Modified files
-
-**`pycopg/timescale.py`** — the only file that receives implementation changes:
-
-- `TimescaleAccessor`: add 8 new methods (`show_chunks`, `drop_chunks`, `add_dimension`, `add_reorder_policy`, `create_continuous_aggregate`, `refresh_continuous_aggregate`, `add_continuous_aggregate_policy`, `time_bucket`, `time_bucket_gapfill`)
-- `AsyncTimescaleAccessor`: exact async mirror of every new method above
-- New module-level helper function `_check_tsdb_into(into)` (analogous to `_check_into` in `spatial.py`)
-
-**`pycopg/queries.py`** — add 3 new SQL constants to the `# TIMESCALEDB QUERIES` section:
-
-- `TSDB_SHOW_CHUNKS`
-- `TSDB_DROP_CHUNKS`
-- `TSDB_LIST_CONTINUOUS_AGGREGATES` (if `list_continuous_aggregates` is in scope)
-
-### Unchanged files
-
-| File | Why unchanged |
-| --- | --- |
-| `pycopg/database.py` | No new lazy properties; `_timescale` cache already exists |
-| `pycopg/async_database.py` | Same — `_timescale` cache already wired |
-| `tests/test_parity.py` | `ACCESSOR_PAIRS` already includes the timescale pair |
-| `pycopg/base.py` | No base changes needed |
-| `pycopg/spatial.py` | Not touched; `into=` pattern is referenced, not modified |
-| `pycopg/etl.py` | Not touched; autocommit seam is referenced, not modified |
-| `pycopg/exceptions.py` | `ExtensionNotAvailable` already exported and correct |
-| `pycopg/__init__.py` | `TimescaleAccessor` / `AsyncTimescaleAccessor` already exported |
-| Any other accessor | `admin`, `maint`, `backup`, `schema`, `spatial` — all untouched |
-
----
-
-## Suggested Build Order (Phase 30+)
-
-Risk and dependency drive this order. The guiding principle: simplest pure-builder methods first to prove the pattern on the real DB, autocommit seam last because it is the riskiest.
-
-### Phase 30 — Pure-builder methods: show_chunks, drop_chunks, add_dimension, add_reorder_policy
-
-These are the simplest integration: validate identifiers, call `self._db.execute`, return the result. No new connection management, no transaction concern.
-
-**Why first:** Zero new seams. If anything is wrong with the TimescaleDB 2.x API signatures (e.g., `add_dimension`'s `by_hash`/`by_range` sub-function syntax), it surfaces immediately and cheaply without contaminating the harder work.
-
-**Deliverable:** 4 methods × 2 (sync/async) = 8 new methods. `queries.py` gets `TSDB_SHOW_CHUNKS` and `TSDB_DROP_CHUNKS`. Integration tests on live DB confirm correct chunk listing/dropping and dimension addition.
-
-**Risk:** LOW. `add_dimension`'s empty-hypertable requirement is a runtime constraint — document in docstring, test with a fresh hypertable.
-
-### Phase 31 — Continuous aggregates: create, refresh, add_policy
-
-This is the riskiest phase because:
-
-1. `create_continuous_aggregate` and `refresh_continuous_aggregate` require the autocommit seam.
-2. The autocommit seam for TimescaleDB is NEW (the ETL precedent uses it, but this is the first timescale method that needs it).
-3. The async-guard gotcha (forgetting `await`) is most dangerous here because a silently non-guarded `create_continuous_aggregate` call against a DB without TimescaleDB will fail with a confusing error.
-4. `create_continuous_aggregate` accepts a raw SQL query fragment — the security boundary must be clearly documented.
-
-**Why last:** The autocommit seam on `TimescaleAccessor` has no prior precedent (ETL uses it via `ETLAccessor` on a separate accessor with its own `_db.connect` call). Verifying it works correctly on both sync and async `TimescaleAccessor` is the critical proof.
-
-**Deliverable:** 3 methods × 2 (sync/async) = 6 new methods. `queries.py` gets `TSDB_LIST_CONTINUOUS_AGGREGATES`. Integration tests: create a cagg, verify it exists in `timescaledb_information.continuous_aggregates`, refresh it, verify the materialized data, add a policy.
-
-**Risk:** MEDIUM-HIGH. Autocommit seam correctness + async guard. The Phase 31 plan MUST include explicit verification that calling `create_continuous_aggregate` inside a `db.session()` context still works (the autocommit seam bypasses the session connection entirely).
-
-### Phase 32 — Query helpers: time_bucket, time_bucket_gapfill
-
-These return data, not management results. The `into=` pattern is established but the DataFrame path (`into="df"`) requires calling `self._db.to_dataframe` which uses SQLAlchemy under the hood.
-
-**Why after continuous aggregates:** `time_bucket` is most useful when querying against a continuous aggregate. Testing `time_bucket` against a continuous aggregate created in Phase 31 gives more realistic integration coverage.
-
-**Deliverable:** 2 methods × 2 (sync/async) = 4 new methods. The `_check_tsdb_into` helper. Integration tests: `time_bucket` returning `list[dict]` and `pd.DataFrame`, `time_bucket_gapfill` with start/finish bounds, both on real hypertable data.
-
-**Risk:** LOW for `into="rows"`. MEDIUM for `into="df"` — `to_dataframe` uses SQLAlchemy `text()` which needs `%s` → `:p0` conversion (the `_to_named_binds` pattern from `spatial.py`). This must be handled or the `into="df"` path will fail.
-
-### Phase 33 — Release v0.8.0
-
-Version bump, CHANGELOG, docs, Sphinx, PyPI publish. Standard release phase matching Phase 29 / Phase 24 structure.
+## Sync/Async Parity Seams
+
+Every new surface must be mirrored. Explicit callouts per feature:
+
+| New feature | Sync seam | Async seam | Parity gotcha |
+|-------------|-----------|------------|---------------|
+| Spatial v2 builders | `SpatialAccessor` methods | `AsyncSpatialAccessor` methods | `await self._check_postgis()` at top of each async method |
+| `as_mvt()` | `SpatialAccessor.as_mvt()` returns `bytes` | `AsyncSpatialAccessor.as_mvt()` awaits `execute()` | PostGIS guard must `await` |
+| `transaction(isolation_level=)` | `Database.transaction()` calls `conn.set_isolation_level()` | `AsyncDatabase.transaction()` calls `await conn.set_isolation_level()` (check if async API needs await) |
+| `session(isolation_level=)` | `Database.session()` | `AsyncDatabase.session()` | Same sync/async divergence |
+| Named params | `Database.execute()` | `AsyncDatabase.execute()` | Same `_rewrite_named_params` util (pure function) |
+| `health()` | `Database.health()` | `AsyncDatabase.health()` | Async version uses `await execute("SELECT version()")` |
+| Structured logging | Sync method wrappers | Async method wrappers | `@contextmanager` `log_operation` works in both |
+| Exception renames | `exceptions.py` aliases | Shared module | No duplication — single module |
+
+The `ACCESSOR_PAIRS` registry in `tests/test_parity.py` must be updated for any new accessor
+methods on `SpatialAccessor`. New flat-core methods (`health`, expanded `transaction`,
+expanded `session`) need parity assertions added to `test_accessor_parity` or a new
+`test_flat_core_parity` test module.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Running refresh_continuous_aggregate inside db.session()
+### Anti-Pattern 1: Adding isolation_level state to DatabaseBase
 
-**What:** `with db.session(): db.timescale.refresh_continuous_aggregate(...)` — if the accessor used `self._db.execute` (the session-aware path), it would run inside the active transaction.
+`DatabaseBase` holds only `config`. Lifting isolation-level state to the shared base class
+would require mutable execution-time state on a shared infrastructure class. Keep isolation
+level as a call-time parameter passed to `transaction()` / `session()`.
 
-**Why wrong:** `refresh_continuous_aggregate()` cannot run inside a transaction block. TimescaleDB raises an error: "operation not allowed within a transaction block".
+### Anti-Pattern 2: New accessor for transaction control
 
-**Prevention:** Always route these two methods through `self._db.connect(autocommit=True)`. Confirmed by TimescaleDB GitHub issue #2876. The dedicated autocommit connection bypasses any active `db.session()` entirely.
+Transaction control is a core connection concern, not a domain. Creating `db.tx.*` or
+`db.control.*` violates the established rule: transactional core stays flat.
 
-### Anti-Pattern 2: Forgetting `await` on the async TimescaleDB guard
+### Anti-Pattern 3: Making ST_AsMVT use `into="mvt"`
 
-**What:** `if not self._db.schema.has_extension("timescaledb"):` in an async method (missing `await`).
+Adding "mvt" to `_VALID_INTO` forces `_run()` to handle bytes, changes `_check_into()`
+for every helper, and adds a return-type branch to the dispatch path. A dedicated method
+returning bytes unconditionally is simpler and more discoverable for users.
 
-**Why wrong:** `has_extension` returns a coroutine in async context. A coroutine object is always truthy. The guard evaluates to `not True == False`, so the `raise ExtensionNotAvailable` is NEVER reached. The method proceeds silently without TimescaleDB installed.
+### Anti-Pattern 4: Sharing `_to_named_binds` from spatial.py for named params
 
-**Prevention:** All new `AsyncTimescaleAccessor` methods must use `if not await self._db.schema.has_extension("timescaledb"):`. This was the exact gotcha in Phase 23.
+The spatial `_to_named_binds` rewrites `%s` → `:pN` for SQLAlchemy `text()`.
+Named params for `execute()` do the opposite (`:name` → `%(name)s` for psycopg).
+These are separate concerns with inverse transformation directions.
 
-### Anti-Pattern 3: Using a SQL constant for create_continuous_aggregate
+### Anti-Pattern 5: Homogenization after mypy-strict
 
-**What:** Defining `TSDB_CREATE_CONTINUOUS_AGGREGATE = "CREATE MATERIALIZED VIEW ..."` as a `queries.py` constant.
+Renaming exceptions or spatial `where=` → `filter=` after mypy-strict is raised means every
+annotation update must also pass the strict gate simultaneously. Do all renames first, then
+raise the gate.
 
-**Why wrong:** The continuous aggregate view definition includes a user-supplied `query` string (the aggregate SELECT). A `queries.py` constant implies the SQL is a fixed parameterized template. But the query is structural SQL — it cannot be passed as a `%s` parameter (PostgreSQL does not allow DDL bodies as bind parameters). The full CREATE statement must be built as an f-string with validated identifiers and the raw query fragment appended.
+### Anti-Pattern 6: Structured logging via an external dependency
 
-**Prevention:** Build the `CREATE MATERIALIZED VIEW` SQL inline in `timescale.py`, not in `queries.py`. Document in the numpydoc that `query` is a raw SQL fragment — caller's responsibility. The security boundary follows the spatial `where=` precedent.
+`structlog` or similar adds a runtime dependency (violates "zero new runtime dependencies"
+Core Value). Use stdlib `logging` with `extra={}` dict. Log handlers in user code can emit
+JSON or structured formats from stdlib `logging.Formatter`.
 
-### Anti-Pattern 4: `into="gdf"` for time_bucket
+### Anti-Pattern 7: Spatial v2 builders using `where=` instead of `filter=`
 
-**What:** Accepting `into="gdf"` on `time_bucket` or `time_bucket_gapfill`.
-
-**Why wrong:** These methods return time-series aggregate rows — they have no geometry column. `to_geodataframe` would fail when trying to detect a geometry column.
-
-**Prevention:** Use `_check_tsdb_into` which only accepts `"rows"` and `"df"`. Raise `ValueError` for anything else.
-
-### Anti-Pattern 5: Touching the flat transactional core or other accessors
-
-**What:** Adding any new property or method to `Database`, `AsyncDatabase`, `base.py`, or any other accessor (`SpatialAccessor`, `ETLAccessor`, etc.).
-
-**Why wrong:** v0.8.0 scope is strictly additive to `TimescaleAccessor` / `AsyncTimescaleAccessor`. Cross-contamination creates merge conflicts and violates the single-concern phase principle.
-
-**Prevention:** All new code lives in `pycopg/timescale.py` and `pycopg/queries.py` only.
-
----
-
-## Scalability Considerations
-
-| Concern | Implication |
-| --- | --- |
-| `show_chunks` on large hypertables | Returns potentially thousands of chunk names. The method does not add a LIMIT by default — consistent with `list_hypertables`. Document that callers should use `older_than`/`newer_than` to bound the result set for large tables. |
-| `create_continuous_aggregate` on huge datasets | Without `WITH NO DATA`, the initial materialization can run for minutes. The `with_no_data=True` parameter exists specifically for this. Document prominently. |
-| `refresh_continuous_aggregate` window size | Large windows (months of data) cause proportionally long refresh times. pycopg does not add timeout enforcement — callers use `db.config.statement_timeout` or PostgreSQL `statement_timeout` GUC. |
-| `time_bucket` without LIMIT | Materializes all rows in memory. The `limit` parameter mitigates this for exploratory use. |
+If the homogenization phase (spatial `where=` → `filter=`) runs first, all new Spatial v2
+builders must use `filter=` from day one. Writing Spatial v2 builders with `where=` creates
+an immediate debt that requires immediate fixing.
 
 ---
 
 ## Sources
 
-- Direct source reading: `pycopg/timescale.py` — existing 6 methods, extension guard pattern (sync + async), `self._db.execute` call site, lazy property wiring via `_timescale` cache
-- Direct source reading: `pycopg/spatial.py` — `_check_into`, `into=` routing, `_run()` method, `_to_named_binds` for DataFrame path, PostGIS guard at construction vs per-method
-- Direct source reading: `pycopg/etl.py` — `ETLAccessor._start_run`, `_end_run`, `init` — all three use `with self._db.connect(autocommit=True) as conn:` as the autocommit seam precedent
-- Direct source reading: `pycopg/queries.py` — existing `LIST_HYPERTABLES`, `HYPERTABLE_INFO` constants; confirmed `%s`-only parameter convention
-- Direct source reading: `tests/test_parity.py` — `ACCESSOR_PAIRS` list, `test_accessor_parity` logic; confirmed no change needed for new timescale methods
-- Direct source reading: `.planning/PROJECT.md` — v0.8.0 scope lock, zero new deps constraint, TimescaleDB 2.x target, Core Value (sync/async parity), coverage ratchet ≥94
-- TimescaleDB 2.x official documentation: `refresh_continuous_aggregate` transaction block restriction confirmed (GitHub issue #2876 "Allow cagg refresh within transaction block" — restriction is intentional by design)
-- TimescaleDB API documentation: `show_chunks`, `drop_chunks`, `add_dimension`, `add_reorder_policy`, `add_continuous_aggregate_policy` signatures verified against tigerdata.com/docs (official TimescaleDB docs redirect)
-- Memory: Phase 23 async-guard gotcha (`await` omission on `has_extension` in AsyncSchemaAccessor / AsyncSpatialAccessor) — confirmed recurring risk for new async TimescaleDB methods
+- Direct code inspection: `pycopg/spatial.py` (2832 lines, full read) — builder patterns,
+  `_resolve_geometry`, `_SCALAR_HELPERS`, `_VALID_INTO`, `_check_into`, `_run`, `_to_named_binds`,
+  `SpatialAccessor`, `AsyncSpatialAccessor`
+- Direct code inspection: `pycopg/base.py` (581 lines, full read) — `DatabaseBase`, `QueryMixin`,
+  `_build_where_dict`, `SessionMixin`
+- Direct code inspection: `pycopg/database.py` (partial read) — `transaction()`, `session()`,
+  `execute()`, `cursor()`, `connect()`, lazy accessor properties
+- Direct code inspection: `pycopg/async_database.py` (session/transaction mirror confirmed)
+- Direct code inspection: `pycopg/exceptions.py` (76 lines, full read) — complete hierarchy
+- Direct code inspection: `.planning/PROJECT.md` — architecture history, locked decisions,
+  v1.0.0 scope, Core Value constraint
+- Live psycopg3 inspection: `psycopg.IsolationLevel` enum values confirmed,
+  `Connection.transaction(savepoint_name=)` signature confirmed,
+  `Connection.set_isolation_level()` signature confirmed,
+  `psycopg_pool.ConnectionPool.check()` / `get_stats()` confirmed
 
 ---
-
-*Architecture research for: pycopg v0.8.0 TimescaleDB advanced features*
-*Researched: 2026-06-22*
+*Architecture research for: pycopg v1.0.0 "Spatial v2 + API freeze"*
+*Researched: 2026-06-27*

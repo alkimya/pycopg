@@ -1,365 +1,492 @@
-# Technology Stack — v0.8.0 TimescaleDB Advanced Features
+# Technology Stack — v1.0.0 Spatial v2 + API Freeze
 
-**Project:** pycopg v0.8.0 — Advanced TimescaleDB features under `db.timescale.*`
-**Researched:** 2026-06-22
-**Scope:** Stack additions needed for continuous aggregates, `time_bucket`/`time_bucket_gapfill`, `show_chunks`/`drop_chunks`, `add_dimension`, `reorder_policy`.
-**Confidence:** HIGH
-
----
-
-## Verdict: Zero New Runtime Dependencies Confirmed
-
-All v0.8.0 features are buildable with the existing runtime stack. No additions to
-`pyproject.toml` are required.
-
-**Confidence:** HIGH — verified against official TimescaleDB API docs (tigerdata.com)
-and the existing psycopg 3 accessor pattern in `pycopg/timescale.py`.
+**Project:** pycopg v1.0.0 — Spatial v2 + API freeze
+**Researched:** 2026-06-27
+**Scope:** Stack additions and version floors needed for Spatial v2 (ST_Union/Simplify/ConvexHull/MakeValid/Difference/Intersection + aggregates ST_Union(agg)/Collect/Extent + serialization ST_AsGeoJSON/AsText/AsMVT), 4 API-backlog gaps (isolation level + savepoints, named params, health checks, structured logging), and the API freeze mechanics (mypy strict blocking, py.typed completeness, SemVer policy).
+**Confidence:** HIGH — verified against psycopg3 Context7 docs (authoritative), official PostGIS docs (postgis.net), mypy 2.1.0 docs, and PyPI package pages.
 
 ---
 
-## Existing Stack (Do Not Change)
+## Verdict: Zero New Runtime Dependencies Required
 
-| Technology | Version Constraint | Role in v0.8.0 |
-|---|---|---|
-| Python | 3.11+ | Language |
-| psycopg | >=3.1.0 (installed: 3.3.4) | PostgreSQL driver; `conn.autocommit = True` for CAGG DDL |
-| psycopg_pool | >=3.2.0 | Connection pooling (no change) |
-| pandas | >=2.0.0 | DataFrame return path for `time_bucket`/`time_bucket_gapfill` helpers |
-| geopandas | >=0.14.0 | Not involved in TimescaleDB features |
-| tenacity | any | Retry/backoff; no role in this milestone |
+All v1.0.0 features are buildable on the existing runtime stack. **No additions to the
+`[project.dependencies]` table in `pyproject.toml` are needed.**
 
-No new entry needed. All required functionality is already present.
+The three dev-group additions below are all dev/CI tooling:
 
----
+- `pandas-stubs` — dev-only, enables mypy strict on DataFrame-touching code
+- `types-geopandas` — dev-only, enables mypy strict on GeoDataFrame-touching code
+- `types-shapely` — dev-only, enables mypy strict on shapely geometry objects
 
-## TimescaleDB Server Version Floor
-
-**Minimum: TimescaleDB 2.0** — with feature-specific floors noted below.
-
-The v0.8.0 target is "TimescaleDB 2.x only" (locked scope decision, PROJECT.md).
-The rationale for the version floor by feature group:
-
-| Feature Group | Effective Floor | Why |
-|---|---|---|
-| `CREATE MATERIALIZED VIEW … WITH (timescaledb.continuous)` | 2.0 | Continuous aggregates (modern materialized-view form) shipped in 1.3.0; by 2.0 the API was stable and the old `continuous_agg_policy` interface was replaced |
-| `refresh_continuous_aggregate()` | 2.0 | Available since 1.3.0; `CALL` syntax stable in 2.0 |
-| `add_continuous_aggregate_policy()` | 2.0 | Available since 1.7.0; current named-parameter form stable in 2.0 |
-| `time_bucket()` | 2.0 | Available since 0.0.10-beta; timezone parameter available in 2.x |
-| `time_bucket_gapfill()` | 2.0 | Available since 1.2.0; `timezone` parameter requires 2.9+ |
-| `show_chunks()` / `drop_chunks()` | 2.0 | `drop_chunks` 2.x form (requires explicit hypertable arg) available in 2.0 |
-| `add_dimension()` modern API | **2.13** | The `by_range()`/`by_hash()` builders were introduced in 2.13; the deprecated positional signature is available since 0.1.0 |
-| `add_reorder_policy()` | 2.0 | Available since 1.2.0 |
-
-**Practical recommendation:** document the floor as **TimescaleDB >= 2.0** for all features
-except `add_dimension()` with the modern API, which requires **>= 2.13** (document explicitly
-in the method's docstring Raises section or Notes). The existing `_check_timescaledb` guard
-verifies extension presence but not the version — implement the 2.13 note as a documentation
-warning only (version introspection would require a new query, not worth the complexity at
-this scope).
+The structured-logging answer is definitively stdlib-only (see section below).
 
 ---
 
-## PostgreSQL Version Requirements
+## Existing Runtime Stack (Do Not Change)
 
-| TimescaleDB Series | Minimum PostgreSQL |
-|---|---|
-| 2.0 | 12 |
-| 2.1–2.3 | 11 |
-| 2.4–2.9 | 12 |
-| 2.10–2.12 | 12 |
-| 2.13–2.15 | 13 |
-| 2.16–2.22 | 14–15 |
-| 2.23–2.28 | 15 |
-| 2.29+ | 16 |
+| Technology | Current Floor | Latest Stable | Role in v1.0.0 |
+| ---------- | ------------- | ------------- | --------------- |
+| Python | 3.11+ | 3.13 | Language; no change |
+| psycopg | >=3.1.0 | 3.3.4 | PostgreSQL driver; isolation, savepoints, health checks all native |
+| psycopg_pool | >=3.2.0 | 3.3.1 | Pool health check API (pool.check(), get_stats()) |
+| pandas | >=2.0.0 | — | DataFrame path; 2.1+ ships py.typed natively |
+| geopandas | >=0.14.0 | 1.1.3 | GeoDataFrame path; no new capabilities needed |
+| shapely | >=2.0.0 | 2.1.* | Geometry objects; no new capabilities needed |
+| tenacity | >=9.0.0 | — | Retry/backoff; no change |
 
-The project's existing test environment targets local PostgreSQL 15/16 with TimescaleDB 2.x,
-which satisfies the floor for all features including `add_dimension` modern API (2.13 → PG 13+).
-No special PostgreSQL minimum is required beyond what TimescaleDB 2.x already imposes.
+**PostgreSQL server floor:** 12 (implied by PostGIS 3.0 requirement — see section below).
 
----
-
-## Critical: Transaction-Block Restrictions
-
-This is the most important integration concern for the v0.8.0 implementation.
-**Two operations cannot run inside a transaction block and require a dedicated autocommit
-connection or session.** This mirrors the ETL run-log isolation pattern already used in
-`pycopg/etl.py`.
-
-### Operations That CANNOT Run Inside a Transaction Block
-
-#### 1. `CREATE MATERIALIZED VIEW … WITH (timescaledb.continuous) … WITH DATA`
-
-**Exact error:** `ERROR: CREATE MATERIALIZED VIEW ... WITH DATA cannot run inside a transaction block`
-
-**Why:** TimescaleDB's continuous aggregate creation with data materialization runs an
-internal two-phase process that opens its own transactions. PostgreSQL does not allow
-`CREATE MATERIALIZED VIEW … WITH DATA` inside an explicit transaction block.
-
-**Workaround A — autocommit connection (RECOMMENDED):**
-Open a dedicated `psycopg.connect(autocommit=True)` connection (or `conn.autocommit = True`),
-issue the DDL, then close/return it. The existing `Database._connect_autocommit()` helper
-(used by ETL run-logging) provides exactly this pattern. Use the same helper for CAGG DDL.
-
-**Workaround B — `WITH NO DATA`:**
-`CREATE MATERIALIZED VIEW … WITH NO DATA` CAN run inside a transaction block because it
-defers materialization. The caller must then issue `CALL refresh_continuous_aggregate(…)`
-separately (which itself also needs autocommit — see below).
-
-**pycopg integration point:** `TimescaleAccessor.create_continuous_aggregate()` must NOT
-use `self._db.execute()` (which runs under the normal psycopg connection, which psycopg 3
-wraps in implicit transactions). Instead it must obtain an autocommit connection via the same
-mechanism as `ETLAccessor._autocommit_conn()`.
-
-#### 2. `CALL refresh_continuous_aggregate(…)`
-
-**Why:** The refresh runs internally across two transactions (first to advance the
-invalidation threshold, second to materialize). This multi-transaction behavior is
-incompatible with PostgreSQL transaction blocks. (GitHub issue #2876, confirmed in
-TimescaleDB docs and community.)
-
-Since TimescaleDB 2.28, refresh is batched by default (each batch = its own transaction),
-which reinforces this requirement.
-
-**Autocommit is mandatory** for `refresh_continuous_aggregate`. Same pattern as
-`create_continuous_aggregate`: use a dedicated autocommit connection.
-
-**pycopg integration point:** `TimescaleAccessor.refresh_continuous_aggregate()` must also
-use the autocommit connection helper.
-
-### Operations That CAN Run Inside a Normal Transaction Block
-
-The following operations are standard SQL/PL/pgSQL functions — they execute within the
-caller's transaction and do not open their own internal transactions:
-
-| Operation | Transaction Safe | Notes |
-|---|---|---|
-| `add_continuous_aggregate_policy()` | YES | Returns job_id; standard function call |
-| `show_chunks()` | YES | Read-only SELECT-returning function |
-| `drop_chunks()` | YES | Standard function; commits chunk drops atomically with the caller |
-| `add_dimension()` | YES | Standard function; empty-hypertable constraint is a logical (not transactional) restriction |
-| `add_reorder_policy()` | YES | Returns job_id; standard function call |
-| `time_bucket()` / `time_bucket_gapfill()` | YES | Pure SQL functions embedded in SELECT queries |
-
-These can all use `self._db.execute()` / `self._db.to_dataframe()` via the normal connection.
+**PostGIS server floor:** 3.0 (see section below — critical for ST_AsMVT and ST_MakeValid options).
 
 ---
 
-## Autocommit Pattern — Integration with Existing psycopg Model
+## New Dev-Group Additions (Typing Only)
 
-psycopg 3 wraps every connection in an implicit transaction by default. DDL/commands that
-require autocommit must use `conn.autocommit = True` or `psycopg.connect(autocommit=True)`.
+These go in `[dependency-groups] dev = [...]` in `pyproject.toml`. They are never
+installed by end users; they exist solely to make `mypy --strict` run clean in CI.
 
-The ETL accessor already solves this: `_autocommit_conn()` opens a dedicated connection
-(bypassing the pool) with `autocommit=True`, uses it for run-log inserts/updates, and
-closes it when done. The CAGG methods must use the same helper. Do NOT set
-`conn.autocommit = True` on the pool connection — that would mutate shared pool state.
+| Package | Version Floor | Purpose | Why This Package |
+| ------- | ------------- | ------- | ---------------- |
+| `pandas-stubs` | `>=2.0.0` | Type stubs for pandas DataFrame/Series API | pandas 2.1+ ships py.typed but stubs provide better coverage under strict mode; `pandas-stubs==3.0.3.*` is current (Jun 2026) |
+| `types-geopandas` | `>=0.14.0` | Type stubs for geopandas GeoDataFrame | From typeshed; latest `1.1.3.20260518` targets geopandas 1.1.3; covers `>=0.14` paths we use |
+| `types-shapely` | `>=2.0.0` | Type stubs for shapely geometry objects | From typeshed; latest targets shapely 2.1.*; covers all geometry type annotations |
 
-**Confirmed psycopg 3 API** (MEDIUM confidence — official docs, not live-tested here):
+Without them, `mypy --strict` on any module that imports `pandas`, `geopandas`, or
+`shapely` raises `Cannot find implementation or library stub` or infers `Any` for return
+types, violating `--disallow-any-generics` and `--warn-return-any` (both enabled by
+`--strict`). The current `pyproject.toml` silences these errors via
+`[[tool.mypy.overrides]] ignore_missing_imports = true` — that workaround must be replaced
+with real stubs to achieve strict mode.
+
+Installation:
+
+```bash
+uv add --dev pandas-stubs types-geopandas types-shapely
+```
+
+---
+
+## 1. PostGIS Version Floor
+
+Verdict: Document PostGIS >= 3.0 as the hard floor; recommend >= 3.2 for full feature set.
+
+### Function-by-function analysis (confirmed against postgis.net official docs)
+
+| Function | Available Since | Notes |
+| -------- | --------------- | ----- |
+| `ST_Simplify` | PostGIS 1.x | Core function; no version concern |
+| `ST_ConvexHull` | PostGIS 1.x | Core function; no version concern |
+| `ST_Difference` | PostGIS 1.x | Core function; gridSize param requires GEOS 3.9 (PostGIS 3.1+) |
+| `ST_Intersection` | PostGIS 1.x | Core function; gridSize param requires GEOS 3.9 (PostGIS 3.1+) |
+| `ST_Union (binary)` | PostGIS 1.x | Core function; gridSize param requires GEOS 3.9 (PostGIS 3.1+) |
+| `ST_Union (aggregate)` | PostGIS 1.4.0 | Standard SQL aggregate; no version concern |
+| `ST_Collect (aggregate)` | PostGIS 1.4.0 | Standard aggregate; no version concern |
+| `ST_Extent (aggregate)` | PostGIS 1.x | Returns box2d; added polyhedra support in 2.0 |
+| `ST_AsGeoJSON` | PostGIS 1.3.4 | `maxdecimaldigits` available since 1.3.4; `id_column` added in 3.5.0 |
+| `ST_AsText` | PostGIS 1.x | Core function; no version concern |
+| `ST_AsMVT` | **PostGIS 2.4.0** | Feature ID support in 3.0; parallel query in 2.5; Wagyu mandatory for MVT in 3.2+ |
+| `ST_MakeValid` | PostGIS 2.0.0 | linework algorithm (default) since 2.0; `method=structure` option requires **PostGIS 3.2 + GEOS 3.10** |
+
+### Hard floor: PostGIS >= 3.0
+
+Rationale:
+
+- ST_AsMVT is the highest-floor function at 2.4, but PostGIS 3.0 improved ST_AsMVT feature IDs, removed SFCGAL dependency for ST_Union, and set PostgreSQL 12 as minimum (which is itself a sensible floor).
+- PostGIS 3.0 with PostgreSQL 12 is old enough (released 2019) that virtually all production environments are at or above it.
+- PostGIS 3.0 dropped GEOS < 3.6, so GEOS 3.6+ is guaranteed at this floor.
+
+### Recommended floor: PostGIS >= 3.2 (document separately in Spatial v2 docs)
+
+Rationale:
+
+- PostGIS 3.2 enables `ST_MakeValid(geom, 'method=structure')` which is 2.7x faster and provides semantically better repairs for complex geometries. This is the variant worth exposing as a parameter option.
+- PostGIS 3.2 requires GEOS 3.10, which also makes ST_IsValid 30-100% faster.
+- PostGIS 3.2 drops GEOS < 3.6 and Proj < 4.9 — a cleaner minimum for any new geometry work.
+- PostGIS 3.2 was released December 2021 and is now the baseline for most cloud providers (AWS RDS, GCP CloudSQL, Supabase all offer 3.x by default).
+
+### Implementation approach
+
+- Document the hard floor as PostGIS 3.0 (existing `has_extension('postgis')` guard covers this; no version introspection needed).
+- For `ST_MakeValid`, expose `method` as a parameter (`"linework"` default, `"structure"` optional), and note in the docstring that `method="structure"` requires PostGIS >= 3.2 with GEOS >= 3.10. Do NOT runtime-gate it — let PostgreSQL surface the error; a documentation warning is sufficient (same approach as TimescaleDB 2.13 for `add_dimension`).
+- For `ST_AsMVT`, document PostGIS >= 3.0 as the minimum in the docstring (feature IDs require 3.0; the function itself works from 2.4 but that is below our floor).
+
+---
+
+## 2. psycopg3 Native APIs for the 4 API-Backlog Gaps
+
+### 2a. Transaction Isolation Levels
+
+Verdict: Fully native in psycopg3 — use `psycopg.IsolationLevel` enum and `conn.isolation_level`.
+
+psycopg3 ships `psycopg.IsolationLevel` as an enum with values:
+
+- `READ_UNCOMMITTED`
+- `READ_COMMITTED`
+- `REPEATABLE_READ`
+- `SERIALIZABLE`
+
+Setting isolation at the connection level:
+
 ```python
-# Option A: connect() parameter
-conn = psycopg.connect(conninfo, autocommit=True)
+# sync
+conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
+# or via method:
+conn.set_isolation_level(psycopg.IsolationLevel.SERIALIZABLE)
 
-# Option B: attribute (must be set before first statement)
-conn.autocommit = True
+# async
+await conn.set_isolation_level(psycopg.IsolationLevel.SERIALIZABLE)
 ```
 
-The existing `Database._autocommit_conn()` (introduced for ETL run-logging) already
-implements Option A. Reuse it for CAGG DDL and refresh — no new infrastructure.
+Additional connection transaction properties (all native, no extra deps):
 
-For `AsyncTimescaleAccessor`, use the async equivalent:
+- `conn.read_only` — bool or None (None = server default)
+- `conn.deferrable` — bool or None
+
+These properties can only be changed when no transaction is currently active. They affect
+all subsequent transactions on the connection. They do NOT affect autocommit sessions (use
+`SET default_transaction_isolation = ...` GUC for those).
+
+**pycopg integration:** Expose via a `db.set_isolation_level(level)` method (or
+`db.session(isolation_level=...)` parameter extension). The `IsolationLevel` enum should be
+re-exported from `pycopg` public API so callers never need to import psycopg directly.
+
+**Confidence:** HIGH — verified via Context7 psycopg3 docs.
+
+### 2b. Savepoints / Nested Transactions
+
+Verdict: Fully native in psycopg3 — `conn.transaction()` nesting automatically uses SAVEPOINTs.
+
+psycopg3's `Connection.transaction()` is a context manager. When called inside an
+already-open transaction, it automatically issues `SAVEPOINT` (not a new `BEGIN`):
+
 ```python
-conn = await psycopg.AsyncConnection.connect(conninfo, autocommit=True)
+with conn.transaction():          # BEGIN
+    do_work()
+    with conn.transaction():      # SAVEPOINT sp1
+        risky_work()              # RELEASE SAVEPOINT sp1 on success
+                                  # ROLLBACK TO SAVEPOINT sp1 on exception
+    do_more_work()
+# COMMIT
 ```
-The `AsyncDatabase._autocommit_conn()` async equivalent should already exist (ETL parity);
-verify before Phase implementation.
+
+Named savepoints:
+
+```python
+with conn.transaction(savepoint_name="my_sp") as tx:
+    ...
+```
+
+Force rollback (useful for testing):
+
+```python
+with conn.transaction(force_rollback=True):
+    ...
+```
+
+Inside a `transaction()` block, `conn.commit()` and `conn.rollback()` cannot be called
+directly — they raise an error. The context manager owns the transaction lifecycle.
+
+**pycopg integration:** The existing `db.session()` context manager wraps
+`conn.transaction()`. Savepoint support is already available to callers who nest
+`db.session()` calls. The gap to close is: (1) documenting this clearly, and (2)
+potentially exposing `savepoint_name` pass-through if callers need named savepoints.
+No new infrastructure is needed.
+
+**Confidence:** HIGH — verified via Context7 psycopg3 docs with code examples.
+
+### 2c. Named Parameters
+
+Verdict: psycopg3 does NOT support `:name` natively — use `%(name)s` dict-style instead.
+
+psycopg3 supports two parameter styles:
+
+1. **Positional:** `%s` with a list/tuple — the project's existing convention.
+2. **Named (dict-style):** `%(name)s` with a dict — fully supported natively.
+
+```python
+cur.execute(
+    "SELECT * FROM users WHERE id = %(user_id)s AND active = %(active)s",
+    {"user_id": 42, "active": True}
+)
+```
+
+The `:name` syntax (used by SQLAlchemy `text()`, ODBC drivers) is NOT psycopg3's native
+format. The existing `_to_named_binds()` function in `spatial.py` converts `%s` to
+`:p0, :p1, ...` for SQLAlchemy's `text()` path — that adapter is the right pattern for
+the SQLAlchemy integration layer.
+
+What "named params" means for pycopg v1.0.0: the backlog item is about exposing
+`db.execute(sql, params={"name": value})` as a documented, stable API. The underlying
+psycopg3 mechanism is `%(name)s` dict-style, which already works. The implementation gap:
+
+- Ensuring `db.execute()` and `db.fetch_one()` / `db.fetch_all()` clearly accept `dict` params.
+- Documenting the `%(name)s` convention in user-facing docs.
+- No `:name` translation layer is needed or appropriate.
+
+**Confidence:** HIGH — verified via Context7 psycopg3 docs (multiple examples shown).
+
+### 2d. Connection / Pool Health Checks
+
+Verdict: Fully native in psycopg3 and psycopg_pool — no new deps.
+
+Three layers of health checking are available natively.
+
+**Layer 1 — Individual connection attributes:**
+
+```python
+conn.closed   # True if explicitly closed
+conn.broken   # True if interrupted unexpectedly (also sets closed=True)
+```
+
+**Layer 2 — Pool-level health sweep (psycopg_pool >= 3.2):**
+
+```python
+pool.check()           # sync: tests each connection, replaces broken ones
+await pool.acheck()    # async equivalent
+```
+
+Returns None; broken connections are replaced transparently.
+
+**Layer 3 — Per-checkout connection validation (psycopg_pool >= 3.2):**
+
+```python
+with ConnectionPool(..., check=ConnectionPool.check_connection) as pool:
+    ...
+```
+
+`ConnectionPool.check_connection` is a built-in static method that runs `SELECT 1`
+before handing a connection to a caller. Adds approximately 1 network RTT per acquisition.
+
+**Layer 4 — Pool statistics (monitoring/health dashboard):**
+
+```python
+stats = pool.get_stats()   # dict with pool_min, pool_max, pool_available, etc.
+stats = pool.pop_stats()   # same but resets counters
+```
+
+**pycopg integration:** Expose via `db.health_check()` and `async_db.health_check()` methods
+that: (a) call `pool.check()` to sweep the pool, (b) fetch `pool.get_stats()` and return
+a structured dict, (c) optionally run `SELECT 1` to confirm DB connectivity.
+No new infrastructure or dependencies needed — all of this is in the existing
+`psycopg_pool >= 3.2.0` floor.
+
+**Confidence:** HIGH — verified via Context7 psycopg3 docs and PyPI psycopg_pool 3.3.1 confirmed.
 
 ---
 
-## Function Signatures (Verified Against Official Docs)
+## 3. mypy Strict Mode for a py.typed Library
 
-### Continuous Aggregates
+### 3a. What --strict Enables (mypy 2.1.0)
 
-**`CREATE MATERIALIZED VIEW` DDL** (via `create_continuous_aggregate()`):
-```sql
-CREATE MATERIALIZED VIEW <view_name>
-WITH (timescaledb.continuous [, timescaledb.materialized_only = TRUE|FALSE])
-AS SELECT time_bucket(<interval>, <time_col>) AS bucket, <agg_exprs>
-   FROM <hypertable>
-   GROUP BY bucket [, <other_cols>]
-[WITH [NO] DATA]
+`--strict` is a composite flag that enables exactly these 13 individual flags:
+
+| Flag | Effect |
+| ---- | ------ |
+| `--disallow-any-generics` | Ban `List`, `Dict` etc. without type params |
+| `--disallow-subclassing-any` | No subclassing `Any`-typed classes |
+| `--disallow-untyped-calls` | No calling untyped functions from typed code |
+| `--disallow-untyped-defs` | All function defs must be fully annotated |
+| `--disallow-incomplete-defs` | Partial annotations forbidden |
+| `--check-untyped-defs` | Type-check bodies of untyped functions too |
+| `--disallow-untyped-decorators` | Decorators must be typed |
+| `--warn-redundant-casts` | Flag pointless `cast()` calls |
+| `--warn-unused-ignores` | Flag stale `# type: ignore` comments |
+| `--warn-return-any` | Flag functions that return `Any` |
+| `--no-implicit-reexport` | Explicit `__all__` required for re-exports |
+| `--strict-equality` | No trivially-false comparisons |
+| `--extra-checks` | Additional soundness checks |
+
+The current `pyproject.toml` `[tool.mypy]` config is NOT strict: it has
+`disallow_untyped_defs = false` and `check_untyped_defs = true` only, plus
+`ignore_missing_imports = false` at global scope with per-module `ignore_missing_imports = true`
+overrides for all third-party deps. This must be replaced.
+
+### 3b. Recommended pyproject.toml Config for Strict + py.typed
+
+```toml
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true          # not in --strict; useful addition
+
+# After installing pandas-stubs, types-geopandas, types-shapely,
+# remove the ignore_missing_imports overrides for those modules.
+# Keep overrides only for libs that have NO stubs:
+
+[[tool.mypy.overrides]]
+module = "sqlalchemy.*"
+ignore_missing_imports = true    # SQLAlchemy 2.0 has inline stubs; verify first
+
+[[tool.mypy.overrides]]
+module = "psycopg.*"
+ignore_missing_imports = true    # psycopg3 ships inline stubs; verify coverage
+
+[[tool.mypy.overrides]]
+module = "psycopg_pool.*"
+ignore_missing_imports = true    # same
+
+[[tool.mypy.overrides]]
+module = "geoalchemy2.*"
+ignore_missing_imports = true    # no stubs known; keep
+
+[[tool.mypy.overrides]]
+module = "tenacity.*"
+ignore_missing_imports = true    # no stubs known; keep
 ```
-Requires autocommit. `WITH NO DATA` avoids the transaction restriction but then
-`refresh_continuous_aggregate` is needed afterward (also autocommit).
 
-**`refresh_continuous_aggregate()`** — `CALL`, not `SELECT`:
-```sql
-CALL refresh_continuous_aggregate(
-    continuous_aggregate => '<view_name>',   -- REGCLASS
-    window_start => <interval_or_timestamptz>,
-    window_end   => <interval_or_timestamptz>
-    [, force => FALSE]
-)
+Note on psycopg/psycopg_pool stubs: psycopg3 ships inline type annotations and a
+`py.typed` marker. With `ignore_missing_imports = false` globally (strict implies this),
+mypy will consume psycopg3's native types. Test whether the overrides are still needed
+before adding them — they may be unnecessary.
+
+Note on SQLAlchemy: SQLAlchemy 2.0+ ships bundled stubs and a py.typed marker. The
+existing override is likely no longer needed with SQLAlchemy >= 2.0.
+
+### 3c. py.typed Completeness Requirements
+
+A `py.typed` marker (already present in the repo) tells mypy to enforce type completeness
+on the package's public API. For the freeze to be meaningful:
+
+1. All public functions and methods must have full annotations — no `Any` returns,
+   no untyped parameters, no bare `list` or `dict` without type params.
+2. `__all__` must be declared in every public module — required by `--no-implicit-reexport`.
+3. Overload signatures (`@overload`) must be used wherever a function returns different
+   types based on argument combinations (e.g., `into="rows"` -> `list[dict]`,
+   `into="gdf"` -> `gpd.GeoDataFrame`). The `spatial.py` accessor methods all have this
+   pattern and will fail strict without overloads.
+4. `TYPE_CHECKING` imports — third-party types used only in annotations must be under
+   `if TYPE_CHECKING:` (already done in `spatial.py` for `gpd`).
+
+The biggest mypy-strict challenge in this codebase: the `into="rows" | "gdf"` return
+type pattern throughout `spatial.py` — these all currently return `list[dict] | gpd.GeoDataFrame`
+without overloads. Under strict, `--warn-return-any` will fire unless proper `@overload`
+stubs are added. This is the most labor-intensive part of the typing work.
+
+**Confidence:** HIGH — verified against mypy 2.1.0 official docs.
+
+### 3d. CI Integration
+
+Change the mypy invocation from non-blocking (current: `continue-on-error: true`) to
+blocking. The recommended CI step:
+
+```bash
+uv run mypy pycopg --strict
 ```
-Requires autocommit. Available since TimescaleDB 1.3.0; parameters stable in 2.x.
 
-**`add_continuous_aggregate_policy()`**:
-```sql
-SELECT add_continuous_aggregate_policy(
-    continuous_aggregate => '<view_name>',  -- REGCLASS
-    start_offset         => INTERVAL,        -- NULL = MIN(timestamp)
-    end_offset           => INTERVAL,        -- NULL = MAX(timestamp)
-    schedule_interval    => INTERVAL,        -- required
-    if_not_exists        => FALSE,
-    initial_start        => NULL,            -- TIMESTAMPTZ
-    timezone             => NULL             -- TEXT
-)
-```
-Returns INTEGER `job_id`. Transaction-safe. Available since 1.7.0; stable in 2.x.
-
-### Chunk Management
-
-**`show_chunks()`**:
-```sql
-SELECT show_chunks(
-    relation     => '<hypertable_or_cagg>',  -- REGCLASS, required
-    older_than   => <interval_or_timestamp>,  -- optional
-    newer_than   => <interval_or_timestamp>,  -- optional
-    created_before => <interval_or_timestamp>, -- optional (cannot combine with older_than)
-    created_after  => <interval_or_timestamp>  -- optional (cannot combine with newer_than)
-)
-```
-Returns REGCLASS set (chunk names). Transaction-safe. Available since 0.9.0.
-
-**`drop_chunks()`**:
-```sql
-SELECT drop_chunks(
-    relation     => '<hypertable_or_cagg>',  -- REGCLASS, required (2.x: no cross-table drops)
-    older_than   => <interval_or_timestamp>,
-    newer_than   => <interval_or_timestamp>,
-    verbose      => FALSE,
-    created_before => <interval_or_timestamp>,
-    created_after  => <interval_or_timestamp>
-)
-```
-Transaction-safe. The 2.x form requires an explicit `relation` arg (cannot drop across all
-hypertables). Available since 0.1.0; 2.x form is breaking vs 1.x.
-
-### Hypertable Management
-
-**`add_dimension()`** — modern API (TimescaleDB >= 2.13):
-```sql
-SELECT add_dimension(
-    hypertable   => '<table_name>',          -- REGCLASS
-    dimension    => by_range('<col>', <interval>) | by_hash('<col>', <num_partitions>),
-    if_not_exists => FALSE
-)
-```
-Transaction-safe. **Only works on EMPTY hypertables** (no chunks). Available since 2.13.0
-for this `by_range`/`by_hash` form; deprecated positional form since 0.1.0.
-
-**`add_reorder_policy()`**:
-```sql
-SELECT add_reorder_policy(
-    hypertable   => '<table_name>',  -- REGCLASS
-    index_name   => '<index_name>',  -- TEXT
-    if_not_exists => FALSE,
-    initial_start => NULL,           -- TIMESTAMPTZ
-    timezone      => NULL            -- TEXT
-)
-```
-Returns INTEGER `job_id`. Transaction-safe. Available since 1.2.0.
-
-### Query Helpers
-
-**`time_bucket()`** — pure SQL function, embedded in SELECT:
-```sql
-time_bucket(
-    bucket_width => INTERVAL | SMALLINT | INT | BIGINT,
-    ts           => TIMESTAMP | TIMESTAMPTZ | DATE | SMALLINT | INT | BIGINT,
-    offset       => INTERVAL | INTEGER,  -- optional
-    origin       => TIMESTAMP | TIMESTAMPTZ | DATE,  -- optional
-    timezone     => TEXT  -- optional, TIMESTAMPTZ only
-)
-```
-Available since 0.0.10-beta. `timezone` param available in 2.x.
-
-**`time_bucket_gapfill()`** — pure SQL function, embedded in SELECT with GROUP BY:
-```sql
-time_bucket_gapfill(
-    bucket_width => INTERVAL,
-    ts           => TIMESTAMP | TIMESTAMPTZ,
-    start        => TIMESTAMP | TIMESTAMPTZ,  -- optional but recommended (lower bound)
-    finish       => TIMESTAMP | TIMESTAMPTZ,  -- REQUIRED for gapfill to work correctly
-    timezone     => TEXT                       -- optional, requires TimescaleDB >= 2.9
-)
-```
-Available since 1.2.0. `timezone` param requires 2.9+.
-
-**Key restriction for `time_bucket_gapfill`:** must appear as a top-level expression
-directly in the GROUP BY clause — cannot be wrapped in another function. The SQL builder
-for this function must produce queries where `time_bucket_gapfill(...)` is the GROUP BY
-expression directly. An upper bound (`finish`) is required for correct gapfill behavior;
-the builder should require it as a non-optional parameter.
+This should be a gate (not `continue-on-error`) on the `tests.yml` workflow.
 
 ---
 
-## What NOT to Add
+## 4. Structured Logging
 
-| Rejected approach | Reason |
-|---|---|
-| Any new runtime dep | Hard project constraint: zero new runtime deps |
-| `timescaledb-python` or similar SDK | Does not exist as a stable lib; SQL is the interface |
-| Setting `autocommit=True` on the pool connection | Would corrupt pool state; always use a dedicated `_autocommit_conn()` |
-| Version-introspection guard for `add_dimension` 2.13 API | Over-engineering; document the 2.13 floor in the docstring, let psycopg surface the SQL error if the server is older |
-| `DROP MATERIALIZED VIEW` method for CAGG teardown | Out of scope for v0.8.0; schema-level DDL belongs in `db.schema.*`, not `db.timescale.*` |
-| `locf()` / `interpolate()` gapfill helpers | Advanced gapfill; defer to v0.9.0+ if requested |
-| `reorder_chunk()` (manual single-chunk reorder) | Out of scope; `add_reorder_policy()` (automated) is the target |
+Verdict: stdlib `logging` with `extra={}` dict fields. Zero new runtime dependency.
+
+The library rule: a PyPI-published library must never pull in a logging framework as a
+runtime dependency. The caller (application author) chooses their logging stack. The
+library emits events via `logging.getLogger(__name__)` and the caller's handlers format
+them.
+
+The approach:
+
+1. Add a module-level logger: `logger = logging.getLogger(__name__)` in each module.
+2. Emit structured context via the `extra={}` dict.
+3. Add `logging.getLogger("pycopg").addHandler(logging.NullHandler())` to `pycopg/__init__.py`
+   (PEP 3148 / Python logging best practice for libraries — suppresses "No handlers" warnings).
+
+Example usage:
+
+```python
+logger.debug("ETL run started", extra={"pipeline": pipeline.name, "run_id": run_id})
+logger.info("COPY complete", extra={"table": table, "rows": row_count, "duration_ms": ms})
+logger.warning("PostGIS guard triggered", extra={"extension": "postgis"})
+```
+
+Why not structlog: it adds a runtime dependency for every pycopg user, violating the
+project's zero-runtime-dep rule. structlog is an application-layer tool, not a
+library-layer tool. The 2025-2026 community consensus is unambiguous: libraries use
+stdlib + NullHandler; applications use structlog.
+
+What callers get: if the calling application uses structlog or loguru, the stdlib
+`logging` events from pycopg flow through automatically (structlog integrates with stdlib
+`logging`). The caller formats them with whatever processor they want.
+
+**Confidence:** HIGH — aligns with Python logging best practices (PEP 3148) and verified
+against community consensus in 2025-2026 sources.
+
+---
+
+## 5. SemVer + Deprecation Policy (Freeze Mechanics — No New Tooling)
+
+No new tooling is needed. The freeze mechanics are documentation + process:
+
+- **SemVer policy:** document in `CHANGELOG.md` header and `README.md` that v1.0.0+
+  follows SemVer strictly: MAJOR for breaking changes, MINOR for additive (1.x), PATCH
+  for bug fixes.
+- **Deprecation policy:** document minimum 1 minor-version deprecation cycle before removal
+  (e.g., deprecated in 1.1 -> removable in 2.0). The existing `@deprecated_alias` decorator
+  mechanism is the implementation vehicle.
+- **Exception-name cleanup:** The `N818` ruff ignore in `exceptions.py` (for
+  `ExtensionNotAvailable`, `TableNotFound`, `InvalidIdentifier`, `DatabaseExists` — names
+  without "Error" suffix) was deferred to v1.0.0 in `pyproject.toml` comments. This is the
+  right time to rename them (breaking change, served via deprecation cycle).
 
 ---
 
 ## Version Compatibility Summary
 
-| Component | Minimum | Notes |
-|---|---|---|
-| TimescaleDB | 2.0 | All features except `add_dimension` modern API |
-| TimescaleDB | 2.9 | `time_bucket_gapfill` timezone parameter |
-| TimescaleDB | 2.13 | `add_dimension` with `by_range`/`by_hash` builders |
-| PostgreSQL | 13 | Implied by TimescaleDB 2.13 minimum (for `add_dimension` modern API) |
-| psycopg | >=3.1.0 (project floor) | `autocommit=True` on `connect()` available since psycopg 3.0 |
-| Python | 3.11+ (project floor) | No new Python requirements |
+| Component | Hard Minimum | Recommended | Notes |
+| --------- | ------------ | ----------- | ----- |
+| Python | 3.11 | 3.11-3.13 | No change |
+| PostgreSQL | 12 | 14+ | Implied by PostGIS 3.0 minimum |
+| PostGIS | **3.0** | **3.2+** | 3.0 = hard floor (ST_AsMVT feature IDs); 3.2 = `ST_MakeValid method=structure` |
+| psycopg | 3.1.0 | 3.3.4 (latest) | IsolationLevel, savepoints, health attrs all present since 3.0 |
+| psycopg_pool | 3.2.0 | 3.3.1 (latest) | `pool.check()`, `check_connection`, `get_stats()` all available at floor |
+| pandas | 2.0.0 | 2.1+ | 2.1+ ships py.typed; pandas-stubs (dev) for strict coverage |
+| geopandas | 0.14.0 | 1.1.3 | types-geopandas (dev) targets 1.1.3 |
+| shapely | 2.0.0 | 2.1.* | types-shapely (dev) targets 2.1.* |
+| mypy | 2.1.0 | 2.1.0 | Already installed; switch to `strict = true`, blocking |
+| pandas-stubs | — | 3.0.3.* | **New dev dep** — enables mypy strict on DataFrame paths |
+| types-geopandas | — | 1.1.3.* | **New dev dep** — enables mypy strict on GeoDataFrame paths |
+| types-shapely | — | 2.1.*.* | **New dev dep** — enables mypy strict on shapely geometry paths |
+
+---
+
+## What NOT to Add
+
+| Rejected Approach | Reason |
+| ----------------- | ------ |
+| `structlog` as runtime dep | Library rule: callers own the logging stack; stdlib NullHandler pattern is correct |
+| `:name` parameter translation layer | psycopg3 uses `%(name)s` natively; `:name` is SQLAlchemy territory, already handled by `_to_named_binds()` |
+| `postgis` Python package / PostGIS ORM | No such thing exists as a stable library; SQL is the interface (same conclusion as TimescaleDB) |
+| `shapely` PostGIS geometry translation | Shapely is already in the stack; server-side PostGIS processing is always better than round-trip to Python |
+| Version-introspection guard for PostGIS 3.2 `ST_MakeValid` options | Over-engineering; document the floor, let PostgreSQL surface the error |
+| `mypy-strict-config` or `pyright` | mypy 2.1.0 already installed; switch to strict mode, do not add a second type checker |
+| `geopandas >= 1.0.0` floor bump | Current floor `>= 0.14.0` is fine; types-geopandas targets 1.1.3 but the stubs work for our usage patterns on 0.14+ |
+| Any new runtime dep for health checks | psycopg_pool.check() + connection.closed/broken + get_stats() cover all health check needs |
 
 ---
 
 ## Sources
 
-- TimescaleDB API — `create_materialized_view`:
-  https://www.tigerdata.com/docs/api/latest/continuous-aggregates/create_materialized_view
-- TimescaleDB API — `refresh_continuous_aggregate`:
-  https://www.tigerdata.com/docs/reference/timescaledb/continuous-aggregates/refresh_continuous_aggregate
-- TimescaleDB API — `add_continuous_aggregate_policy`:
-  https://www.tigerdata.com/docs/reference/timescaledb/continuous-aggregates/add_continuous_aggregate_policy
-- TimescaleDB API — `show_chunks`:
-  https://www.tigerdata.com/docs/reference/timescaledb/hypertables/show_chunks
-- TimescaleDB API — `drop_chunks`:
-  https://www.tigerdata.com/docs/reference/timescaledb/hypertables/drop_chunks
-- TimescaleDB API — `add_dimension` (modern):
-  https://www.tigerdata.com/docs/reference/timescaledb/hypertables/add_dimension
-- TimescaleDB API — `add_reorder_policy`:
-  https://www.tigerdata.com/docs/reference/timescaledb/hypertables/add_reorder_policy
-- TimescaleDB API — `time_bucket`:
-  https://www.tigerdata.com/docs/api/latest/hyperfunctions/time_bucket
-- TimescaleDB API — `time_bucket_gapfill`:
-  https://www.tigerdata.com/docs/api/latest/hyperfunctions/gapfilling/time_bucket_gapfill
-- TimescaleDB docs — create a continuous aggregate (transaction restriction):
-  https://www.tigerdata.com/docs/use-timescale/latest/continuous-aggregates/create-a-continuous-aggregate
-- TimescaleDB GitHub issue #2876 — `refresh_continuous_aggregate` cannot run in transaction:
-  https://github.com/timescale/timescaledb/issues/2876
-- TimescaleDB PostgreSQL version compatibility matrix:
-  https://www.tigerdata.com/docs/deploy/self-hosted/upgrades/upgrade-pg
-- psycopg 3 transaction management / autocommit:
-  https://www.psycopg.org/psycopg3/docs/basic/transactions.html
-- Existing pycopg codebase — `pycopg/timescale.py`, `pycopg/etl.py` (ETL autocommit pattern)
+- psycopg3 IsolationLevel enum, set_isolation_level, transaction(), savepoints, named params, pool check:
+  Context7 `/websites/psycopg_psycopg3` and `/psycopg/psycopg`
+- psycopg3 latest version 3.3.4: <https://pypi.org/project/psycopg/>
+- psycopg_pool latest version 3.3.1: <https://pypi.org/project/psycopg-pool/>
+- PostGIS ST_MakeValid — 2.0.0 availability, 3.2.0 structure algorithm, GEOS 3.10 requirement:
+  <https://postgis.net/docs/ST_MakeValid.html> and <https://www.crunchydata.com/blog/waiting-for-postgis-3.2-st_makevalid>
+- PostGIS ST_AsMVT — 2.4.0 availability, 3.0.0 feature IDs: <https://postgis.net/docs/ST_AsMVT.html>
+- PostGIS ST_AsGeoJSON — 1.3.4 availability, maxdecimaldigits parameter: <https://postgis.net/docs/ST_AsGeoJSON.html>
+- PostGIS ST_Union — 1.4.0 aggregate form, 3.1.0 gridSize: <https://postgis.net/docs/ST_Union.html>
+- PostGIS ST_Collect — 1.4.0 aggregate form: <https://postgis.net/docs/ST_Collect.html>
+- PostGIS 3.5.0 release (PostgreSQL 12-17 support): <https://postgis.net/2024/09/PostGIS-3.5.0/>
+- mypy 2.1.0 --strict flag list (13 flags): <https://mypy.readthedocs.io/en/stable/command_line.html>
+- pandas-stubs latest 3.0.3.260530, pandas 2.1+ py.typed: <https://pypi.org/project/pandas-stubs/>
+- types-geopandas 1.1.3.20260518, typeshed provenance: <https://pypi.org/project/types-geopandas/>
+- types-shapely (typeshed, targets shapely 2.1.*): <https://pypi.org/project/types-shapely/>
+- Structured logging library convention (NullHandler for library code, structlog for apps):
+  Python PEP 3148 and 2025-2026 community consensus
 
 ---
-*Stack research for: pycopg v0.8.0 — TimescaleDB advanced features*
-*Researched: 2026-06-22*
+
+*Stack research for: pycopg v1.0.0 — Spatial v2 + API freeze*
+*Researched: 2026-06-27*

@@ -1,372 +1,644 @@
 # Pitfalls Research
 
-**Domain:** TimescaleDB 2.x advanced feature wrapping in a psycopg 3 high-level Python library (pycopg v0.8.0)
-**Researched:** 2026-06-22
-**Confidence:** HIGH (MEDIUM for a few version-specific boundary claims noted inline)
+**Domain:** pycopg v1.0.0 — Spatial v2 + API Freeze on a mature published PyPI library
+**Researched:** 2026-06-27
+**Confidence:** HIGH (all findings grounded in pycopg's own history, codebase, and PostGIS/mypy documentation)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: CREATE MATERIALIZED VIEW (Continuous Aggregate) Cannot Run Inside a Transaction Block
+### Pitfall 1: validate_identifiers Silently Dropped During Spatial v2 Builder Additions
 
 **What goes wrong:**
 
-`CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous)` fails with:
+New spatial v2 builders (`build_union_sql`, `build_difference_sql`, `build_simplify_sql`, etc.) are
+written without the `validate_identifiers(table, schema, geom)` guard at the top. The SQL template
+assembles correctly, the suite stays green, the PR ships. Users can now inject arbitrary SQL via the
+`table` or `geom` argument.
 
-```
-ERROR: CREATE MATERIALIZED VIEW ... WITH DATA cannot be executed within a pipeline
-```
-
-or (on some versions):
-
-```
-ERROR: REFRESH cannot run inside a transaction block
-```
-
-psycopg 3 opens an implicit transaction on every connection that is NOT in autocommit mode. Because `Database.execute()` (and every method that calls it) uses a normal connection, any call to `create_continuous_aggregate` through the standard path fires inside an implicit transaction and raises this error immediately.
+This is not hypothetical: the v0.10.0 COPY rewrite on `from_dataframe` / `from_geodataframe`
+silently dropped `validate_identifiers` and was caught only by the code-review gate — the test
+suite stayed completely green (milestone MEMORY: "the COPY rewrite dropped `validate_identifiers`
+→ caught by code-review gate, fixed 863e894 inside the helpers"). The same failure mode is
+identically likely for every new builder written for Spatial v2.
 
 **Why it happens:**
 
-TimescaleDB's continuous aggregate DDL runs across two internal transactions: one to move the invalidation threshold and one to materialize. PostgreSQL's transaction machinery cannot enclose another BEGIN/COMMIT pair inside an open transaction, so TimescaleDB explicitly prohibits these calls inside a transaction context. The restriction has been present since TimescaleDB 1.3 and is a permanent, intentional constraint.
-
-The ETL accessor solved the identical problem for `pipeline_runs` writes by opening a dedicated `self._db.connect(autocommit=True)` connection per call. Continuous aggregate DDL needs exactly the same structural fix — a dedicated autocommit connection per call, NOT a route through `self._db.execute()`.
+Each new builder is written in isolation, following the existing builder signature shape but without
+internalizing the security invariants documented in `spatial.py`'s module docstring. The existing
+builders all call `validate_identifiers(table, schema, geom)` as their first line; new builders
+added without reading that module docstring omit it. Unit tests test correctness, not absence of
+injection guards — a builder that correctly builds the SQL without calling `validate_identifiers`
+passes all correctness tests.
 
 **How to avoid:**
 
-Every TimescaleDB DDL or management call that requires autocommit must open a fresh connection via `self._db.connect(autocommit=True)` instead of delegating to `self._db.execute()`. Concretely:
-
-- `create_continuous_aggregate` — use `connect(autocommit=True)` for the `CREATE MATERIALIZED VIEW` statement.
-- `refresh_continuous_aggregate` — use `connect(autocommit=True)`.
-- `add_continuous_aggregate_policy` — stored procedure; also requires no enclosing transaction; use `connect(autocommit=True)` for consistency and safety.
-- `drop_continuous_aggregate` — `DROP MATERIALIZED VIEW` is DDL; same rule.
-
-For the async accessor, psycopg 3's `AsyncConnection` property `autocommit` is read-only after construction. Use `autocommit=True` at `AsyncConnection.connect()` time, or call `await conn.set_autocommit(True)` immediately after opening the connection. Never attempt `conn.autocommit = True` on an already-open async connection.
-
-The existing `TimescaleAccessor.create_hypertable` uses `self._db.execute()` (inside an implicit transaction). `create_hypertable` happens to work because it calls a stored procedure that uses `SPI_exec` internally without requiring a top-level autocommit context. Do NOT assume other new TimescaleDB calls follow the same pattern — verify each one by reading the TimescaleDB source or testing explicitly.
+1. The first line of every new `build_*_sql` function in `spatial.py` must be
+   `validate_identifiers(table, schema, geom)` (plus `validate_identifiers(*columns)` if
+   `columns=` is accepted). This is a mechanical checklist item for the Spatial v2 phase plan.
+2. Add an explicit injection-safety regression test for every new builder: call it with a
+   `table="'; DROP TABLE foo; --"` argument and assert `InvalidIdentifier` is raised. This test
+   goes into the builder's unit test file, not just the integration suite. It will catch any
+   future rewrite that drops the guard.
+3. The Spatial v2 phase plan must include a requirement: "injection-safety regression test written
+   for every new builder (table, schema, geom, and columns)."
 
 **Warning signs:**
 
-- `InFailedSqlTransaction` or `ActiveSqlTransaction` psycopg errors during tests.
-- The call works when called from a fresh Python process but fails when called after any other `db.*` call in the same session.
-- Integration test passes in isolation, fails when run after another test in a suite sharing a `db` instance.
+- A new `build_*_sql` function in `spatial.py` whose first statement is NOT `validate_identifiers`.
+- A new builder that has no test asserting `InvalidIdentifier` on a malicious identifier.
+- The phrase "test suite stayed green" after a significant spatial.py rewrite.
 
 **Phase to address:**
 
-Continuous aggregate phase (Phase 30). Add an explicit autocommit guard in each affected method. Write a regression test that calls `create_continuous_aggregate` AFTER `db.execute("SELECT 1")` in the same session to prove the isolation works.
+Spatial v2 processing phase (Phase 41 or equivalent). Requirement must be in the phase's
+acceptance criteria, not just a code review note.
 
 ---
 
-### Pitfall 2: refresh_continuous_aggregate Also Cannot Run Inside a Transaction Block
+### Pitfall 2: SRID Mismatch Causes Silent Wrong Results or Cryptic Errors in Binary Operations
 
 **What goes wrong:**
 
-`refresh_continuous_aggregate(view, window_start, window_end)` raises:
+`ST_Union`, `ST_Difference`, and `ST_Intersection` operating on two geometry arguments fail with:
 
 ```
-ERROR: REFRESH cannot run inside a transaction block
+ERROR: Operation on mixed SRID geometries (SRID 4326 != SRID 32632)
 ```
 
-This is a separate issue from Pitfall 1 — the refresh is blocked even when the view was created correctly. Any refresh call routed through `self._db.execute()` hits this error.
+or, worse, silently produce a geometry in the wrong coordinate system when PostGIS accepts the
+operation (e.g., both inputs are in SRID 0 = undefined). The API user passed geometries from two
+different sources without noticing they were in different SRIDs. The error message is a raw
+psycopg `ProgrammingError`, not a pycopg domain error.
 
-Additionally, data inserted inside an uncommitted client transaction is NOT visible to the refresh — the refresh reads only committed rows from the underlying hypertable. A test that inserts data and immediately calls refresh on the same connection (without committing first) will see an empty refresh result.
+For aggregate operations (`ST_Union(agg)`, `ST_Extent`), PostGIS will raise the mixed-SRID error
+at execution time only if rows in the same table have inconsistent SRIDs — which is valid from
+a storage perspective but catastrophic for the aggregation. There is no guard at the SQL level.
 
 **Why it happens:**
 
-Same root cause as Pitfall 1: the refresh moves the materialization watermark in one transaction and applies aggregation in a second transaction. An enclosing client transaction block prevents this.
+The existing spatial v1 builders operate on single-table single-geometry-column paths where SRID
+consistency is assumed from the table schema. Spatial v2 binary operations (Difference,
+Intersection) and aggregates operate across rows that may have mixed SRIDs if the table was
+loaded inconsistently. pycopg's builder cannot validate SRIDs at builder time (they are DB values);
+the error surfaces only at execution time as a raw psycopg error.
 
 **How to avoid:**
 
-Same structural solution: `connect(autocommit=True)` for every refresh call. Additionally, the test fixture must ensure that data is committed before the refresh is called. Use autocommit inserts in the test setup, or call `db.execute("COMMIT")` explicitly before calling refresh.
-
-Test shape:
-
-```python
-# 1. Insert committed data (autocommit=True or explicit commit)
-db.execute("INSERT INTO metrics (time, val) VALUES (now() - INTERVAL '2 hours', 42)")
-# 2. Refresh on its own autocommit connection
-db.timescale.refresh_continuous_aggregate("metrics_hourly", start, end)
-# 3. Assert aggregated row now exists
-rows = db.execute("SELECT * FROM metrics_hourly")
-assert len(rows) > 0
-```
+1. For binary processing builders (`union`, `difference`, `intersection`): document clearly that
+   both geometry operands must share the same SRID. If the API takes a `srid=` parameter, use it
+   to emit `ST_SetSRID(..., srid)` on user-supplied WKT/GeoJSON inputs and `ST_Transform(col,
+   srid)` on table-column inputs. Do not silently assume SRID matches.
+2. For aggregate builders: document that mixed-SRID tables will raise a PostGIS error at
+   execution time. Recommend `ST_Transform` preprocessing or an explicit SRID filter in `where=`.
+3. Wrap raw PostGIS SRID errors in a pycopg domain exception at the accessor level (a
+   `SpatialError` or use `ExtensionNotAvailable` pattern) so users see a clear pycopg message,
+   not a bare `ProgrammingError`.
+4. Integration tests must use consistent-SRID fixtures. Add a test with a deliberate SRID mismatch
+   that asserts a clear exception (not a silent wrong result).
 
 **Warning signs:**
 
-Tests that insert data and immediately call refresh return empty results without errors — the data was not committed when refresh ran.
+- Integration tests pass because all test geometries happen to be SRID 4326 — no mixed-SRID
+  coverage.
+- A new binary operation builder with no `srid=` parameter or SRID documentation in the docstring.
+- `ProgrammingError` surfaces raw from a spatial accessor instead of a pycopg domain error.
 
 **Phase to address:**
 
-Continuous aggregate phase (Phase 30). The refresh method must be on a dedicated autocommit connection. The test fixture must use committed data.
+Spatial v2 processing phase. Each binary operation method must document SRID assumptions. At least
+one mixed-SRID test per binary operation.
 
 ---
 
-### Pitfall 3: drop_chunks Is Destructive and Irreversible — Easy Footgun in a High-Level API
+### Pitfall 3: ST_AsMVT Requires EPSG:3857 + ST_AsMVTGeom Clipping — Wrong Coordinate System Produces Corrupted Tiles
 
 **What goes wrong:**
 
-`drop_chunks('my_hypertable', older_than => INTERVAL '30 days')` permanently deletes all chunks older than 30 days. There is no ROLLBACK. Data is gone. If a user calls `db.timescale.drop_chunks("metrics", "30 days")` with a wrong table name or wrong interval, they lose production data with no recovery path.
+`ST_AsMVT` is called directly on geometries stored in SRID 4326 (WGS84 lat/lon). The tile comes
+back without error but the coordinates are in degrees, not tile pixel space. Map renderers
+(MapLibre, Leaflet) display nothing or garbage.
 
-Additionally: if a continuous aggregate is defined on the hypertable and its refresh window overlaps with the dropped region, aggregate queries return incorrect results (NULL-padded or zero) for the deleted period. The aggregate view survives the drop but queries a hypertable with missing raw data.
+The correct sequence is:
+1. `ST_Transform(geom, 3857)` — project to Web Mercator
+2. `ST_AsMVTGeom(transformed_geom, ST_TileEnvelope(z, x, y))` — clip to tile envelope and scale
+   to pixel space (0–4096)
+3. `ST_AsMVT(agg.*)` — binary encode the result
+
+Skipping ST_AsMVTGeom or using the raw geometry skips the clipping step; geometries outside the
+tile boundary are not clipped to the envelope, producing corrupted vector tiles.
+
+Additionally, `ST_TileEnvelope(z, x, y)` is a PostGIS 3.0+ function. On PostGIS < 3.0, it does
+not exist and the call raises `UndefinedFunction`.
 
 **Why it happens:**
 
-The function name sounds benign. A high-level convenience API makes it trivially easy to call. The `older_than` parameter accepts a plain interval string, which a user might read as "chunks from 30 days ago" when it means "all chunks whose time range is entirely before (now - 30 days)".
+Developers familiar with `ST_AsGeoJSON` (which works correctly on 4326 data) apply the same
+"just wrap the geometry column" mental model to `ST_AsMVT`. MVT has fundamentally different
+coordinate space requirements from GeoJSON. The transform-and-clip steps are not optional.
 
 **How to avoid:**
 
-1. Mark `drop_chunks` as DESTRUCTIVE and IRREVERSIBLE in the numpydoc `Notes` section. Use the word "permanent". Do not soften it.
-2. Add a `dry_run: bool = False` parameter that calls `show_chunks` with the same arguments and returns the list of chunks that WOULD be dropped without actually dropping them. This mirrors the ETL dry_run pattern already in the codebase.
-3. Validate that exactly one of `older_than` or `newer_than` is provided — never accept both (confusing semantics); never default both to None (which would drop every chunk).
-4. Ship `show_chunks` (read-only) before `drop_chunks` so the pattern is established.
-
-Test shape: insert data in two temporal windows, drop the older window via `drop_chunks`, assert older chunks are gone and newer chunks remain. Verify via `show_chunks` before and after. Also test `dry_run=True` returns the chunk list without removing anything.
+1. The `as_mvt` accessor method signature must accept `z`, `x`, `y` tile coordinates as required
+   positional parameters. The builder internally uses `ST_TileEnvelope(z, x, y)` for the clip
+   envelope. Document that the input geometry column must be in a projected CRS or accept a
+   `from_srid=` parameter to apply the transform automatically.
+2. The builder must always emit `ST_Transform(col, 3857)` followed by `ST_AsMVTGeom` + `ST_AsMVT`
+   — never expose a raw-geometry path.
+3. Integration test: call `as_mvt` with tile (0, 0, 0), assert the result is non-empty bytes, and
+   decode with the `mapbox-vector-tile` library (or a minimal MVT parser) to verify the tile
+   contains at least one feature. A test that only asserts `isinstance(result, bytes)` does not
+   catch the wrong-coordinate-system bug.
+4. Add a PostGIS version check or a `try/except UndefinedFunction` guard for `ST_TileEnvelope`
+   with a clear error on PostGIS < 3.0.
 
 **Warning signs:**
 
-All hypertable data disappears after a `timescale.*` call. `drop_chunks` is the first suspect.
+- The `as_mvt` builder takes only a geometry column name with no tile coordinate parameters.
+- The generated SQL does not contain `ST_Transform` and `ST_AsMVTGeom`.
+- Integration test only checks `result is not None` or `len(result) > 0`.
 
 **Phase to address:**
 
-Chunk management phase (whichever phase implements `show_chunks` / `drop_chunks`). The `dry_run` parameter and the DESTRUCTIVE docstring note are non-negotiable before publication.
+Spatial v2 serialization phase. MVT is the highest-complexity serialization target; it must be
+designed from the PostGIS 3.x `ST_AsMVT` specification, not inferred from the GeoJSON pattern.
 
 ---
 
-### Pitfall 4: time_bucket_gapfill Bounds Cannot Be Inferred from psycopg %s Parameters
+### Pitfall 4: ST_MakeValid and ST_Simplify Return NULL or Degenerate Geometry — Not Handled
 
 **What goes wrong:**
 
-The query:
+`ST_Simplify(geom, tolerance)` returns `NULL` when the result collapses to an empty geometry (all
+points within tolerance distance of each other). `ST_MakeValid` returns a
+`GEOMETRYCOLLECTION EMPTY` for pathological inputs. These NULLs and empty collections propagate
+silently into the GeoDataFrame output as None geometries. When `into="gdf"` is used, geopandas
+raises on geometry operations over a GeoDataFrame containing null geometries (e.g., `.area`,
+`.buffer`), producing confusing downstream errors.
 
-```sql
-SELECT time_bucket_gapfill('1 hour', time) AS bucket, avg(val)
-FROM metrics
-WHERE time >= %s AND time < %s
-GROUP BY bucket
-```
-
-with bound parameters raises:
-
-```
-ERROR: missing time_bucket_gapfill argument: could not infer start from WHERE clause
-```
-
-or:
-
-```
-ERROR: invalid time_bucket_gapfill argument: start must be a simple expression
-```
-
-`time_bucket_gapfill` requires TimescaleDB's planner hook to inspect the WHERE clause at planning time to determine the gapfill range. When values are bound as `%s` placeholders (prepared-statement parameters), the planner sees opaque plan nodes — it cannot read the literal value — so inference fails. This is not a psycopg 3 bug; it is a fundamental TimescaleDB planner constraint.
+`ST_MakeValid` can also change geometry type: a POLYGON with a self-intersection becomes a
+MULTIPOLYGON or GEOMETRYCOLLECTION. A column typed as `geometry(Polygon, 4326)` may receive a
+GEOMETRYCOLLECTION back — PostGIS accepts it but geopandas explodes the geometry type assumptions
+downstream.
 
 **Why it happens:**
 
-The pycopg codebase correctly uses `%s` for all user values to prevent injection. This pattern is right for data values but is structurally incompatible with `time_bucket_gapfill`'s planner-time bound inference.
+The builders emit `ST_Simplify(t.geom, %s)` or `ST_MakeValid(t.geom)` and return the result.
+Nothing in the builder chain checks whether the output is NULL or EMPTY. Unit tests use
+well-formed synthetic geometries that don't trigger collapse or type change.
 
 **How to avoid:**
 
-Pass `start` and `end` as explicit arguments to `time_bucket_gapfill()` in the generated SQL:
-
-```sql
-SELECT time_bucket_gapfill('1 hour', time, %s::timestamptz, %s::timestamptz) AS bucket, avg(val)
-FROM metrics
-WHERE time >= %s AND time < %s
-GROUP BY bucket
-```
-
-With explicit start/end arguments in the function call, TimescaleDB reads them from the function argument list at execution time — not from the WHERE clause at planning time. Bound `%s` parameters in function arguments work correctly. Only WHERE-clause inference fails.
-
-The builder signature must accept `start` and `end` as required parameters, not optional inferrable values. If the user does not provide them, raise a clear `ValueError` before the query is sent.
-
-`locf()` and `interpolate()` are only valid alongside `time_bucket_gapfill`. Guard against constructing a query that uses them outside a gapfill context.
+1. Wrap simplify results in `ST_SimplifyPreserveTopology` by default — it avoids the NULL collapse
+   on simple geometries. Expose `preserve_topology: bool = True` as a parameter. Only use bare
+   `ST_Simplify` when `preserve_topology=False` is explicit.
+2. For `make_valid`, document in the docstring: "The output geometry type may differ from the
+   input (e.g., POLYGON may become MULTIPOLYGON or GEOMETRYCOLLECTION)." Add a note that NULL
+   results (for empty inputs) are passed through.
+3. Integration tests must include at least one degenerate case: a self-intersecting polygon
+   (bowtie) passed to `make_valid`, asserting non-NULL, non-empty output; and a geometry with
+   all points within tolerance passed to `simplify`, asserting the result is handled (either NULL
+   returned or documented).
 
 **Warning signs:**
 
-- The query works with hardcoded literal dates but fails with bound parameters.
-- Error message mentions "could not infer start" or "start must be a simple expression".
+- The `simplify` accessor uses `ST_Simplify` with no `preserve_topology` parameter.
+- Integration tests use only clean, convex polygon fixtures.
+- No test asserts behavior on a degenerate input geometry.
 
 **Phase to address:**
 
-`time_bucket` / `time_bucket_gapfill` helpers phase. The builder MUST accept explicit `start` and `end` parameters and embed them as function arguments. Write a test using `datetime.now()` as a bound parameter (not a literal) to confirm the explicit-argument path works.
+Spatial v2 processing phase. `ST_SimplifyPreserveTopology` must be the default; `ST_Simplify` is
+the opt-out.
 
 ---
 
-### Pitfall 5: time_bucket_gapfill MUST Appear Directly in GROUP BY — No Expression Wrapping
+### Pitfall 5: Spatial Aggregate NULL Propagation — GROUP BY Without FILTER Silently Drops Groups
 
 **What goes wrong:**
 
-```sql
--- Fails silently or with a planner error:
-SELECT time_bucket_gapfill('1 hour', time) + INTERVAL '30 minutes', avg(val)
-FROM metrics
-WHERE time >= '2024-01-01' AND time < '2024-01-02'
-GROUP BY time_bucket_gapfill('1 hour', time) + INTERVAL '30 minutes'
-```
+`ST_Union(agg)` and `ST_Collect` on a column that contains some NULL geometries produce a result
+that silently excludes NULL rows from the aggregate (PostgreSQL aggregate semantics: NULLs are
+ignored). The user expects a result covering all groups but receives an aggregate over only the
+non-NULL subset. On tables where NULL geometries are common (e.g., optional spatial data), the
+output is systematically incomplete without any error.
 
-`time_bucket_gapfill` must be a top-level reference in GROUP BY, not wrapped in any expression. Wrapping breaks TimescaleDB's planner recognition of the function.
-
-**Why it happens:**
-
-`time_bucket_gapfill` is a special planner-recognized function. Expression wrapping in GROUP BY defeats the recognition even if the expression is semantically equivalent.
-
-**How to avoid:**
-
-The builder must never wrap `time_bucket_gapfill(...)` in any expression in the GROUP BY clause. If users need an offset, apply it in a CTE or outer SELECT. Document this constraint in the method docstring.
-
-**Phase to address:**
-
-`time_bucket` / `time_bucket_gapfill` phase. Verify with a test that the generated SQL includes bare `time_bucket_gapfill(...)` as the GROUP BY column.
-
----
-
-### Pitfall 6: add_dimension Requires an Empty Hypertable; by_range/by_hash Requires TimescaleDB >= 2.13
-
-**What goes wrong:**
-
-Calling `add_dimension` on a hypertable that already has data raises an error (exact message varies by version; roughly: "hypertable has existing data: cannot add partitioned dimension").
-
-Additionally, on TimescaleDB < 2.13, calling the new `by_range('column', interval)` or `by_hash('column', partitions)` dimension builder functions fails with `UndefinedFunction`. These were introduced in TimescaleDB 2.13 as part of the "generalized hypertable DDL API" release.
-
-The pre-2.13 positional form is deprecated but still works on 2.13+:
-
-```sql
--- Old positional form (deprecated in 2.13, works on all 2.x):
-SELECT add_dimension('table', 'column', number_partitions => 4);
-SELECT add_dimension('table', 'column', chunk_time_interval => INTERVAL '1 day');
-```
-
-`number_partitions` and `chunk_time_interval` are mutually exclusive — passing both raises an error.
+`ST_Extent` (bounding box aggregate) returns NULL for an empty group — when `where=` filters
+produce zero rows for a given group, `ST_Extent` returns NULL for that group, which surfaces as
+a None-valued row in the output.
 
 **Why it happens:**
 
-The 2.13 release simplified the DDL API. Users on self-hosted PostgreSQL with an older TimescaleDB build (pre-2.13) will not have `by_range`/`by_hash`. The pycopg test environment may also be pre-2.13 — check with `SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'` before building the implementation.
+Aggregate NULL-skipping is correct SQL behavior but violates the user's expectation when building
+spatial aggregates. The builder has no visibility into which rows have NULL geometries. Integration
+tests use clean fixtures without NULL geometries.
 
 **How to avoid:**
 
-1. Validate the target hypertable is empty before calling `add_dimension`. Query `timescaledb_information.chunks` for the hypertable; if rows exist, raise a clear pycopg-domain error (not a raw psycopg `ProgrammingError`) before sending the SQL.
-2. Use the pre-2.13 positional keyword form in the initial implementation — it works on both old and new 2.x. Document `by_range`/`by_hash` as a future enhancement requiring >= 2.13.
-3. Validate that `number_partitions` and `chunk_time_interval` are not both provided — raise `ValueError` at call time if both are non-None.
-4. Document the 2.x minimum in the docstring. If both forms are exposed in a future phase, add a version gate check (query `pg_extension.extversion`, compare semver).
+1. Document NULL-skipping behavior explicitly in docstrings for `union_agg`, `collect`, and
+   `extent`: "NULL geometries are skipped per SQL aggregate semantics. Rows where the geometry
+   column is NULL do not contribute to the aggregate."
+2. Integration tests must include at least one NULL geometry row and assert the output reflects
+   only non-NULL geometries (verifying the behavior is documented, not that it is wrong).
+3. For `extent`, document that an empty group returns NULL (not an empty geometry) and test this
+   case.
 
 **Warning signs:**
 
-- Error about "existing data" when running `add_dimension` tests — the fixture is reusing a hypertable from a prior test that inserted data.
-- `UndefinedFunction` for `by_range` or `by_hash` on the CI/local test server.
+- No test with NULL geometries in the fixture table.
+- Docstrings say nothing about NULL behavior.
 
 **Phase to address:**
 
-`add_dimension` phase. Test fixture must create a fresh empty hypertable for each `add_dimension` test.
+Spatial v2 aggregates phase.
 
 ---
 
-### Pitfall 7: Continuous Aggregate SELECT Must Use time_bucket on the Partitioning Column
+### Pitfall 6: Deprecation Cycle Done Wrong — DeprecationWarning Invisible or Wrong stacklevel
 
 **What goes wrong:**
 
-```sql
--- Fails with a TimescaleDB error:
-CREATE MATERIALIZED VIEW bad_agg WITH (timescaledb.continuous) AS
-SELECT date_trunc('hour', time) AS bucket, avg(val)
-FROM metrics
-GROUP BY bucket;
-```
+The homogenization pass renames methods (e.g., `db.schema.table_info` to `db.schema.describe`,
+or exception class renames). Old names are wrapped with `@deprecated_alias` or equivalent. But:
 
-TimescaleDB requires `time_bucket(interval, <partitioning_column>)` — not `date_trunc`, not a plain column reference, not an alias. The partitioning column must be the one defined as the time dimension of the hypertable.
+- `stacklevel=2` in the `warnings.warn()` call points to the wrapper function, not the caller's
+  line. Users see the warning pointing at pycopg internals, not their own code.
+- `pytest` runs with `-W error::DeprecationWarning` (enforced by the CI gate). If a new deprecation
+  wrapper is accidentally used internally (e.g., an internal call that goes through the deprecated
+  path), CI turns red immediately on the next test run for an unrelated reason.
+- The MIGRATION guide lists the old name but not the full signature diff. If the new method has a
+  different parameter name or different return type, users get an AttributeError or TypeError after
+  migrating, not a deprecation warning.
 
 **Why it happens:**
 
-`date_trunc` is a plain PostgreSQL function; TimescaleDB cannot hook into its planner extension for incremental materialization. `time_bucket` is the required entry point for continuous aggregates.
+The `@deprecated_alias` decorator was established in v0.6.0 and worked correctly for the
+accessor-reorganization case (old flat name → new accessor path). The v1.0.0 homogenization is
+a different shape: same accessor, different method name or signature. The decorator must be applied
+at the right layer. The stacklevel must be set correctly for the new wrapping depth.
+
+The historical pattern (v0.6.0 → v0.7.0) was: one milestone to add the deprecation, next
+milestone to remove it. v1.0.0 is the final milestone, so the deprecation cycle must be
+compressed: add deprecation warning + MIGRATION, then hard-remove in the same milestone. This
+changes the test sequencing.
 
 **How to avoid:**
 
-The `create_continuous_aggregate` builder should validate (heuristic only — no SQL parser) that the user-supplied aggregate SQL string contains `time_bucket(` (case-insensitive). If not found, raise a `ValueError` with a clear message before sending the DDL to the DB. This is a lightweight guard, not a parser — it catches the most common mistake.
+1. Every deprecated name must use `warnings.warn(..., stacklevel=2)` counted from the wrapper's
+   call frame — verify this by running a test that calls the deprecated method and asserting the
+   warning points to the test file, not to `pycopg/`.
+2. The CI gate `-W error::DeprecationWarning` must stay green. Run the full suite against the
+   deprecation wrappers before removing them in the same milestone.
+3. The MIGRATION guide entry for each renamed method must include: old name, new name, any
+   parameter differences, any return type differences, and a before/after code example.
+4. Internal call sites in pycopg/ must use the new name, not the deprecated wrapper. Grep for
+   old method names in `pycopg/` source before shipping.
+5. If removing deprecated names in the same milestone as adding them: the removal phase must
+   run the full test suite AFTER removal to confirm no internal call sites remain.
+
+**Warning signs:**
+
+- A `warnings.warn` call with no explicit `stacklevel` parameter (defaults to 1, points at
+  the wrong frame).
+- MIGRATION guide entry says "rename X to Y" with no parameter/type notes.
+- `grep -r "old_method_name" pycopg/` returns hits in non-test files after the removal phase.
 
 **Phase to address:**
 
-Continuous aggregate phase. Include the heuristic check in the builder. Test with a `date_trunc`-based query to confirm the error fires before any DB round-trip.
+API freeze / homogenization phase. Each renamed or reshaped method needs a MIGRATION entry
+written before the deprecation wrapper is coded (spec first).
 
 ---
 
-### Pitfall 8: Continuous Aggregate Policy — start_offset Must Be Greater Than end_offset
+### Pitfall 7: Freezing an Inconsistent API — where= Is a Raw Fragment on Spatial, a Dict on CRUD
 
 **What goes wrong:**
 
-`add_continuous_aggregate_policy` parameters are named in a way that suggests temporal ordering (start before end chronologically), but the semantics are relative to the present:
+`db.spatial.contains(table, where="status = 'active'")` accepts a raw SQL fragment string.
+`db.delete_where(table, where={"status": "active"})` requires a dict. Users who read one API
+and apply it to the other get a silent wrong result (passing a string dict-style, or a dict
+to the string-fragment path that ignores it) or a runtime TypeError.
 
-- `start_offset` = how far BACK in time the refresh window starts (e.g., `INTERVAL '3 days'` means "start from 3 days ago")
-- `end_offset` = how close to the PRESENT the refresh window ends (e.g., `INTERVAL '1 hour'` means "stop 1 hour before now")
-
-So `start_offset > end_offset` (as intervals) is correct: start_offset must be LARGER than end_offset. If `start_offset='1 hour'` and `end_offset='3 days'`, the window is reversed and TimescaleDB will raise an error or produce undefined behavior.
-
-Also: `NULL` for `end_offset` means "up to the present" — this materializes the current (still-open) bucket, which is incorrect. The current bucket has incomplete data. Always use a non-NULL `end_offset` of at least the bucket interval (e.g., for hourly buckets, `end_offset >= INTERVAL '1 hour'`).
+If this inconsistency is frozen at 1.0 without a homogenization decision, it is locked in
+for the 1.x lifetime. It is the most visible API incoherence in the current surface.
 
 **Why it happens:**
 
-The parameter names suggest a timeline from start to end. Users coming from standard window-function thinking set `start_offset` to a small interval (close to now) and `end_offset` to a large interval (further back), which reverses the window.
+The `where=` string-fragment convention was established in the spatial accessor (Phase 14,
+decision D-11: "raw SQL filter is the caller's responsibility"). The dict-of-equality convention
+was established later in CRUD helpers (v0.9.0, `_build_where_dict`). Both are correct within
+their context. They were not compared across the surface before v1.0.0.
 
 **How to avoid:**
 
-1. Validate at call time (before sending SQL) that `start_offset > end_offset` when both are non-NULL. For interval comparison, parse with Python's `datetime.timedelta` if both are Python timedelta objects; if strings, at minimum document the constraint prominently and add a test with deliberately swapped values.
-2. Validate that `end_offset` is not `None` in the default call path — require explicit opt-in for the open-ended (NULL) case.
-3. Document with an example showing correct ordering in the method docstring.
+The homogenization phase must make an explicit decision about `where=`:
+- Option A: Standardize spatial on dict-of-equality for simple cases, keep string-fragment as
+  an escape hatch. This is a breaking change to the spatial API.
+- Option B: Standardize CRUD on string-fragment. This is a breaking change to CRUD.
+- Option C: Document the difference explicitly in a `where= conventions` section of the API
+  reference, freeze both forms. This is "freeze the inconsistency," which is acceptable IF
+  documented but creates ongoing user confusion.
+
+The decision must be made in the homogenization design phase, not after builders are written.
+Whatever is chosen, the MIGRATION guide must document the collision clearly.
+
+**Warning signs:**
+
+- The API reference for v1.0.0 has no `where=` conventions section.
+- `db.spatial.*` methods and `db.delete_where` are documented independently with no
+  cross-reference.
+- A user reports TypeError passing a dict to a spatial method's `where=`.
 
 **Phase to address:**
 
-Continuous aggregate phase. Test: call `add_continuous_aggregate_policy` with swapped offsets; assert a `ValueError` fires.
+Homogenization / API freeze phase (before any Spatial v2 builders are written, since new
+builders will set a precedent for `where=` in v2 methods).
 
 ---
 
-### Pitfall 9: reorder_policy Conflicts With Compression and Requires a Non-Default Index
+### Pitfall 8: Exception Naming — N818 Suppression Deferred to v1.0.0, Now Must Be Resolved
 
 **What goes wrong:**
 
-Two failure modes:
+`pyproject.toml` currently suppresses ruff N818 (exception names should end in `Error`) for
+`pycopg/exceptions.py` with the comment: "Reconsider at the v1.0.0 API freeze." The deferred
+exceptions are: `ExtensionNotAvailable`, `TableNotFound`, `InvalidIdentifier`, `DatabaseExists`.
+Renaming them at v1.0.0 is a breaking change to any user who catches these by name.
 
-1. A reorder policy on a hypertable that also has a compression policy will fail (or silently skip) when the reorder job runs on already-compressed chunks. Compressed chunks are immutable; the reorder operation cannot modify them. Early TimescaleDB versions raised an explicit error; later versions (1.7.1+) silently skip compressed chunks. Either way, the reorder policy is effectively inert for any chunk that has been compressed.
+If the decision is to rename (add `Error` suffix), the homogenization phase must:
+1. Add the old name as a deprecated alias for one release cycle.
+2. Export both names from `__all__`.
+3. Update every `raise` site in pycopg/ to use the new name.
+4. Update every `except` in tests to use the new name.
+5. Update docs.
+6. List in MIGRATION guide.
 
-2. `add_reorder_policy` requires an existing non-default index. If the named index does not exist, the call raises an error. The default btree index on the time column does NOT count as a valid reorder target if no additional index is specified. The index must be explicitly named in the call.
+If the decision is to keep the old names (freeze the N818 suppression), the pyproject.toml
+comment must be updated to say "kept as-is at v1.0.0" and the suppression must be justified.
 
 **Why it happens:**
 
-The interaction between reorder and compression is non-obvious: both operate on chunks, but compression makes chunks immutable. The documentation states "it is not recommended to combine compression with reordering" but does not prevent it at the API level. The index requirement is also not immediately obvious — users assume the hypertable's existing indexes are discoverable.
+The decision was explicitly deferred in v0.10.0 (`pyproject.toml` line 95-96). It has not been
+resolved. The v1.0.0 freeze is the last opportunity to rename without committing to the old
+names forever.
 
 **How to avoid:**
 
-1. If the hypertable already has compression enabled (check `timescaledb_information.hypertables.compression_enabled`), raise a `TimescaleDBError` or at minimum a prominent warning before adding a reorder policy.
-2. Validate that the named index exists before calling `add_reorder_policy` — query `pg_indexes` for the index name; raise `ValueError` if not found.
-3. Document in the docstring: "You can have only one reorder policy per hypertable. Reorder policies cannot reorder already-compressed chunks — do not combine with compression."
+Make the decision at the start of the homogenization phase, not after the milestone is underway.
+The decision is: rename (breaking, must serve via deprecation alias) or keep (freeze the
+inconsistency, remove the ruff suppression comment). Either is defensible; the non-decision is
+not.
+
+If renaming: do it in a single atomic commit that updates `exceptions.py`, all `raise` sites,
+all `except` sites in tests, and adds the old-name aliases. Run the full suite before removing
+old names.
+
+**Warning signs:**
+
+- The pyproject.toml N818 suppression comment still says "Reconsider at v1.0.0" at the end
+  of the freeze phase.
+- Exception renaming is scattered across multiple phases rather than done atomically.
 
 **Phase to address:**
 
-`reorder_policy` phase. Tests: verify index existence check fires; verify the policy row appears in `timescaledb_information.jobs`; do NOT test that the scheduler fired the job.
+Homogenization / API freeze phase, first task.
 
 ---
 
-## Deterministic Testing Strategy for Scheduler-Driven Policies
+### Pitfall 9: mypy Strict Made Blocking Before Stub Gaps Are Resolved — Stalls the Milestone
 
-Policies (`add_continuous_aggregate_policy`, `add_compression_policy`, `add_retention_policy`, `add_reorder_policy`) register background jobs that run on the TimescaleDB scheduler. The scheduler is a separate background process. **Never test that a policy has FIRED in CI.** Testing scheduler firing introduces slow, flaky, environment-dependent tests that fail whenever the background worker is suppressed (as it is in many CI environments and in TimescaleDB's own test suite via `_timescaledb_internal.stop_background_workers()`).
+**What goes wrong:**
 
-**The correct deterministic strategy is:**
+`--strict` is added to the mypy CI gate. The suite immediately produces hundreds of errors from
+third-party stub gaps: `geopandas`, `geoalchemy2`, `shapely`, and `psycopg` do not have complete
+stub packages. `pandas` stubs exist (via `pandas-stubs`) but have gaps for DataFrame operations
+pycopg uses. Every `into="gdf"` return type requires `@overload` to express `list[dict] |
+gpd.GeoDataFrame`, which requires `gpd.GeoDataFrame` to be typed — but geopandas has no py.typed
+marker and no complete stubs.
 
-1. **Test that the policy ROW exists** after calling the add-policy method. Query `timescaledb_information.jobs`:
+Making strict blocking before these stub gaps are addressed stalls the milestone entirely:
+every subsequent commit turns CI red on mypy, blocking merges, demoralizing progress.
 
-   ```python
-   rows = db.execute(
-       "SELECT * FROM timescaledb_information.jobs "
-       "WHERE proc_name = 'policy_refresh_continuous_aggregate'"
-   )
-   assert any(r["hypertable_name"] == "metrics" for r in rows)
-   ```
+**Why it happens:**
 
-2. **Test manual execution** by calling `CALL run_job(job_id)` on an autocommit connection. `run_job` is a stored procedure (use `CALL`, not `SELECT`). This verifies the policy configuration is valid without depending on the scheduler.
+The previous milestones kept mypy non-blocking (`continue-on-error: true` in CI). The switch to
+blocking is the right v1.0.0 goal, but the sequence matters: enabling strict before resolving
+stub gaps means the entire milestone runs under a red CI gate.
 
-3. **Test idempotency**: calling add-policy twice with `if_not_exists=True` must not raise an error. Calling it without `if_not_exists=True` must raise a clear error.
+**How to avoid:**
 
-4. **Test removal**: after calling remove-policy, assert the job row is gone from `timescaledb_information.jobs`.
+Sequence the mypy work explicitly:
 
-5. **For refresh correctness tests**: call `refresh_continuous_aggregate` directly (not via policy) on an autocommit connection with known committed data. Do not depend on the scheduler at all for functional correctness tests.
+1. First, run mypy in non-strict mode on the existing codebase and fix all non-strict errors
+   (these are already surfaced but ignored). This is low-cost and should be done before Spatial v2
+   work starts.
+2. Identify the stub gap for each external dependency: which functions/classes pycopg uses that
+   lack type annotations. For each gap, write `[[tool.mypy.overrides]] ignore_missing_imports =
+   true` (already present for most) OR write a local stub file (`pycopg/py.typed` is already
+   present — the package is `py.typed` but stubs for deps are the issue).
+3. For `into="rows"/"gdf"` return types: use `@overload` with `Literal["rows"]` and
+   `Literal["gdf"]` to give correct return types. This requires careful signature design — do not
+   add `@overload` retroactively after all spatial v2 builders are written.
+4. Enable `--strict` only after steps 1-3 are complete. The `--strict` flag turns red only on
+   new code that does not yet type-annotate, not on pre-existing stub gaps that are properly
+   suppressed.
+5. Do NOT enable `--strict` as blocking at the start of the milestone and "fix as you go" —
+   this is the pattern that stalls.
 
-This strategy gives full coverage of the policy API surface without any scheduler dependency. Every test is sub-second and deterministic.
+**Warning signs:**
+
+- mypy strict is toggled in CI before any stub gap audit has been run.
+- `@overload` is absent on accessor methods that return `list[dict] | gpd.GeoDataFrame`.
+- The phrase "fix mypy as we go" appears in a phase plan.
+
+**Phase to address:**
+
+Dedicated mypy phase, after Spatial v2 builders are complete but before the release phase. The
+mypy phase must have a clear acceptance criterion: mypy strict passes with zero errors on the
+full pycopg/ tree.
+
+---
+
+### Pitfall 10: mypy Strict Surfaces Latent Type Errors With No Test Signal
+
+**What goes wrong:**
+
+mypy strict enabled. Zero test failures. Dozens of mypy errors. The test suite stays green
+because the type errors are in code paths exercised at runtime with dynamically typed values —
+the functions run correctly in tests but their type annotations are wrong. Examples specific to
+pycopg:
+
+- `_to_named_binds` returns `tuple[str, dict]` but `dict` should be `dict[str, Any]` — mypy
+  strict requires the key/value types.
+- `_run` returns `list[dict] | gpd.GeoDataFrame` but `list[dict]` should be
+  `list[dict[str, Any]]` — strict requires explicit Any.
+- `params: list` should be `list[Any]` — strict flags untyped `list`.
+- `validate_identifiers(*names: str)` — strict may flag that `None` can be passed (the current
+  implementation has `if name is not None: validate_identifier(name)`, which accepts None at
+  runtime but the type annotation says `str`).
+
+These are not bugs — the code is correct — but mypy strict counts them as errors, and fixing them
+requires touching many files simultaneously. If not planned, this becomes a large unscoped
+refactor during the release phase.
+
+**How to avoid:**
+
+1. Run `uv run mypy --strict pycopg/ 2>&1 | grep error | wc -l` at the start of the mypy phase
+   to count the error budget. Budget 30 minutes per error as a rough estimate.
+2. Fix errors in bottom-up dependency order: `utils.py` and `exceptions.py` first (they have no
+   internal imports), then `base.py`, then `spatial.py`, then accessor files.
+3. For `Any`-typed parameters that must remain flexible (params lists, row dicts), use
+   `from typing import Any` explicitly and annotate `list[Any]`, `dict[str, Any]`. This is
+   correct typing — it documents intentional dynamic typing.
+4. The `validate_identifiers(*names: str)` None-check is a latent signature mismatch — fix the
+   signature to `*names: str | None` or remove the None check and require callers to not pass
+   None. Choose before the mypy phase, not during.
+
+**Warning signs:**
+
+- The mypy error count exceeds 50 errors after enabling strict.
+- Type errors are concentrated in `spatial.py` (the largest module with the most complex return
+  types).
+- The phrase "add `# type: ignore`" appears more than 5 times in a single PR.
+
+**Phase to address:**
+
+Dedicated mypy phase. The mypy phase's first task is counting the error budget; if > 100 errors,
+schedule the mypy fix as a multi-session effort, not a single-day sprint.
+
+---
+
+### Pitfall 11: Sync/Async Parity Drift on New Spatial v2 Methods
+
+**What goes wrong:**
+
+A new spatial v2 method is added to `SpatialAccessor` (sync). The async version is added to
+`AsyncSpatialAccessor` but with a slightly different signature: a parameter that is keyword-only
+in sync becomes positional in async, or a default value differs, or the method is added to
+`SpatialAccessor` but not yet to `AsyncSpatialAccessor` (forgotten). The parity test
+`test_accessor_parity` catches missing methods but does NOT catch signature differences
+(D-11 in the parity test: "per-method signature parity is intentionally deferred").
+
+After v1.0.0 API freeze, signature differences between sync and async are locked in.
+
+**Why it happens:**
+
+The spatial.py file is 2832 lines for v1 (11 methods × 2 classes). Adding Spatial v2 (~12 more
+methods) will expand it to ~5000 lines. With this volume, copy-paste errors between the sync and
+async accessor class are likely. The existing `test_accessor_parity` only checks that method names
+exist on both classes — it does not compare signatures.
+
+**How to avoid:**
+
+1. Add signature-level parity assertions to the existing `test_accessor_parity` mechanism for the
+   Spatial v2 methods. Use `inspect.signature(sync_method)` vs `inspect.signature(async_method)`
+   and assert parameter names and defaults match. This is the highest-leverage parity guard.
+2. Follow the v1 implementation pattern: write the builder (module-level, shared), write the
+   sync accessor method, write the async accessor method immediately after in the same commit.
+   Do not write all sync methods first and all async methods later (divergence window grows).
+3. The Spatial v2 phase plan must explicitly list both `SpatialAccessor` and
+   `AsyncSpatialAccessor` as implementation targets for every method.
+
+**Warning signs:**
+
+- A commit adds a method to `SpatialAccessor` but not `AsyncSpatialAccessor`.
+- `inspect.signature(SpatialAccessor.simplify)` differs from
+  `inspect.signature(AsyncSpatialAccessor.simplify)`.
+- The phrase "add async parity later" appears in a commit message or TODO comment.
+
+**Phase to address:**
+
+Each Spatial v2 sub-phase. The acceptance criteria for every Spatial v2 phase must include:
+"async parity verified (`test_accessor_parity` passes + signature diff is zero)."
+
+---
+
+### Pitfall 12: Scope Bloat in the Final Milestone — The Original v1.0.0 Split Lesson
+
+**What goes wrong:**
+
+The original v1.0.0 milestone was Spatial v2 + audit + performance + API freeze. It was too large
+and was split into v0.10.0 (audit + performance) and v1.0.0 (Spatial v2 + API freeze). The
+split was correct. The risk is that v1.0.0 now attracts the deferred items from v0.10.0 PLUS
+new ideas that arise during implementation, growing back to the original scope.
+
+Specific scope-creep attractors for v1.0.0:
+- TSDB-F01..04 follow-ups (deferred to 1.x)
+- ETL-INC-F01..05 follow-ups (deferred to 1.x)
+- CRUD-F01..03 follow-ups (deferred to 1.x)
+- Raster support (explicitly deferred post-1.0)
+- "While we're freezing, let's also add X" additions
+
+The "last big milestone" pressure is real: because v1.0.0 is the final planned large milestone,
+there is psychological pressure to make it complete by adding deferred items.
+
+**How to avoid:**
+
+1. The scope-lock decision from 2026-06-27 is definitive: "1.0 net + 1.x additifs." Deferred
+   items are 1.x, not 1.0. A phase plan that adds any item from the deferred list must be
+   rejected at roadmap review, not at implementation time.
+2. Create a `1.x-backlog` section in FUTURE-MILESTONES.md at the start of v1.0.0. Every time a
+   "while we're here..." idea arises, it goes in the backlog, not the milestone.
+3. The v1.0.0 roadmap phase count should be fixed at the milestone start. A phase count that
+   grows during execution is a scope creep signal.
+4. "Looks small, fits in a phase" is not a sufficient reason to add to v1.0.0. "Is it in the
+   locked scope?" is the criterion.
+
+**Warning signs:**
+
+- A REQUIREMENTS.md row appears that was not in the original v1.0.0 scope (Spatial v2, 4 API
+  gaps, API freeze).
+- The phrase "while we're already in this file..." in a phase plan.
+- Phase count grows from the initial roadmap during execution.
+
+**Phase to address:**
+
+Roadmap creation and phase 41 planning. The scope lock must be documented as a hard constraint
+in every phase plan's "Out of scope" section.
+
+---
+
+### Pitfall 13: SemVer Commitments Made Without Understanding the Freeze Surface
+
+**What goes wrong:**
+
+v1.0.0 ships with a SemVer policy document that says "no breaking changes in 1.x." After
+shipping, a user discovers that `db.spatial.contains(table, "geom", "public", ...)` used
+positional arguments for `geom` and `schema`, which are now keyword-only in a patch release.
+This is a breaking change the team didn't notice because internal tests always used keyword args.
+
+Or: the `into=` parameter is documented as `str` but the correct type is `Literal["rows",
+"gdf"]`. A future mypy-strict upgrade changes the inferred type, breaking user type-checked code.
+
+**Why it happens:**
+
+The SemVer policy is declared before the public surface is fully audited. Methods that have mixed
+positional/keyword signatures, or undocumented constraints, become unexpected compatibility traps.
+The deprecation policy is declared in the CHANGELOG but not tested.
+
+**How to avoid:**
+
+1. Before declaring the API frozen, run a surface audit: for every public method, document whether
+   arguments are positional or keyword-only. Prefer keyword-only (via `*` separator) for any
+   parameter that is not the first 1-2 positional arguments. Freeze the keyword-only surface.
+2. The MIGRATION guide for v1.0.0 must include a "Stable API Contract" section that explicitly
+   lists: (a) which parameters are positional and thus pinned, (b) which return types are part of
+   the contract, (c) which exception types are part of the contract.
+3. The SemVer policy document must define "breaking change" concretely for pycopg: adding a
+   required parameter is breaking; adding an optional parameter with a default is not; changing
+   a default value is breaking; changing an exception type is breaking.
+
+**Warning signs:**
+
+- The API reference for v1.0.0 does not mark parameters as positional vs keyword-only.
+- `into=` is typed as `str` in signatures that should use `Literal`.
+- The SemVer policy says "follow SemVer" without defining what constitutes a breaking change
+  for this library.
+
+**Phase to address:**
+
+API freeze phase. The surface audit must happen before the freeze is declared, not after.
 
 ---
 
@@ -374,13 +646,13 @@ This strategy gives full coverage of the policy API surface without any schedule
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Route continuous aggregate DDL through `self._db.execute()` | Simpler code, reuses existing path | Fails immediately with transaction-block error in any normal session | Never |
-| Infer gapfill bounds from WHERE clause | Looks like the time_bucket API surface | Silent failure with bound params; confusing error message | Never — always require explicit start/end |
-| Skip `dry_run` on drop_chunks | Less code | Users have no safe preview before irreversible data loss | Never on a published PyPI library |
-| Skip empty-hypertable check on add_dimension | Lets the DB surface the error | DB error message is cryptic; user sees nothing about why it failed | Never — validate first and raise a clear pycopg error |
-| Use `by_range`/`by_hash` unconditionally | Cleaner API | Breaks silently on TimescaleDB < 2.13 | Only if 2.13 is the documented hard minimum AND CI verifies the version |
-| Test policy firing by waiting for scheduler | Tests actual scheduler behavior | Flaky, slow, fails on CI where background workers are suppressed | Never — test policy row existence and manual CALL run_job() only |
-| Skip reorder-vs-compression guard | Less code | Policy silently does nothing on compressed chunks; maintenance debt | Never — raise an error or at minimum a warning |
+| New spatial builder without `validate_identifiers` | Faster to write | SQL injection vulnerability; past v0.10.0 history shows tests stay green | Never — it's a one-line fix |
+| `@overload` deferred "until after builders are done" | Builders written faster | Must touch every builder again; mypy strict blocks release | Never — add `@overload` at builder-write time |
+| `# type: ignore` to silence mypy strict errors | CI turns green | Latent type error hidden; counts against the "strict" claim | Acceptable only for third-party stub gaps with a comment explaining the gap |
+| Freeze the `where=` inconsistency without documenting it | No breaking change | User confusion for the full 1.x lifetime; constant support overhead | Acceptable only if explicitly documented in API reference |
+| Skip signature parity tests ("method names match, close enough") | Less test code | Signature divergence locked in at 1.0; sync/async API incompatibility for 1.x lifetime | Never — add signature diff assertions for v2 methods |
+| Add raster "since we're in spatial" | Scope feels complete | Raster is a separate, complex feature family; inflates timeline; was already explicitly deferred | Never — explicitly deferred to post-1.0 |
+| Defer exception renaming to 1.1 | No breaking change in 1.0 | If renamed in 1.1, users must update again; 1.0 freeze loses meaning | Never — either rename at 1.0 with deprecation or freeze the old names permanently |
 
 ---
 
@@ -388,61 +660,48 @@ This strategy gives full coverage of the policy API surface without any schedule
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| psycopg 3 + continuous aggregate DDL | Call `self._db.execute(create_sql)` — hits implicit transaction | Open `self._db.connect(autocommit=True)` per call; close after |
-| psycopg 3 async + autocommit | Set `conn.autocommit = True` (read-only on async connections after construction) | Pass `autocommit=True` to `await AsyncConnection.connect()` or call `await conn.set_autocommit(True)` immediately |
-| refresh after insert in test | Data inserted in implicit transaction not visible to refresh | Use autocommit inserts in test fixtures, or explicit COMMIT before refresh |
-| drop_chunks + continuous aggregate | Drop raw data in a region the cagg has not yet materialized; aggregate returns NULL for that period | Refresh the cagg BEFORE dropping raw chunks; or use retention policy which coordinates automatically |
-| reorder_policy + compression_policy on same hypertable | Reorder job silently skips compressed chunks; policy appears healthy but does nothing | Treat reorder and compression as mutually exclusive; detect at add-policy time |
-| time_bucket_gapfill + locf/interpolate outside gapfill context | `locf()` / `interpolate()` used in a plain time_bucket query; DB raises error | Only expose `locf`/`interpolate` as optional parameters of the gapfill builder, not standalone |
-| add_continuous_aggregate_policy NULL end_offset | Open-ended window materializes the current (incomplete) bucket; incorrect aggregates | Require a non-NULL end_offset at least equal to the bucket interval |
+| PostGIS ST_AsMVT | Pass raw SRID 4326 geometry, expect valid tile | Always: `ST_Transform(geom, 3857)` → `ST_AsMVTGeom(...)` → `ST_AsMVT(agg.*)` |
+| PostGIS binary ops (Difference/Intersection) | Pass geometries from different SRIDs | Validate or document that both operands must share the same SRID; emit `ST_Transform` on user inputs |
+| geopandas `into="gdf"` with NULL geometries | Expect clean GeoDataFrame | Document that NULL/empty geometries in the column produce None rows; `simplify` can return NULL |
+| `@deprecated_alias` stacklevel | Default `stacklevel=1` points to pycopg internals | Set `stacklevel=2` and verify warning points to caller's file in tests |
+| mypy strict + geopandas | `gpd.GeoDataFrame` is untyped; `ignore_missing_imports` needed | Already in `[[tool.mypy.overrides]]`; ensure all geopandas call sites use `Any` where needed |
+| psycopg `params: list` vs `list[Any]` | mypy strict rejects untyped `list` | Annotate as `list[Any]` throughout; import `Any` from `typing` |
+| ST_TileEnvelope on PostGIS < 3.0 | `UndefinedFunction` error | Guard with `try/except` or check PostGIS version at accessor init |
+| DeprecationWarning + `-W error` CI gate | Internal code calling deprecated path turns CI red | Grep for deprecated names in pycopg/ source before shipping; ensure internal call sites use new names |
 
 ---
 
-## Performance Traps
+## Security Mistakes
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| refresh_continuous_aggregate with NULL window_end | Full historical re-materialization on every call; query hangs | Never pass NULL as window_end; validate at call time | Any table with more than a few days of data |
-| refresh including the current (still-open) bucket | Most-recent bucket returns incorrect/stale aggregates after refresh | Set window_end to `now() - bucket_interval` to exclude the current incomplete bucket | Always — the current bucket is never complete |
-| show_chunks without committing prior DDL | Returns empty or stale results in the same session | Ensure CREATE MATERIALIZED VIEW is committed before show_chunks runs | Any test that chains DDL + show_chunks in the same session |
-| add_dimension on a large hypertable | DB rejects with "existing data" error | Validate empty first; document that add_dimension is only valid on empty hypertables | Any hypertable with data |
-
----
-
-## Version Pitfalls: TimescaleDB 2.x API Changes
-
-| Change | Before 2.13 | From 2.13 | Consequence for pycopg |
-|--------|-------------|-----------|------------------------|
-| `materialized_only` default | `false` (real-time on by default) | `true` (materialized-only by default) | Expose `materialized_only` param; default `True` to match current TSDB behavior; document the change prominently |
-| `add_dimension` API | Positional: `add_dimension(table, col, number_partitions=>N)` | Generalized: `add_dimension(table, by_hash(col, N))` | Use positional form (backward-compatible); document 2.13 as minimum for by_range/by_hash |
-| `create_hypertable` generalized | Positional form | `by_range(col, interval)` builder form | Same — existing positional form still works in 2.x; do not switch |
-
-### Checking the Test Environment Version
-
-Before building `add_dimension` or any 2.13+ API calls, verify the local test server version:
-
-```python
-row = db.execute("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'")[0]
-# row["extversion"] should be "2.x.y"
-```
-
-Use the pre-2.13 positional API for `add_dimension` in v0.8.0. Mark `by_range`/`by_hash` as a future enhancement if the test server is pre-2.13.
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| New spatial v2 builder missing `validate_identifiers` | SQL injection via `table`, `schema`, or `geom` arguments | First line of every builder must be `validate_identifiers(table, schema, geom)`; injection test required for every builder |
+| New builder that accepts a `group_by` or `column_alias` string without validation | SQL injection via aggregate grouping column | Any string interpolated into SQL must pass `validate_identifier` or be emitted as `%s` |
+| The `where=` string-fragment path (existing, accepted T-14-04 limitation) | SQL injection in `where=` values | If `where=` string path is extended to new v2 methods, document clearly that it is the caller's responsibility; consider restricting v2 methods to dict-only |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **create_continuous_aggregate:** Uses `connect(autocommit=True)` — verify by calling it after `db.execute("SELECT 1")` without error.
-- [ ] **refresh_continuous_aggregate:** Uses `connect(autocommit=True)` — verify with committed data; confirm empty result is not returned because data was uncommitted.
-- [ ] **time_bucket_gapfill builder:** `start` and `end` are required, embedded as function arguments — verify with a `datetime` bound param (not hardcoded) that no "could not infer" error fires.
-- [ ] **drop_chunks:** Has `dry_run` parameter returning chunk list without deleting — verify no chunks removed on `dry_run=True`.
-- [ ] **add_dimension:** Empty-hypertable check fires BEFORE the SQL is sent — verify with a populated hypertable that a pycopg error (not raw psycopg ProgrammingError) is raised.
-- [ ] **Continuous aggregate SQL validation:** Heuristic `time_bucket` check fires for `date_trunc`-based query before any DB round-trip.
-- [ ] **add_continuous_aggregate_policy:** start_offset > end_offset validation present; NULL end_offset gated.
-- [ ] **reorder_policy:** Docstring notes mutual exclusivity with compression; optional: check compression_enabled before adding the policy.
-- [ ] **All policy tests:** Use row-existence check + `CALL run_job()`, never sleep-and-wait for the scheduler.
-- [ ] **async parity:** Every new method has an async counterpart registered in `ACCESSOR_PAIRS` — verify `test_accessor_parity` still passes after each new method.
-- [ ] **Coverage ratchet:** All new autocommit branches are covered — autocommit paths are easy to miss in happy-path-only test suites.
+- [ ] **Every new `build_*_sql` builder:** `validate_identifiers(table, schema, geom)` is the first
+  statement — verify with an injection test asserting `InvalidIdentifier`.
+- [ ] **ST_AsMVT method:** SQL contains `ST_Transform(..., 3857)` AND `ST_AsMVTGeom(...)` — verify by
+  inspecting the generated SQL string in a unit test.
+- [ ] **ST_Simplify:** Uses `ST_SimplifyPreserveTopology` by default — verify with a test on a
+  geometry where point spacing < tolerance; no NULL returned.
+- [ ] **Every deprecated name:** `stacklevel=2` and warning points to caller frame — verify with a
+  test that captures the warning and checks `filename` in `warnings.warn_explicit`.
+- [ ] **Every new accessor method:** present on both `SpatialAccessor` and `AsyncSpatialAccessor`
+  with identical signatures — verify with `inspect.signature` diff in the parity test.
+- [ ] **mypy strict:** `uv run mypy --strict pycopg/` exits 0 — zero errors, not just "fewer errors".
+- [ ] **Exception naming decision:** N818 suppression comment updated to "resolved at v1.0.0" —
+  either old names kept (frozen) or new names shipped (with deprecation aliases).
+- [ ] **API freeze contract:** "Stable API Contract" section exists in the MIGRATION guide listing
+  positional vs keyword-only parameters for all public methods.
+- [ ] **Coverage ratchet:** `--cov-fail-under=95` still passes after Spatial v2 additions — new
+  code must have coverage, not just the existing code.
+- [ ] **Async parity:** `test_accessor_parity` passes after every Spatial v2 phase — not just at the
+  end of the milestone.
 
 ---
 
@@ -450,12 +709,13 @@ Use the pre-2.13 positional API for `add_dimension` in v0.8.0. Mark `by_range`/`
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Continuous aggregate DDL failed in transaction | LOW | No data loss (DDL was rolled back); fix to use autocommit connection; re-run |
-| drop_chunks deleted wrong data | HIGH | No rollback; restore from backup; verify backup freshness before exposing drop_chunks to users |
-| drop_chunks under a cagg left stale aggregates | MEDIUM | Refresh the cagg for the dropped region (aggregates will compute from remaining data; missing raw data = NULL/zero aggregates); document the dependency |
-| add_dimension on non-empty hypertable | LOW | No data modified (DB rejected the call); empty the hypertable or create a new one; re-run |
-| Gapfill "could not infer" from bound params | LOW | No data loss; rebuild the query with explicit start/end arguments in the function call |
-| reorder_policy silently inactive on compressed chunks | MEDIUM | Remove the reorder policy; decompress relevant chunks if needed; decide: keep reorder OR keep compression, not both |
+| `validate_identifiers` missing in shipped builder | HIGH | Hotfix release (1.0.x); announce security advisory; fix all new builders in one commit |
+| SRID mismatch not caught until after freeze | MEDIUM | Document behavior in 1.0.1 changelog; add explicit SRID check in next minor (1.1) |
+| ST_AsMVT wrong coordinate system shipped | MEDIUM | Behavioral change in 1.0.x with MIGRATION note; the old behavior was silently wrong |
+| mypy strict errors stall the milestone | MEDIUM | Temporarily exclude problematic modules with `[[tool.mypy.overrides]]`; fix in dedicated phase |
+| Scope bloat detected mid-milestone | LOW | Defer the added items to 1.x immediately; do not "finish just this one" |
+| Deprecation warning wrong stacklevel | LOW | Hotfix the stacklevel in next patch; low user impact but confusing |
+| Exception renaming breaks user code in 1.0 | MEDIUM | If old names removed without deprecation cycle, add them back as aliases in 1.0.1; apologize in changelog |
 
 ---
 
@@ -463,42 +723,47 @@ Use the pre-2.13 positional API for `add_dimension` in v0.8.0. Mark `by_range`/`
 
 | Pitfall | Prevention Phase | Verification |
 |---------|-----------------|--------------|
-| CREATE MATERIALIZED VIEW in transaction block | Continuous aggregate phase (Phase 30) | Test: call after `db.execute("SELECT 1")` — no transaction-block error |
-| refresh in transaction block | Continuous aggregate phase (Phase 30) | Test: refresh on autocommit path with committed data — no error, correct results |
-| refresh of uncommitted data | Continuous aggregate phase (Phase 30) | Test: insert + immediate refresh without commit — empty result; insert + commit + refresh — non-empty |
-| drop_chunks irreversible without dry_run | Chunk management phase | Test: dry_run=True returns chunk list without dropping; verify chunk count unchanged |
-| gapfill bounds not inferred from %s params | time_bucket_gapfill phase | Test: run gapfill with `datetime.now()` bound param — no "could not infer" error |
-| gapfill not bare in GROUP BY | time_bucket_gapfill phase | Test: inspect generated SQL — GROUP BY contains bare `time_bucket_gapfill(...)` |
-| add_dimension on non-empty hypertable | add_dimension phase | Test: populated hypertable raises pycopg error before DB round-trip |
-| add_dimension by_range/by_hash on < 2.13 | add_dimension phase | Verify TSDB version; use positional API by default in v0.8.0 |
-| Policy firing tested via scheduler | All policy phases | All policy tests use row-existence check + `CALL run_job()` |
-| reorder + compression conflict | reorder_policy phase | Docstring Notes + optional guard; test verifies error or warning fires |
-| materialized_only default change in 2.13 | Continuous aggregate phase | Expose param, default True; test both modes |
-| NULL window_end on refresh | Continuous aggregate phase | Validate: None end raises ValueError before SQL is sent |
-| start_offset <= end_offset on cagg policy | Continuous aggregate phase | Test: swapped offsets raise ValueError |
-| Continuous aggregate using date_trunc not time_bucket | Continuous aggregate phase | Heuristic check raises ValueError for date_trunc query |
+| Missing `validate_identifiers` in new builders | Every Spatial v2 phase (Phase 41+) | Injection test for every new builder; regressions in `test_spatial.py` |
+| SRID mismatch in binary ops | Spatial v2 processing phase | Mixed-SRID integration test per binary operation |
+| ST_AsMVT wrong coordinate system | Spatial v2 serialization phase | SQL inspection test; MVT decode test |
+| ST_Simplify NULL collapse | Spatial v2 processing phase | Degenerate geometry fixture in `test_spatial.py` |
+| Aggregate NULL propagation | Spatial v2 aggregates phase | Fixture with NULL geometry rows; behavior documented |
+| Deprecation cycle wrong stacklevel | Homogenization phase | `warnings.warn` stacklevel test for each deprecated name |
+| `where=` inconsistency not resolved | Homogenization phase (first decision, before builders) | API reference has `where= conventions` section |
+| Exception naming deferred | Homogenization phase (first task) | N818 suppression comment updated; no unresolved "reconsider" TODOs |
+| mypy strict stalls milestone | Dedicated mypy phase (after Spatial v2, before release) | `uv run mypy --strict pycopg/` exits 0 |
+| mypy strict latent type errors | Dedicated mypy phase | Zero `# type: ignore` except for documented stub gaps |
+| Sync/async parity drift | Every Spatial v2 phase | `test_accessor_parity` after each phase; `inspect.signature` diff for new methods |
+| Scope bloat | Roadmap creation + every phase kickoff | Phase plan "Out of scope" section explicitly lists deferred items |
+| SemVer commitment without surface audit | API freeze phase (before declaring freeze) | "Stable API Contract" in MIGRATION guide with positional/keyword inventory |
 
 ---
 
 ## Sources
 
-- [REFRESH cannot run inside a transaction block — timescale/timescaledb#1218](https://github.com/timescale/timescaledb/issues/1218)
-- [CREATE MATERIALIZED VIEW WITH DATA cannot be executed within a pipeline — timescale/timescaledb#5377](https://github.com/timescale/timescaledb/issues/5377)
-- [time_bucket_gapfill "invalid time_bucket_gapfill argument" via REST endpoint — timescale/timescaledb#4279](https://github.com/timescale/timescaledb/issues/4279)
-- [time_bucket_gapfill cannot infer start and finish from subquery — timescale/timescaledb#7605](https://github.com/timescale/timescaledb/issues/7605)
-- [time_bucket_gapfill fails to infer from NULL comparison — timescale/timescaledb#8525](https://github.com/timescale/timescaledb/issues/8525)
-- [add_dimension() documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/hypertable/add_dimension)
-- [add_reorder_policy() documentation (timescale.com)](https://docs.timescale.com/api/latest/hypertable/add_reorder_policy/)
-- [refresh_continuous_aggregate() documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/continuous-aggregates/refresh_continuous_aggregate)
-- [add_continuous_aggregate_policy() documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/continuous-aggregates/add_continuous_aggregate_policy)
-- [Reorder job fails on compressed chunks — timescale/timescaledb#1810](https://github.com/timescale/timescaledb/issues/1810)
-- [TimescaleDB 2.13.0 release notes — materialized_only default change](https://github.com/timescale/timescaledb/releases/tag/2.13.0)
-- [drop_chunks documentation (tigerdata.com)](https://www.tigerdata.com/docs/api/latest/hypertable/drop_chunks)
-- [psycopg 3 transaction management — autocommit](https://www.psycopg.org/psycopg3/docs/basic/transactions.html)
-- [Working with TimescaleDB in CI — autocommit for materialized views (wazeem.com)](https://wazeem.com/100/working-with-timescaledb-in-continuous-integration-automating-materialized-view-creation/)
-- pycopg source: `/home/loc/workspace/pycopg/pycopg/etl.py` — autocommit isolation pattern for run-log writes (direct precedent for the cagg autocommit fix)
-- pycopg source: `/home/loc/workspace/pycopg/pycopg/timescale.py` — existing TimescaleAccessor pattern; confirms `create_hypertable` uses `self._db.execute()` (safe for stored procedures, not safe for cagg DDL)
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/spatial.py` — module docstring security
+  invariants (D-05 to D-12); `validate_identifiers` guard pattern; `_check_into`/`_SCALAR_HELPERS`
+  pattern; `_to_named_binds` adapter; sync/async accessor class structure
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/exceptions.py` — N818 suppression background;
+  current exception hierarchy
+- pycopg source: `/home/loc/workspace/pycopg/pycopg/utils.py` — `validate_identifiers(*names: str)`
+  signature with runtime None-check; pattern for all identifier validation
+- pycopg source: `/home/loc/workspace/pycopg/pyproject.toml` — mypy config (non-strict, existing
+  overrides); N818 suppression comment ("Reconsider at the v1.0.0 API freeze"); ruff config
+- pycopg source: `/home/loc/workspace/pycopg/tests/test_parity.py` — `ACCESSOR_PAIRS` registry;
+  `test_accessor_parity` (name-level check); "per-method signature parity is intentionally
+  deferred" comment (D-11)
+- pycopg MEMORY: v0.10.0 COPY rewrite dropped `validate_identifiers`; caught by code-review gate,
+  NOT tests; fixed in 863e894 — direct precedent for Pitfall 1
+- pycopg PROJECT.md: v1.0.0 locked scope (2026-06-27); original v1.0.0 split lesson; `where=`
+  string-fragment accepted limitation T-14-04; N818 deferred decision
+- PostGIS docs: `ST_AsMVT` requires `ST_AsMVTGeom` + `ST_TileEnvelope` + EPSG:3857 transform
+- PostGIS docs: `ST_Simplify` vs `ST_SimplifyPreserveTopology` (NULL collapse on degenerate input)
+- PostGIS docs: `ST_MakeValid` geometry-type change behavior (POLYGON → MULTIPOLYGON)
+- Python docs: `warnings.warn` `stacklevel` parameter semantics
+- mypy docs: `--strict` flag enables `disallow_untyped_defs`, `disallow_any_generics`,
+  `warn_return_any`, etc. — requires explicit `Any` annotations
 
 ---
-*Pitfalls research for: TimescaleDB 2.x advanced features in a psycopg 3 Python library wrapper (pycopg v0.8.0)*
-*Researched: 2026-06-22*
+*Pitfalls research for: pycopg v1.0.0 — Spatial v2 + API freeze*
+*Researched: 2026-06-27*
