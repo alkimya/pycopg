@@ -146,7 +146,14 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 4. Every public method on every accessor and the flat core has a documented positional-vs-keyword-only parameter contract (Stable API Contract)
 5. MIGRATION guide has a complete section listing every renamed name (spatial `where=`→`filter=`, 4 exception renames) with before/after examples
 
-**Plans**: TBD
+**Plans**: 5 plans in 5 waves
+
+Plans:
+- [ ] 41-01-PLAN.md — Wave-0 `-W error::DeprecationWarning` gate (post third-party discovery) + `tests/test_deprecations.py` scaffold
+- [ ] 41-02-PLAN.md — FREEZE-02: 4 `*Error` renames + PEP 562 `__getattr__` aliases (atomic w/ `__init__.py`) + all internal raise sites + N818 suppression removed
+- [ ] 41-03-PLAN.md — FREEZE-01: spatial `where=`→`filter=` clean builder rename + per-accessor shim (22 methods, sync/async parity, stacklevel D-09)
+- [ ] 41-04-PLAN.md — FREEZE-03: consistency audit table + USER REVIEW GATE (D-05) + kw-only `*` enforcement across 7 accessors + flat core
+- [ ] 41-05-PLAN.md — FREEZE-04: `docs/stability.md` (SemVer + support matrix + Stable API Contract) + toctree/README links + MIGRATION `v0.10.x → 1.0.0` section
 
 ---
 
