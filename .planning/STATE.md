@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 41 context gathered
-last_updated: "2026-06-28T11:20:27.143Z"
+stopped_at: Completed 41-04-PLAN.md
+last_updated: "2026-06-28T12:13:43.720Z"
 last_activity: 2026-06-28 -- Phase 41 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 41 (api-homogenization) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-06-28 -- Phase 41 execution started
 
@@ -62,6 +62,7 @@ Last activity: 2026-06-28 -- Phase 41 execution started
 | 40. Release v0.10.0 | 2 | 2 | Complete (shipped — tag + OIDC publish + smoke) |
 | Phase 41 P01 | 13m | 2 tasks | 2 files |
 | Phase 41 P03 | 90 minutes | 2 tasks | 2 files |
+| Phase 41 P04 | 3.5h | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 **Key cross-cutting constraints for all spatial phases:** `validate_identifiers` is line 1 of every new SQL builder + a dedicated injection test (the v0.10.0 COPY-rewrite green-suite lesson). Full sync/async parity enforced by `test_accessor_parity`. Zero new runtime dependencies.
 
 - [Phase ?]: D-04 enforced: builders get clean filter= rename (no shim); accessors get filter=/where= shim with stacklevel=2
+- [Phase ?]: FREEZE-03: kw-only * enforced on all 100+ public methods across 7 accessor families + flat core (D-03)
+- [Phase ?]: D2/D5 carve-out: execute/fetch_one/fetch_val/fetch_all/stream/maint.explain keep params positional (raw-SQL execution primitives)
+- [Phase ?]: D3: time_bucket/time_bucket_gapfill where=→filter= with one-cycle DeprecationWarning shim (stacklevel=2)
 
 ### Pending Todos
 
@@ -111,8 +115,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-28T11:20:27.129Z
-Stopped at: Phase 41 context gathered
+Last session: 2026-06-28T12:13:43.712Z
+Stopped at: Completed 41-04-PLAN.md
 Resume file: .planning/phases/41-api-homogenization/41-CONTEXT.md
 Next action: Plan Phase 41 with `/gsd-plan-phase 41`
 

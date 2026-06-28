@@ -10,32 +10,56 @@ dependency_graph:
     - "41-03 (filter=/where= shim on all 22 spatial accessor methods)"
   provides:
     - "FREEZE-03 consistency findings table (user-reviewed, D-05 gate)"
-    - "kw-only * enforcement across 7 accessors + flat core (Task 3, pending approval)"
-    - "TestKwOnlyEnforcement filled test bodies (Task 3, pending approval)"
+    - "kw-only * enforcement across all 7 accessor families + flat core"
+    - "D3: time_bucket/gapfill where→filter shim (same pattern as spatial Plan 03)"
+    - "D2/D5 documented carve-out: execute/fetch_one/fetch_val/fetch_all/stream/maint.explain keep params positional"
+    - "TestKwOnlyEnforcement tests filled + time_bucket deprecation test class"
 tech_stack:
   added: []
   patterns:
     - "audit-then-decide (D-05): findings table produced before any fix lands"
     - "per-finding disposition: DEPRECATED (name rename) vs CLEAN BREAK (structural/kw-only/default)"
+    - "kw-only * boundary after last required positional param on all public accessor methods"
+    - "where→filter one-cycle deprecation shim: filter=None, where=None; DeprecationWarning(stacklevel=2)"
 key_files:
   created:
     - .planning/phases/41-api-homogenization/41-04-SUMMARY.md
-  modified: []
+  modified:
+    - pycopg/timescale.py
+    - pycopg/admin.py
+    - pycopg/maint.py
+    - pycopg/backup.py
+    - pycopg/etl.py
+    - pycopg/database.py
+    - pycopg/async_database.py
+    - pycopg/spatial.py
+    - pycopg/schema.py
+    - tests/test_deprecations.py
+    - tests/test_sql_injection.py
+    - tests/test_parity.py
+    - tests/test_database.py
+    - tests/test_async_database.py
+    - tests/test_database_integration.py
+    - tests/test_postgis_errors.py
+    - tests/test_timescale.py
 decisions:
   - "FREEZE-03 findings table produced — covers 7 accessors + flat core, 7 audit dimensions"
-  - "User review gate (D-05) mandatory before Task 3 applies any fix"
+  - "D1: within() schema= becomes kw-only after 4 required positionals (APPROVED CLEAN BREAK)"
+  - "D2/D5: execute/fetch_one/fetch_val/fetch_all/stream/maint.explain keep params positional (documented carve-out)"
+  - "D3: time_bucket/gapfill where=→filter= with one-cycle DeprecationWarning shim"
+  - "D4: into= value-set divergence left as-is (semantically intentional)"
 metrics:
-  duration: "~30 minutes (Task 1 only — stopped at Task 2 checkpoint)"
+  duration: "~3.5 hours (Task 1 at checkpoint + Task 3 after approval)"
   completed: "2026-06-28"
-  tasks_completed: 1
+  tasks_completed: 3
   tasks_total: 3
   files_created: 1
-  files_modified: 0
+  files_modified: 17
 ---
 
-# Phase 41 Plan 04: FREEZE-03 Consistency Audit — Findings Table
+# Phase 41 Plan 04: FREEZE-03 Consistency Audit + kw-only Enforcement
 
-**One-liner:** Full FREEZE-03 consistency inventory across 7 accessor families + flat core, covering param names/order, kw-only boundary, into= value-sets, schema= defaults, return shapes, and error types; produced for mandatory user review before any fix lands (D-05).
+**One-liner:** FREEZE-03 full audit across 7 accessor families + flat core with D-05 user review gate; D1-D5 dispositions approved; kw-only `*` enforced on all 100+ public methods across all accessors, time_bucket/gapfill where→filter deprecation shim applied; 1483 tests pass, 96.09% coverage.
 
 ---
 
@@ -316,21 +340,99 @@ The user reviewed the findings table and approved with the following per-row dis
 
 ---
 
+## Task 3: Apply All Approved Dispositions
+
+All approved dispositions (D1-D5) implemented in a single large commit `d2eee0d`:
+
+**kw-only `*` enforcement applied to all 7 accessor families + flat core:**
+- `pycopg/timescale.py` — 15 methods across `TimescaleAccessor` + `AsyncTimescaleAccessor`; D3 shim on `time_bucket` and `time_bucket_gapfill` (both sync+async)
+- `pycopg/admin.py` — 7 methods across `AdminAccessor` + `AsyncAdminAccessor`
+- `pycopg/maint.py` — 5 methods across `MaintAccessor` + `AsyncMaintAccessor` (`explain` keeps `params` positional per D5)
+- `pycopg/backup.py` — 4 methods across `BackupAccessor` + `AsyncBackupAccessor`
+- `pycopg/etl.py` — 2 methods across `ETLAccessor` + `AsyncETLAccessor`; internal callers fixed (`from_dataframe` positional arg)
+- `pycopg/database.py` — 18 methods on `Database` flat core; D2/D5 carve-out honored
+- `pycopg/async_database.py` — 18 methods on `AsyncDatabase` flat core (D-11 parity)
+- `pycopg/spatial.py` — D1: `within()` `schema=` moved to kw-only (4 required identifiers stay positional)
+- `pycopg/schema.py` — already had `*` from Phase 36; confirmed correct
+
+**Test fixes:**
+- `tests/test_deprecations.py` — removed `@pytest.mark.xfail` from `test_contains_geom_is_kw_only`; added `test_flat_core_kw_only_schema`; added `TestTimeBucketWhereDeprecation` (4 tests)
+- `tests/test_sql_injection.py` — 7 call sites updated to keyword syntax
+- `tests/test_parity.py` — 2 call sites updated (notify payload)
+- `tests/test_database.py` — 9 call sites updated + mock assertions
+- `tests/test_async_database.py` — 6 call sites updated + mock assertions
+- `tests/test_database_integration.py` — 8 call sites updated
+- `tests/test_postgis_errors.py` — 3 call sites updated
+- `tests/test_timescale.py` — renamed 2 tests to use `filter=` instead of `where=`
+
+**Security invariant:** `grep -c validate_identifiers pycopg/spatial.py` = 27 (confirmed unchanged).
+
+**Full suite:** 1483 passed, 2 skipped, 96.09% coverage (gate: 95%).
+
+---
+
 ## Deviations from Plan
 
-None — Task 1 executed exactly as planned. No fixes applied (D-05 compliance).
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Fixed internal callers in etl.py using positional syntax**
+- **Found during:** Task 3
+- **Issue:** `ETLAccessor.run()` body called `self._db.from_dataframe(df.head(0), pipeline.target, pipeline.schema, ...)` positionally. After `from_dataframe` gained `*, schema=`, this became a `TypeError` at runtime.
+- **Fix:** Changed to `schema=pipeline.schema` (keyword). Applied to both sync and async.
+- **Files modified:** `pycopg/etl.py`
+- **Commit:** `d2eee0d`
+
+**2. [Rule 1 - Bug] Fixed 30+ test callers using positional syntax for now-kw-only params**
+- **Found during:** Task 3 (discovered by running pytest -x after applying kw-only changes)
+- **Issue:** Tests across 7 files were calling now-kw-only params positionally: `create_spatial_index(table, "geom")`, `vacuum("users")`, `notify("chan", "payload")`, `list_tables("public")`, `count(t, {"active": True})`, `views("public")`, `sequences("public")`, `describe("tbl", "public")`, mock assertions expecting positional args.
+- **Fix:** Updated each call to use keyword syntax. Updated mock assertions to match new keyword calling convention.
+- **Files modified:** `tests/test_sql_injection.py`, `tests/test_parity.py`, `tests/test_database.py`, `tests/test_async_database.py`, `tests/test_database_integration.py`, `tests/test_postgis_errors.py`
+- **Commit:** `d2eee0d`
+
+**3. [Rule 1 - Bug] Fixed test_timescale.py tests using deprecated `where=` under -W error**
+- **Found during:** Task 3
+- **Issue:** `test_time_bucket_df_with_where` and `test_gapfill_df_with_where` called `time_bucket(..., where=...)` which now triggers `DeprecationWarning`. Under `-W error::DeprecationWarning` gate, these became errors.
+- **Fix:** Renamed tests to `test_time_bucket_df_with_filter` and `test_gapfill_df_with_filter`; switched to `filter=` parameter.
+- **Files modified:** `tests/test_timescale.py`
+- **Commit:** `d2eee0d`
+
+### Non-Issues (documented carve-outs)
+
+**D2/D5 carve-out:** `execute`, `fetch_one`, `fetch_val`, `fetch_all`, `stream` (Database/AsyncDatabase) and `maint.explain` intentionally keep `params` positional. This is a documented exception to D-03, approved by user.
+
+---
 
 ## Threat Surface Scan
 
-No new network endpoints, auth paths, file access patterns, or schema changes introduced. This task is a read-only inventory pass — no code modified.
+No new network endpoints, auth paths, file access patterns, or schema changes introduced. All changes are function signature restructuring (kw-only boundary moves).
 
-**T-41-09 (validate_identifiers count):** Not applicable for Task 1 — no code changes.
-**T-41-10 (D-05 review gate):** HONORED — no fix applied before user review.
+**T-41-09 (validate_identifiers count):** VERIFIED — `grep -c validate_identifiers pycopg/spatial.py` = 27 (unchanged). The `within()` D1 fix moved `schema=` to kw-only without touching injection guard paths.
+
+**T-41-10 (D-05 review gate):** HONORED — no fix applied in Task 1, all fixes gated behind Task 2 user approval.
+
+---
 
 ## Known Stubs
 
-None — this plan produces a findings table only (Task 1). Task 3 (implementation) is pending user approval.
+None.
 
-## Self-Check: PENDING
+---
 
-Self-check will be performed after Task 2 approval and Task 3 completion.
+## Self-Check
+
+**Files exist:**
+- `pycopg/timescale.py` — FOUND
+- `pycopg/admin.py` — FOUND
+- `pycopg/maint.py` — FOUND
+- `pycopg/backup.py` — FOUND
+- `pycopg/etl.py` — FOUND
+- `pycopg/database.py` — FOUND
+- `pycopg/async_database.py` — FOUND
+- `tests/test_deprecations.py` — FOUND
+
+**Commits exist:**
+- `d2eee0d` — feat(41-04): apply kw-only * across all 7 accessor families + flat core (FREEZE-03)
+
+**Test suite:** 1483 passed, 2 skipped, 96.09% coverage
+
+## Self-Check: PASSED
