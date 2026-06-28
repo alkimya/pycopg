@@ -7,6 +7,8 @@ Simple, powerful, pythonic database operations with sync and async support.
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+See [API Stability](https://pycopg.readthedocs.io/en/latest/stability.html) for the SemVer contract, deprecation policy, supported version matrix, and the full Stable API Contract table.
+
 ## Installation
 
 ```bash

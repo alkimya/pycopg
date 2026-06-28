@@ -20,6 +20,7 @@ roles-permissions
 backup-restore
 api-reference
 api-autodoc
+stability
 ```
 
 ## Features
