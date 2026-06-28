@@ -154,7 +154,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 41-02-PLAN.md — FREEZE-02: 4 `*Error` renames + PEP 562 `__getattr__` aliases (atomic w/ `__init__.py`) + all internal raise sites + N818 suppression removed
+- [x] 41-02-PLAN.md — FREEZE-02: 4 `*Error` renames + PEP 562 `__getattr__` aliases (atomic w/ `__init__.py`) + all internal raise sites + N818 suppression removed
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -337,7 +337,7 @@ Plans:
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
-| 41. API Homogenization | v1.0.0 | 1/5 | In Progress|  |
+| 41. API Homogenization | v1.0.0 | 2/5 | In Progress|  |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/? | Not started | - |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
