@@ -147,12 +147,25 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 5. MIGRATION guide has a complete section listing every renamed name (spatial `where=`→`filter=`, 4 exception renames) with before/after examples
 
 **Plans**: 5 plans in 5 waves
-
 Plans:
+**Wave 1**
+
 - [ ] 41-01-PLAN.md — Wave-0 `-W error::DeprecationWarning` gate (post third-party discovery) + `tests/test_deprecations.py` scaffold
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 41-02-PLAN.md — FREEZE-02: 4 `*Error` renames + PEP 562 `__getattr__` aliases (atomic w/ `__init__.py`) + all internal raise sites + N818 suppression removed
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 41-03-PLAN.md — FREEZE-01: spatial `where=`→`filter=` clean builder rename + per-accessor shim (22 methods, sync/async parity, stacklevel D-09)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 41-04-PLAN.md — FREEZE-03: consistency audit table + USER REVIEW GATE (D-05) + kw-only `*` enforcement across 7 accessors + flat core
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 41-05-PLAN.md — FREEZE-04: `docs/stability.md` (SemVer + support matrix + Stable API Contract) + toctree/README links + MIGRATION `v0.10.x → 1.0.0` section
 
 ---
