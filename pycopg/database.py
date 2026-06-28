@@ -906,7 +906,7 @@ class Database(DatabaseBase, QueryMixin):
         ValueError
             If ``where`` is empty or falsy (guard fires before any SQL or
             cursor is opened).
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
         if not where:
@@ -945,7 +945,7 @@ class Database(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
         validate_identifiers(table, schema)
@@ -1246,7 +1246,7 @@ class Database(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column name in ``order_by`` or the table/schema identifier
             is invalid.
         """

@@ -108,7 +108,7 @@ def _resolve_geometry(
     ------
     ValueError
         If zero or more than one input form is provided.
-    InvalidIdentifier
+    InvalidIdentifierError
         If ``ref=`` identifiers are invalid.
     """
     given = sum(x is not None for x in (point, wkt, geojson, ref))
@@ -242,7 +242,7 @@ def build_contains_sql(
     ------
     ValueError
         If the geometry input forms are not mutually exclusive.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -322,7 +322,7 @@ def build_intersects_sql(
     ------
     ValueError
         If the geometry input forms are not mutually exclusive.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -391,7 +391,7 @@ def build_within_sql(
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(left_table, left_geom, right_table, right_geom, schema)
@@ -469,7 +469,7 @@ def build_dwithin_sql(
     ------
     ValueError
         If ``unit`` is invalid or geometry forms are not exclusive.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -555,7 +555,7 @@ def build_distance_sql(
     ------
     ValueError
         If ``unit`` is invalid or geometry forms are not exclusive.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -629,7 +629,7 @@ def build_nearest_sql(
     ------
     ValueError
         If the geometry input forms are not mutually exclusive.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -691,7 +691,7 @@ def build_area_sql(
     ------
     ValueError
         If ``unit`` is invalid.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -753,7 +753,7 @@ def build_perimeter_sql(
     ------
     ValueError
         If ``unit`` is invalid.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -811,7 +811,7 @@ def build_centroid_sql(
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -876,7 +876,7 @@ def build_buffer_sql(
     ------
     ValueError
         If ``unit`` is invalid.
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -939,7 +939,7 @@ def build_transform_sql(
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     validate_identifiers(table, schema, geom)
@@ -1138,7 +1138,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1223,7 +1223,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1312,7 +1312,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1411,7 +1411,7 @@ class SpatialAccessor:
         ValueError
             If ``into``/``unit`` is invalid or geometry forms are not
             exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1508,7 +1508,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or inputs are invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1597,7 +1597,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1678,7 +1678,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1757,7 +1757,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1834,7 +1834,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper).
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1914,7 +1914,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into``/``unit`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -1994,7 +1994,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         """
         if where is not None:
@@ -2194,7 +2194,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2282,7 +2282,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2374,7 +2374,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2476,7 +2476,7 @@ class AsyncSpatialAccessor:
         ValueError
             If ``into``/``unit`` is invalid or geometry forms are not
             exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2576,7 +2576,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or inputs are invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2668,7 +2668,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2752,7 +2752,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2834,7 +2834,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2914,7 +2914,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper).
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -2997,7 +2997,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into``/``unit`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -3080,7 +3080,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierError
+        InvalidIdentifierErrorError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
