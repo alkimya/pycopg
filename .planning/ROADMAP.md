@@ -150,7 +150,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 Plans:
 **Wave 1**
 
-- [ ] 41-01-PLAN.md — Wave-0 `-W error::DeprecationWarning` gate (post third-party discovery) + `tests/test_deprecations.py` scaffold
+- [x] 41-01-PLAN.md — Wave-0 `-W error::DeprecationWarning` gate (post third-party discovery) + `tests/test_deprecations.py` scaffold
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -337,7 +337,7 @@ Plans:
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
-| 41. API Homogenization | v1.0.0 | 0/? | Not started | - |
+| 41. API Homogenization | v1.0.0 | 1/5 | In Progress|  |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/? | Not started | - |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |

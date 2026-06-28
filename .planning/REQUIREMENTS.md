@@ -56,8 +56,8 @@ Additive to the flat transactional core (`db.transaction`/`db.session`), full sy
 
 Breaking changes allowed; every break served via `@deprecated_alias`/`DeprecationWarning` (one cycle) + MIGRATION entry. Homogenization lands BEFORE Spatial v2 and mypy-strict.
 
-- [ ] **FREEZE-01**: Spatial `where=` (raw SQL fragment) is renamed to `filter=` so `where=` means dict-equality consistently across the whole surface; the old `where=` keyword keeps working for one deprecation cycle with `DeprecationWarning` + MIGRATION
-- [ ] **FREEZE-02**: Domain exceptions adopt the `*Error` (N818) convention — `ExtensionNotAvailable`→`ExtensionNotAvailableError`, `TableNotFound`→`TableNotFoundError`, `InvalidIdentifier`→`InvalidIdentifierError`, `DatabaseExists`→`DatabaseExistsError` — with old names as deprecated aliases + MIGRATION; internal call sites use the new names
+- [x] **FREEZE-01**: Spatial `where=` (raw SQL fragment) is renamed to `filter=` so `where=` means dict-equality consistently across the whole surface; the old `where=` keyword keeps working for one deprecation cycle with `DeprecationWarning` + MIGRATION
+- [x] **FREEZE-02**: Domain exceptions adopt the `*Error` (N818) convention — `ExtensionNotAvailable`→`ExtensionNotAvailableError`, `TableNotFound`→`TableNotFoundError`, `InvalidIdentifier`→`InvalidIdentifierError`, `DatabaseExists`→`DatabaseExistsError` — with old names as deprecated aliases + MIGRATION; internal call sites use the new names
 - [ ] **FREEZE-03**: Public API consistency pass — homogenize return-shape and `into=` conventions, parameter naming/order across the 7 accessors + flat core; documented Stable API Contract (positional vs keyword-only parameters) for every public method
 - [ ] **FREEZE-04**: SemVer + deprecation policy published (`docs/stability.md`) — the 1.0 stability contract (what's stable, deprecation timeline, supported versions)
 - [ ] **FREEZE-05**: `mypy --strict` made blocking in CI (remove `continue-on-error`) with 3 dev-group stubs (`pandas-stubs`, `types-geopandas`, `types-shapely`) and `@overload` on all `into="rows"/"gdf"` methods; complete `py.typed` (zero strict errors over `pycopg/`)
@@ -139,8 +139,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | PARAM-01 | Phase 45 | Pending |
 | HEALTH-01 | Phase 45 | Pending |
 | LOG-01 | Phase 45 | Pending |
-| FREEZE-01 | Phase 41 | Pending |
-| FREEZE-02 | Phase 41 | Pending |
+| FREEZE-01 | Phase 41 | Complete |
+| FREEZE-02 | Phase 41 | Complete |
 | FREEZE-03 | Phase 41 | Pending |
 | FREEZE-04 | Phase 41 | Pending |
 | FREEZE-05 | Phase 46 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: Phase 41 planned — ready to execute
-stopped_at: Phase 41 planned (5 plans, 5 waves)
-last_updated: "2026-06-28T10:13:15.565Z"
-last_activity: "2026-06-28 — Phase 41 planned (5 plans/5 waves; research + Nyquist validation + pattern map; plan-check 0 blockers)"
+status: executing
+stopped_at: Phase 41 context gathered
+last_updated: "2026-06-28T10:37:11.905Z"
+last_activity: 2026-06-28 -- Phase 41 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** v1.0.0 Spatial v2 + gel API — Phase 41 (API Homogenization) planned, ready to execute
+**Current focus:** Phase 41 — api-homogenization
 
 ## Current Position
 
-Phase: 41 — API Homogenization (planned)
-Plan: 5 plans in 5 waves (serial chain — gate → exceptions → spatial rename → audit+kw-only → docs)
+Phase: 41 (api-homogenization) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-28 — Phase 41 planned (5 plans, plan-check 0 blockers / 2 warnings resolved)
+Last activity: 2026-06-28 -- Phase 41 execution started
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Last activity: 2026-06-28 — Phase 41 planned (5 plans, plan-check 0 blockers /
 | 38. Performance COPY | 3 | 3 | Complete (verified PASSED 4/4) |
 | 39. Couverture & Benchmarks | 2 | 2 | Complete (verified PASSED 7/7) |
 | 40. Release v0.10.0 | 2 | 2 | Complete (shipped — tag + OIDC publish + smoke) |
+| Phase 41 P01 | 13m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -107,7 +108,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-28T09:40:49.986Z
+Last session: 2026-06-28T10:37:11.897Z
 Stopped at: Phase 41 context gathered
 Resume file: .planning/phases/41-api-homogenization/41-CONTEXT.md
 Next action: Plan Phase 41 with `/gsd-plan-phase 41`
