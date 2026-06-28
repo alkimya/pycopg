@@ -4,6 +4,7 @@ pycopg - High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
 Simple, powerful, pythonic database operations.
 """
 
+from pycopg import exceptions
 from pycopg.admin import AdminAccessor, AsyncAdminAccessor
 from pycopg.async_database import AsyncDatabase
 from pycopg.backup import AsyncBackupAccessor, BackupAccessor
@@ -13,15 +14,15 @@ from pycopg.etl import AsyncETLAccessor, ETLAccessor, Pipeline, RunResult
 from pycopg.exceptions import (
     ConfigurationError,
     ConnectionError,
-    DatabaseExists,
+    DatabaseExistsError,
     ETLError,
     ETLTargetNotFoundError,
     ETLTransformError,
-    ExtensionNotAvailable,
-    InvalidIdentifier,
+    ExtensionNotAvailableError,
+    InvalidIdentifierError,
     MigrationError,
     PycopgError,
-    TableNotFound,
+    TableNotFoundError,
     TimescaleError,
 )
 from pycopg.maint import AsyncMaintAccessor, MaintAccessor
@@ -45,6 +46,46 @@ except (
     PackageNotFoundError
 ):  # pragma: no cover — PackageNotFoundError only fires when package is not installed; never hit in test env
     __version__ = "0.0.0+unknown"
+
+_DEPRECATED_PACKAGE_ALIASES: dict[str, str] = {
+    "ExtensionNotAvailable": "ExtensionNotAvailableError",
+    "TableNotFound": "TableNotFoundError",
+    "InvalidIdentifier": "InvalidIdentifierError",
+    "DatabaseExists": "DatabaseExistsError",
+}
+
+
+def __getattr__(name: str):
+    """Resolve deprecated exception names at the package level (PEP 562).
+
+    Parameters
+    ----------
+    name : str
+        Attribute name being accessed on the ``pycopg`` package.
+
+    Returns
+    -------
+    type
+        The canonical ``*Error`` class object from ``pycopg.exceptions``.
+
+    Raises
+    ------
+    AttributeError
+        If the name is not a known deprecated alias.
+    """
+    if name in _DEPRECATED_PACKAGE_ALIASES:
+        import warnings
+        new_name = _DEPRECATED_PACKAGE_ALIASES[name]
+        warnings.warn(
+            f"{name} is deprecated and will be removed in pycopg 2.0. "
+            f"Use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(exceptions, new_name)
+    raise AttributeError(f"module 'pycopg' has no attribute {name!r}")
+
+
 __all__ = [
     # Core
     "Database",
@@ -78,19 +119,24 @@ __all__ = [
     # Schema
     "SchemaAccessor",
     "AsyncSchemaAccessor",
-    # Exceptions
+    # Exceptions — canonical *Error names
     "PycopgError",
     "ConnectionError",
     "ConfigurationError",
-    "DatabaseExists",
+    "DatabaseExistsError",
     "ETLError",
     "ETLTargetNotFoundError",
     "ETLTransformError",
+    "ExtensionNotAvailableError",
+    "TableNotFoundError",
+    "TimescaleError",
+    "InvalidIdentifierError",
+    "MigrationError",
+    # Deprecated aliases (resolved via __getattr__, removed in 2.0):
+    "DatabaseExists",
     "ExtensionNotAvailable",
     "TableNotFound",
-    "TimescaleError",
     "InvalidIdentifier",
-    "MigrationError",
     # Utilities
     "validate_identifier",
     "validate_identifiers",

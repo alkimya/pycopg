@@ -17,7 +17,6 @@ from pycopg.spatial import SpatialAccessor
 class TestExceptionAliases:
     """PEP 562 deprecated exception name behaviour (FREEZE-02)."""
 
-    @pytest.mark.xfail(reason="Implemented in Plan 02 (exception renames + __getattr__)", strict=False)
     def test_exception_alias_same_object(self):
         """Old name resolves to the identical class object."""
         with warnings.catch_warnings():
@@ -25,7 +24,6 @@ class TestExceptionAliases:
             OldName = exceptions.InvalidIdentifier
         assert OldName is exceptions.InvalidIdentifierError
 
-    @pytest.mark.xfail(reason="Implemented in Plan 02 (exception renames + __getattr__)", strict=False)
     def test_exception_alias_warns_on_access(self):
         """Accessing old exception name emits DeprecationWarning."""
         with pytest.warns(DeprecationWarning) as record:
@@ -37,7 +35,6 @@ class TestExceptionAliases:
             f"Warning pointed at {w.filename!r}, expected test file"
         )
 
-    @pytest.mark.xfail(reason="Implemented in Plan 02 (exception renames + __getattr__)", strict=False)
     def test_old_exception_name_still_catchable(self):
         """except OldName: catches exception raised with NewNameError (same object)."""
         with warnings.catch_warnings():
