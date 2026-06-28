@@ -740,7 +740,10 @@ The planner must create a dedicated task that reads every public method across a
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All four questions below carry an inline `Recommendation:` answer that the Phase 41 plans
+> implement (Q1→Plan 04, Q2→Plan 03, Q3→Plan 01, Q4→Plan 05). Retained for traceability.
 
 1. **`within()` keyword-only boundary**
    - What we know: `within(self, left_table, left_geom, right_table, right_geom, schema="public", *, ...)` has 4 required positional args before `schema`.

@@ -1,8 +1,8 @@
 ---
 phase: 41
 slug: api-homogenization
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-28
 ---
@@ -38,11 +38,21 @@ created: 2026-06-28
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | FREEZE-01..04 | — | N/A | unit | `uv run pytest tests/` | ❌ W0 | ⬜ pending |
+| 41-01-01 | 01 | 1 | FREEZE-01, FREEZE-02 | T-41-SC | `-W error::DeprecationWarning` gate green (no internal pycopg path warns) | gate | `uv run pytest -q` | ❌ W0 | ⬜ pending |
+| 41-01-02 | 01 | 1 | FREEZE-01, FREEZE-02 | — | warns-location scaffold (xfail) | unit | `uv run pytest tests/test_deprecations.py -q` | ❌ W0 | ⬜ pending |
+| 41-02-01 | 02 | 2 | FREEZE-02 | T-41-04 | old name → same class object, warns on import/access (D-07/D-09) | unit | `uv run pytest tests/test_deprecations.py::TestExceptionAliases -x -q && python -c "import pycopg" && uv run ruff check pycopg/exceptions.py` | ✅ | ⬜ pending |
+| 41-02-02 | 02 | 2 | FREEZE-02 | T-41-05 | all internal raise sites on new `*Error`; N818 suppression removed; no deprecated internal path (D-10) | suite | `uv run pytest -q` | ✅ | ⬜ pending |
+| 41-03-01 | 03 | 3 | FREEZE-01 | T-41-07 | builders `filter=`-only; `validate_identifiers` count unchanged (no injection regression) | unit | `uv run pytest tests/test_spatial.py -x -q` | ✅ | ⬜ pending |
+| 41-03-02 | 03 | 3 | FREEZE-01 | T-41-08 | `where=` shim warns at caller's file (D-09); `TypeError` if both; sync/async parity (D-11) | unit | `uv run pytest tests/test_deprecations.py::TestWhereDeprecation tests/test_parity.py -x -q` | ✅ | ⬜ pending |
+| 41-04-01 | 04 | 4 | FREEZE-03 | — | consistency findings table produced (discovery, no code) | artifact | `test -f` audit table + `grep` headers | ✅ | ⬜ pending |
+| 41-04-02 | 04 | 4 | FREEZE-03 | — | **D-05 user review gate** — fixes blocked until approval | manual | `checkpoint:human-verify` (`autonomous: false`) | — | ⬜ pending |
+| 41-04-03 | 04 | 4 | FREEZE-03 | T-41-11 | kw-only `*` enforced (D-03/D-04, clean break); `within()` 4-positional flagged; parity (D-11) | unit | `uv run pytest tests/test_deprecations.py::TestKwOnlyEnforcement tests/test_parity.py -x -q` | ✅ | ⬜ pending |
+| 41-05-01 | 05 | 5 | FREEZE-04 | — | `docs/stability.md` builds under Sphinx `-W`; linked from README + toctree (D-01/D-02) | doc | `uv run sphinx-build -W --keep-going -b html docs docs/_build/html && grep -qi 'stability' README.md` | ⬜ | ⬜ pending |
+| 41-05-02 | 05 | 5 | FREEZE-04 (+01/02/03) | — | MIGRATION `v0.10.x → 1.0.0` section lists every rename + D-08 relaxation note | doc | `grep -q 'v0.10.x' MIGRATION.md` + rename anchors | ⬜ | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky · File Exists: ✅ exists · ❌ W0 created in Wave 0 · ⬜ created this phase*
 
-*The planner fills this table per task; the rows above are placeholders. See `41-RESEARCH.md` § Validation Architecture for the per-requirement validation approach.*
+*Per-requirement validation approach: see `41-RESEARCH.md` § Validation Architecture. Task IDs follow the `41-PP-TT` convention (plan-task); see each `41-PP-PLAN.md` for the named tasks.*
 
 ---
 
