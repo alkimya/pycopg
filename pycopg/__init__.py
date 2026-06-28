@@ -47,12 +47,7 @@ except (
 ):  # pragma: no cover — PackageNotFoundError only fires when package is not installed; never hit in test env
     __version__ = "0.0.0+unknown"
 
-_DEPRECATED_PACKAGE_ALIASES: dict[str, str] = {
-    "ExtensionNotAvailable": "ExtensionNotAvailableError",
-    "TableNotFound": "TableNotFoundError",
-    "InvalidIdentifier": "InvalidIdentifierError",
-    "DatabaseExists": "DatabaseExistsError",
-}
+from pycopg.exceptions import _DEPRECATED_NAMES as _DEPRECATED_PACKAGE_ALIASES
 
 
 def __getattr__(name: str):
