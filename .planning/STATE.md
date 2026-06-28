@@ -4,13 +4,13 @@ milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
 stopped_at: Phase 41 context gathered
-last_updated: "2026-06-28T10:53:49.698Z"
+last_updated: "2026-06-28T11:20:27.143Z"
 last_activity: 2026-06-28 -- Phase 41 execution started
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 41 (api-homogenization) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-28 -- Phase 41 execution started
 
@@ -61,6 +61,7 @@ Last activity: 2026-06-28 -- Phase 41 execution started
 | 39. Couverture & Benchmarks | 2 | 2 | Complete (verified PASSED 7/7) |
 | 40. Release v0.10.0 | 2 | 2 | Complete (shipped — tag + OIDC publish + smoke) |
 | Phase 41 P01 | 13m | 2 tasks | 2 files |
+| Phase 41 P03 | 90 minutes | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - Phase 47 (Release) closes the milestone.
 
 **Key cross-cutting constraints for all spatial phases:** `validate_identifiers` is line 1 of every new SQL builder + a dedicated injection test (the v0.10.0 COPY-rewrite green-suite lesson). Full sync/async parity enforced by `test_accessor_parity`. Zero new runtime dependencies.
+
+- [Phase ?]: D-04 enforced: builders get clean filter= rename (no shim); accessors get filter=/where= shim with stacklevel=2
 
 ### Pending Todos
 
@@ -108,7 +111,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-28T10:53:49.690Z
+Last session: 2026-06-28T11:20:27.129Z
 Stopped at: Phase 41 context gathered
 Resume file: .planning/phases/41-api-homogenization/41-CONTEXT.md
 Next action: Plan Phase 41 with `/gsd-plan-phase 41`

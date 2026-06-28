@@ -158,7 +158,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 41-03-PLAN.md — FREEZE-01: spatial `where=`→`filter=` clean builder rename + per-accessor shim (22 methods, sync/async parity, stacklevel D-09)
+- [x] 41-03-PLAN.md — FREEZE-01: spatial `where=`→`filter=` clean builder rename + per-accessor shim (22 methods, sync/async parity, stacklevel D-09)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -337,7 +337,7 @@ Plans:
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
-| 41. API Homogenization | v1.0.0 | 2/5 | In Progress|  |
+| 41. API Homogenization | v1.0.0 | 3/5 | In Progress|  |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/? | Not started | - |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
