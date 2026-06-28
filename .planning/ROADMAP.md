@@ -120,7 +120,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 ### ▶ v1.0.0 Spatial v2 + gel API (Phases 41-47) — in progress
 
-- [ ] **Phase 41: API Homogenization** — `where=`→`filter=` rename on all 11 existing spatial methods + DeprecationWarning aliases; 4 N818 exception renames with deprecated aliases; public API consistency pass + Stable API Contract; SemVer + deprecation policy doc (`docs/stability.md`); MIGRATION guide sections for all renamed names
+- [x] **Phase 41: API Homogenization** — `where=`→`filter=` rename on all 11 existing spatial methods + DeprecationWarning aliases; 4 N818 exception renames with deprecated aliases; public API consistency pass + Stable API Contract; SemVer + deprecation policy doc (`docs/stability.md`); MIGRATION guide sections for all renamed names (completed 2026-06-28)
 - [ ] **Phase 42: Spatial v2 — Processing Helpers** — `union`, `simplify`, `convex_hull`, `make_valid`, `difference`, `intersection` on `SpatialAccessor` + `AsyncSpatialAccessor`; all builders use `filter=`; `validate_identifiers` first + injection tests; sync/async parity enforced by `test_accessor_parity`
 - [ ] **Phase 43: Spatial v2 — Spatial Aggregates** — `collect_geometries`, `union_aggregate`, `extent` (GROUP BY aggregate builder shape); NULL-propagation documented and tested; `into="gdf"` box2d→geometry for `extent`; parity + injection tests
 - [ ] **Phase 44: Spatial v2 — Serialization + MVT** — `as_geojson`, `as_text` in `_SCALAR_HELPERS`; `as_mvt` returning `bytes` (ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline enforced); full sync/async parity + injection tests; SPAT2-13 parity acceptance finalized across spatial phases
@@ -166,7 +166,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 41-05-PLAN.md — FREEZE-04: `docs/stability.md` (SemVer + support matrix + Stable API Contract) + toctree/README links + MIGRATION `v0.10.x → 1.0.0` section
+- [x] 41-05-PLAN.md — FREEZE-04: `docs/stability.md` (SemVer + support matrix + Stable API Contract) + toctree/README links + MIGRATION `v0.10.x → 1.0.0` section
 
 ---
 
@@ -337,7 +337,7 @@ Plans:
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
-| 41. API Homogenization | v1.0.0 | 4/5 | In Progress|  |
+| 41. API Homogenization | v1.0.0 | 5/5 | Complete   | 2026-06-28 |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/? | Not started | - |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
