@@ -298,19 +298,21 @@ The following rows are flagged `DECISION` and require explicit user sign-off bef
 
 ## Task 2: USER REVIEW GATE (D-05)
 
-**Status: AWAITING USER REVIEW**
+**Status: APPROVED — 2026-06-28**
 
-The findings table above is the artifact for the D-05 mandatory review. Task 3 MUST NOT run until the user has approved the table or specified per-row disposition edits.
+The user reviewed the findings table and approved with the following per-row dispositions (these are the authoritative source of truth for Task 3):
 
-**Flagged-for-decision rows (in priority order):**
+| # | Decision | Approved Disposition |
+|---|----------|---------------------|
+| D1 | `within()` `*`-placement | **APPROVED CLEAN BREAK.** 4 required identifiers (`left_table`, `left_geom`, `right_table`, `right_geom`) stay positional; `*` goes right after them; `schema=` and everything else become keyword-only. |
+| D2 | `Database.execute` `params`/`autocommit` kw-only | **KEEP POSITIONAL** — documented carve-out from D-03. Applies to: `Database`/`AsyncDatabase` `execute`, `fetch_one`, `fetch_val`, `fetch_all`, `stream`. `params` and `autocommit` remain positional-with-default on these methods. |
+| D3 | `time_bucket`/`time_bucket_gapfill` `where=` rename | **RENAME `where=` → `filter=` WITH ONE-CYCLE DEPRECATION SHIM** — identical pattern to the spatial where→filter shim from Plan 03: `filter=None, where=None`; if `where` supplied emit `DeprecationWarning(stacklevel=2)` + forward to `filter`; if BOTH supplied raise `TypeError`. Add MIGRATION entry. |
+| D4 | `into=` value-set divergence | **LEAVE AS-IS.** `"rows"/"gdf"` spatial vs `"df"/"rows"` timescale is intentionally different (different return-type semantics). No change. |
+| D5 | `fetch_one`/`fetch_val`/`fetch_all`/`stream`/`maint.explain` `params` kw-only | **KEEP POSITIONAL** — same D-02/D-05 carve-out as `execute`. The `(sql, params)` two-positional convention is kept for all raw-SQL execution primitives. `maint.explain` also keeps `params` positional. |
 
-1. **`within()` `*`-placement** — 4 required positional identifiers, then `*, schema=`. Approve CLEAN BREAK? (D1)
-2. **`Database.execute` `params` kw-only** — keep positional (exception for primitive I/O)? (D2)
-3. **`time_bucket` `where=`→`filter=`** — rename to `filter=` (CLEAN BREAK) or keep `where=`? (D3)
-4. **`into=` value-set divergence** — confirm intentional (leave as-is) or homogenize? (D4)
-5. **Raw-SQL fetch methods `params` kw-only** — keep positional (same exception as execute)? (D5)
+**D2/D5 carve-out note (recorded for FREEZE-04 Plan 05 stability contract):** The raw-SQL execution primitives — `execute`, `fetch_one`, `fetch_val`, `fetch_all`, `stream` (both sync and async) and `maint.explain` — are intentional, documented exceptions to D-03. These methods form the primitive I/O layer where the `(sql, params)` two-positional convention is established and expected by users. This exception MUST be reflected in the FREEZE-04 stability contract in Plan 05.
 
-**Resume signal:** Type `"approved"` to apply the table as-is using the recommendations above, or list disposition changes (e.g. `"keep execute params positional"`, `"keep time_bucket where= as-is"`).
+**D3 MIGRATION entry (Plan 05 owns MIGRATION.md):** The `where=` → `filter=` rename on `time_bucket` and `time_bucket_gapfill` ships with a one-cycle deprecation shim. Users should update to `filter=` before 2.0. Plan 05 will add this to MIGRATION.md.
 
 ---
 
