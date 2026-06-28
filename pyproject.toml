@@ -99,6 +99,15 @@ ignore = ["E501"]
 testpaths = ["tests"]
 addopts = "-v --cov=pycopg --cov-report=term-missing --cov-report=html --cov-fail-under=95"
 asyncio_mode = "auto"
+filterwarnings = [
+    "error::DeprecationWarning",
+    # Third-party suppressions — discovered via: uv run pytest -W error::DeprecationWarning
+    # (discovery run 2026-06-28: no third-party DeprecationWarnings emitted at current dep versions;
+    #  entries below are defensive suppressions for known upstream emitters)
+    "ignore::DeprecationWarning:psycopg",        # third-party: psycopg driver internals
+    "ignore::DeprecationWarning:geopandas",      # third-party: geopandas geometry engine
+    "ignore::DeprecationWarning:pandas",         # third-party: pandas internals
+]
 
 [tool.coverage.run]
 source = ["pycopg"]
