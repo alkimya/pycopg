@@ -18,7 +18,7 @@ Security invariants (Phase 10 / hotfix v0.3.1):
 - SRID is the only directly interpolated value, and only through an
   ``int(srid)`` coercion (integer cast is injection-safe).
 
-The ``where=`` parameter is a raw SQL fragment following the existing
+The ``filter=`` parameter is a raw SQL fragment following the existing
 ``_build_select_sql`` convention — values inside it are the caller's
 responsibility (T-14-04 accepted limitation).
 """
@@ -147,22 +147,22 @@ def _cols_str(columns: list[str] | None) -> str:
 
 def _append_tail(
     sql: str,
-    where: str | None,
+    filter: str | None,
     order_by: str | None,
     limit: int | None,
     has_where: bool,
 ) -> str:
-    """Append ``where``/``order_by``/``limit`` clauses to a SQL string.
+    """Append ``filter``/``order_by``/``limit`` clauses to a SQL string.
 
     Follows the ``_build_select_sql`` convention (D-11/D-12): when the
     statement already has a WHERE clause (spatial condition first), the
-    ``where=`` fragment is combined as ``AND ({where})``.
+    ``filter=`` fragment is combined as ``AND ({filter})``.
 
     Parameters
     ----------
     sql : str
         SQL statement built so far.
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (without the WHERE keyword).
     order_by : str, optional
         ORDER BY clause body.
@@ -176,8 +176,8 @@ def _append_tail(
     str
         SQL statement with the requested clauses appended.
     """
-    if where:
-        sql += f" AND ({where})" if has_where else f" WHERE {where}"
+    if filter:
+        sql += f" AND ({filter})" if has_where else f" WHERE {filter}"
     if order_by:
         sql += f" ORDER BY {order_by}"
     if limit is not None:
@@ -196,7 +196,7 @@ def build_contains_sql(
     ref: tuple[str, str] | None = None,
     srid: int = 4326,
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -225,7 +225,7 @@ def build_contains_sql(
         SRID of the input geometry, by default 4326 (D-07).
     columns : list of str, optional
         Columns to select, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Additional raw SQL filter combined as ``AND (...)`` (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -261,7 +261,7 @@ def build_contains_sql(
         cond = f"ST_Contains(t.{geom}, {fragment})"
         params.extend(frag_params)
     sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t WHERE {cond}"
-    sql = _append_tail(sql, where, order_by, limit, has_where=True)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=True)
     return sql, params
 
 
@@ -276,7 +276,7 @@ def build_intersects_sql(
     ref: tuple[str, str] | None = None,
     srid: int = 4326,
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -305,7 +305,7 @@ def build_intersects_sql(
         SRID of the input geometry, by default 4326 (D-07).
     columns : list of str, optional
         Columns to select, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Additional raw SQL filter combined as ``AND (...)`` (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -341,7 +341,7 @@ def build_intersects_sql(
         cond = f"ST_Intersects(t.{geom}, {fragment})"
         params.extend(frag_params)
     sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t WHERE {cond}"
-    sql = _append_tail(sql, where, order_by, limit, has_where=True)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=True)
     return sql, params
 
 
@@ -352,7 +352,7 @@ def build_within_sql(
     right_geom: str,
     schema: str = "public",
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -376,7 +376,7 @@ def build_within_sql(
         Schema name for both tables, by default "public".
     columns : list of str, optional
         Columns to select, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -401,7 +401,7 @@ def build_within_sql(
         f"JOIN {schema}.{right_table} AS b "
         f"ON ST_Within(a.{left_geom}, b.{right_geom})"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, []
 
 
@@ -418,7 +418,7 @@ def build_dwithin_sql(
     distance: float,
     unit: str = "m",
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -452,7 +452,7 @@ def build_dwithin_sql(
         ``"m"`` or ``"srid"``, by default "m" (D-09).
     columns : list of str, optional
         Columns to select, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Additional raw SQL filter combined as ``AND (...)`` (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -491,7 +491,7 @@ def build_dwithin_sql(
         params.extend(frag_params)
     params.append(distance)
     sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t WHERE {cond}"
-    sql = _append_tail(sql, where, order_by, limit, has_where=True)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=True)
     return sql, params
 
 
@@ -506,7 +506,7 @@ def build_distance_sql(
     srid: int = 4326,
     unit: str = "m",
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -538,7 +538,7 @@ def build_distance_sql(
         ``"m"`` or ``"srid"``, by default "m" (D-09).
     columns : list of str, optional
         Columns to select alongside the distance, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body, e.g. ``"distance"`` (D-12).
@@ -570,7 +570,7 @@ def build_distance_sql(
         f"ST_Distance(t.{geom}{cast}, {fragment}{cast}) AS distance "
         f"FROM {schema}.{table} AS t"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, list(params)
 
 
@@ -585,7 +585,7 @@ def build_nearest_sql(
     srid: int = 4326,
     k: int = 5,
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
 ) -> tuple[str, list]:
     """Build SQL selecting the k rows nearest to the input geometry.
 
@@ -616,7 +616,7 @@ def build_nearest_sql(
         Number of nearest rows to return, by default 5.
     columns : list of str, optional
         Columns to select, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
 
     Returns
@@ -638,8 +638,8 @@ def build_nearest_sql(
         point=point, wkt=wkt, geojson=geojson, srid=srid
     )
     sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t"
-    if where:
-        sql += f" WHERE {where}"
+    if filter:
+        sql += f" WHERE {filter}"
     sql += f" ORDER BY t.{geom}::geography <-> {fragment}::geography LIMIT %s"
     return sql, [*params, k]
 
@@ -651,7 +651,7 @@ def build_area_sql(
     *,
     unit: str = "m",
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -674,7 +674,7 @@ def build_area_sql(
         ``"m"`` or ``"srid"``, by default "m" (D-09).
     columns : list of str, optional
         Columns to select alongside the area, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -702,7 +702,7 @@ def build_area_sql(
         f"SELECT {_cols_str(columns)}, ST_Area(t.{geom}{cast}) AS area "
         f"FROM {schema}.{table} AS t"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, []
 
 
@@ -713,7 +713,7 @@ def build_perimeter_sql(
     *,
     unit: str = "m",
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -736,7 +736,7 @@ def build_perimeter_sql(
         ``"m"`` or ``"srid"``, by default "m" (D-09).
     columns : list of str, optional
         Columns to select alongside the perimeter, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -765,7 +765,7 @@ def build_perimeter_sql(
         f"ST_Perimeter(t.{geom}{cast}) AS perimeter "
         f"FROM {schema}.{table} AS t"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, []
 
 
@@ -775,7 +775,7 @@ def build_centroid_sql(
     schema: str = "public",
     *,
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -796,7 +796,7 @@ def build_centroid_sql(
         Schema name, by default "public".
     columns : list of str, optional
         Columns to select alongside the centroid, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -822,7 +822,7 @@ def build_centroid_sql(
         f"ST_Y(ST_Centroid(t.{geom})) AS centroid_y "
         f"FROM {schema}.{table} AS t"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, []
 
 
@@ -834,7 +834,7 @@ def build_buffer_sql(
     distance: float,
     unit: str = "m",
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -859,7 +859,7 @@ def build_buffer_sql(
         ``"m"`` or ``"srid"``, by default "m" (D-09).
     columns : list of str, optional
         Columns to select alongside the buffer, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -890,7 +890,7 @@ def build_buffer_sql(
         f"SELECT {_cols_str(columns)}, {buffer_expr} AS buffer "
         f"FROM {schema}.{table} AS t"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, [distance]
 
 
@@ -901,7 +901,7 @@ def build_transform_sql(
     *,
     to_srid: int,
     columns: list[str] | None = None,
-    where: str | None = None,
+    filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
 ) -> tuple[str, list]:
@@ -924,7 +924,7 @@ def build_transform_sql(
         Target spatial reference identifier.
     columns : list of str, optional
         Columns to select alongside the transform, by default all (D-03).
-    where : str, optional
+    filter : str, optional
         Raw SQL filter fragment (D-11).
     order_by : str, optional
         ORDER BY clause body (D-12).
@@ -949,7 +949,7 @@ def build_transform_sql(
         f"ST_Transform(t.{geom}, %s) AS geometry_transformed "
         f"FROM {schema}.{table} AS t"
     )
-    sql = _append_tail(sql, where, order_by, limit, has_where=False)
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, [to_srid]
 
 
@@ -1148,7 +1148,7 @@ class SpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1215,7 +1215,7 @@ class SpatialAccessor:
             right_geom,
             schema,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1292,7 +1292,7 @@ class SpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1378,7 +1378,7 @@ class SpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1458,7 +1458,7 @@ class SpatialAccessor:
             srid=srid,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1532,7 +1532,7 @@ class SpatialAccessor:
             srid=srid,
             k=k,
             columns=columns,
-            where=where,
+            filter=where,
         )
         return self._run(sql, params, into, geom)
 
@@ -1594,7 +1594,7 @@ class SpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1658,7 +1658,7 @@ class SpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1719,7 +1719,7 @@ class SpatialAccessor:
             geom,
             schema,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1786,7 +1786,7 @@ class SpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -1850,7 +1850,7 @@ class SpatialAccessor:
             schema,
             to_srid=to_srid,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2041,7 +2041,7 @@ class AsyncSpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2111,7 +2111,7 @@ class AsyncSpatialAccessor:
             right_geom,
             schema,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2191,7 +2191,7 @@ class AsyncSpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2280,7 +2280,7 @@ class AsyncSpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2363,7 +2363,7 @@ class AsyncSpatialAccessor:
             srid=srid,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2440,7 +2440,7 @@ class AsyncSpatialAccessor:
             srid=srid,
             k=k,
             columns=columns,
-            where=where,
+            filter=where,
         )
         return await self._run(sql, params, into, geom)
 
@@ -2505,7 +2505,7 @@ class AsyncSpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2572,7 +2572,7 @@ class AsyncSpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2636,7 +2636,7 @@ class AsyncSpatialAccessor:
             geom,
             schema,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2706,7 +2706,7 @@ class AsyncSpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )
@@ -2773,7 +2773,7 @@ class AsyncSpatialAccessor:
             schema,
             to_srid=to_srid,
             columns=columns,
-            where=where,
+            filter=where,
             order_by=order_by,
             limit=limit,
         )

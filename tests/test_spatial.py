@@ -142,8 +142,8 @@ class TestBuilders:
             build_contains_sql("parcels", point=(1, 2), columns=["bad-col"])
 
     def test_contains_where_appended_with_and(self):
-        """where= is combined as AND (...) after the spatial condition."""
-        sql, _ = build_contains_sql("parcels", point=(1, 2), where="status = 'active'")
+        """filter= is combined as AND (...) after the spatial condition."""
+        sql, _ = build_contains_sql("parcels", point=(1, 2), filter="status = 'active'")
         assert sql.endswith("AND (status = 'active')")
 
     def test_contains_order_by_and_limit(self):
@@ -174,9 +174,9 @@ class TestBuilders:
         assert params == []
 
     def test_intersects_columns_where(self):
-        """intersects supports columns= and where= together."""
+        """intersects supports columns= and filter= together."""
         sql, _ = build_intersects_sql(
-            "roads", wkt="LINESTRING(0 0, 1 1)", columns=["id"], where="lanes > 2"
+            "roads", wkt="LINESTRING(0 0, 1 1)", columns=["id"], filter="lanes > 2"
         )
         assert sql.startswith("SELECT id FROM public.roads AS t")
         assert sql.endswith("AND (lanes > 2)")
@@ -193,9 +193,9 @@ class TestBuilders:
         assert params == []
 
     def test_within_where_uses_where_keyword(self):
-        """within has no prior WHERE — where= starts the clause."""
+        """within has no prior WHERE — filter= starts the clause."""
         sql, _ = build_within_sql(
-            "parcels", "geometry", "zones", "geom", where="a.id > 5"
+            "parcels", "geometry", "zones", "geom", filter="a.id > 5"
         )
         assert " WHERE a.id > 5" in sql
 
@@ -256,12 +256,12 @@ class TestBuilders:
             build_dwithin_sql("parcels", point=(1, 2), distance=1, unit="km")
 
     def test_dwithin_tail_clauses(self):
-        """dwithin supports where=/order_by=/limit= (D-12)."""
+        """dwithin supports filter=/order_by=/limit= (D-12)."""
         sql, _ = build_dwithin_sql(
             "parcels",
             point=(1, 2),
             distance=10,
-            where="kind = 'park'",
+            filter="kind = 'park'",
             order_by="id",
             limit=5,
         )
@@ -293,8 +293,8 @@ class TestBuilders:
         assert sql.endswith("ORDER BY distance LIMIT 2")
 
     def test_distance_where_uses_where_keyword(self):
-        """distance has no spatial WHERE — where= starts the clause."""
-        sql, _ = build_distance_sql("parcels", point=(1, 2), where="id > 3")
+        """distance has no spatial WHERE — filter= starts the clause."""
+        sql, _ = build_distance_sql("parcels", point=(1, 2), filter="id > 3")
         assert " WHERE id > 3" in sql
 
     def test_distance_invalid_unit(self):
@@ -320,8 +320,8 @@ class TestBuilders:
         assert params[-1] == 5
 
     def test_nearest_with_where(self):
-        """nearest places where= before the KNN ORDER BY."""
-        sql, _ = build_nearest_sql("parcels", point=(1, 2), where="id > 0")
+        """nearest places filter= before the KNN ORDER BY."""
+        sql, _ = build_nearest_sql("parcels", point=(1, 2), filter="id > 0")
         assert " WHERE id > 0 ORDER BY " in sql
 
     def test_nearest_columns(self):
@@ -351,9 +351,9 @@ class TestBuilders:
             build_area_sql("parcels", unit="acres")
 
     def test_area_tail_clauses(self):
-        """area supports where=/order_by=/limit=."""
+        """area supports filter=/order_by=/limit=."""
         sql, _ = build_area_sql(
-            "parcels", where="id > 1", order_by="area DESC", limit=4
+            "parcels", filter="id > 1", order_by="area DESC", limit=4
         )
         assert sql.endswith("WHERE id > 1 ORDER BY area DESC LIMIT 4")
 
@@ -394,8 +394,8 @@ class TestBuilders:
         assert params == []
 
     def test_centroid_tail_clauses(self):
-        """centroid supports where=/order_by=/limit=."""
-        sql, _ = build_centroid_sql("parcels", where="id = 1", order_by="id", limit=1)
+        """centroid supports filter=/order_by=/limit=."""
+        sql, _ = build_centroid_sql("parcels", filter="id = 1", order_by="id", limit=1)
         assert sql.endswith("WHERE id = 1 ORDER BY id LIMIT 1")
 
     def test_centroid_columns(self):
@@ -429,9 +429,9 @@ class TestBuilders:
             build_buffer_sql("parcels", distance=1, unit="mi")
 
     def test_buffer_tail_clauses(self):
-        """buffer supports where=/order_by=/limit=."""
+        """buffer supports filter=/order_by=/limit=."""
         sql, _ = build_buffer_sql(
-            "parcels", distance=10, where="id > 0", order_by="id", limit=2
+            "parcels", distance=10, filter="id > 0", order_by="id", limit=2
         )
         assert sql.endswith("WHERE id > 0 ORDER BY id LIMIT 2")
 
@@ -447,12 +447,12 @@ class TestBuilders:
         assert params == [3857]
 
     def test_transform_tail_clauses(self):
-        """transform supports columns=/where=/order_by=/limit=."""
+        """transform supports columns=/filter=/order_by=/limit=."""
         sql, _ = build_transform_sql(
             "parcels",
             to_srid=2154,
             columns=["id"],
-            where="id < 9",
+            filter="id < 9",
             order_by="id",
             limit=7,
         )
