@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: Phase 41 complete + verified — ready to plan Phase 42
-stopped_at: Phase 41 (API Homogenization) complete — 5/5 plans, verified PASSED 10/10
-last_updated: "2026-06-28T12:55:12.623Z"
-last_activity: "2026-06-28 — Phase 41 (API Homogenization) shipped: FREEZE-01..04 (spatial where→filter shim, 4 N818 *Error renames + PEP562 aliases, kw-only freeze + raw-SQL carve-out, time_bucket where→filter, docs/stability.md + MIGRATION). Code-review CR-01 async-parity blocker found+fixed (+structural KIND-parity test); suite 1491 green @96.09%; verified 10/10"
+status: verifying
+stopped_at: Phase 42 context gathered
+last_updated: "2026-06-28T21:29:39.843Z"
+last_activity: 2026-06-28 — Phase 41 shipped + verified (FREEZE-01..04; CR-01 async-parity blocker fixed)
 progress:
   total_phases: 7
   completed_phases: 1
@@ -118,9 +118,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-28T12:21:47.350Z
-Stopped at: Completed 41-04-PLAN.md
-Resume file: .planning/phases/41-api-homogenization/41-CONTEXT.md
+Last session: 2026-06-28T21:29:39.809Z
+Stopped at: Phase 42 context gathered
+Resume file: .planning/phases/42-spatial-v2-processing-helpers/42-CONTEXT.md
 Next action: Plan Phase 41 with `/gsd-plan-phase 41`
 
 ## Operator Next Steps
