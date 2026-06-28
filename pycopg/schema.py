@@ -841,7 +841,7 @@ class AsyncSchemaAccessor:
     # =========================================================================
 
     async def create_database(
-        self, name: str, owner: str | None = None, template: str = "template1"
+        self, name: str, *, owner: str | None = None, template: str = "template1"
     ) -> None:
         """Create a new database.
 
@@ -869,7 +869,7 @@ class AsyncSchemaAccessor:
                     f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}"
                 )
 
-    async def drop_database(self, name: str, if_exists: bool = True) -> None:
+    async def drop_database(self, name: str, *, if_exists: bool = True) -> None:
         """Drop a database.
 
         Parameters
@@ -935,7 +935,7 @@ class AsyncSchemaAccessor:
     # =========================================================================
 
     async def create_extension(
-        self, name: str, schema: str | None = None, if_not_exists: bool = True
+        self, name: str, *, schema: str | None = None, if_not_exists: bool = True
     ) -> None:
         """Create a PostgreSQL extension.
 
@@ -958,7 +958,7 @@ class AsyncSchemaAccessor:
         )
 
     async def drop_extension(
-        self, name: str, if_exists: bool = True, cascade: bool = False
+        self, name: str, *, if_exists: bool = True, cascade: bool = False
     ) -> None:
         """Drop a PostgreSQL extension.
 
@@ -1036,7 +1036,7 @@ class AsyncSchemaAccessor:
         return len(result) > 0
 
     async def create_schema(
-        self, name: str, if_not_exists: bool = True, owner: str | None = None
+        self, name: str, *, if_not_exists: bool = True, owner: str | None = None
     ) -> None:
         """Create a schema.
 
@@ -1057,7 +1057,7 @@ class AsyncSchemaAccessor:
         await self._db.execute(f"CREATE SCHEMA {if_clause}{name}{owner_clause}")
 
     async def drop_schema(
-        self, name: str, if_exists: bool = True, cascade: bool = False
+        self, name: str, *, if_exists: bool = True, cascade: bool = False
     ) -> None:
         """Drop a schema.
 
@@ -1079,7 +1079,7 @@ class AsyncSchemaAccessor:
     # TABLES
     # =========================================================================
 
-    async def list_tables(self, schema: str = "public") -> list[str]:
+    async def list_tables(self, *, schema: str = "public") -> list[str]:
         """List tables in a schema.
 
         Parameters
@@ -1095,7 +1095,7 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.LIST_TABLES, [schema])
         return [r["table_name"] for r in result]
 
-    async def table_exists(self, name: str, schema: str = "public") -> bool:
+    async def table_exists(self, name: str, *, schema: str = "public") -> bool:
         """Check if a table exists.
 
         Parameters
@@ -1113,7 +1113,7 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.TABLE_EXISTS, [schema, name])
         return len(result) > 0
 
-    async def list_columns(self, table: str, schema: str = "public") -> list[str]:
+    async def list_columns(self, table: str, *, schema: str = "public") -> list[str]:
         """Get list of column names for a table.
 
         Parameters
@@ -1132,7 +1132,7 @@ class AsyncSchemaAccessor:
         return [row["column_name"] for row in result]
 
     async def columns_with_types(
-        self, table: str, schema: str = "public"
+        self, table: str, *, schema: str = "public"
     ) -> list[tuple[str, str]]:
         """Get list of (column_name, data_type) tuples for a table.
 
@@ -1151,7 +1151,7 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.GET_COLUMNS, [schema, table])
         return [(row["column_name"], row["data_type"]) for row in result]
 
-    async def table_info(self, name: str, schema: str = "public") -> list[dict]:
+    async def table_info(self, name: str, *, schema: str = "public") -> list[dict]:
         """Get column information for a table.
 
         Parameters
@@ -1169,7 +1169,7 @@ class AsyncSchemaAccessor:
         """
         return await self._db.execute(queries.TABLE_INFO, [schema, name])
 
-    async def row_count(self, name: str, schema: str = "public") -> int:
+    async def row_count(self, name: str, *, schema: str = "public") -> int:
         """Get approximate row count for a table.
 
         Uses pg_stat for speed. For exact count, use execute("SELECT COUNT(*)...").
@@ -1192,6 +1192,7 @@ class AsyncSchemaAccessor:
     async def drop_table(
         self,
         name: str,
+        *,
         schema: str = "public",
         if_exists: bool = True,
         cascade: bool = False,
@@ -1215,7 +1216,7 @@ class AsyncSchemaAccessor:
         await self._db.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
 
     async def truncate_table(
-        self, name: str, schema: str = "public", cascade: bool = False
+        self, name: str, *, schema: str = "public", cascade: bool = False
     ) -> None:
         """Truncate a table (delete all rows).
 
@@ -1234,7 +1235,7 @@ class AsyncSchemaAccessor:
             If the table does not exist in the given schema.
         """
         validate_identifiers(name, schema)
-        if not await self.table_exists(name, schema):
+        if not await self.table_exists(name, schema=schema):
             raise TableNotFoundError(f"Table '{schema}.{name}' does not exist.")
         cascade_clause = " CASCADE" if cascade else ""
         await self._db.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
@@ -1247,6 +1248,7 @@ class AsyncSchemaAccessor:
         self,
         table: str,
         columns: str | list[str],
+        *,
         schema: str = "public",
         name: str | None = None,
     ) -> None:
@@ -1281,6 +1283,7 @@ class AsyncSchemaAccessor:
         columns: str | list[str],
         ref_table: str,
         ref_columns: str | list[str],
+        *,
         schema: str = "public",
         ref_schema: str = "public",
         name: str | None = None,
@@ -1350,6 +1353,7 @@ class AsyncSchemaAccessor:
         self,
         table: str,
         columns: str | list[str],
+        *,
         schema: str = "public",
         name: str | None = None,
     ) -> None:
@@ -1381,6 +1385,7 @@ class AsyncSchemaAccessor:
         self,
         table: str,
         columns: str | list[str],
+        *,
         schema: str = "public",
         name: str | None = None,
         unique: bool = False,
@@ -1424,7 +1429,7 @@ class AsyncSchemaAccessor:
         """)
 
     async def drop_index(
-        self, name: str, schema: str = "public", if_exists: bool = True
+        self, name: str, *, schema: str = "public", if_exists: bool = True
     ) -> None:
         """Drop an index.
 
@@ -1441,7 +1446,7 @@ class AsyncSchemaAccessor:
         if_clause = "IF EXISTS " if if_exists else ""
         await self._db.execute(f"DROP INDEX {if_clause}{schema}.{name}")
 
-    async def list_indexes(self, table: str, schema: str = "public") -> list[dict]:
+    async def list_indexes(self, table: str, *, schema: str = "public") -> list[dict]:
         """List indexes on a table.
 
         Parameters
@@ -1458,7 +1463,7 @@ class AsyncSchemaAccessor:
         """
         return await self._db.execute(queries.LIST_INDEXES, [schema, table])
 
-    async def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
+    async def list_constraints(self, table: str, *, schema: str = "public") -> list[dict]:
         """List constraints on a table.
 
         Parameters
@@ -1475,7 +1480,7 @@ class AsyncSchemaAccessor:
         """
         return await self._db.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
-    async def primary_key(self, table: str, schema: str = "public") -> dict | None:
+    async def primary_key(self, table: str, *, schema: str = "public") -> dict | None:
         """Return the primary key constraint for a table, or None if absent.
 
         Parameters
@@ -1500,7 +1505,7 @@ class AsyncSchemaAccessor:
             "columns": [r["column_name"] for r in rows],
         }
 
-    async def foreign_keys(self, table: str, schema: str = "public") -> list[dict]:
+    async def foreign_keys(self, table: str, *, schema: str = "public") -> list[dict]:
         """Return all foreign key constraints on a table.
 
         Parameters
@@ -1540,7 +1545,7 @@ class AsyncSchemaAccessor:
             seen[name]["referenced_columns"].append(row["referenced_column"])
         return result
 
-    async def sequences(self, schema: str = "public") -> list[str]:
+    async def sequences(self, *, schema: str = "public") -> list[str]:
         """Return the names of all sequences in a schema.
 
         Parameters
@@ -1558,7 +1563,7 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.SEQUENCES, [schema])
         return [r["sequence_name"] for r in result]
 
-    async def views(self, schema: str = "public") -> list[str]:
+    async def views(self, *, schema: str = "public") -> list[str]:
         """Return the names of regular views in a schema (materialized views excluded).
 
         Parameters
@@ -1576,7 +1581,7 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
 
-    async def describe(self, table: str, schema: str = "public") -> dict:
+    async def describe(self, table: str, *, schema: str = "public") -> dict:
         """Return a consolidated introspection snapshot for a table.
 
         Composes the four standalone helpers into one flat dict.  No new SQL
@@ -1600,8 +1605,8 @@ class AsyncSchemaAccessor:
             ``primary_key=None``, ``foreign_keys=[]``, ``indexes=[]``.
         """
         return {
-            "columns": await self.table_info(table, schema),
-            "primary_key": await self.primary_key(table, schema),
-            "foreign_keys": await self.foreign_keys(table, schema),
-            "indexes": await self.list_indexes(table, schema),
+            "columns": await self.table_info(table, schema=schema),
+            "primary_key": await self.primary_key(table, schema=schema),
+            "foreign_keys": await self.foreign_keys(table, schema=schema),
+            "indexes": await self.list_indexes(table, schema=schema),
         }

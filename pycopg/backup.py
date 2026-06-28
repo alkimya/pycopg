@@ -390,6 +390,7 @@ class AsyncBackupAccessor:
     async def pg_dump(
         self,
         output_file: str | Path,
+        *,
         format: Literal["plain", "custom", "directory", "tar"] = "custom",
         schema_only: bool = False,
         data_only: bool = False,
@@ -459,6 +460,7 @@ class AsyncBackupAccessor:
     async def pg_restore(
         self,
         input_file: str | Path,
+        *,
         clean: bool = False,
         if_exists: bool = True,
         create: bool = False,
@@ -581,6 +583,7 @@ class AsyncBackupAccessor:
         self,
         table: str,
         output_file: str | Path,
+        *,
         schema: str = "public",
         columns: list[str] | None = None,
         delimiter: str = ",",
@@ -667,6 +670,7 @@ class AsyncBackupAccessor:
         self,
         table: str,
         input_file: str | Path,
+        *,
         schema: str = "public",
         columns: list[str] | None = None,
         delimiter: str = ",",

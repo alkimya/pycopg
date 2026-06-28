@@ -1632,7 +1632,7 @@ class AsyncETLAccessor:
                 row = await cur.fetchone()
         return _row_to_result(row)
 
-    async def history(self, name: str, limit: int = 100) -> list[RunResult]:
+    async def history(self, name: str, *, limit: int = 100) -> list[RunResult]:
         """Return the run history for a pipeline, newest-first.
 
         Reads ``pipeline_runs`` via :data:`~pycopg.queries.ETL_LIST_RUNS`
@@ -1805,7 +1805,7 @@ class AsyncETLAccessor:
                 schema=pipeline.schema,
             )
 
-    async def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
+    async def run(self, pipeline: Pipeline, *, dry_run: bool = False) -> RunResult:
         """Execute a full async extract → transform → load pipeline run.
 
         Async mirror of :meth:`ETLAccessor.run`.  All DB calls use

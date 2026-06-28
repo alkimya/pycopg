@@ -301,6 +301,159 @@ def _uniq(prefix):
     return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
+# ---------------------------------------------------------------------------
+# CR-01 prevention: structural sync/async parameter-KIND parity (D-11)
+# ---------------------------------------------------------------------------
+
+# Methods exempt from the kind check because they intentionally keep extra
+# positional params on both sync AND async sides (the raw-SQL carve-out).
+# Since the exemption applies identically to both sides, a strict per-pair
+# kind-equality test naturally passes for them — but we name them here for
+# documentation clarity.  No special-casing logic is needed in the test body.
+_RAW_SQL_CARVE_OUT: frozenset[str] = frozenset(
+    {
+        # Database / AsyncDatabase core
+        "execute",
+        "fetch_one",
+        "fetch_val",
+        "fetch_all",
+        "stream",
+        # MaintAccessor / AsyncMaintAccessor
+        "explain",
+    }
+)
+
+
+@pytest.mark.parametrize("sync_cls, async_cls", ACCESSOR_PAIRS)
+def test_accessor_parameter_kind_parity(sync_cls, async_cls):
+    """Assert per-parameter KIND is identical for every shared sync/async method.
+
+    Catches the CR-01 class of bug: async methods missing the kw-only ``*``
+    boundary that was applied to their sync mirrors (Phase 41 FREEZE-03 gap).
+    Compares ``inspect.Parameter.kind`` for every positional-or-keyword and
+    keyword-only parameter (``self`` excluded) of every public method present
+    on both accessors.
+
+    The ``_RAW_SQL_CARVE_OUT`` set documents exempt method names — those that
+    intentionally keep additional positional parameters on both sides.
+    Because the carve-out is applied *identically* to sync and async, the
+    kind-equality invariant holds for them naturally and no branching is
+    needed here.
+    """
+    sync_methods = {
+        name: member
+        for name, member in inspect.getmembers(sync_cls)
+        if not name.startswith("_") and callable(member)
+    }
+    async_methods = {
+        name: member
+        for name, member in inspect.getmembers(async_cls)
+        if not name.startswith("_") and callable(member)
+    }
+    shared = set(sync_methods) & set(async_methods)
+    mismatches: list[str] = []
+
+    for method_name in sorted(shared):
+        try:
+            s_sig = inspect.signature(sync_methods[method_name])
+            a_sig = inspect.signature(async_methods[method_name])
+        except (ValueError, TypeError):
+            continue  # non-inspectable (property wrappers, etc.)
+
+        # Build {param_name: kind} excluding 'self'
+        s_kinds = {
+            p: v.kind
+            for p, v in s_sig.parameters.items()
+            if p != "self"
+        }
+        a_kinds = {
+            p: v.kind
+            for p, v in a_sig.parameters.items()
+            if p != "self"
+        }
+
+        if s_kinds != a_kinds:
+            def _kind_name(k):
+                return inspect.Parameter(
+                    "x", k
+                ).kind.name  # VAR_POSITIONAL etc.
+
+            diff_params = {
+                p
+                for p in set(s_kinds) | set(a_kinds)
+                if s_kinds.get(p) != a_kinds.get(p)
+            }
+            details = "; ".join(
+                f"{p}: sync={s_kinds.get(p, 'MISSING')} "
+                f"async={a_kinds.get(p, 'MISSING')}"
+                for p in sorted(diff_params)
+            )
+            mismatches.append(f"  {method_name}: {details}")
+
+    assert not mismatches, (
+        f"Parameter-kind divergence between {sync_cls.__name__} and "
+        f"{async_cls.__name__} — apply the same kw-only * boundary to async "
+        f"mirrors (CR-01):\n" + "\n".join(mismatches)
+    )
+
+
+def test_database_core_parameter_kind_parity():
+    """Assert per-parameter KIND is identical for Database / AsyncDatabase shared methods.
+
+    Extends the accessor-level CR-01 check to the flat core classes.
+    """
+    # Methods intentionally absent from one side only (engine/async_engine/listen)
+    # are already excluded because they are not in the intersection.
+    sync_methods = {
+        name: member
+        for name, member in inspect.getmembers(Database)
+        if not name.startswith("_") and callable(member)
+    }
+    async_methods = {
+        name: member
+        for name, member in inspect.getmembers(AsyncDatabase)
+        if not name.startswith("_") and callable(member)
+    }
+    shared = set(sync_methods) & set(async_methods)
+    mismatches: list[str] = []
+
+    for method_name in sorted(shared):
+        try:
+            s_sig = inspect.signature(sync_methods[method_name])
+            a_sig = inspect.signature(async_methods[method_name])
+        except (ValueError, TypeError):
+            continue
+
+        s_kinds = {
+            p: v.kind
+            for p, v in s_sig.parameters.items()
+            if p != "self"
+        }
+        a_kinds = {
+            p: v.kind
+            for p, v in a_sig.parameters.items()
+            if p != "self"
+        }
+
+        if s_kinds != a_kinds:
+            diff_params = {
+                p
+                for p in set(s_kinds) | set(a_kinds)
+                if s_kinds.get(p) != a_kinds.get(p)
+            }
+            details = "; ".join(
+                f"{p}: sync={s_kinds.get(p, 'MISSING')} "
+                f"async={a_kinds.get(p, 'MISSING')}"
+                for p in sorted(diff_params)
+            )
+            mismatches.append(f"  {method_name}: {details}")
+
+    assert not mismatches, (
+        "Parameter-kind divergence between Database and AsyncDatabase core "
+        "(CR-01):\n" + "\n".join(mismatches)
+    )
+
+
 class TestBehavioralParity:
     """PAR-08 / D-03: real-DB behavioral parity for the pairs touched in Phase 11.
 

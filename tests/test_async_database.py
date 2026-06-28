@@ -337,7 +337,7 @@ class TestAsyncDatabaseTables:
             mock_class.connect = AsyncMock(return_value=conn_mock)
 
             db = AsyncDatabase(config)
-            tables = await db.schema.list_tables("public")
+            tables = await db.schema.list_tables(schema="public")
 
             assert tables == ["users", "orders"]
 
@@ -1092,7 +1092,7 @@ class TestAsyncDatabaseDDL:
             ]
         )
 
-        sizes = await db.maint.table_sizes("public", limit=10)
+        sizes = await db.maint.table_sizes(schema="public", limit=10)
 
         assert len(sizes) == 2
         assert sizes[0]["table_name"] == "users"
@@ -1242,7 +1242,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.maint.vacuum("users", full=True)
+        await db.maint.vacuum(table="users", full=True)
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -1283,7 +1283,7 @@ class TestAsyncDatabaseMaintenance:
         db = AsyncDatabase(config)
         db.execute = AsyncMock()
 
-        await db.maint.analyze("users", schema="public")
+        await db.maint.analyze(table="users", schema="public")
 
         db.execute.assert_called_once()
         call_args = db.execute.call_args
@@ -3383,7 +3383,7 @@ class TestAsyncSchemaIntrospection:
                 f'CREATE TABLE "{t}" (id SERIAL PRIMARY KEY)',
                 autocommit=True,
             )
-            seqs = await db.schema.sequences("public")
+            seqs = await db.schema.sequences(schema="public")
             assert isinstance(seqs, list)
             assert f"{t}_id_seq" in seqs
         finally:
@@ -3403,7 +3403,7 @@ class TestAsyncSchemaIntrospection:
                 f'CREATE VIEW "{view_name}" AS SELECT id FROM "{t}"',
                 autocommit=True,
             )
-            views = await db.schema.views("public")
+            views = await db.schema.views(schema="public")
             assert isinstance(views, list)
             assert view_name in views
         finally:
