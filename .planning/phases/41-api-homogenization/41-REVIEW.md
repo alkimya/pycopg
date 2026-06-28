@@ -22,8 +22,19 @@ findings:
   warning: 3
   info: 1
   total: 5
-status: issues_found
+status: resolved
+resolution:
+  CR-01: fixed (92018dd) — async kw-only parity + structural parity test
+  WR-03: fixed (a42ad16) — single authored alias map
+  IN-01: fixed (e9dc3da) — docstring Raises use canonical *Error names
+  WR-01: deferred — validate_identifiers None-skip is a behavior change at the SQL boundary; required-identifier callers never pass None; needs its own per-caller analysis
+  WR-02: deferred — reviewer states no code change required for correctness (nearest KNN owns ordering); doc-only suggestion
 ---
+
+> **RESOLUTION (2026-06-28):** CR-01 (BLOCKER), WR-03, and IN-01 fixed and verified
+> (full suite 1491 passed, 96.09% cov; 0 sync/async signature divergence; structural
+> `test_accessor_parameter_kind_parity` added to prevent recurrence). WR-01 and WR-02
+> deferred with justification (see frontmatter `resolution`).
 
 # Phase 41: Code Review Report
 
