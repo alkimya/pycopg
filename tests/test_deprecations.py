@@ -6,9 +6,9 @@
 #   TestKwOnlyEnforcement tests — xfail until Plan 04 (kw-only audit + FREEZE-03 fixes)
 
 import warnings
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from pycopg import exceptions
 from pycopg.spatial import AsyncSpatialAccessor, SpatialAccessor
@@ -21,7 +21,7 @@ class TestExceptionAliases:
         """Old name resolves to the identical class object."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            OldName = exceptions.InvalidIdentifier
+            OldName = exceptions.InvalidIdentifier  # noqa: N806 — intentional class alias
         assert OldName is exceptions.InvalidIdentifierError
 
     def test_exception_alias_warns_on_access(self):
@@ -39,7 +39,7 @@ class TestExceptionAliases:
         """except OldName: catches exception raised with NewNameError (same object)."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            OldName = exceptions.InvalidIdentifier
+            OldName = exceptions.InvalidIdentifier  # noqa: N806 — intentional class alias
         with pytest.raises(OldName):
             raise exceptions.InvalidIdentifierError("test")
 
