@@ -47,7 +47,6 @@ class TestExceptionAliases:
 class TestWhereDeprecation:
     """where= shim deprecation behaviour (FREEZE-01)."""
 
-    @pytest.mark.xfail(reason="Implemented in Plan 03 (where= -> filter= shim on spatial methods)", strict=False)
     def test_where_deprecation_points_to_caller(self):
         """DeprecationWarning from where= must point to THIS file, not spatial.py."""
         db = MagicMock()
@@ -63,7 +62,6 @@ class TestWhereDeprecation:
             f"Warning pointed at {w.filename!r}, expected test file"
         )
 
-    @pytest.mark.xfail(reason="Implemented in Plan 03 (where= -> filter= shim on spatial methods)", strict=False)
     def test_filter_and_where_both_supplied_raises(self):
         """Supplying both filter= and where= raises TypeError."""
         db = MagicMock()
