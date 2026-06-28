@@ -337,7 +337,7 @@ Plans:
 | 38. Performance COPY | v0.10.0 | 3/3 | Complete | 2026-06-26 |
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
-| 41. API Homogenization | v1.0.0 | 5/5 | Complete   | 2026-06-28 |
+| 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/? | Not started | - |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
