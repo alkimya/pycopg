@@ -172,4 +172,7 @@ None — all exception renames are complete and wired throughout the codebase.
 - N818 suppression removed from pyproject.toml: CONFIRMED (grep returns nothing)
 - Commit f61f20f (Task 1): EXISTS
 - Commit fa59485 (Task 2): EXISTS
+- Commit baea760 (docs/state): EXISTS
 - Full suite 1431 passed, 96.23% coverage: CONFIRMED
+- D-10 ship-check (raise sites): 0 old names — CONFIRMED
+- T-41-03 (validate_identifiers count 27): CONFIRMED
