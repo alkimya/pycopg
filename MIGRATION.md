@@ -1,3 +1,283 @@
+# Migration Guide: v0.10.x → 1.0.0
+
+This guide covers **all breaking changes** at the 1.0 boundary introduced in Phase 41
+(API Homogenization). Deprecated names (`where=` parameter alias, old exception names) are
+kept through **all of 1.x** and removed only in 2.0 — but they emit `DeprecationWarning`
+on use, so update your code now to silence them.
+
+## Breaking Changes
+
+### 1. Spatial `where=` renamed to `filter=` (FREEZE-01)
+
+**All 11 `db.spatial.*` methods** and the corresponding 11 module-level `build_*_sql`
+builders rename the raw SQL filter parameter from `where=` to `filter=`.
+
+Affected methods: `contains`, `intersects`, `dwithin`, `distance`, `nearest`, `area`,
+`perimeter`, `centroid`, `buffer`, `transform`, `within`.
+
+**Before (pycopg ≤ 0.10.x):**
+
+```python
+rows = db.spatial.contains("parks", point=(1.0, 2.0), where="area > 1000")
+gdf  = db.spatial.within("cities", "geom", "regions", "geom", where="population > 50000")
+
+# Builder functions:
+from pycopg.spatial import build_contains_sql
+sql = build_contains_sql("parks", point=(1.0, 2.0), where="area > 1000")
+```
+
+**After (pycopg 1.0+):**
+
+```python
+rows = db.spatial.contains("parks", point=(1.0, 2.0), filter="area > 1000")
+gdf  = db.spatial.within("cities", "geom", "regions", "geom", filter="population > 50000")
+
+# Builder functions (clean rename — no backward-compat shim on builders):
+from pycopg.spatial import build_contains_sql
+sql = build_contains_sql("parks", point=(1.0, 2.0), filter="area > 1000")
+```
+
+The old `where=` on **accessor methods** emits `DeprecationWarning` through 1.x and is
+removed in 2.0. The old `where=` on **builder functions** (`build_*_sql`) is a **clean
+break** (no shim) — passing `where=` to a builder raises `TypeError` immediately.
+
+**Important:** The `filter=` parameter accepts a **raw SQL fragment** (a SQL WHERE clause
+body authored by the caller), not a dict-equality predicate. This is a structural SQL
+parameter, intentionally distinct from the CRUD `where=` dict convention.
+
+---
+
+### 2. Exception renames → `*Error` convention (FREEZE-02)
+
+Four exception classes are renamed to follow the PEP 8 / N818 `*Error` convention:
+
+| Old name (deprecated) | New canonical name |
+|-----------------------|--------------------|
+| `ExtensionNotAvailable` | `ExtensionNotAvailableError` |
+| `TableNotFound` | `TableNotFoundError` |
+| `InvalidIdentifier` | `InvalidIdentifierError` |
+| `DatabaseExists` | `DatabaseExistsError` |
+
+**Before (pycopg ≤ 0.10.x):**
+
+```python
+from pycopg.exceptions import ExtensionNotAvailable, InvalidIdentifier
+from pycopg import TableNotFound, DatabaseExists
+
+try:
+    db.schema.create_extension("postgis")
+except ExtensionNotAvailable:
+    print("PostGIS not installed")
+
+try:
+    db.schema.create_database("mydb")
+except DatabaseExists:
+    print("Database already exists")
+```
+
+**After (pycopg 1.0+):**
+
+```python
+from pycopg.exceptions import ExtensionNotAvailableError, InvalidIdentifierError
+from pycopg import TableNotFoundError, DatabaseExistsError
+
+try:
+    db.schema.create_extension("postgis")
+except ExtensionNotAvailableError:
+    print("PostGIS not installed")
+
+try:
+    db.schema.create_database("mydb")
+except DatabaseExistsError:
+    print("Database already exists")
+```
+
+**Backward compatibility:** `except OldName:` continues to catch the same exceptions
+(the old name resolves to the identical class object). Accessing the old name at import
+time emits `DeprecationWarning`. Old names are removed in 2.0.
+
+**Note on deprecation warning timing (D-08 relaxation):** The `DeprecationWarning` fires
+at **import / attribute access time** (when you write `from pycopg.exceptions import
+ExtensionNotAvailable` or `pycopg.ExtensionNotAvailable`) — NOT at `except` catch time.
+This is intentional (PEP 562 module `__getattr__` semantics) and is not a gap. If you see
+the warning, update the import to the `*Error` canonical name.
+
+---
+
+### 3. Keyword-only parameter enforcement (FREEZE-03)
+
+All optional/defaulted parameters on every public method in every accessor are now
+**keyword-only**, enforced by a `*` separator in the signature. This is a **clean break**
+with no deprecation alias — positional calls that worked before now raise `TypeError`.
+
+**Before (pycopg ≤ 0.10.x) — positional calls that now raise TypeError:**
+
+```python
+# Spatial — geom and schema were positional:
+db.spatial.contains("parks", "geometry", "public", point=(1.0, 2.0))
+
+# Schema — schema was positional:
+db.schema.list_tables("public")
+db.schema.table_exists("users", "public")
+db.schema.describe("users", "public")
+
+# Timescale — multiple params were positional:
+db.timescale.create_hypertable("events", "time", "public", "7 days")
+db.timescale.show_chunks("events", "30 days", None, "public")
+
+# Admin — all optional params were positional:
+db.admin.create_role("appuser", "secret", True)
+
+# Maint — params were positional:
+db.maint.vacuum("users", "public", True)
+db.maint.table_size("users", "public")
+
+# Backup — all optional params were positional:
+db.backup.pg_dump("backup.dump", "custom", True)
+
+# ETL:
+db.etl.history("my_pipeline", 50)
+db.etl.run(pipeline, True)
+
+# Flat core:
+db.insert_many("users", rows, "public")
+db.paginate("users", 20, 40, "created_at")
+db.from_dataframe(df, "users", "public", "replace")
+```
+
+**After (pycopg 1.0+) — use keyword arguments:**
+
+```python
+# Spatial:
+db.spatial.contains("parks", geom="geometry", schema="public", point=(1.0, 2.0))
+
+# Schema:
+db.schema.list_tables(schema="public")
+db.schema.table_exists("users", schema="public")
+db.schema.describe("users", schema="public")
+
+# Timescale:
+db.timescale.create_hypertable("events", "time", schema="public", chunk_time_interval="7 days")
+db.timescale.show_chunks("events", older_than="30 days", schema="public")
+
+# Admin:
+db.admin.create_role("appuser", password="secret", login=True)
+
+# Maint:
+db.maint.vacuum(table="users", schema="public", analyze=True)
+db.maint.table_size("users", schema="public")
+
+# Backup:
+db.backup.pg_dump("backup.dump", format="custom", schema_only=True)
+
+# ETL:
+db.etl.history("my_pipeline", limit=50)
+db.etl.run(pipeline, dry_run=True)
+
+# Flat core:
+db.insert_many("users", rows, schema="public")
+db.paginate("users", 20, offset=40, order_by="created_at")
+db.from_dataframe(df, "users", schema="public", if_exists="replace")
+```
+
+**Special case — `within()` 4-positional-identifier boundary (D1 decision):**
+
+The `within()` method keeps 4 required table/column identifiers positional, but `schema=`
+moves to keyword-only:
+
+```python
+# Before (schema was 5th positional):
+db.spatial.within("cities", "geom", "regions", "geom", "myschema")
+
+# After (schema is keyword-only):
+db.spatial.within("cities", "geom", "regions", "geom", schema="myschema")
+```
+
+**D2/D5 carve-out — raw SQL execution primitives stay positional:**
+
+The following methods intentionally keep their `params` (and `autocommit`) arguments
+positional-with-default. The `(sql, params)` two-positional convention is established
+and expected by users of the primitive I/O layer:
+
+- `Database.execute(sql, params=None, autocommit=False)` — params and autocommit positional
+- `Database.fetch_one(sql, params=None)` — params positional
+- `Database.fetch_val(sql, params=None)` — params positional
+- `Database.fetch_all(sql, params=None)` — params positional
+- `Database.stream(sql, params=None, batch_size=1000)` — params and batch_size positional
+- `db.maint.explain(sql, params=None, analyze=False, format="text")` — all positional
+
+These are intentional, documented exceptions to the keyword-only enforcement (D-03 carve-out).
+All AsyncDatabase equivalents follow the same pattern.
+
+---
+
+### 4. TimescaleDB `where=` renamed to `filter=` on time_bucket / time_bucket_gapfill (D3)
+
+The `where=` parameter on `db.timescale.time_bucket()` and
+`db.timescale.time_bucket_gapfill()` is renamed to `filter=`, matching the spatial
+`filter=` convention for raw SQL fragments.
+
+**Before (pycopg ≤ 0.10.x):**
+
+```python
+result = db.timescale.time_bucket(
+    "events", "time", "1 hour",
+    aggregates="count(*) AS cnt",
+    where="device_id = 'sensor-01'",
+)
+
+result = db.timescale.time_bucket_gapfill(
+    "events", "time", "1 hour",
+    start="2024-01-01", finish="2024-02-01",
+    aggregates="avg(value) AS avg_val",
+    where="device_id = 'sensor-01'",
+)
+```
+
+**After (pycopg 1.0+):**
+
+```python
+result = db.timescale.time_bucket(
+    "events", "time", "1 hour",
+    aggregates="count(*) AS cnt",
+    filter="device_id = 'sensor-01'",
+)
+
+result = db.timescale.time_bucket_gapfill(
+    "events", "time", "1 hour",
+    start="2024-01-01", finish="2024-02-01",
+    aggregates="avg(value) AS avg_val",
+    filter="device_id = 'sensor-01'",
+)
+```
+
+The old `where=` emits `DeprecationWarning` through 1.x and is removed in 2.0.
+The `filter=` parameter accepts a **raw SQL fragment** (same semantics as the spatial
+`filter=` — a SQL WHERE clause body, not a dict-equality predicate).
+
+---
+
+## Upgrade Checklist
+
+- [ ] Update `db.spatial.*` calls: replace `where=` with `filter=`
+- [ ] Update `build_*_sql` builder calls: replace `where=` with `filter=` (no shim — TypeError if you don't)
+- [ ] Update `db.timescale.time_bucket()` and `time_bucket_gapfill()` calls: replace `where=` with `filter=`
+- [ ] Update exception imports: `from pycopg.exceptions import ExtensionNotAvailableError` etc.
+- [ ] Update `except OldExceptionName:` blocks to use `*Error` canonical names (optional — old names still work through 1.x)
+- [ ] Update positional calls to use keyword arguments for all optional/defaulted params
+- [ ] Verify that `db.execute(sql, params)`, `db.fetch_all(sql, params)`, `db.stream(sql, params)` — these stay positional, no change needed
+- [ ] Run test suite with `-W error::DeprecationWarning` to catch remaining deprecated usage:
+  `uv run pytest -W error::DeprecationWarning`
+
+## Getting Help
+
+- See [API Stability](https://pycopg.readthedocs.io/en/latest/stability.html) for the full
+  Stable API Contract table (positional vs keyword-only for every method)
+- Review [CHANGELOG.md](CHANGELOG.md) for the full list of changes
+- Open an issue on [GitHub](https://github.com/alkimya/pycopg/issues) with your use case
+
+---
+
 # Migration Guide: v0.6.0 → v0.7.0
 
 This guide helps you upgrade from pycopg 0.6.0 to 0.7.0. Version 0.7.0 permanently
