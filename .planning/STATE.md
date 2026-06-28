@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: Roadmap ready
-stopped_at: Phase 41 context gathered
+status: Phase 41 planned — ready to execute
+stopped_at: Phase 41 planned (5 plans, 5 waves)
 last_updated: "2026-06-28T10:13:15.565Z"
-last_activity: "2026-06-27 — Roadmap created (7 phases: 41-47, 24 requirements mapped)"
+last_activity: "2026-06-28 — Phase 41 planned (5 plans/5 waves; research + Nyquist validation + pattern map; plan-check 0 blockers)"
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
+  total_plans: 5
   completed_plans: 0
   percent: 0
 ---
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** v1.0.0 Spatial v2 + gel API — roadmap created, ready to plan Phase 41
+**Current focus:** v1.0.0 Spatial v2 + gel API — Phase 41 (API Homogenization) planned, ready to execute
 
 ## Current Position
 
-Phase: Not started (roadmap defined — Phase 41 next)
-Plan: —
-Status: Roadmap ready
-Last activity: 2026-06-27 — Roadmap created (7 phases: 41-47, 24 requirements mapped)
+Phase: 41 — API Homogenization (planned)
+Plan: 5 plans in 5 waves (serial chain — gate → exceptions → spatial rename → audit+kw-only → docs)
+Status: Ready to execute
+Last activity: 2026-06-28 — Phase 41 planned (5 plans, plan-check 0 blockers / 2 warnings resolved)
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Last activity: 2026-06-27 — Roadmap created (7 phases: 41-47, 24 requirements 
 
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
-| 41. API Homogenization | ? | 0 | Not started |
+| 41. API Homogenization | 5 | 0 | Planned |
 | 42. Spatial v2 — Processing Helpers | ? | 0 | Not started |
 | 43. Spatial v2 — Spatial Aggregates | ? | 0 | Not started |
 | 44. Spatial v2 — Serialization + MVT | ? | 0 | Not started |
