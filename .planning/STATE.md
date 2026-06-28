@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: verifying
-stopped_at: Completed 41-04-PLAN.md
+status: Phase 41 complete + verified — ready to plan Phase 42
+stopped_at: Phase 41 (API Homogenization) complete — 5/5 plans, verified PASSED 10/10
 last_updated: "2026-06-28T12:55:12.623Z"
-last_activity: 2026-06-28
+last_activity: "2026-06-28 — Phase 41 (API Homogenization) shipped: FREEZE-01..04 (spatial where→filter shim, 4 N818 *Error renames + PEP562 aliases, kw-only freeze + raw-SQL carve-out, time_bucket where→filter, docs/stability.md + MIGRATION). Code-review CR-01 async-parity blocker found+fixed (+structural KIND-parity test); suite 1491 green @96.09%; verified 10/10"
 progress:
   total_phases: 7
   completed_phases: 1
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 41 — api-homogenization
+**Current focus:** Phase 42 — Spatial v2 (Processing Helpers). Phase 41 (API Homogenization) complete + verified.
 
 ## Current Position
 
-Phase: 42
+Phase: 42 — Spatial v2 — Processing Helpers (not started)
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-28
+Status: Phase 41 complete + verified PASSED (10/10); Phase 42 not yet discussed/planned
+Last activity: 2026-06-28 — Phase 41 shipped + verified (FREEZE-01..04; CR-01 async-parity blocker fixed)
 
 ## Performance Metrics
 
@@ -44,7 +44,7 @@ Last activity: 2026-06-28
 
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
-| 41. API Homogenization | 5 | 0 | Planned |
+| 41. API Homogenization | 5 | 5 | Complete (verified PASSED 10/10; code-review CR-01 async-parity blocker found+fixed) |
 | 42. Spatial v2 — Processing Helpers | ? | 0 | Not started |
 | 43. Spatial v2 — Spatial Aggregates | ? | 0 | Not started |
 | 44. Spatial v2 — Serialization + MVT | ? | 0 | Not started |
