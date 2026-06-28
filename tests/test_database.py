@@ -325,7 +325,7 @@ class TestDatabaseTables:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        tables = db.schema.list_tables("public")
+        tables = db.schema.list_tables(schema="public")
 
         assert tables == ["users", "orders"]
 
@@ -821,7 +821,7 @@ class TestDatabaseMaintenance:
         db = self._make_db(config)
         db.execute = MagicMock()
 
-        db.maint.vacuum("users", full=True)
+        db.maint.vacuum(table="users", full=True)
 
         call_sql = db.execute.call_args[0][0]
         assert "VACUUM(FULL, ANALYZE)" in call_sql
@@ -1033,7 +1033,7 @@ class TestDatabaseBatchStreamNotify:
         mock_psycopg.connect.return_value = mock_conn
 
         db = Database(config)
-        db.notify("events", "hello")
+        db.notify("events", payload="hello")
 
         sql, params = mock_cursor.execute.call_args[0][:2]
         assert "pg_notify" in sql
@@ -1208,14 +1208,14 @@ class TestDatabaseIntrospectionHelpers:
         """sequences returns list[str] of sequence names."""
         rows = [{"sequence_name": "users_id_seq"}, {"sequence_name": "orders_id_seq"}]
         db = self._make_db(mock_psycopg, config, rows)
-        result = db.schema.sequences("public")
+        result = db.schema.sequences(schema="public")
         assert result == ["users_id_seq", "orders_id_seq"]
 
     @patch("pycopg.database.psycopg")
     def test_sequences_empty(self, mock_psycopg, config):
         """sequences returns [] for a schema with no sequences."""
         db = self._make_db(mock_psycopg, config, [])
-        result = db.schema.sequences("empty_schema")
+        result = db.schema.sequences(schema="empty_schema")
         assert result == []
 
     @patch("pycopg.database.psycopg")
@@ -1223,14 +1223,14 @@ class TestDatabaseIntrospectionHelpers:
         """views returns list[str] of regular view names."""
         rows = [{"table_name": "active_users"}, {"table_name": "recent_orders"}]
         db = self._make_db(mock_psycopg, config, rows)
-        result = db.schema.views("public")
+        result = db.schema.views(schema="public")
         assert result == ["active_users", "recent_orders"]
 
     @patch("pycopg.database.psycopg")
     def test_views_empty(self, mock_psycopg, config):
         """views returns [] for a schema with no regular views."""
         db = self._make_db(mock_psycopg, config, [])
-        result = db.schema.views("public")
+        result = db.schema.views(schema="public")
         assert result == []
 
     @patch("pycopg.database.psycopg")
@@ -1257,7 +1257,7 @@ class TestDatabaseIntrospectionHelpers:
                 db.schema, "list_indexes", return_value=expected_indexes
             ) as m_li,
         ):
-            result = db.schema.describe("some_table", "public")
+            result = db.schema.describe("some_table", schema="public")
 
         # Exact key set
         assert set(result) == {"columns", "primary_key", "foreign_keys", "indexes"}
@@ -1266,11 +1266,11 @@ class TestDatabaseIntrospectionHelpers:
         assert result["primary_key"] == expected_pk
         assert result["foreign_keys"] == expected_fks
         assert result["indexes"] == expected_indexes
-        # Each helper was called exactly once with positional table+schema args
-        m_ti.assert_called_once_with("some_table", "public")
-        m_pk.assert_called_once_with("some_table", "public")
-        m_fk.assert_called_once_with("some_table", "public")
-        m_li.assert_called_once_with("some_table", "public")
+        # Each helper was called exactly once with keyword schema arg
+        m_ti.assert_called_once_with("some_table", schema="public")
+        m_pk.assert_called_once_with("some_table", schema="public")
+        m_fk.assert_called_once_with("some_table", schema="public")
+        m_li.assert_called_once_with("some_table", schema="public")
 
 
 class TestDatabaseDropTable:

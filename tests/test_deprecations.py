@@ -164,10 +164,102 @@ class TestWhereDeprecation:
 class TestKwOnlyEnforcement:
     """Keyword-only boundary enforcement (FREEZE-03, D-03/D-04)."""
 
-    @pytest.mark.xfail(reason="Implemented in Plan 04 (kw-only audit + FREEZE-03 signature fixes)", strict=False)
     def test_contains_geom_is_kw_only(self):
         """Passing geom positionally must raise TypeError in 1.0."""
         db = MagicMock()
         accessor = SpatialAccessor(db)
         with pytest.raises(TypeError):
             accessor.contains("tbl", "geometry")  # geom is now kw-only
+
+    def test_flat_core_kw_only_schema(self):
+        """to_dataframe schema= is kw-only; passing positionally raises TypeError."""
+        db = MagicMock()
+        # to_dataframe(table=None, *, schema=...) — schema is kw-only
+        from pycopg import Database
+        db_mock = MagicMock(spec=Database)
+        # Calling to_dataframe("tbl", "public") would pass "public" as positional
+        # which matches `table`; there's no positional slot for schema any more.
+        # Instead test count which has a clear `where` as kw-only:
+        # count(table, *, where=None, schema=...) — 'where' is now kw-only
+        from pycopg.database import Database as DBClass
+        with pytest.raises(TypeError):
+            DBClass.count(db_mock, "tbl", {"id": 1})  # where is kw-only
+
+
+def _make_sync_timescale_accessor():
+    """Return a TimescaleAccessor with mocked DB (TimescaleDB pre-checked)."""
+    from pycopg.timescale import TimescaleAccessor
+
+    db = MagicMock()
+    db.schema.has_extension.return_value = True
+    # _run returns empty list for df path
+    mock_accessor = TimescaleAccessor(db)
+    return mock_accessor
+
+
+def _make_async_timescale_accessor():
+    """Return an AsyncTimescaleAccessor with mocked async DB."""
+    from pycopg.timescale import AsyncTimescaleAccessor
+
+    db = MagicMock()
+    db.schema.has_extension = AsyncMock(return_value=True)
+    mock_accessor = AsyncTimescaleAccessor(db)
+    return mock_accessor
+
+
+class TestTimeBucketWhereDeprecation:
+    """where= shim on time_bucket / time_bucket_gapfill (D3, FREEZE-03 Plan 04)."""
+
+    def test_time_bucket_where_warns(self):
+        """time_bucket(where=...) emits DeprecationWarning pointing to caller."""
+        accessor = _make_sync_timescale_accessor()
+        # Patch _run to avoid real DB call
+        accessor._run = MagicMock(return_value=[])
+        with pytest.warns(DeprecationWarning, match="filter=") as record:
+            accessor.time_bucket("tbl", "ts", "1 hour", "count(*)", where="id > 0", into="rows")
+        assert len(record) == 1
+        w = record[0]
+        assert w.filename.endswith("test_deprecations.py"), (
+            f"Warning pointed at {w.filename!r}, expected test file"
+        )
+
+    def test_time_bucket_filter_and_where_raises(self):
+        """time_bucket with both filter= and where= raises TypeError."""
+        accessor = _make_sync_timescale_accessor()
+        accessor._run = MagicMock(return_value=[])
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            accessor.time_bucket(
+                "tbl", "ts", "1 hour", "count(*)", filter="x > 0", where="y > 0", into="rows"
+            )
+
+    def test_time_bucket_gapfill_where_warns(self):
+        """time_bucket_gapfill(where=...) emits DeprecationWarning pointing to caller."""
+        from datetime import datetime
+
+        accessor = _make_sync_timescale_accessor()
+        accessor._run = MagicMock(return_value=[])
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        with pytest.warns(DeprecationWarning, match="filter=") as record:
+            accessor.time_bucket_gapfill(
+                "tbl", "ts", "1 hour", start, finish, "count(*)", where="id > 0", into="rows"
+            )
+        assert len(record) == 1
+        w = record[0]
+        assert w.filename.endswith("test_deprecations.py"), (
+            f"Warning pointed at {w.filename!r}, expected test file"
+        )
+
+    def test_time_bucket_gapfill_filter_and_where_raises(self):
+        """time_bucket_gapfill with both filter= and where= raises TypeError."""
+        from datetime import datetime
+
+        accessor = _make_sync_timescale_accessor()
+        accessor._run = MagicMock(return_value=[])
+        start = datetime(2024, 1, 1)
+        finish = datetime(2024, 1, 2)
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            accessor.time_bucket_gapfill(
+                "tbl", "ts", "1 hour", start, finish, "count(*)",
+                filter="x > 0", where="y > 0", into="rows"
+            )

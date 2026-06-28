@@ -44,7 +44,7 @@ class MaintAccessor:
         """
         self._db = db
 
-    def size(self, pretty: bool = True) -> str | int:
+    def size(self, *, pretty: bool = True) -> str | int:
         """Get database size.
 
         Parameters
@@ -68,7 +68,7 @@ class MaintAccessor:
             return result[0]["size"]
 
     def table_size(
-        self, table: str, schema: str = "public", pretty: bool = True
+        self, table: str, *, schema: str = "public", pretty: bool = True
     ) -> str | int:
         """Get table size including indexes.
 
@@ -94,7 +94,7 @@ class MaintAccessor:
             result = self._db.execute(queries.TABLE_SIZE, [full_name])
             return result[0]["size"]
 
-    def table_sizes(self, schema: str = "public", limit: int = 20) -> list[dict]:
+    def table_sizes(self, *, schema: str = "public", limit: int = 20) -> list[dict]:
         """Get sizes of all tables in schema, sorted by size.
 
         Parameters
@@ -114,6 +114,7 @@ class MaintAccessor:
 
     def vacuum(
         self,
+        *,
         table: str | None = None,
         schema: str = "public",
         analyze: bool = True,
@@ -146,7 +147,7 @@ class MaintAccessor:
 
         self._db.execute(f"VACUUM{options_str}{table_str}", autocommit=True)
 
-    def analyze(self, table: str | None = None, schema: str = "public") -> None:
+    def analyze(self, *, table: str | None = None, schema: str = "public") -> None:
         """Update table statistics for query planner.
 
         Parameters
@@ -165,6 +166,7 @@ class MaintAccessor:
         self,
         sql: str,
         params=None,
+        *,
         analyze: bool = False,
         format: str = "text",
     ) -> list[str]:

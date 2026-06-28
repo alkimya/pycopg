@@ -929,7 +929,7 @@ class TestAsyncDatabaseGeoDataFrame:
             mock_to_postgis.assert_called_once()
             # Verify create_spatial_index was called via the spatial accessor
             mock_spatial.create_spatial_index.assert_awaited_once_with(
-                "parcels", "geometry", "public"
+                "parcels", column="geometry", schema="public"
             )
 
 
@@ -2293,7 +2293,7 @@ class TestAsyncDatabasePostGIS:
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
 
-        await db.spatial.create_spatial_index("parcels", "geom")
+        await db.spatial.create_spatial_index("parcels", column="geom")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2310,7 +2310,7 @@ class TestAsyncDatabasePostGIS:
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
 
-        await db.spatial.create_spatial_index("parcels", "geom", name="custom_idx")
+        await db.spatial.create_spatial_index("parcels", column="geom", name="custom_idx")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2326,7 +2326,7 @@ class TestAsyncDatabasePostGIS:
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
 
-        await db.spatial.create_spatial_index("parcels", "geom", schema="geo")
+        await db.spatial.create_spatial_index("parcels", column="geom", schema="geo")
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2905,7 +2905,7 @@ class TestAsyncDatabaseCorrectnessFixes:
         with patch("pandas.DataFrame.to_sql"):
             await db.from_dataframe(df, "users", primary_key="id")
 
-        mock_schema.add_primary_key.assert_awaited_once_with("users", "id", "public")
+        mock_schema.add_primary_key.assert_awaited_once_with("users", "id", schema="public")
 
     async def test_from_dataframe_append_skips_primary_key(self, config):
         """C1: with if_exists='append', primary_key is NOT applied (matches sync guard)."""
@@ -3257,7 +3257,7 @@ class TestAsyncDatabaseReadHelpers:
             )
 
             assert await db.count(t) == 3
-            assert await db.count(t, {"active": True}) == 2
+            assert await db.count(t, where={"active": True}) == 2
         finally:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 

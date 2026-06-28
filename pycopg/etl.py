@@ -934,7 +934,7 @@ class ETLAccessor:
                 row = cur.fetchone()
         return _row_to_result(row)
 
-    def history(self, name: str, limit: int = 100) -> list[RunResult]:
+    def history(self, name: str, *, limit: int = 100) -> list[RunResult]:
         """Return the run history for a pipeline, newest-first.
 
         Reads ``pipeline_runs`` via :data:`~pycopg.queries.ETL_LIST_RUNS`
@@ -1114,7 +1114,7 @@ class ETLAccessor:
                 schema=pipeline.schema,
             )
 
-    def run(self, pipeline: Pipeline, dry_run: bool = False) -> RunResult:
+    def run(self, pipeline: Pipeline, *, dry_run: bool = False) -> RunResult:
         """Execute a full extract → transform → load pipeline run.
 
         Auto-creates ``pipeline_runs`` if absent, inserts a ``'running'``
@@ -1378,7 +1378,7 @@ class ETLAccessor:
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
             # ------------------------------------------------------------------
-            exists = self._db.schema.table_exists(pipeline.target, pipeline.schema)
+            exists = self._db.schema.table_exists(pipeline.target, schema=pipeline.schema)
 
             if pipeline.load_mode in ("append", "upsert") and not exists:
                 raise ETLTargetNotFoundError(
@@ -1391,7 +1391,7 @@ class ETLAccessor:
                 self._db.from_dataframe(
                     df.head(0),
                     pipeline.target,
-                    pipeline.schema,
+                    schema=pipeline.schema,
                     if_exists="replace",
                 )
 
@@ -2056,7 +2056,7 @@ class AsyncETLAccessor:
             # 4. EXISTENCE CHECK (D-03)
             # ------------------------------------------------------------------
             exists = await self._db.schema.table_exists(
-                pipeline.target, pipeline.schema
+                pipeline.target, schema=pipeline.schema
             )
 
             if pipeline.load_mode in ("append", "upsert") and not exists:
@@ -2070,7 +2070,7 @@ class AsyncETLAccessor:
                 await self._db.from_dataframe(
                     df.head(0),
                     pipeline.target,
-                    pipeline.schema,
+                    schema=pipeline.schema,
                     if_exists="replace",
                 )
 

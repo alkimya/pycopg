@@ -56,7 +56,7 @@ class SchemaAccessor:
     # =========================================================================
 
     def create_database(
-        self, name: str, owner: str | None = None, template: str = "template1"
+        self, name: str, *, owner: str | None = None, template: str = "template1"
     ) -> None:
         """Create a new database.
 
@@ -80,7 +80,7 @@ class SchemaAccessor:
             with conn.cursor() as cur:
                 cur.execute(f"CREATE DATABASE {name}{owner_clause} TEMPLATE {template}")
 
-    def drop_database(self, name: str, if_exists: bool = True) -> None:
+    def drop_database(self, name: str, *, if_exists: bool = True) -> None:
         """Drop a database.
 
         Parameters
@@ -142,7 +142,7 @@ class SchemaAccessor:
     # =========================================================================
 
     def create_extension(
-        self, name: str, schema: str | None = None, if_not_exists: bool = True
+        self, name: str, *, schema: str | None = None, if_not_exists: bool = True
     ) -> None:
         """Create a PostgreSQL extension.
 
@@ -165,7 +165,7 @@ class SchemaAccessor:
         )
 
     def drop_extension(
-        self, name: str, if_exists: bool = True, cascade: bool = False
+        self, name: str, *, if_exists: bool = True, cascade: bool = False
     ) -> None:
         """Drop a PostgreSQL extension.
 
@@ -216,7 +216,7 @@ class SchemaAccessor:
     # =========================================================================
 
     def create_schema(
-        self, name: str, if_not_exists: bool = True, owner: str | None = None
+        self, name: str, *, if_not_exists: bool = True, owner: str | None = None
     ) -> None:
         """Create a schema.
 
@@ -237,7 +237,7 @@ class SchemaAccessor:
         self._db.execute(f"CREATE SCHEMA {if_clause}{name}{owner_clause}")
 
     def drop_schema(
-        self, name: str, if_exists: bool = True, cascade: bool = False
+        self, name: str, *, if_exists: bool = True, cascade: bool = False
     ) -> None:
         """Drop a schema.
 
@@ -286,7 +286,7 @@ class SchemaAccessor:
     # TABLES
     # =========================================================================
 
-    def list_tables(self, schema: str = "public") -> list[str]:
+    def list_tables(self, *, schema: str = "public") -> list[str]:
         """List tables in a schema.
 
         Parameters
@@ -302,7 +302,7 @@ class SchemaAccessor:
         result = self._db.execute(queries.LIST_TABLES, [schema])
         return [r["table_name"] for r in result]
 
-    def table_exists(self, name: str, schema: str = "public") -> bool:
+    def table_exists(self, name: str, *, schema: str = "public") -> bool:
         """Check if a table exists.
 
         Parameters
@@ -320,7 +320,7 @@ class SchemaAccessor:
         result = self._db.execute(queries.TABLE_EXISTS, [schema, name])
         return len(result) > 0
 
-    def list_columns(self, table: str, schema: str = "public") -> list[str]:
+    def list_columns(self, table: str, *, schema: str = "public") -> list[str]:
         """Get list of column names for a table.
 
         Parameters
@@ -339,7 +339,7 @@ class SchemaAccessor:
         return [row["column_name"] for row in result]
 
     def columns_with_types(
-        self, table: str, schema: str = "public"
+        self, table: str, *, schema: str = "public"
     ) -> list[tuple[str, str]]:
         """Get list of (column_name, data_type) tuples for a table.
 
@@ -361,6 +361,7 @@ class SchemaAccessor:
     def drop_table(
         self,
         name: str,
+        *,
         schema: str = "public",
         if_exists: bool = True,
         cascade: bool = False,
@@ -384,7 +385,7 @@ class SchemaAccessor:
         self._db.execute(f"DROP TABLE {if_clause}{schema}.{name}{cascade_clause}")
 
     def truncate_table(
-        self, name: str, schema: str = "public", cascade: bool = False
+        self, name: str, *, schema: str = "public", cascade: bool = False
     ) -> None:
         """Truncate a table (delete all rows).
 
@@ -403,12 +404,12 @@ class SchemaAccessor:
             If the table does not exist in the given schema.
         """
         validate_identifiers(name, schema)
-        if not self.table_exists(name, schema):
+        if not self.table_exists(name, schema=schema):
             raise TableNotFoundError(f"Table '{schema}.{name}' does not exist.")
         cascade_clause = " CASCADE" if cascade else ""
         self._db.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
 
-    def table_info(self, name: str, schema: str = "public") -> list[dict]:
+    def table_info(self, name: str, *, schema: str = "public") -> list[dict]:
         """Get column information for a table.
 
         Parameters
@@ -426,7 +427,7 @@ class SchemaAccessor:
         """
         return self._db.execute(queries.TABLE_INFO, [schema, name])
 
-    def row_count(self, name: str, schema: str = "public") -> int:
+    def row_count(self, name: str, *, schema: str = "public") -> int:
         """Get approximate row count for a table.
 
         Uses pg_stat for speed. For exact count, use execute("SELECT COUNT(*)...").
@@ -454,6 +455,7 @@ class SchemaAccessor:
         self,
         table: str,
         columns: str | list[str],
+        *,
         schema: str = "public",
         name: str | None = None,
     ) -> None:
@@ -488,6 +490,7 @@ class SchemaAccessor:
         columns: str | list[str],
         ref_table: str,
         ref_columns: str | list[str],
+        *,
         schema: str = "public",
         ref_schema: str = "public",
         name: str | None = None,
@@ -557,6 +560,7 @@ class SchemaAccessor:
         self,
         table: str,
         columns: str | list[str],
+        *,
         schema: str = "public",
         name: str | None = None,
     ) -> None:
@@ -588,6 +592,7 @@ class SchemaAccessor:
         self,
         table: str,
         columns: str | list[str],
+        *,
         schema: str = "public",
         name: str | None = None,
         unique: bool = False,
@@ -631,7 +636,7 @@ class SchemaAccessor:
         """)
 
     def drop_index(
-        self, name: str, schema: str = "public", if_exists: bool = True
+        self, name: str, *, schema: str = "public", if_exists: bool = True
     ) -> None:
         """Drop an index.
 
@@ -648,7 +653,7 @@ class SchemaAccessor:
         if_clause = "IF EXISTS " if if_exists else ""
         self._db.execute(f"DROP INDEX {if_clause}{schema}.{name}")
 
-    def list_indexes(self, table: str, schema: str = "public") -> list[dict]:
+    def list_indexes(self, table: str, *, schema: str = "public") -> list[dict]:
         """List indexes on a table.
 
         Parameters
@@ -665,7 +670,7 @@ class SchemaAccessor:
         """
         return self._db.execute(queries.LIST_INDEXES, [schema, table])
 
-    def list_constraints(self, table: str, schema: str = "public") -> list[dict]:
+    def list_constraints(self, table: str, *, schema: str = "public") -> list[dict]:
         """List constraints on a table.
 
         Parameters
@@ -682,7 +687,7 @@ class SchemaAccessor:
         """
         return self._db.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
-    def primary_key(self, table: str, schema: str = "public") -> dict | None:
+    def primary_key(self, table: str, *, schema: str = "public") -> dict | None:
         """Return the primary key constraint for a table, or None if absent.
 
         Parameters
@@ -707,7 +712,7 @@ class SchemaAccessor:
             "columns": [r["column_name"] for r in rows],
         }
 
-    def foreign_keys(self, table: str, schema: str = "public") -> list[dict]:
+    def foreign_keys(self, table: str, *, schema: str = "public") -> list[dict]:
         """Return all foreign key constraints on a table.
 
         Parameters
@@ -747,7 +752,7 @@ class SchemaAccessor:
             seen[name]["referenced_columns"].append(row["referenced_column"])
         return result
 
-    def sequences(self, schema: str = "public") -> list[str]:
+    def sequences(self, *, schema: str = "public") -> list[str]:
         """Return the names of all sequences in a schema.
 
         Parameters
@@ -765,7 +770,7 @@ class SchemaAccessor:
         result = self._db.execute(queries.SEQUENCES, [schema])
         return [r["sequence_name"] for r in result]
 
-    def views(self, schema: str = "public") -> list[str]:
+    def views(self, *, schema: str = "public") -> list[str]:
         """Return the names of regular views in a schema (materialized views excluded).
 
         Parameters
@@ -783,7 +788,7 @@ class SchemaAccessor:
         result = self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
 
-    def describe(self, table: str, schema: str = "public") -> dict:
+    def describe(self, table: str, *, schema: str = "public") -> dict:
         """Return a consolidated introspection snapshot for a table.
 
         Composes the four standalone helpers into one flat dict.  No new SQL
@@ -807,10 +812,10 @@ class SchemaAccessor:
             ``primary_key=None``, ``foreign_keys=[]``, ``indexes=[]``.
         """
         return {
-            "columns": self.table_info(table, schema),
-            "primary_key": self.primary_key(table, schema),
-            "foreign_keys": self.foreign_keys(table, schema),
-            "indexes": self.list_indexes(table, schema),
+            "columns": self.table_info(table, schema=schema),
+            "primary_key": self.primary_key(table, schema=schema),
+            "foreign_keys": self.foreign_keys(table, schema=schema),
+            "indexes": self.list_indexes(table, schema=schema),
         }
 
 

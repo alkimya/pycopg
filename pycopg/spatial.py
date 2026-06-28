@@ -1080,9 +1080,9 @@ class SpatialAccessor:
     def contains(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -1156,8 +1156,8 @@ class SpatialAccessor:
         _check_into(into, "contains")
         sql, params = build_contains_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -1176,8 +1176,8 @@ class SpatialAccessor:
         left_geom: str,
         right_table: str,
         right_geom: str,
-        schema: str = "public",
         *,
+        schema: str = "public",
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -1244,7 +1244,7 @@ class SpatialAccessor:
             left_geom,
             right_table,
             right_geom,
-            schema,
+            schema=schema,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -1255,9 +1255,9 @@ class SpatialAccessor:
     def intersects(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -1330,8 +1330,8 @@ class SpatialAccessor:
         _check_into(into, "intersects")
         sql, params = build_intersects_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -1347,9 +1347,9 @@ class SpatialAccessor:
     def dwithin(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -1429,8 +1429,8 @@ class SpatialAccessor:
         _check_into(into, "dwithin")
         sql, params = build_dwithin_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -1448,9 +1448,9 @@ class SpatialAccessor:
     def distance(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -1526,8 +1526,8 @@ class SpatialAccessor:
         _check_into(into, "distance")
         sql, params = build_distance_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -1543,9 +1543,9 @@ class SpatialAccessor:
     def nearest(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -1615,8 +1615,8 @@ class SpatialAccessor:
         _check_into(into, "nearest")
         sql, params = build_nearest_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -1630,9 +1630,9 @@ class SpatialAccessor:
     def area(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
@@ -1696,8 +1696,8 @@ class SpatialAccessor:
         _check_into(into, "area")
         sql, params = build_area_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             unit=unit,
             columns=columns,
             filter=filter,
@@ -1709,9 +1709,9 @@ class SpatialAccessor:
     def perimeter(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
@@ -1775,8 +1775,8 @@ class SpatialAccessor:
         _check_into(into, "perimeter")
         sql, params = build_perimeter_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             unit=unit,
             columns=columns,
             filter=filter,
@@ -1788,9 +1788,9 @@ class SpatialAccessor:
     def centroid(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -1852,8 +1852,8 @@ class SpatialAccessor:
         _check_into(into, "centroid")
         sql, params = build_centroid_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -1864,9 +1864,9 @@ class SpatialAccessor:
     def buffer(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         distance: float,
         unit: str = "m",
         into: str = "rows",
@@ -1932,8 +1932,8 @@ class SpatialAccessor:
         _check_into(into, "buffer")
         sql, params = build_buffer_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             distance=distance,
             unit=unit,
             columns=columns,
@@ -1946,9 +1946,9 @@ class SpatialAccessor:
     def transform(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         to_srid: int,
         into: str = "rows",
         columns: list[str] | None = None,
@@ -2012,8 +2012,8 @@ class SpatialAccessor:
         _check_into(into, "transform")
         sql, params = build_transform_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             to_srid=to_srid,
             columns=columns,
             filter=filter,
@@ -2025,6 +2025,7 @@ class SpatialAccessor:
     def create_spatial_index(
         self,
         table: str,
+        *,
         column: str = "geometry",
         schema: str = "public",
         name: str | None = None,
@@ -2051,7 +2052,7 @@ class SpatialAccessor:
             ON {schema}.{table} USING GIST ({column})
         """)
 
-    def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
+    def list_geometry_columns(self, *, schema: str | None = None) -> list[dict]:
         """List geometry columns in the database.
 
         Parameters
@@ -2136,9 +2137,9 @@ class AsyncSpatialAccessor:
     async def contains(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -2214,8 +2215,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "contains")
         sql, params = build_contains_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -2234,8 +2235,8 @@ class AsyncSpatialAccessor:
         left_geom: str,
         right_table: str,
         right_geom: str,
-        schema: str = "public",
         *,
+        schema: str = "public",
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -2305,7 +2306,7 @@ class AsyncSpatialAccessor:
             left_geom,
             right_table,
             right_geom,
-            schema,
+            schema=schema,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -2316,9 +2317,9 @@ class AsyncSpatialAccessor:
     async def intersects(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -2394,8 +2395,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "intersects")
         sql, params = build_intersects_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -2411,9 +2412,9 @@ class AsyncSpatialAccessor:
     async def dwithin(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -2496,8 +2497,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "dwithin")
         sql, params = build_dwithin_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -2515,9 +2516,9 @@ class AsyncSpatialAccessor:
     async def distance(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -2596,8 +2597,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "distance")
         sql, params = build_distance_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -2613,9 +2614,9 @@ class AsyncSpatialAccessor:
     async def nearest(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
         geojson: dict | None = None,
@@ -2688,8 +2689,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "nearest")
         sql, params = build_nearest_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             point=point,
             wkt=wkt,
             geojson=geojson,
@@ -2703,9 +2704,9 @@ class AsyncSpatialAccessor:
     async def area(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
@@ -2772,8 +2773,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "area")
         sql, params = build_area_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             unit=unit,
             columns=columns,
             filter=filter,
@@ -2785,9 +2786,9 @@ class AsyncSpatialAccessor:
     async def perimeter(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
@@ -2854,8 +2855,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "perimeter")
         sql, params = build_perimeter_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             unit=unit,
             columns=columns,
             filter=filter,
@@ -2867,9 +2868,9 @@ class AsyncSpatialAccessor:
     async def centroid(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -2934,8 +2935,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "centroid")
         sql, params = build_centroid_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -2946,9 +2947,9 @@ class AsyncSpatialAccessor:
     async def buffer(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         distance: float,
         unit: str = "m",
         into: str = "rows",
@@ -3017,8 +3018,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "buffer")
         sql, params = build_buffer_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             distance=distance,
             unit=unit,
             columns=columns,
@@ -3031,9 +3032,9 @@ class AsyncSpatialAccessor:
     async def transform(
         self,
         table: str,
+        *,
         geom: str = "geometry",
         schema: str = "public",
-        *,
         to_srid: int,
         into: str = "rows",
         columns: list[str] | None = None,
@@ -3100,8 +3101,8 @@ class AsyncSpatialAccessor:
         _check_into(into, "transform")
         sql, params = build_transform_sql(
             table,
-            geom,
-            schema,
+            geom=geom,
+            schema=schema,
             to_srid=to_srid,
             columns=columns,
             filter=filter,
@@ -3113,6 +3114,7 @@ class AsyncSpatialAccessor:
     async def create_spatial_index(
         self,
         table: str,
+        *,
         column: str = "geometry",
         schema: str = "public",
         name: str | None = None,
@@ -3140,7 +3142,7 @@ class AsyncSpatialAccessor:
             ON {schema}.{table} USING GIST ({column})
         """)
 
-    async def list_geometry_columns(self, schema: str | None = None) -> list[dict]:
+    async def list_geometry_columns(self, *, schema: str | None = None) -> list[dict]:
         """List geometry columns in the database.
 
         Parameters

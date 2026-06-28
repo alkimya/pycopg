@@ -2152,8 +2152,8 @@ class TestTimeBucketMock:
         assert list(kwargs["params"].values()) == ["1 hour"]
         assert result is sentinel
 
-    def test_time_bucket_df_with_where(self, config):
-        """time_bucket(where=...) injects the WHERE fragment into the df-path SQL."""
+    def test_time_bucket_df_with_filter(self, config):
+        """time_bucket(filter=...) injects the WHERE fragment into the df-path SQL."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -2162,7 +2162,7 @@ class TestTimeBucketMock:
         db._schema = mock_schema
         db.to_dataframe = MagicMock(return_value=object())
 
-        db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)", where="val > 0")
+        db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)", filter="val > 0")
 
         sql = db.to_dataframe.call_args.kwargs["sql"]
         assert "WHERE val > 0" in sql
@@ -2337,8 +2337,8 @@ class TestTimeBucketGapfillMock:
         ]
         assert result is sentinel
 
-    def test_gapfill_df_with_where(self, config):
-        """gapfill(where=...) ANDs the extra fragment onto the time-range WHERE."""
+    def test_gapfill_df_with_filter(self, config):
+        """gapfill(filter=...) ANDs the extra fragment onto the time-range WHERE."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -2356,7 +2356,7 @@ class TestTimeBucketGapfillMock:
             start,
             finish,
             "locf(avg(val)) AS lo",
-            where="val > 0",
+            filter="val > 0",
         )
 
         sql = db.to_dataframe.call_args.kwargs["sql"]

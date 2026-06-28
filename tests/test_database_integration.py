@@ -175,7 +175,7 @@ class TestDatabaseSchema:
         )
 
         # List tables
-        tables = db.schema.list_tables("public")
+        tables = db.schema.list_tables(schema="public")
         assert temp_table_name in tables
 
     def test_table_exists(self, db, temp_table_name, cleanup_table):
@@ -584,7 +584,7 @@ class TestDatabaseAdmin:
         )
 
         # Run vacuum (just verify no error)
-        db.maint.vacuum(temp_table_name)
+        db.maint.vacuum(table=temp_table_name)
 
     def test_analyze(self, db, temp_table_name, cleanup_table):
         """Test running ANALYZE on a table."""
@@ -597,7 +597,7 @@ class TestDatabaseAdmin:
         )
 
         # Run analyze (just verify no error)
-        db.maint.analyze(temp_table_name)
+        db.maint.analyze(table=temp_table_name)
 
     def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
         """create(if_not_exists=False) on an existing DB raises DatabaseExistsError."""
@@ -757,12 +757,12 @@ class TestDatabaseBatchStreamNotify:
 
     def test_notify_on_valid_channel(self, db):
         """notify issues NOTIFY on a validated channel without raising."""
-        db.notify("events", "hello")
+        db.notify("events", payload="hello")
 
     def test_notify_rejects_invalid_channel(self, db):
         """notify on an invalid channel name raises via validate_identifier."""
         with pytest.raises(Exception):
-            db.notify("bad channel; DROP TABLE x", "payload")
+            db.notify("bad channel; DROP TABLE x", payload="payload")
 
     def test_no_sync_listen_method(self, db):
         """D-06: listen stays async-only — Database must NOT have a listen method."""
@@ -1128,7 +1128,7 @@ class TestDatabaseReadHelpers:
         )
 
         assert db.count(temp_table_name) == 3
-        assert db.count(temp_table_name, {"active": True}) == 2
+        assert db.count(temp_table_name, where={"active": True}) == 2
 
     def test_paginate_orders_and_slices(self, db, temp_table_name, cleanup_table):
         """paginate returns the correct page slice in the correct order."""
@@ -1311,7 +1311,7 @@ class TestIntrospectionHelpers:
             autocommit=True,
         )
         seq_name = f"{temp_table_name}_id_seq"
-        result = db.schema.sequences("public")
+        result = db.schema.sequences(schema="public")
         assert isinstance(result, list)
         assert seq_name in result
 
@@ -1336,7 +1336,7 @@ class TestIntrospectionHelpers:
             autocommit=True,
         )
         try:
-            regular_views = db.schema.views("public")
+            regular_views = db.schema.views(schema="public")
             assert view_name in regular_views
             assert matview_name not in regular_views
         finally:

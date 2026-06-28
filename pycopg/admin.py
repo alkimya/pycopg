@@ -51,6 +51,7 @@ class AdminAccessor:
     def create_role(
         self,
         name: str,
+        *,
         password: str | None = None,
         login: bool = True,
         superuser: bool = False,
@@ -122,7 +123,7 @@ class AdminAccessor:
             for role in in_roles:
                 self._db.admin.grant_role(role, name)
 
-    def drop_role(self, name: str, if_exists: bool = True) -> None:
+    def drop_role(self, name: str, *, if_exists: bool = True) -> None:
         """Drop a role.
 
         Parameters
@@ -152,7 +153,7 @@ class AdminAccessor:
         result = self._db.execute(queries.ROLE_EXISTS, [name])
         return len(result) > 0
 
-    def list_roles(self, include_system: bool = False) -> list[dict]:
+    def list_roles(self, *, include_system: bool = False) -> list[dict]:
         """List all roles.
 
         Parameters
@@ -171,6 +172,7 @@ class AdminAccessor:
     def alter_role(
         self,
         name: str,
+        *,
         password: str | None = None,
         login: bool | None = None,
         superuser: bool | None = None,
@@ -239,7 +241,7 @@ class AdminAccessor:
                     f"ALTER ROLE {name} WITH {options_str}", params if params else None
                 )
 
-    def grant_role(self, role: str, member: str, with_admin: bool = False) -> None:
+    def grant_role(self, role: str, member: str, *, with_admin: bool = False) -> None:
         """Grant role membership to another role.
 
         Parameters
@@ -273,6 +275,7 @@ class AdminAccessor:
         privileges: str | list[str],
         on: str,
         to: str,
+        *,
         object_type: str = "TABLE",
         schema: str = "public",
         with_grant_option: bool = False,
@@ -334,6 +337,7 @@ class AdminAccessor:
         privileges: str | list[str],
         on: str,
         from_role: str,
+        *,
         object_type: str = "TABLE",
         schema: str = "public",
         cascade: bool = False,
@@ -441,6 +445,7 @@ class AsyncAdminAccessor:
     async def create_role(
         self,
         name: str,
+        *,
         password: str | None = None,
         login: bool = True,
         superuser: bool = False,
@@ -514,7 +519,7 @@ class AsyncAdminAccessor:
             for role in in_roles:
                 await self._db.admin.grant_role(role, name)
 
-    async def drop_role(self, name: str, if_exists: bool = True) -> None:
+    async def drop_role(self, name: str, *, if_exists: bool = True) -> None:
         """Drop a role.
 
         Parameters
@@ -544,7 +549,7 @@ class AsyncAdminAccessor:
         result = await self._db.execute(queries.ROLE_EXISTS, [name])
         return len(result) > 0
 
-    async def list_roles(self, include_system: bool = False) -> list[dict]:
+    async def list_roles(self, *, include_system: bool = False) -> list[dict]:
         """List all roles.
 
         Parameters
@@ -565,6 +570,7 @@ class AsyncAdminAccessor:
     async def alter_role(
         self,
         name: str,
+        *,
         password: str | None = None,
         login: bool | None = None,
         superuser: bool | None = None,
@@ -634,7 +640,7 @@ class AsyncAdminAccessor:
                 )
 
     async def grant_role(
-        self, role: str, member: str, with_admin: bool = False
+        self, role: str, member: str, *, with_admin: bool = False
     ) -> None:
         """Grant role membership to another role.
 
@@ -671,6 +677,7 @@ class AsyncAdminAccessor:
         privileges: str | list[str],
         on: str,
         to: str,
+        *,
         object_type: str = "TABLE",
         schema: str = "public",
         with_grant_option: bool = False,
@@ -732,6 +739,7 @@ class AsyncAdminAccessor:
         privileges: str | list[str],
         on: str,
         from_role: str,
+        *,
         object_type: str = "TABLE",
         schema: str = "public",
         cascade: bool = False,

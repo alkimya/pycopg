@@ -349,6 +349,7 @@ class TimescaleAccessor:
         self,
         table: str,
         time_column: str,
+        *,
         schema: str = "public",
         chunk_time_interval: str = "1 day",
         if_not_exists: bool = True,
@@ -399,6 +400,7 @@ class TimescaleAccessor:
     def enable_compression(
         self,
         table: str,
+        *,
         segment_by: str | list[str] | None = None,
         order_by: str | list[str] | None = None,
         schema: str = "public",
@@ -453,6 +455,7 @@ class TimescaleAccessor:
     def add_compression_policy(
         self,
         table: str,
+        *,
         compress_after: str = "7 days",
         schema: str = "public",
     ) -> None:
@@ -491,6 +494,7 @@ class TimescaleAccessor:
         self,
         table: str,
         drop_after: str,
+        *,
         schema: str = "public",
     ) -> None:
         """Add automatic data retention policy to hypertable.
@@ -545,7 +549,7 @@ class TimescaleAccessor:
 
         return self._db.execute(queries.LIST_HYPERTABLES)
 
-    def hypertable_info(self, table: str, schema: str = "public") -> dict:
+    def hypertable_info(self, table: str, *, schema: str = "public") -> dict:
         """Get detailed info about a hypertable.
 
         Parameters
@@ -582,6 +586,7 @@ class TimescaleAccessor:
     def show_chunks(
         self,
         table: str,
+        *,
         older_than: str | datetime | None = None,
         newer_than: str | datetime | None = None,
         schema: str = "public",
@@ -641,6 +646,7 @@ class TimescaleAccessor:
     def drop_chunks(
         self,
         table: str,
+        *,
         older_than: str | datetime | None = None,
         newer_than: str | datetime | None = None,
         schema: str = "public",
@@ -738,6 +744,7 @@ class TimescaleAccessor:
         self,
         table: str,
         column: str,
+        *,
         partition_type: str = "hash",
         number_partitions: int | None = None,
         chunk_interval: str | None = None,
@@ -867,6 +874,7 @@ class TimescaleAccessor:
         self,
         table: str,
         index_name: str,
+        *,
         schema: str = "public",
         if_not_exists: bool = True,
     ) -> None:
@@ -914,6 +922,7 @@ class TimescaleAccessor:
         self,
         view_name: str,
         select_sql: str,
+        *,
         schema: str = "public",
         materialized_only: bool = True,
         with_no_data: bool = False,
@@ -993,6 +1002,7 @@ class TimescaleAccessor:
     def refresh_continuous_aggregate(
         self,
         view_name: str,
+        *,
         window_start: datetime | None = None,
         window_end: datetime | None = None,
         schema: str = "public",
@@ -1080,6 +1090,7 @@ class TimescaleAccessor:
         view_name: str,
         start_offset: str | None,
         end_offset: str | None,
+        *,
         schedule_interval: str = "1 hour",
         schema: str = "public",
         if_not_exists: bool = True,
@@ -1191,6 +1202,8 @@ class TimescaleAccessor:
         time_column: str,
         bucket_width: str,
         aggregates: str,
+        *,
+        filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
@@ -1214,9 +1227,11 @@ class TimescaleAccessor:
             ``"avg(value), max(value)"``).  Documented as structural SQL — not
             untrusted end-user input — the same posture as the spatial
             accessor (D-04).
-        where : str or None, optional
+        filter : str or None, optional
             Optional structural-SQL ``WHERE`` fragment (without the ``WHERE``
             keyword).  ``None`` (default) omits the clause.
+        where : str or None, optional
+            Deprecated. Use ``filter=`` instead.
         schema : str, optional
             Schema name, by default ``"public"``.
         into : str, optional
@@ -1238,13 +1253,26 @@ class TimescaleAccessor:
         ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            import warnings
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "time_bucket")
         if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_sql(
-            table, time_column, bucket_width, aggregates, where=where, schema=schema
+            table, time_column, bucket_width, aggregates, where=filter, schema=schema
         )
         return self._run(sql, params, into)
 
@@ -1256,6 +1284,8 @@ class TimescaleAccessor:
         start: datetime,
         finish: datetime,
         aggregates: str,
+        *,
+        filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
@@ -1289,9 +1319,11 @@ class TimescaleAccessor:
         aggregates : str
             Caller-supplied **structural SQL** aggregate list, optionally
             including ``locf(...)`` / ``interpolate(...)`` (D-04).
-        where : str or None, optional
+        filter : str or None, optional
             Optional structural-SQL ``WHERE`` fragment ANDed onto the time
             range.  ``None`` (default) omits it.
+        where : str or None, optional
+            Deprecated. Use ``filter=`` instead.
         schema : str, optional
             Schema name, by default ``"public"``.
         into : str, optional
@@ -1315,6 +1347,19 @@ class TimescaleAccessor:
             If the local TimescaleDB runs under the Apache license (gapfill is
             a Community/TSL feature).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            import warnings
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "time_bucket_gapfill")
         if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailableError(
@@ -1327,7 +1372,7 @@ class TimescaleAccessor:
             start,
             finish,
             aggregates,
-            where=where,
+            where=filter,
             schema=schema,
         )
         return self._run(sql, params, into)
@@ -1354,6 +1399,7 @@ class AsyncTimescaleAccessor:
         self,
         table: str,
         time_column: str,
+        *,
         schema: str = "public",
         chunk_time_interval: str = "1 day",
         if_not_exists: bool = True,
@@ -1404,6 +1450,7 @@ class AsyncTimescaleAccessor:
     async def enable_compression(
         self,
         table: str,
+        *,
         segment_by: str | list[str] | None = None,
         order_by: str | list[str] | None = None,
         schema: str = "public",
@@ -1460,6 +1507,7 @@ class AsyncTimescaleAccessor:
     async def add_compression_policy(
         self,
         table: str,
+        *,
         compress_after: str = "7 days",
         schema: str = "public",
     ) -> None:
@@ -1498,6 +1546,7 @@ class AsyncTimescaleAccessor:
         self,
         table: str,
         drop_after: str,
+        *,
         schema: str = "public",
     ) -> None:
         """Add automatic data retention policy to hypertable.
@@ -1552,7 +1601,7 @@ class AsyncTimescaleAccessor:
 
         return await self._db.execute(queries.LIST_HYPERTABLES)
 
-    async def hypertable_info(self, table: str, schema: str = "public") -> dict:
+    async def hypertable_info(self, table: str, *, schema: str = "public") -> dict:
         """Get detailed info about a hypertable.
 
         Parameters
@@ -1589,6 +1638,7 @@ class AsyncTimescaleAccessor:
     async def show_chunks(
         self,
         table: str,
+        *,
         older_than: str | datetime | None = None,
         newer_than: str | datetime | None = None,
         schema: str = "public",
@@ -1648,6 +1698,7 @@ class AsyncTimescaleAccessor:
     async def drop_chunks(
         self,
         table: str,
+        *,
         older_than: str | datetime | None = None,
         newer_than: str | datetime | None = None,
         schema: str = "public",
@@ -1745,6 +1796,7 @@ class AsyncTimescaleAccessor:
         self,
         table: str,
         column: str,
+        *,
         partition_type: str = "hash",
         number_partitions: int | None = None,
         chunk_interval: str | None = None,
@@ -1865,6 +1917,7 @@ class AsyncTimescaleAccessor:
         self,
         table: str,
         index_name: str,
+        *,
         schema: str = "public",
         if_not_exists: bool = True,
     ) -> None:
@@ -1910,6 +1963,7 @@ class AsyncTimescaleAccessor:
         self,
         view_name: str,
         select_sql: str,
+        *,
         schema: str = "public",
         materialized_only: bool = True,
         with_no_data: bool = False,
@@ -1985,6 +2039,7 @@ class AsyncTimescaleAccessor:
     async def refresh_continuous_aggregate(
         self,
         view_name: str,
+        *,
         window_start: datetime | None = None,
         window_end: datetime | None = None,
         schema: str = "public",
@@ -2059,6 +2114,7 @@ class AsyncTimescaleAccessor:
         view_name: str,
         start_offset: str | None,
         end_offset: str | None,
+        *,
         schedule_interval: str = "1 hour",
         schema: str = "public",
         if_not_exists: bool = True,
@@ -2168,6 +2224,8 @@ class AsyncTimescaleAccessor:
         time_column: str,
         bucket_width: str,
         aggregates: str,
+        *,
+        filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
@@ -2191,9 +2249,11 @@ class AsyncTimescaleAccessor:
             Caller-supplied **structural SQL** aggregate list (e.g.
             ``"avg(value), max(value)"``).  Documented as structural SQL — not
             untrusted end-user input (D-04).
-        where : str or None, optional
+        filter : str or None, optional
             Optional structural-SQL ``WHERE`` fragment (without the ``WHERE``
             keyword).  ``None`` (default) omits the clause.
+        where : str or None, optional
+            Deprecated. Use ``filter=`` instead.
         schema : str, optional
             Schema name, by default ``"public"``.
         into : str, optional
@@ -2215,13 +2275,26 @@ class AsyncTimescaleAccessor:
         ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            import warnings
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "time_bucket")
         if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_sql(
-            table, time_column, bucket_width, aggregates, where=where, schema=schema
+            table, time_column, bucket_width, aggregates, where=filter, schema=schema
         )
         return await self._run(sql, params, into)
 
@@ -2233,6 +2306,8 @@ class AsyncTimescaleAccessor:
         start: datetime,
         finish: datetime,
         aggregates: str,
+        *,
+        filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
@@ -2262,9 +2337,11 @@ class AsyncTimescaleAccessor:
         aggregates : str
             Caller-supplied **structural SQL** aggregate list, optionally
             including ``locf(...)`` / ``interpolate(...)`` (D-04).
-        where : str or None, optional
+        filter : str or None, optional
             Optional structural-SQL ``WHERE`` fragment ANDed onto the time
             range.  ``None`` (default) omits it.
+        where : str or None, optional
+            Deprecated. Use ``filter=`` instead.
         schema : str, optional
             Schema name, by default ``"public"``.
         into : str, optional
@@ -2288,6 +2365,19 @@ class AsyncTimescaleAccessor:
             If the local TimescaleDB runs under the Apache license (gapfill is
             a Community/TSL feature).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            import warnings
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "time_bucket_gapfill")
         if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailableError(
@@ -2300,7 +2390,7 @@ class AsyncTimescaleAccessor:
             start,
             finish,
             aggregates,
-            where=where,
+            where=filter,
             schema=schema,
         )
         return await self._run(sql, params, into)

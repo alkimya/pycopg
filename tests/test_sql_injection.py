@@ -90,22 +90,22 @@ class TestSyncIdentifierInjection:
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_create_spatial_index_table(self, sync_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            sync_db.spatial.create_spatial_index(evil, "geom")
+            sync_db.spatial.create_spatial_index(evil, column="geom")
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_create_spatial_index_column(self, sync_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            sync_db.spatial.create_spatial_index("parcels", evil)
+            sync_db.spatial.create_spatial_index("parcels", column=evil)
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_vacuum_table(self, sync_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            sync_db.maint.vacuum(evil)
+            sync_db.maint.vacuum(table=evil)
 
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     def test_analyze_table(self, sync_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            sync_db.maint.analyze(evil)
+            sync_db.maint.analyze(table=evil)
 
     def test_create_extension_injection(self, sync_db):
         with pytest.raises(InvalidIdentifierError):
@@ -186,19 +186,19 @@ class TestAsyncIdentifierInjection:
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_create_spatial_index(self, async_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            await async_db.spatial.create_spatial_index(evil, "geom")
+            await async_db.spatial.create_spatial_index(evil, column="geom")
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_vacuum(self, async_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            await async_db.maint.vacuum(evil)
+            await async_db.maint.vacuum(table=evil)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
     async def test_analyze(self, async_db, evil):
         with pytest.raises(InvalidIdentifierError):
-            await async_db.maint.analyze(evil)
+            await async_db.maint.analyze(table=evil)
 
     @pytest.mark.asyncio
     async def test_create_extension(self, async_db):

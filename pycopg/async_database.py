@@ -653,6 +653,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         table: str,
         rows: list[dict],
+        *,
         schema: str = "public",
         on_conflict: str | None = None,
         batch_size: int | None = None,
@@ -721,6 +722,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         table: str,
         rows: list[dict],
+        *,
         schema: str = "public",
         columns: list[str] | None = None,
     ) -> int:
@@ -849,6 +851,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         table: str,
         where: dict,
+        *,
         schema: str = "public",
     ) -> bool:
         """Check whether any row matching the given equality conditions exists.
@@ -889,6 +892,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     async def count(
         self,
         table: str,
+        *,
         where: dict | None = None,
         schema: str = "public",
     ) -> int:
@@ -927,6 +931,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         table: str,
         limit: int,
+        *,
         offset: int = 0,
         order_by: str | list[str] | None = None,
         where: dict | None = None,
@@ -1009,6 +1014,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     async def to_dataframe(
         self,
         table: str | None = None,
+        *,
         schema: str = "public",
         sql: str | None = None,
         params: dict | None = None,
@@ -1052,6 +1058,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         df: pd.DataFrame,
         table: str,
+        *,
         schema: str = "public",
         if_exists: Literal["fail", "replace", "append"] = "fail",
         primary_key: str | list[str] | None = None,
@@ -1124,11 +1131,12 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         # Step 3 — PK (unchanged path, post-load)
         if primary_key and if_exists != "append":
-            await self.schema.add_primary_key(table, primary_key, schema)
+            await self.schema.add_primary_key(table, primary_key, schema=schema)
 
     async def to_geodataframe(
         self,
         table: str | None = None,
+        *,
         schema: str = "public",
         sql: str | None = None,
         geometry_column: str = "geometry",
@@ -1177,6 +1185,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         gdf: gpd.GeoDataFrame,
         table: str,
+        *,
         schema: str = "public",
         if_exists: Literal["fail", "replace", "append"] = "fail",
         primary_key: str | list[str] | None = None,
@@ -1254,10 +1263,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             )
 
         if primary_key and if_exists != "append":
-            await self.schema.add_primary_key(table, primary_key, schema)
+            await self.schema.add_primary_key(table, primary_key, schema=schema)
 
         if spatial_index and if_exists != "append":
-            await self.spatial.create_spatial_index(table, geometry_column, schema)
+            await self.spatial.create_spatial_index(table, column=geometry_column, schema=schema)
 
     # =========================================================================
     # BATCH OPERATIONS
@@ -1267,6 +1276,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         table: str,
         rows: list[dict],
+        *,
         schema: str = "public",
         on_conflict: str | None = None,
     ) -> int:
@@ -1305,6 +1315,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         table: str,
         rows: list[dict],
         conflict_columns: list[str],
+        *,
         update_columns: list[str] | None = None,
         schema: str = "public",
     ) -> int:
@@ -1343,13 +1354,14 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         on_conflict = f"({conflict_str}) DO UPDATE SET {update_str}"
 
-        return await self.insert_many(table, rows, schema, on_conflict)
+        return await self.insert_many(table, rows, schema=schema, on_conflict=on_conflict)
 
     async def upsert(
         self,
         table: str,
         row: dict,
         conflict_columns: list[str],
+        *,
         update_columns: list[str] | None = None,
         schema: str = "public",
     ) -> dict | None:
@@ -1411,6 +1423,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         table: str,
         where: dict,
+        *,
         schema: str = "public",
     ) -> int:
         """Delete rows matching the given equality conditions.
@@ -1452,6 +1465,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         table: str,
         values: dict,
         where: dict,
+        *,
         schema: str = "public",
     ) -> int:
         """Update rows matching the given equality conditions.
@@ -1505,6 +1519,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self,
         sql: str,
         params: Sequence | None = None,
+        *,
         batch_size: int = 1000,
     ) -> AsyncIterator[dict]:
         """Stream query results in batches.
@@ -1559,7 +1574,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             async for notify in conn.notifies():
                 yield notify.payload
 
-    async def notify(self, channel: str, payload: str = "") -> None:
+    async def notify(self, channel: str, *, payload: str = "") -> None:
         """Send notification on a channel.
 
         Parameters

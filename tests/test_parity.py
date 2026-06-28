@@ -398,8 +398,8 @@ class TestBehavioralParity:
         """notify runs without error on both sync and async."""
         sdb = Database(db_config)
         adb = AsyncDatabase(db_config)
-        sdb.notify("parity_chan", "payload")
-        await adb.notify("parity_chan", "payload")
+        sdb.notify("parity_chan", payload="payload")
+        await adb.notify("parity_chan", payload="payload")
 
     # --- PAR-01/02: async mirrors match sync results ------------------------
 
