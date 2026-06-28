@@ -8,10 +8,10 @@
 import warnings
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from pycopg import exceptions
-from pycopg.spatial import SpatialAccessor
+from pycopg.spatial import AsyncSpatialAccessor, SpatialAccessor
 
 
 class TestExceptionAliases:
@@ -44,15 +44,49 @@ class TestExceptionAliases:
             raise exceptions.InvalidIdentifierError("test")
 
 
+def _make_sync_accessor() -> SpatialAccessor:
+    """Return a SpatialAccessor with a mocked DB (PostGIS pre-checked)."""
+    db = MagicMock()
+    db.schema.has_extension.return_value = True
+    db.execute.return_value = []
+    return SpatialAccessor(db)
+
+
+def _make_async_accessor() -> AsyncSpatialAccessor:
+    """Return an AsyncSpatialAccessor with a mocked async DB (PostGIS pre-checked)."""
+    db = MagicMock()
+    db.schema.has_extension = AsyncMock(return_value=True)
+    db.execute = AsyncMock(return_value=[])
+    return AsyncSpatialAccessor(db)
+
+
+# Required positional/keyword args per method.
+# within has a unique two-table signature: (left_table, left_geom, right_table, right_geom)
+# so it's stored as (method, positional_args, keyword_args).
+# All others use: (method, keyword_args) with a single "tbl" positional arg.
+_SYNC_WHERE_CASES = [
+    ("contains", {"point": (0.0, 0.0)}),
+    ("intersects", {"point": (0.0, 0.0)}),
+    ("dwithin", {"point": (0.0, 0.0), "distance": 100.0}),
+    ("distance", {"point": (0.0, 0.0)}),
+    ("nearest", {"point": (0.0, 0.0)}),
+    ("area", {}),
+    ("perimeter", {}),
+    ("centroid", {}),
+    ("buffer", {"distance": 50.0}),
+    ("transform", {"to_srid": 3857}),
+]
+
+# within uses a distinct call pattern
+_WITHIN_ARGS = ("ltbl", "lgeom", "rtbl", "rgeom")
+
+
 class TestWhereDeprecation:
     """where= shim deprecation behaviour (FREEZE-01)."""
 
     def test_where_deprecation_points_to_caller(self):
         """DeprecationWarning from where= must point to THIS file, not spatial.py."""
-        db = MagicMock()
-        db.schema.has_extension.return_value = True
-        db.execute.return_value = []
-        accessor = SpatialAccessor(db)
+        accessor = _make_sync_accessor()
         with pytest.warns(DeprecationWarning) as record:
             accessor.contains("tbl", point=(0.0, 0.0), where="id > 0")
         assert len(record) == 1
@@ -64,12 +98,67 @@ class TestWhereDeprecation:
 
     def test_filter_and_where_both_supplied_raises(self):
         """Supplying both filter= and where= raises TypeError."""
-        db = MagicMock()
-        db.schema.has_extension.return_value = True
-        db.execute.return_value = []
-        accessor = SpatialAccessor(db)
+        accessor = _make_sync_accessor()
         with pytest.raises(TypeError, match="Cannot specify both"):
             accessor.contains("tbl", point=(0.0, 0.0), filter="x > 0", where="y > 0")
+
+    @pytest.mark.parametrize("method,kwargs", _SYNC_WHERE_CASES)
+    def test_sync_where_warns_for_all_methods(self, method, kwargs):
+        """All non-within sync accessor methods emit DeprecationWarning when where= is used."""
+        accessor = _make_sync_accessor()
+        with pytest.warns(DeprecationWarning, match="filter="):
+            getattr(accessor, method)("tbl", **kwargs, where="id > 0")
+
+    @pytest.mark.parametrize("method,kwargs", _SYNC_WHERE_CASES)
+    def test_sync_filter_and_where_both_raises_for_all_methods(self, method, kwargs):
+        """All non-within sync accessor methods raise TypeError when both filter= and where= given."""
+        accessor = _make_sync_accessor()
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            getattr(accessor, method)(
+                "tbl", **kwargs, filter="x > 0", where="y > 0"
+            )
+
+    def test_sync_within_where_warns(self):
+        """SpatialAccessor.within emits DeprecationWarning when where= is used."""
+        accessor = _make_sync_accessor()
+        with pytest.warns(DeprecationWarning, match="filter="):
+            accessor.within(*_WITHIN_ARGS, where="id > 0")
+
+    def test_sync_within_filter_and_where_raises(self):
+        """SpatialAccessor.within raises TypeError when both filter= and where= given."""
+        accessor = _make_sync_accessor()
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            accessor.within(*_WITHIN_ARGS, filter="x > 0", where="y > 0")
+
+    @pytest.mark.parametrize("method,kwargs", _SYNC_WHERE_CASES)
+    async def test_async_where_warns_for_all_methods(self, method, kwargs):
+        """All non-within async accessor methods emit DeprecationWarning when where= is used."""
+        accessor = _make_async_accessor()
+        with pytest.warns(DeprecationWarning, match="filter="):
+            await getattr(accessor, method)("tbl", **kwargs, where="id > 0")
+
+    @pytest.mark.parametrize("method,kwargs", _SYNC_WHERE_CASES)
+    async def test_async_filter_and_where_both_raises_for_all_methods(
+        self, method, kwargs
+    ):
+        """All non-within async accessor methods raise TypeError when both filter= and where= given."""
+        accessor = _make_async_accessor()
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            await getattr(accessor, method)(
+                "tbl", **kwargs, filter="x > 0", where="y > 0"
+            )
+
+    async def test_async_within_where_warns(self):
+        """AsyncSpatialAccessor.within emits DeprecationWarning when where= is used."""
+        accessor = _make_async_accessor()
+        with pytest.warns(DeprecationWarning, match="filter="):
+            await accessor.within(*_WITHIN_ARGS, where="id > 0")
+
+    async def test_async_within_filter_and_where_raises(self):
+        """AsyncSpatialAccessor.within raises TypeError when both filter= and where= given."""
+        accessor = _make_async_accessor()
+        with pytest.raises(TypeError, match="Cannot specify both"):
+            await accessor.within(*_WITHIN_ARGS, filter="x > 0", where="y > 0")
 
 
 class TestKwOnlyEnforcement:

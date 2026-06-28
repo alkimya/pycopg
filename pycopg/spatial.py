@@ -26,6 +26,7 @@ responsibility (T-14-04 accepted limitation).
 from __future__ import annotations
 
 import json
+import warnings
 from typing import TYPE_CHECKING
 
 from pycopg import queries
@@ -1089,6 +1090,7 @@ class SpatialAccessor:
         srid: int = 4326,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1118,8 +1120,10 @@ class SpatialAccessor:
             default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Additional raw SQL filter (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1137,6 +1141,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "contains")
         sql, params = build_contains_sql(
             table,
@@ -1148,7 +1164,7 @@ class SpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1164,6 +1180,7 @@ class SpatialAccessor:
         *,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1188,8 +1205,10 @@ class SpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1207,6 +1226,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "within")
         sql, params = build_within_sql(
             left_table,
@@ -1215,7 +1246,7 @@ class SpatialAccessor:
             right_geom,
             schema,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1234,6 +1265,7 @@ class SpatialAccessor:
         srid: int = 4326,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1262,8 +1294,10 @@ class SpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Additional raw SQL filter (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1281,6 +1315,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "intersects")
         sql, params = build_intersects_sql(
             table,
@@ -1292,7 +1338,7 @@ class SpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1313,6 +1359,7 @@ class SpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1345,8 +1392,10 @@ class SpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Additional raw SQL filter (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1365,6 +1414,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "dwithin")
         sql, params = build_dwithin_sql(
             table,
@@ -1378,7 +1439,7 @@ class SpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1397,6 +1458,7 @@ class SpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1428,8 +1490,10 @@ class SpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the distance (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body, e.g. ``"distance"`` (D-12).
         limit : int, optional
@@ -1447,6 +1511,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "distance")
         sql, params = build_distance_sql(
             table,
@@ -1458,7 +1534,7 @@ class SpatialAccessor:
             srid=srid,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1477,6 +1553,7 @@ class SpatialAccessor:
         k: int = 5,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
     ) -> list[dict] | gpd.GeoDataFrame:
         """Select the k rows nearest to the input geometry (KNN).
@@ -1506,8 +1583,10 @@ class SpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
 
         Returns
         -------
@@ -1521,6 +1600,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "nearest")
         sql, params = build_nearest_sql(
             table,
@@ -1532,7 +1623,7 @@ class SpatialAccessor:
             srid=srid,
             k=k,
             columns=columns,
-            filter=where,
+            filter=filter,
         )
         return self._run(sql, params, into, geom)
 
@@ -1545,6 +1636,7 @@ class SpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1568,8 +1660,10 @@ class SpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the area (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1587,6 +1681,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "area")
         sql, params = build_area_sql(
             table,
@@ -1594,7 +1700,7 @@ class SpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1609,6 +1715,7 @@ class SpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1632,8 +1739,10 @@ class SpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the perimeter (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1651,6 +1760,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "perimeter")
         sql, params = build_perimeter_sql(
             table,
@@ -1658,7 +1779,7 @@ class SpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1672,6 +1793,7 @@ class SpatialAccessor:
         *,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1694,8 +1816,10 @@ class SpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the centroid (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1713,13 +1837,25 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "centroid")
         sql, params = build_centroid_sql(
             table,
             geom,
             schema,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1735,6 +1871,7 @@ class SpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1759,8 +1896,10 @@ class SpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select alongside the buffer (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1778,6 +1917,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "buffer")
         sql, params = build_buffer_sql(
             table,
@@ -1786,7 +1937,7 @@ class SpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1801,6 +1952,7 @@ class SpatialAccessor:
         to_srid: int,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -1824,8 +1976,10 @@ class SpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select alongside the transform (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -1843,6 +1997,18 @@ class SpatialAccessor:
         InvalidIdentifierError
             If any identifier is invalid.
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         _check_into(into, "transform")
         sql, params = build_transform_sql(
             table,
@@ -1850,7 +2016,7 @@ class SpatialAccessor:
             schema,
             to_srid=to_srid,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -1980,6 +2146,7 @@ class AsyncSpatialAccessor:
         srid: int = 4326,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2008,8 +2175,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Additional raw SQL filter (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2029,6 +2198,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "contains")
         sql, params = build_contains_sql(
@@ -2041,7 +2222,7 @@ class AsyncSpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2057,6 +2238,7 @@ class AsyncSpatialAccessor:
         *,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2081,8 +2263,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2102,6 +2286,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "within")
         sql, params = build_within_sql(
@@ -2111,7 +2307,7 @@ class AsyncSpatialAccessor:
             right_geom,
             schema,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2130,6 +2326,7 @@ class AsyncSpatialAccessor:
         srid: int = 4326,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2158,8 +2355,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Additional raw SQL filter (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2179,6 +2378,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "intersects")
         sql, params = build_intersects_sql(
@@ -2191,7 +2402,7 @@ class AsyncSpatialAccessor:
             ref=ref,
             srid=srid,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2212,6 +2423,7 @@ class AsyncSpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2244,8 +2456,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Additional raw SQL filter (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2266,6 +2480,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "dwithin")
         sql, params = build_dwithin_sql(
@@ -2280,7 +2506,7 @@ class AsyncSpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2299,6 +2525,7 @@ class AsyncSpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2330,8 +2557,10 @@ class AsyncSpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the distance (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body, e.g. ``"distance"`` (D-12).
         limit : int, optional
@@ -2351,6 +2580,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "distance")
         sql, params = build_distance_sql(
@@ -2363,7 +2604,7 @@ class AsyncSpatialAccessor:
             srid=srid,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2382,6 +2623,7 @@ class AsyncSpatialAccessor:
         k: int = 5,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
     ) -> list[dict] | gpd.GeoDataFrame:
         """Select the k rows nearest to the input geometry (async KNN).
@@ -2411,8 +2653,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select, by default all (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
 
         Returns
         -------
@@ -2428,6 +2672,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "nearest")
         sql, params = build_nearest_sql(
@@ -2440,7 +2696,7 @@ class AsyncSpatialAccessor:
             srid=srid,
             k=k,
             columns=columns,
-            filter=where,
+            filter=filter,
         )
         return await self._run(sql, params, into, geom)
 
@@ -2453,6 +2709,7 @@ class AsyncSpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2476,8 +2733,10 @@ class AsyncSpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the area (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2497,6 +2756,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "area")
         sql, params = build_area_sql(
@@ -2505,7 +2776,7 @@ class AsyncSpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2520,6 +2791,7 @@ class AsyncSpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2543,8 +2815,10 @@ class AsyncSpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the perimeter (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2564,6 +2838,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "perimeter")
         sql, params = build_perimeter_sql(
@@ -2572,7 +2858,7 @@ class AsyncSpatialAccessor:
             schema,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2586,6 +2872,7 @@ class AsyncSpatialAccessor:
         *,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2608,8 +2895,10 @@ class AsyncSpatialAccessor:
             Only ``"rows"`` is valid for this helper (D-02).
         columns : list of str, optional
             Columns to select alongside the centroid (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2629,6 +2918,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "centroid")
         sql, params = build_centroid_sql(
@@ -2636,7 +2937,7 @@ class AsyncSpatialAccessor:
             geom,
             schema,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2652,6 +2953,7 @@ class AsyncSpatialAccessor:
         unit: str = "m",
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2676,8 +2978,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select alongside the buffer (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2697,6 +3001,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "buffer")
         sql, params = build_buffer_sql(
@@ -2706,7 +3022,7 @@ class AsyncSpatialAccessor:
             distance=distance,
             unit=unit,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
@@ -2721,6 +3037,7 @@ class AsyncSpatialAccessor:
         to_srid: int,
         into: str = "rows",
         columns: list[str] | None = None,
+        filter: str | None = None,
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
@@ -2744,8 +3061,10 @@ class AsyncSpatialAccessor:
             ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
         columns : list of str, optional
             Columns to select alongside the transform (D-03).
-        where : str, optional
+        filter : str, optional
             Raw SQL filter fragment (D-11).
+        where : str, optional
+            Deprecated. Use ``filter=`` instead.
         order_by : str, optional
             ORDER BY clause body (D-12).
         limit : int, optional
@@ -2765,6 +3084,18 @@ class AsyncSpatialAccessor:
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
+        if where is not None:
+            if filter is not None:
+                raise TypeError(
+                    "Cannot specify both 'filter' and 'where'; use 'filter=' only."
+                )
+            warnings.warn(
+                "The 'where' keyword argument is deprecated and will be removed in "
+                "pycopg 2.0. Use 'filter=' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            filter = where
         await self._check_postgis()
         _check_into(into, "transform")
         sql, params = build_transform_sql(
@@ -2773,7 +3104,7 @@ class AsyncSpatialAccessor:
             schema,
             to_srid=to_srid,
             columns=columns,
-            filter=where,
+            filter=filter,
             order_by=order_by,
             limit=limit,
         )
