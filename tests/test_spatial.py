@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from pycopg.exceptions import ExtensionNotAvailable, InvalidIdentifier
+from pycopg.exceptions import ExtensionNotAvailableError, InvalidIdentifierError
 from pycopg.spatial import (
     _REF_SENTINEL,
     AsyncSpatialAccessor,
@@ -54,8 +54,8 @@ class TestGeometryResolver:
         assert params == ["zones", "geom"]
 
     def test_ref_form_validates_identifiers(self):
-        """ref= with an invalid table name raises InvalidIdentifier."""
-        with pytest.raises(InvalidIdentifier):
+        """ref= with an invalid table name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
             _resolve_geometry(ref=("bad-name", "g"))
 
     def test_no_form_raises_valueerror(self):
@@ -116,13 +116,13 @@ class TestBuilders:
         assert params == []
 
     def test_contains_ref_invalid_identifier(self):
-        """contains with an invalid ref table raises InvalidIdentifier."""
-        with pytest.raises(InvalidIdentifier):
+        """contains with an invalid ref table raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
             build_contains_sql("t", ref=("bad-name", "g"))
 
     def test_contains_invalid_table(self):
-        """An invalid table name raises InvalidIdentifier."""
-        with pytest.raises(InvalidIdentifier):
+        """An invalid table name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
             build_contains_sql("bad-name", point=(1, 2))
 
     def test_contains_custom_geom_and_schema(self):
@@ -137,8 +137,8 @@ class TestBuilders:
         assert sql.startswith("SELECT id, name FROM public.parcels AS t")
 
     def test_contains_invalid_column(self):
-        """An invalid column name raises InvalidIdentifier."""
-        with pytest.raises(InvalidIdentifier):
+        """An invalid column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
             build_contains_sql("parcels", point=(1, 2), columns=["bad-col"])
 
     def test_contains_where_appended_with_and(self):
@@ -215,7 +215,7 @@ class TestBuilders:
 
     def test_within_invalid_identifier(self):
         """within validates all four table/geom identifiers."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_within_sql("parcels", "geometry", "bad-name", "geom")
 
     # -- dwithin -------------------------------------------------------
@@ -402,7 +402,7 @@ class TestBuilders:
         """centroid supports columns= and invalid columns raise."""
         sql, _ = build_centroid_sql("parcels", columns=["id"])
         assert sql.startswith("SELECT id, ST_X(")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_centroid_sql("parcels", columns=["bad-col"])
 
     # -- buffer --------------------------------------------------------
@@ -461,7 +461,7 @@ class TestBuilders:
 
     def test_transform_invalid_table(self):
         """transform validates the table identifier."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_transform_sql("bad-name", to_srid=4326)
 
 
@@ -511,14 +511,14 @@ class TestGuard:
     """PostGIS guard and into= validation behavior (mocked, no real DB)."""
 
     def test_sync_accessor_raises_when_postgis_missing(self):
-        """SpatialAccessor raises ExtensionNotAvailable at construction."""
-        with pytest.raises(ExtensionNotAvailable, match="PostGIS extension"):
+        """SpatialAccessor raises ExtensionNotAvailableError at construction."""
+        with pytest.raises(ExtensionNotAvailableError, match="PostGIS extension"):
             SpatialAccessor(_FakeSyncDb(has_postgis=False))
 
     async def test_async_accessor_raises_on_first_call(self):
         """AsyncSpatialAccessor defers the guard to the first method call."""
         acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=False))
-        with pytest.raises(ExtensionNotAvailable, match="PostGIS extension"):
+        with pytest.raises(ExtensionNotAvailableError, match="PostGIS extension"):
             await acc.contains("parcels", point=(1, 2))
 
     @pytest.mark.parametrize("helper", ["area", "perimeter", "distance", "centroid"])
@@ -871,44 +871,44 @@ class TestBuilderColumnsValidation:
         """distance validates columns= and supports the column list."""
         sql, _ = build_distance_sql("parcels", point=(1, 2), columns=["id"])
         assert sql.startswith("SELECT id, ST_Distance(")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_distance_sql("parcels", point=(1, 2), columns=["bad-col"])
 
     def test_buffer_columns_validated(self):
         """buffer validates columns= and supports the column list."""
         sql, _ = build_buffer_sql("parcels", distance=1, columns=["id"])
         assert sql.startswith("SELECT id, ST_Buffer(")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_buffer_sql("parcels", distance=1, columns=["bad-col"])
 
     def test_area_columns_validated(self):
         """area validates columns=."""
         sql, _ = build_area_sql("parcels", columns=["id"])
         assert sql.startswith("SELECT id, ST_Area(")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_area_sql("parcels", columns=["bad-col"])
 
     def test_dwithin_columns_validated(self):
         """dwithin validates columns=."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_dwithin_sql("parcels", point=(1, 2), distance=1, columns=["bad-col"])
 
     def test_within_columns_validated(self):
         """within validates columns=."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_within_sql("a", "g", "b", "g", columns=["bad-col"])
 
     def test_intersects_columns_validated(self):
         """intersects validates columns=."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_intersects_sql("parcels", point=(1, 2), columns=["bad-col"])
 
     def test_nearest_columns_validated(self):
         """nearest validates columns=."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_nearest_sql("parcels", point=(1, 2), columns=["bad-col"])
 
     def test_transform_columns_validated(self):
         """transform validates columns=."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             build_transform_sql("parcels", to_srid=4326, columns=["bad-col"])

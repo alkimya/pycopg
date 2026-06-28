@@ -2,7 +2,7 @@
 
 import pytest
 
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import InvalidIdentifierError
 from pycopg.utils import (
     quote_literal,
     validate_csv_option,
@@ -39,31 +39,31 @@ class TestValidateIdentifier:
 
     def test_invalid_identifier_empty(self):
         """Test empty identifier raises error."""
-        with pytest.raises(InvalidIdentifier) as exc:
+        with pytest.raises(InvalidIdentifierError) as exc:
             validate_identifier("")
         assert "cannot be empty" in str(exc.value)
 
     def test_invalid_identifier_starts_with_number(self):
         """Test identifier starting with number raises error."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("123users")
 
     def test_invalid_identifier_with_hyphen(self):
         """Test identifier with hyphen raises error."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("user-table")
 
     def test_invalid_identifier_with_space(self):
         """Test identifier with space raises error."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("DROP TABLE")
 
     def test_invalid_identifier_sql_injection(self):
         """Test SQL injection attempts are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("users; DELETE FROM users;--")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("users'--")
 
 
@@ -80,7 +80,7 @@ class TestValidateIdentifiers:
 
     def test_invalid_identifiers_one_invalid(self):
         """Test that one invalid identifier raises error."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifiers("good", "bad;drop", "also_good")
 
     def test_empty_call(self):
@@ -120,19 +120,19 @@ class TestValidateInterval:
 
     def test_invalid_interval_empty(self):
         """Test empty interval raises error."""
-        with pytest.raises(InvalidIdentifier) as exc:
+        with pytest.raises(InvalidIdentifierError) as exc:
             validate_interval("")
         assert "cannot be empty" in str(exc.value)
 
     def test_invalid_interval_bad_format(self):
         """Test invalid interval format raises error."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_interval("invalid")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_interval("days 7")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_interval("drop table")
 
 
@@ -156,12 +156,12 @@ class TestValidateIndexMethod:
 
     def test_invalid_index_method(self):
         """Test invalid index method raises error."""
-        with pytest.raises(InvalidIdentifier) as exc:
+        with pytest.raises(InvalidIdentifierError) as exc:
             validate_index_method("invalid")
         assert "Invalid index method" in str(exc.value)
         assert "btree" in str(exc.value)
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_index_method("fulltext")
 
 
@@ -178,15 +178,15 @@ class TestValidateExtensionName:
 
     def test_invalid_extension_empty(self):
         """Test empty extension name raises error."""
-        with pytest.raises(InvalidIdentifier) as exc:
+        with pytest.raises(InvalidIdentifierError) as exc:
             validate_extension_name("")
         assert "cannot be empty" in str(exc.value)
 
     def test_invalid_extension_injection(self):
         """Test injection attempts via extension name are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_extension_name('postgis"; DROP DATABASE x; --')
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_extension_name("ext name with space")
 
 
@@ -204,15 +204,15 @@ class TestValidateTimestamp:
 
     def test_invalid_timestamp_empty(self):
         """Test empty timestamp raises error."""
-        with pytest.raises(InvalidIdentifier) as exc:
+        with pytest.raises(InvalidIdentifierError) as exc:
             validate_timestamp("")
         assert "cannot be empty" in str(exc.value)
 
     def test_invalid_timestamp_injection(self):
         """Test injection attempts via VALID UNTIL value are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_timestamp("2025-01-01'; DROP TABLE users; --")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_timestamp("not a date")
 
 
@@ -228,14 +228,14 @@ class TestValidatePrivileges:
 
     def test_invalid_privileges_empty(self):
         """Test empty privileges raises error."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_privileges("")
 
     def test_invalid_privileges_injection(self):
         """Test injection attempts via privileges are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_privileges("SELECT; DROP TABLE users; --")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_privileges("ALL; GRANT SUPERUSER")
 
 
@@ -251,9 +251,9 @@ class TestValidateObjectType:
 
     def test_invalid_object_type_injection(self):
         """Test injection attempts via object_type are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_object_type("TABLE; DROP TABLE x; --")
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_object_type("")
 
 
@@ -269,17 +269,17 @@ class TestValidateCsvOption:
 
     def test_invalid_csv_option_quote(self):
         """Test values with quotes are rejected (would break the literal)."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_csv_option("','; DROP TABLE x; --", "delimiter")
 
     def test_invalid_csv_option_backslash(self):
         """Test values with backslash are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_csv_option("\\", "delimiter")
 
     def test_invalid_csv_option_too_long(self):
         """Test over-long values are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_csv_option("x" * 100, "encoding")
 
 

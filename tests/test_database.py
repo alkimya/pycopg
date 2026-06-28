@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pycopg import Config, Database
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import InvalidIdentifierError
 from pycopg.utils import validate_identifier
 
 
@@ -418,16 +418,16 @@ class TestDatabaseValidation:
 
     def test_validate_identifier_invalid(self, config):
         """Test invalid identifiers raise."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("123users")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("user-accounts")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("DROP TABLE")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("users;DELETE")
 
 
@@ -1042,7 +1042,7 @@ class TestDatabaseBatchStreamNotify:
     def test_notify_rejects_invalid_channel(self, config):
         """notify validates the channel identifier."""
         db = Database(config)
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             db.notify("bad channel; DROP TABLE x")
 
     def test_no_sync_listen(self, config):
@@ -1835,26 +1835,26 @@ class TestStreamDfCopyValidation:
     """
 
     def test_stream_df_copy_rejects_invalid_column(self):
-        """An invalid column name raises InvalidIdentifier before COPY runs."""
+        """An invalid column name raises InvalidIdentifierError before COPY runs."""
         import pandas as pd
 
         from pycopg.database import _stream_df_copy
 
         df = pd.DataFrame({"id": [1, 2], "bad; DROP TABLE x": [3, 4]})
         cur = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             _stream_df_copy(cur, df, "t", "public", list(df.columns))
         # Validation ran before any SQL was issued — no injection surface.
         cur.copy.assert_not_called()
 
     def test_stream_df_copy_rejects_invalid_table(self):
-        """An invalid table name raises InvalidIdentifier before COPY runs."""
+        """An invalid table name raises InvalidIdentifierError before COPY runs."""
         import pandas as pd
 
         from pycopg.database import _stream_df_copy
 
         df = pd.DataFrame({"id": [1, 2]})
         cur = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             _stream_df_copy(cur, df, "t; DROP TABLE x", "public", list(df.columns))
         cur.copy.assert_not_called()

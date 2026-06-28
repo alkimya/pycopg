@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import psycopg
 
 from pycopg import queries
-from pycopg.exceptions import TableNotFound
+from pycopg.exceptions import TableNotFoundError
 from pycopg.utils import (
     validate_extension_name,
     validate_identifier,
@@ -399,12 +399,12 @@ class SchemaAccessor:
 
         Raises
         ------
-        TableNotFound
+        TableNotFoundError
             If the table does not exist in the given schema.
         """
         validate_identifiers(name, schema)
         if not self.table_exists(name, schema):
-            raise TableNotFound(f"Table '{schema}.{name}' does not exist.")
+            raise TableNotFoundError(f"Table '{schema}.{name}' does not exist.")
         cascade_clause = " CASCADE" if cascade else ""
         self._db.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
 
@@ -1225,12 +1225,12 @@ class AsyncSchemaAccessor:
 
         Raises
         ------
-        TableNotFound
+        TableNotFoundError
             If the table does not exist in the given schema.
         """
         validate_identifiers(name, schema)
         if not await self.table_exists(name, schema):
-            raise TableNotFound(f"Table '{schema}.{name}' does not exist.")
+            raise TableNotFoundError(f"Table '{schema}.{name}' does not exist.")
         cascade_clause = " CASCADE" if cascade else ""
         await self._db.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
 

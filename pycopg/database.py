@@ -31,7 +31,7 @@ from pycopg.base import (
     QueryMixin,
 )
 from pycopg.config import Config
-from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
+from pycopg.exceptions import DatabaseExistsError, ExtensionNotAvailableError
 from pycopg.utils import (
     validate_identifier,
     validate_identifiers,
@@ -202,7 +202,7 @@ class Database(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        DatabaseExists
+        DatabaseExistsError
             If the database already exists and if_not_exists is False.
         """
         # Create config for the admin connection (to postgres database)
@@ -228,7 +228,7 @@ class Database(DatabaseBase, QueryMixin):
 
                 if exists:
                     if not if_not_exists:
-                        raise DatabaseExists(f"Database '{name}' already exists")
+                        raise DatabaseExistsError(f"Database '{name}' already exists")
                 else:
                     # Create the database
                     owner_clause = f" OWNER {owner}" if owner else ""
@@ -313,7 +313,7 @@ class Database(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the PostGIS extension is not installed.
         """
         if self._spatial is None:
@@ -1426,12 +1426,12 @@ class Database(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS extension is not installed.
         """
         # Ensure PostGIS is available
         if not self.schema.has_extension("postgis"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "PostGIS extension not installed. Run db.schema.create_extension('postgis')"
             )
 

@@ -6,7 +6,7 @@ Contains validation functions and common helpers used across modules.
 
 import re
 
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import InvalidIdentifierError
 
 # Valid SQL identifier pattern: starts with letter or underscore,
 # followed by letters, digits, or underscores
@@ -90,14 +90,14 @@ def validate_identifier(name: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the identifier contains invalid characters.
     """
     if not name:
-        raise InvalidIdentifier("Identifier cannot be empty")
+        raise InvalidIdentifierError("Identifier cannot be empty")
 
     if not _IDENTIFIER_PATTERN.match(name):
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid identifier: {name!r}. "
             "Must start with a letter or underscore and contain only "
             "letters, digits, and underscores."
@@ -114,7 +114,7 @@ def validate_identifiers(*names: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier is invalid.
     """
     for name in names:
@@ -134,14 +134,14 @@ def validate_interval(interval: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the interval format is invalid.
     """
     if not interval:
-        raise InvalidIdentifier("Interval cannot be empty")
+        raise InvalidIdentifierError("Interval cannot be empty")
 
     if not _INTERVAL_PATTERN.match(interval.strip()):
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid interval: {interval!r}. "
             "Expected format: '<number> <unit>' where unit is "
             "second, minute, hour, day, week, month, or year."
@@ -162,14 +162,14 @@ def validate_extension_name(name: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the name contains invalid characters.
     """
     if not name:
-        raise InvalidIdentifier("Extension name cannot be empty")
+        raise InvalidIdentifierError("Extension name cannot be empty")
 
     if not _EXTENSION_NAME_PATTERN.match(name):
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid extension name: {name!r}. "
             "Must start with a letter or underscore and contain only "
             "letters, digits, underscores, and hyphens."
@@ -190,14 +190,14 @@ def validate_timestamp(value: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the value is not a recognized date/timestamp form.
     """
     if not value:
-        raise InvalidIdentifier("Timestamp cannot be empty")
+        raise InvalidIdentifierError("Timestamp cannot be empty")
 
     if not _TIMESTAMP_PATTERN.match(value.strip()):
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid timestamp: {value!r}. "
             "Expected an ISO date/timestamp such as '2025-12-31' or "
             "'2025-12-31 23:59:59', or 'infinity'."
@@ -215,16 +215,16 @@ def validate_privileges(privileges: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If any privilege is not a recognized SQL privilege.
     """
     if not privileges:
-        raise InvalidIdentifier("Privileges cannot be empty")
+        raise InvalidIdentifierError("Privileges cannot be empty")
 
     for priv in privileges.split(","):
         token = priv.strip().upper()
         if token not in _VALID_PRIVILEGES:
-            raise InvalidIdentifier(
+            raise InvalidIdentifierError(
                 f"Invalid privilege: {priv.strip()!r}. "
                 f"Must be one of: {', '.join(sorted(_VALID_PRIVILEGES))}"
             )
@@ -240,11 +240,11 @@ def validate_object_type(object_type: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the object type is not recognized.
     """
     if not object_type or object_type.strip().upper() not in _VALID_OBJECT_TYPES:
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid object type: {object_type!r}. "
             f"Must be one of: {', '.join(sorted(_VALID_OBJECT_TYPES))}"
         )
@@ -268,15 +268,15 @@ def validate_csv_option(value: str, name: str, max_length: int = 32) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the value contains quotes/backslashes or is too long.
     """
     if "'" in value or "\\" in value:
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid {name}: {value!r} must not contain quotes or backslashes."
         )
     if len(value) > max_length:
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid {name}: {value!r} exceeds maximum length of {max_length}."
         )
 
@@ -291,12 +291,12 @@ def validate_index_method(method: str) -> None:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If the method is not a valid PostgreSQL index type.
     """
     valid_methods = {"btree", "hash", "gist", "spgist", "gin", "brin"}
     if method.lower() not in valid_methods:
-        raise InvalidIdentifier(
+        raise InvalidIdentifierError(
             f"Invalid index method: {method!r}. "
             f"Must be one of: {', '.join(sorted(valid_methods))}"
         )

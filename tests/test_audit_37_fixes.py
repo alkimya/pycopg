@@ -25,7 +25,7 @@ import pytest
 from pycopg import Config
 from pycopg.base import build_pg_dump_cmd, build_pg_restore_cmd, build_role_options
 from pycopg.etl import _decode_watermark
-from pycopg.exceptions import ConfigurationError, ETLError, InvalidIdentifier
+from pycopg.exceptions import ConfigurationError, ETLError, InvalidIdentifierError
 
 # ---------------------------------------------------------------------------
 # Shared fixture helpers
@@ -141,23 +141,23 @@ class TestCR02FromDataframeValidation:
 
     @patch("pycopg.database.psycopg")
     def test_bad_table_raises_invalid_identifier(self, _mock_psycopg, config):
-        """A bad table name raises InvalidIdentifier before to_sql is called."""
+        """A bad table name raises InvalidIdentifierError before to_sql is called."""
         from pycopg import Database
 
         db = Database(config)
         mock_df = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             db.from_dataframe(mock_df, table="bad table", schema="public")
         mock_df.to_sql.assert_not_called()
 
     @patch("pycopg.database.psycopg")
     def test_bad_schema_raises_invalid_identifier(self, _mock_psycopg, config):
-        """A bad schema name raises InvalidIdentifier before to_sql is called."""
+        """A bad schema name raises InvalidIdentifierError before to_sql is called."""
         from pycopg import Database
 
         db = Database(config)
         mock_df = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             db.from_dataframe(mock_df, table="users", schema="bad-schema")
         mock_df.to_sql.assert_not_called()
 
@@ -168,7 +168,7 @@ class TestCR02FromDataframeValidation:
 
         db = AsyncDatabase(config)
         mock_df = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await db.from_dataframe(mock_df, table="bad table", schema="public")
 
     @pytest.mark.asyncio
@@ -178,7 +178,7 @@ class TestCR02FromDataframeValidation:
 
         db = AsyncDatabase(config)
         mock_df = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await db.from_dataframe(mock_df, table="users", schema="bad-schema")
 
 
@@ -192,7 +192,7 @@ class TestCR03FromGeoDataframeValidation:
 
     @patch("pycopg.database.psycopg")
     def test_bad_table_raises_invalid_identifier(self, _mock_psycopg, config):
-        """A bad table name raises InvalidIdentifier before PostGIS check."""
+        """A bad table name raises InvalidIdentifierError before PostGIS check."""
         from pycopg import Database
         from pycopg.schema import SchemaAccessor
 
@@ -203,12 +203,12 @@ class TestCR03FromGeoDataframeValidation:
         db._schema = mock_schema
         mock_gdf = MagicMock()
         mock_gdf.crs = None
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             db.from_geodataframe(mock_gdf, table="bad table", schema="public", srid=4326)
 
     @patch("pycopg.database.psycopg")
     def test_bad_schema_raises_invalid_identifier(self, _mock_psycopg, config):
-        """A bad schema name raises InvalidIdentifier."""
+        """A bad schema name raises InvalidIdentifierError."""
         from pycopg import Database
         from pycopg.schema import SchemaAccessor
 
@@ -217,7 +217,7 @@ class TestCR03FromGeoDataframeValidation:
         mock_schema.has_extension = MagicMock(return_value=True)
         db._schema = mock_schema
         mock_gdf = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             db.from_geodataframe(
                 mock_gdf, table="places", schema="bad-schema", srid=4326
             )
@@ -233,7 +233,7 @@ class TestCR03FromGeoDataframeValidation:
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
         mock_gdf = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await db.from_geodataframe(
                 mock_gdf, table="bad table", schema="public", srid=4326
             )
@@ -249,7 +249,7 @@ class TestCR03FromGeoDataframeValidation:
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
         mock_gdf = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await db.from_geodataframe(
                 mock_gdf, table="places", schema="bad-schema", srid=4326
             )

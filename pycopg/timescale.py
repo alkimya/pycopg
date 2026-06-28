@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from psycopg import DatabaseError
 
 from pycopg import queries
-from pycopg.exceptions import ExtensionNotAvailable, TimescaleError
+from pycopg.exceptions import ExtensionNotAvailableError, TimescaleError
 from pycopg.utils import validate_identifier, validate_identifiers, validate_interval
 
 if TYPE_CHECKING:
@@ -375,11 +375,11 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
 
@@ -418,11 +418,11 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -469,13 +469,13 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         validate_identifiers(table, schema)
         validate_interval(compress_after)
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -506,13 +506,13 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         validate_identifiers(table, schema)
         validate_interval(drop_after)
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -534,11 +534,11 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -562,11 +562,11 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -615,11 +615,11 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -683,7 +683,7 @@ class TimescaleAccessor:
             If both ``older_than`` and ``newer_than`` are ``None`` — this
             guard fires *before* any DB round-trip to prevent an accidental
             full-table wipe.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
 
         Notes
@@ -700,7 +700,7 @@ class TimescaleAccessor:
             )
 
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -781,7 +781,7 @@ class TimescaleAccessor:
             or if the ``number_partitions`` / ``chunk_interval`` mutual
             exclusivity constraint is violated — raised *before* any DB
             round-trip.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         TimescaleError
             Wraps any database-level failure of ``add_dimension`` — most
@@ -832,7 +832,7 @@ class TimescaleAccessor:
             )
 
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -890,7 +890,7 @@ class TimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -898,7 +898,7 @@ class TimescaleAccessor:
             on non-Community builds (see D-12).
         """
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -957,7 +957,7 @@ class TimescaleAccessor:
             If ``select_sql`` does not contain ``time_bucket(`` — a cagg
             select without a ``time_bucket`` grouping is almost always a
             user error.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -973,7 +973,7 @@ class TimescaleAccessor:
             )
 
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1031,7 +1031,7 @@ class TimescaleAccessor:
             If ``window_start`` or ``window_end`` is not a
             :class:`datetime` or ``None``.  Relative interval strings are
             not accepted as refresh window bounds.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -1050,7 +1050,7 @@ class TimescaleAccessor:
                 )
 
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1122,7 +1122,7 @@ class TimescaleAccessor:
             fixed-duration unit (``second``, ``minute``, ``hour``, ``day``,
             ``week``) and ``start_offset`` does not cover a longer window than
             ``end_offset`` — raised *before* any DB round-trip (D-07).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -1141,7 +1141,7 @@ class TimescaleAccessor:
         validate_interval(schedule_interval)
 
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1235,12 +1235,12 @@ class TimescaleAccessor:
         ValueError
             If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
             call (D-03).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         """
         _check_into(into, "time_bucket")
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_sql(
@@ -1309,7 +1309,7 @@ class TimescaleAccessor:
         ValueError
             If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
             call (D-03).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (gapfill is
@@ -1317,7 +1317,7 @@ class TimescaleAccessor:
         """
         _check_into(into, "time_bucket_gapfill")
         if not self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_gapfill_sql(
@@ -1380,11 +1380,11 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
 
@@ -1423,11 +1423,11 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1476,13 +1476,13 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         validate_identifiers(table, schema)
         validate_interval(compress_after)
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1513,13 +1513,13 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         validate_identifiers(table, schema)
         validate_interval(drop_after)
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1541,11 +1541,11 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1569,11 +1569,11 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1622,11 +1622,11 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         """
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1690,7 +1690,7 @@ class AsyncTimescaleAccessor:
             If both ``older_than`` and ``newer_than`` are ``None`` — this
             guard fires *before* any DB round-trip to prevent an accidental
             full-table wipe.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
 
         Notes
@@ -1707,7 +1707,7 @@ class AsyncTimescaleAccessor:
             )
 
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1783,7 +1783,7 @@ class AsyncTimescaleAccessor:
         ValueError
             If ``partition_type`` is invalid or mutual-exclusivity is
             violated — raised *before* any DB round-trip (D-07).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         TimescaleError
             Wraps any database-level failure of ``add_dimension`` — most
@@ -1832,7 +1832,7 @@ class AsyncTimescaleAccessor:
             )
 
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1886,7 +1886,7 @@ class AsyncTimescaleAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -1894,7 +1894,7 @@ class AsyncTimescaleAccessor:
             non-Community builds (D-12).
         """
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -1949,7 +1949,7 @@ class AsyncTimescaleAccessor:
             If ``select_sql`` does not contain ``time_bucket(`` — a cagg
             select without a ``time_bucket`` grouping is almost always a
             user error.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -1965,7 +1965,7 @@ class AsyncTimescaleAccessor:
             )
 
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -2015,7 +2015,7 @@ class AsyncTimescaleAccessor:
             If ``window_start`` or ``window_end`` is not a
             :class:`datetime` or ``None``.  Relative interval strings are
             not accepted as refresh window bounds.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -2034,7 +2034,7 @@ class AsyncTimescaleAccessor:
                 )
 
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -2095,7 +2095,7 @@ class AsyncTimescaleAccessor:
             fixed-duration unit and ``start_offset`` does not cover a longer
             window than ``end_offset`` — raised *before* any DB round-trip
             (D-07).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (Community
@@ -2114,7 +2114,7 @@ class AsyncTimescaleAccessor:
         validate_interval(schedule_interval)
 
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. "
                 "Run db.schema.create_extension('timescaledb')"
             )
@@ -2212,12 +2212,12 @@ class AsyncTimescaleAccessor:
         ValueError
             If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
             call (D-03).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         """
         _check_into(into, "time_bucket")
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_sql(
@@ -2282,7 +2282,7 @@ class AsyncTimescaleAccessor:
         ValueError
             If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
             call (D-03).
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         psycopg.errors.FeatureNotSupported
             If the local TimescaleDB runs under the Apache license (gapfill is
@@ -2290,7 +2290,7 @@ class AsyncTimescaleAccessor:
         """
         _check_into(into, "time_bucket_gapfill")
         if not await self._db.schema.has_extension("timescaledb"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_gapfill_sql(

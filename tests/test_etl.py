@@ -22,7 +22,7 @@ from pycopg.etl import (
     build_init_sql,
     build_truncate_sql,
 )
-from pycopg.exceptions import ETLError, ETLTransformError, InvalidIdentifier
+from pycopg.exceptions import ETLError, ETLTransformError, InvalidIdentifierError
 
 
 class TestPipeline:
@@ -168,8 +168,8 @@ class TestPipeline:
             )
 
     def test_incremental_column_bad_identifier_raises(self):
-        """A bad incremental_column identifier raises InvalidIdentifier (D-15)."""
-        with pytest.raises(InvalidIdentifier):
+        """A bad incremental_column identifier raises InvalidIdentifierError (D-15)."""
+        with pytest.raises(InvalidIdentifierError):
             Pipeline(
                 name="p",
                 source="t",
@@ -251,13 +251,13 @@ class TestBuilders:
         assert params == []
 
     def test_truncate_sql_invalid_table_raises_invalid_identifier(self):
-        """build_truncate_sql with a bad table name raises InvalidIdentifier (D-13)."""
-        with pytest.raises(InvalidIdentifier):
+        """build_truncate_sql with a bad table name raises InvalidIdentifierError (D-13)."""
+        with pytest.raises(InvalidIdentifierError):
             build_truncate_sql("bad-name")
 
     def test_truncate_sql_invalid_schema_raises_invalid_identifier(self):
-        """build_truncate_sql with a bad schema name raises InvalidIdentifier (D-13)."""
-        with pytest.raises(InvalidIdentifier):
+        """build_truncate_sql with a bad schema name raises InvalidIdentifierError (D-13)."""
+        with pytest.raises(InvalidIdentifierError):
             build_truncate_sql("events", schema="bad-schema")
 
     def test_build_init_sql_returns_ddl_constant(self):
@@ -367,14 +367,14 @@ class TestValidateIncremental:
         """The forbidden-combo ValueError is raised before the identifier check (D-15).
 
         A bad identifier with a forbidden mode still reports the combo
-        ValueError (intent error first), not InvalidIdentifier.
+        ValueError (intent error first), not InvalidIdentifierError.
         """
         with pytest.raises(ValueError, match="upsert"):
             _validate_incremental("bad-col!", "append")
 
     def test_bad_identifier_raises_invalid_identifier(self):
-        """A bad identifier with load_mode='upsert' raises InvalidIdentifier (D-15)."""
-        with pytest.raises(InvalidIdentifier):
+        """A bad identifier with load_mode='upsert' raises InvalidIdentifierError (D-15)."""
+        with pytest.raises(InvalidIdentifierError):
             _validate_incremental("bad col", "upsert")
 
 
@@ -422,18 +422,18 @@ class TestEtlBuilders:
         assert "INSERT INTO analytics.t" in sql
 
     def test_insert_sql_invalid_table_raises(self):
-        """Invalid table name raises InvalidIdentifier before SQL is built."""
-        with pytest.raises(InvalidIdentifier):
+        """Invalid table name raises InvalidIdentifierError before SQL is built."""
+        with pytest.raises(InvalidIdentifierError):
             _build_insert_sql("bad-table", ["id"], [{"id": 1}])
 
     def test_insert_sql_invalid_column_raises(self):
-        """Invalid column name raises InvalidIdentifier before SQL is built."""
-        with pytest.raises(InvalidIdentifier):
+        """Invalid column name raises InvalidIdentifierError before SQL is built."""
+        with pytest.raises(InvalidIdentifierError):
             _build_insert_sql("t", ["bad col"], [{"bad col": 1}])
 
     def test_insert_sql_invalid_schema_raises(self):
-        """Invalid schema name raises InvalidIdentifier before SQL is built."""
-        with pytest.raises(InvalidIdentifier):
+        """Invalid schema name raises InvalidIdentifierError before SQL is built."""
+        with pytest.raises(InvalidIdentifierError):
             _build_insert_sql("t", ["id"], [{"id": 1}], schema="bad-schema")
 
     def test_insert_sql_returns_two_tuple(self):
@@ -477,8 +477,8 @@ class TestEtlBuilders:
         assert "ON CONFLICT (id)" in sql
 
     def test_upsert_sql_invalid_conflict_column_raises(self):
-        """Invalid conflict_column raises InvalidIdentifier before SQL is built."""
-        with pytest.raises(InvalidIdentifier):
+        """Invalid conflict_column raises InvalidIdentifierError before SQL is built."""
+        with pytest.raises(InvalidIdentifierError):
             _build_upsert_sql("t", [{"id": 1, "v": 2}], conflict_columns=["bad col"])
 
     def test_upsert_sql_delegates_to_insert_builder(self):
@@ -597,18 +597,18 @@ class TestBuildIncrementalExtractSql:
         assert params == [wm]
 
     def test_invalid_column_raises(self):
-        """A bad column identifier raises InvalidIdentifier before any SQL (T-26-02)."""
-        with pytest.raises(InvalidIdentifier):
+        """A bad column identifier raises InvalidIdentifierError before any SQL (T-26-02)."""
+        with pytest.raises(InvalidIdentifierError):
             _build_incremental_extract_sql("events", "bad-col!", "public", 1)
 
     def test_invalid_table_source_raises(self):
-        """A bad table source raises InvalidIdentifier (T-26-02)."""
-        with pytest.raises(InvalidIdentifier):
+        """A bad table source raises InvalidIdentifierError (T-26-02)."""
+        with pytest.raises(InvalidIdentifierError):
             _build_incremental_extract_sql("bad-table!", "ts", "public", 1)
 
     def test_invalid_schema_raises(self):
-        """A bad schema raises InvalidIdentifier (T-26-02)."""
-        with pytest.raises(InvalidIdentifier):
+        """A bad schema raises InvalidIdentifierError (T-26-02)."""
+        with pytest.raises(InvalidIdentifierError):
             _build_incremental_extract_sql("events", "ts", "bad-schema!", 1)
 
     def test_uses_exclusive_boundary(self):

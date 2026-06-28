@@ -9,7 +9,7 @@ import uuid
 import pytest
 
 from pycopg import Database
-from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable, TableNotFound
+from pycopg.exceptions import DatabaseExistsError, ExtensionNotAvailableError, TableNotFoundError
 
 
 @pytest.fixture
@@ -600,8 +600,8 @@ class TestDatabaseAdmin:
         db.maint.analyze(temp_table_name)
 
     def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
-        """create(if_not_exists=False) on an existing DB raises DatabaseExists."""
-        with pytest.raises(DatabaseExists, match="already exists"):
+        """create(if_not_exists=False) on an existing DB raises DatabaseExistsError."""
+        with pytest.raises(DatabaseExistsError, match="already exists"):
             Database.create(
                 "pycopg_test",
                 host=db_config.host,
@@ -987,7 +987,7 @@ class TestDatabaseTimescaleCoverage:
         # relocation), so the extension guard must be patched on the accessor.
         monkeypatch.setattr(db.schema, "has_extension", lambda name: False)
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             db.timescale.create_hypertable(t, "ts")
 
@@ -1176,10 +1176,10 @@ class TestDatabaseReadHelpers:
         assert all(r["active"] is True for r in rows)
 
     def test_paginate_invalid_order_by_raises(self, db):
-        """paginate with an invalid order_by column raises InvalidIdentifier."""
-        from pycopg.exceptions import InvalidIdentifier
+        """paginate with an invalid order_by column raises InvalidIdentifierError."""
+        from pycopg.exceptions import InvalidIdentifierError
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             db.paginate("any_table", limit=1, order_by="bad;col")
 
     def test_paginate_none_order_by_element_raises(self, db):
@@ -1398,7 +1398,7 @@ class TestIntrospectionHelpers:
         }
 
     def test_truncate_table_missing_raises_table_not_found(self, db):
-        """truncate_table on a nonexistent table raises TableNotFound (DEBT-05)."""
+        """truncate_table on a nonexistent table raises TableNotFoundError (DEBT-05)."""
         missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
-        with pytest.raises(TableNotFound):
+        with pytest.raises(TableNotFoundError):
             db.schema.truncate_table(missing)

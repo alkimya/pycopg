@@ -11,7 +11,7 @@ from pycopg.base import (
     build_pg_restore_cmd,
     build_role_options,
 )
-from pycopg.exceptions import InvalidIdentifier
+from pycopg.exceptions import InvalidIdentifierError
 
 
 class ConcreteDatabaseBase(DatabaseBase):
@@ -108,10 +108,10 @@ class TestQueryMixin:
 
     def test_build_insert_sql_validates_identifiers(self):
         """Test that invalid identifiers are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             QueryMixin._build_insert_sql("users;drop", ["name"])
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             QueryMixin._build_insert_sql("users", ["bad;column"])
 
     def test_build_batch_insert_sql(self):
@@ -184,10 +184,10 @@ class TestQueryMixin:
 
     def test_build_select_sql_validates_identifiers(self):
         """Test that invalid identifiers are rejected."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             QueryMixin._build_select_sql("users;drop")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             QueryMixin._build_select_sql("users", columns=["bad;col"])
 
     def test_build_where_dict_basic(self):
@@ -206,8 +206,8 @@ class TestQueryMixin:
         assert "x" not in fragment
 
     def test_build_where_dict_validates_identifiers(self):
-        """Test that invalid column keys raise InvalidIdentifier."""
-        with pytest.raises(InvalidIdentifier):
+        """Test that invalid column keys raise InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
             QueryMixin._build_where_dict({"bad;col": 1})
 
 

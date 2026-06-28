@@ -29,7 +29,7 @@ import json
 from typing import TYPE_CHECKING
 
 from pycopg import queries
-from pycopg.exceptions import ExtensionNotAvailable
+from pycopg.exceptions import ExtensionNotAvailableError
 from pycopg.utils import validate_identifier, validate_identifiers
 
 if TYPE_CHECKING:
@@ -1041,12 +1041,12 @@ class SpatialAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the PostGIS extension is not installed.
         """
         self._db = db
         if not db.schema.has_extension("postgis"):
-            raise ExtensionNotAvailable(_POSTGIS_GUARD_MSG)
+            raise ExtensionNotAvailableError(_POSTGIS_GUARD_MSG)
 
     def _run(
         self, sql: str, params: list, into: str, geometry_column: str
@@ -1134,7 +1134,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "contains")
@@ -1204,7 +1204,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "within")
@@ -1278,7 +1278,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "intersects")
@@ -1362,7 +1362,7 @@ class SpatialAccessor:
         ValueError
             If ``into``/``unit`` is invalid or geometry forms are not
             exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "dwithin")
@@ -1444,7 +1444,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or inputs are invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "distance")
@@ -1518,7 +1518,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "nearest")
@@ -1584,7 +1584,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "area")
@@ -1648,7 +1648,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "perimeter")
@@ -1710,7 +1710,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper).
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "centroid")
@@ -1775,7 +1775,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into``/``unit`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "buffer")
@@ -1840,7 +1840,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         _check_into(into, "transform")
@@ -1931,12 +1931,12 @@ class AsyncSpatialAccessor:
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If the PostGIS extension is not installed.
         """
         if not self._postgis_ok:
             if not await self._db.schema.has_extension("postgis"):
-                raise ExtensionNotAvailable(_POSTGIS_GUARD_MSG)
+                raise ExtensionNotAvailableError(_POSTGIS_GUARD_MSG)
             self._postgis_ok = True
 
     async def _run(
@@ -2024,9 +2024,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2097,9 +2097,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2174,9 +2174,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2261,9 +2261,9 @@ class AsyncSpatialAccessor:
         ValueError
             If ``into``/``unit`` is invalid or geometry forms are not
             exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2346,9 +2346,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or inputs are invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2423,9 +2423,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2492,9 +2492,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2559,9 +2559,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2624,9 +2624,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper).
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2692,9 +2692,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into``/``unit`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()
@@ -2760,9 +2760,9 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifier
+        InvalidIdentifierError
             If any identifier is invalid.
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
         """
         await self._check_postgis()

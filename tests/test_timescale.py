@@ -26,7 +26,7 @@ import pytest
 from psycopg.errors import FeatureNotSupported  # noqa: F401
 
 from pycopg import AsyncDatabase, Database
-from pycopg.exceptions import ExtensionNotAvailable, TimescaleError  # noqa: F401
+from pycopg.exceptions import ExtensionNotAvailableError, TimescaleError  # noqa: F401
 
 # =============================================================================
 # Fixtures — live-DB integration layer (D-10, D-11)
@@ -194,7 +194,7 @@ class TestShowChunksMock:
         assert params == [older, newer]
 
     def test_show_chunks_no_extension_raises(self, config):
-        """show_chunks raises ExtensionNotAvailable when TimescaleDB is absent."""
+        """show_chunks raises ExtensionNotAvailableError when TimescaleDB is absent."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -204,7 +204,7 @@ class TestShowChunksMock:
         db.execute = MagicMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             db.timescale.show_chunks("events")
 
@@ -248,7 +248,7 @@ class TestShowChunksMock:
         assert params == [older, newer]
 
     async def test_show_chunks_async_no_extension_raises(self, config):
-        """Async show_chunks raises ExtensionNotAvailable when extension absent."""
+        """Async show_chunks raises ExtensionNotAvailableError when extension absent."""
         from pycopg.schema import AsyncSchemaAccessor
 
         db = AsyncDatabase(config)
@@ -258,7 +258,7 @@ class TestShowChunksMock:
         db.execute = AsyncMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.show_chunks("events")
 
@@ -960,7 +960,7 @@ class TestAddReorderPolicyMock:
         assert "public.events" in sql
 
     def test_add_reorder_policy_no_extension_raises(self, config):
-        """add_reorder_policy raises ExtensionNotAvailable when extension absent."""
+        """add_reorder_policy raises ExtensionNotAvailableError when extension absent."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -970,7 +970,7 @@ class TestAddReorderPolicyMock:
         db.execute = MagicMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             db.timescale.add_reorder_policy("events", "idx_events_ts")
 
@@ -995,7 +995,7 @@ class TestAddReorderPolicyMock:
         assert "if_not_exists => true" in sql
 
     async def test_add_reorder_policy_async_no_extension_raises(self, config):
-        """Async add_reorder_policy raises ExtensionNotAvailable when extension absent."""
+        """Async add_reorder_policy raises ExtensionNotAvailableError when extension absent."""
         from pycopg.schema import AsyncSchemaAccessor
 
         db = AsyncDatabase(config)
@@ -1005,7 +1005,7 @@ class TestAddReorderPolicyMock:
         db.execute = AsyncMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.add_reorder_policy("events", "idx_events_ts")
 
@@ -1293,7 +1293,7 @@ class TestCreateContinuousAggregateMock:
             mock_connect.assert_not_called()
 
     def test_create_continuous_aggregate_no_extension_raises(self, config):
-        """create_continuous_aggregate raises ExtensionNotAvailable when extension absent."""
+        """create_continuous_aggregate raises ExtensionNotAvailableError when extension absent."""
         from unittest.mock import patch
 
         from pycopg.schema import SchemaAccessor
@@ -1308,7 +1308,7 @@ class TestCreateContinuousAggregateMock:
         )
         with patch.object(db, "connect") as mock_connect:
             with pytest.raises(
-                ExtensionNotAvailable, match="TimescaleDB extension not installed"
+                ExtensionNotAvailableError, match="TimescaleDB extension not installed"
             ):
                 db.timescale.create_continuous_aggregate("metrics_hourly", select_sql)
             mock_connect.assert_not_called()
@@ -1348,7 +1348,7 @@ class TestCreateContinuousAggregateMock:
         db.execute.assert_not_called()
 
     async def test_create_continuous_aggregate_async_no_extension_raises(self, config):
-        """Async create_continuous_aggregate raises ExtensionNotAvailable when extension absent.
+        """Async create_continuous_aggregate raises ExtensionNotAvailableError when extension absent.
 
         This test is the Phase-23 await-omission catch: without ``await`` on the guard,
         the AsyncMock coroutine is truthy and the extension check never triggers, causing
@@ -1368,7 +1368,7 @@ class TestCreateContinuousAggregateMock:
         )
         with patch.object(db, "connect") as mock_connect:
             with pytest.raises(
-                ExtensionNotAvailable, match="TimescaleDB extension not installed"
+                ExtensionNotAvailableError, match="TimescaleDB extension not installed"
             ):
                 await db.timescale.create_continuous_aggregate(
                     "metrics_hourly", select_sql
@@ -1565,7 +1565,7 @@ class TestRefreshContinuousAggregateMock:
             mock_connect.assert_not_called()
 
     def test_refresh_continuous_aggregate_no_extension_raises(self, config):
-        """refresh_continuous_aggregate raises ExtensionNotAvailable when extension absent."""
+        """refresh_continuous_aggregate raises ExtensionNotAvailableError when extension absent."""
         from unittest.mock import patch
 
         from pycopg.schema import SchemaAccessor
@@ -1577,7 +1577,7 @@ class TestRefreshContinuousAggregateMock:
 
         with patch.object(db, "connect") as mock_connect:
             with pytest.raises(
-                ExtensionNotAvailable, match="TimescaleDB extension not installed"
+                ExtensionNotAvailableError, match="TimescaleDB extension not installed"
             ):
                 db.timescale.refresh_continuous_aggregate("metrics_hourly")
             mock_connect.assert_not_called()
@@ -1616,7 +1616,7 @@ class TestRefreshContinuousAggregateMock:
         db.execute.assert_not_called()
 
     async def test_refresh_continuous_aggregate_async_no_extension_raises(self, config):
-        """Async refresh raises ExtensionNotAvailable when extension absent.
+        """Async refresh raises ExtensionNotAvailableError when extension absent.
 
         This test is the Phase-23 await-omission catch: without ``await`` on
         the guard, the AsyncMock coroutine is truthy and the extension check
@@ -1633,7 +1633,7 @@ class TestRefreshContinuousAggregateMock:
 
         with patch.object(db, "connect") as mock_connect:
             with pytest.raises(
-                ExtensionNotAvailable, match="TimescaleDB extension not installed"
+                ExtensionNotAvailableError, match="TimescaleDB extension not installed"
             ):
                 await db.timescale.refresh_continuous_aggregate("metrics_hourly")
             mock_connect.assert_not_called()
@@ -1888,7 +1888,7 @@ class TestAddContinuousAggregatePolicyMock:
         db.execute.assert_called_once()
 
     def test_add_continuous_aggregate_policy_no_extension_raises(self, config):
-        """add_continuous_aggregate_policy raises ExtensionNotAvailable when extension absent."""
+        """add_continuous_aggregate_policy raises ExtensionNotAvailableError when extension absent."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -1899,7 +1899,7 @@ class TestAddContinuousAggregatePolicyMock:
         db.connect = MagicMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             db.timescale.add_continuous_aggregate_policy(
                 "metrics_hourly", "7 days", "1 hour"
@@ -1937,7 +1937,7 @@ class TestAddContinuousAggregatePolicyMock:
     async def test_add_continuous_aggregate_policy_async_no_extension_raises(
         self, config
     ):
-        """Async policy raises ExtensionNotAvailable when extension absent.
+        """Async policy raises ExtensionNotAvailableError when extension absent.
 
         This is the Phase-23 await-omission catch: without ``await`` on the
         has_extension guard, the AsyncMock coroutine is truthy and the
@@ -1953,7 +1953,7 @@ class TestAddContinuousAggregatePolicyMock:
         db.connect = MagicMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.add_continuous_aggregate_policy(
                 "metrics_hourly", "7 days", "1 hour"
@@ -2201,7 +2201,7 @@ class TestTimeBucketMock:
         db.to_dataframe.assert_not_called()
 
     def test_time_bucket_no_extension_raises(self, config):
-        """time_bucket raises ExtensionNotAvailable when TimescaleDB is absent."""
+        """time_bucket raises ExtensionNotAvailableError when TimescaleDB is absent."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -2212,7 +2212,7 @@ class TestTimeBucketMock:
         db.to_dataframe = MagicMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             db.timescale.time_bucket("events", "ts", "1 hour", "avg(val)")
 
@@ -2388,7 +2388,7 @@ class TestTimeBucketGapfillMock:
         db.to_dataframe.assert_not_called()
 
     def test_gapfill_no_extension_raises(self, config):
-        """gapfill raises ExtensionNotAvailable when TimescaleDB is absent."""
+        """gapfill raises ExtensionNotAvailableError when TimescaleDB is absent."""
         from pycopg.schema import SchemaAccessor
 
         db = Database(config)
@@ -2399,7 +2399,7 @@ class TestTimeBucketGapfillMock:
         db.to_dataframe = MagicMock()
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             db.timescale.time_bucket_gapfill(
                 "events",

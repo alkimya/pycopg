@@ -5,11 +5,12 @@ import pytest
 from pycopg.exceptions import (
     ConfigurationError,
     ConnectionError,
-    ExtensionNotAvailable,
-    InvalidIdentifier,
+    DatabaseExistsError,
+    ExtensionNotAvailableError,
+    InvalidIdentifierError,
     MigrationError,
     PycopgError,
-    TableNotFound,
+    TableNotFoundError,
 )
 
 
@@ -34,19 +35,24 @@ class TestExceptions:
         assert isinstance(error, PycopgError)
         assert str(error) == "Invalid config"
 
-    def test_extension_not_available(self):
-        """Test ExtensionNotAvailable inherits from PycopgError."""
-        error = ExtensionNotAvailable("PostGIS not installed")
+    def test_extension_not_available_error(self):
+        """Test ExtensionNotAvailableError inherits from PycopgError."""
+        error = ExtensionNotAvailableError("PostGIS not installed")
         assert isinstance(error, PycopgError)
 
-    def test_table_not_found(self):
-        """Test TableNotFound inherits from PycopgError."""
-        error = TableNotFound("Table 'users' not found")
+    def test_table_not_found_error(self):
+        """Test TableNotFoundError inherits from PycopgError."""
+        error = TableNotFoundError("Table 'users' not found")
         assert isinstance(error, PycopgError)
 
-    def test_invalid_identifier(self):
-        """Test InvalidIdentifier inherits from PycopgError."""
-        error = InvalidIdentifier("Invalid table name: DROP TABLE")
+    def test_invalid_identifier_error(self):
+        """Test InvalidIdentifierError inherits from PycopgError."""
+        error = InvalidIdentifierError("Invalid table name: DROP TABLE")
+        assert isinstance(error, PycopgError)
+
+    def test_database_exists_error(self):
+        """Test DatabaseExistsError inherits from PycopgError."""
+        error = DatabaseExistsError("Database already exists")
         assert isinstance(error, PycopgError)
 
     def test_migration_error(self):
@@ -60,9 +66,9 @@ class TestExceptions:
         errors = [
             ConnectionError("conn"),
             ConfigurationError("config"),
-            ExtensionNotAvailable("ext"),
-            TableNotFound("table"),
-            InvalidIdentifier("id"),
+            ExtensionNotAvailableError("ext"),
+            TableNotFoundError("table"),
+            InvalidIdentifierError("id"),
             MigrationError("migration"),
         ]
 

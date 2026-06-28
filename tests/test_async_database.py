@@ -9,10 +9,10 @@ import pytest
 
 from pycopg import AsyncDatabase, Config
 from pycopg.exceptions import (
-    DatabaseExists,
-    ExtensionNotAvailable,
-    InvalidIdentifier,
-    TableNotFound,
+    DatabaseExistsError,
+    ExtensionNotAvailableError,
+    InvalidIdentifierError,
+    TableNotFoundError,
 )
 from pycopg.utils import validate_identifier
 
@@ -95,13 +95,13 @@ class TestAsyncDatabaseValidation:
 
     def test_validate_identifier_invalid(self, config):
         """Test invalid identifiers raise."""
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("123users")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("user-accounts")
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             validate_identifier("DROP TABLE")
 
 
@@ -800,7 +800,7 @@ class TestAsyncDatabaseGeoDataFrame:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="PostGIS extension not installed"
+            ExtensionNotAvailableError, match="PostGIS extension not installed"
         ):
             await db.from_geodataframe(gdf, "parcels")
 
@@ -1612,7 +1612,7 @@ class TestAsyncDatabaseCSV:
         """Test copy_to_csv validates identifiers."""
         db = AsyncDatabase(config)
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await db.backup.copy_to_csv("DROP TABLE", "/tmp/out.csv")
 
     async def test_copy_from_csv_basic(self, config):
@@ -1721,7 +1721,7 @@ class TestAsyncDatabaseCSV:
         """Test copy_from_csv validates identifiers."""
         db = AsyncDatabase(config)
 
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await db.backup.copy_from_csv("DROP TABLE", "/tmp/in.csv")
 
 
@@ -2418,7 +2418,7 @@ class TestAsyncDatabaseTimescaleDB:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.create_hypertable("events", "timestamp")
 
@@ -2485,7 +2485,7 @@ class TestAsyncDatabaseTimescaleDB:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.enable_compression("events")
 
@@ -2517,7 +2517,7 @@ class TestAsyncDatabaseTimescaleDB:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.add_compression_policy("events")
 
@@ -2549,7 +2549,7 @@ class TestAsyncDatabaseTimescaleDB:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.add_retention_policy("events", drop_after="90 days")
 
@@ -2592,7 +2592,7 @@ class TestAsyncDatabaseTimescaleDB:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.list_hypertables()
 
@@ -2626,7 +2626,7 @@ class TestAsyncDatabaseTimescaleDB:
         db._schema = mock_schema
 
         with pytest.raises(
-            ExtensionNotAvailable, match="TimescaleDB extension not installed"
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
         ):
             await db.timescale.hypertable_info("events")
 
@@ -2847,7 +2847,7 @@ class TestAsyncDatabaseAdminIntegration:
 
     async def test_create_raises_when_exists_and_not_if_not_exists(self, db_config):
         """create(if_not_exists=False) on an existing DB raises ValueError."""
-        with pytest.raises(DatabaseExists, match="already exists"):
+        with pytest.raises(DatabaseExistsError, match="already exists"):
             await AsyncDatabase.create(
                 "pycopg_test",
                 host=db_config.host,
@@ -3434,10 +3434,10 @@ class TestAsyncSchemaIntrospection:
             await db.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
     async def test_truncate_table_missing_raises_table_not_found(self, db_config):
-        """async truncate_table on a nonexistent table raises TableNotFound (DEBT-05)."""
+        """async truncate_table on a nonexistent table raises TableNotFoundError (DEBT-05)."""
         db = AsyncDatabase(db_config)
         missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
-        with pytest.raises(TableNotFound):
+        with pytest.raises(TableNotFoundError):
             await db.schema.truncate_table(missing)
 
 
@@ -3488,27 +3488,27 @@ class TestAsyncStreamDfCopyValidation:
 
     @pytest.mark.asyncio
     async def test_async_stream_df_copy_rejects_invalid_column(self):
-        """An invalid column name raises InvalidIdentifier before COPY runs."""
+        """An invalid column name raises InvalidIdentifierError before COPY runs."""
         import pandas as pd
 
         from pycopg.async_database import _async_stream_df_copy
 
         df = pd.DataFrame({"id": [1, 2], "bad; DROP TABLE x": [3, 4]})
         cur = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await _async_stream_df_copy(cur, df, "t", "public", list(df.columns))
         cur.copy.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_async_stream_df_copy_rejects_invalid_table(self):
-        """An invalid table name raises InvalidIdentifier before COPY runs."""
+        """An invalid table name raises InvalidIdentifierError before COPY runs."""
         import pandas as pd
 
         from pycopg.async_database import _async_stream_df_copy
 
         df = pd.DataFrame({"id": [1, 2]})
         cur = MagicMock()
-        with pytest.raises(InvalidIdentifier):
+        with pytest.raises(InvalidIdentifierError):
             await _async_stream_df_copy(
                 cur, df, "t; DROP TABLE x", "public", list(df.columns)
             )

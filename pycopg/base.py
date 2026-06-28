@@ -265,7 +265,7 @@ class QueryMixin:
 
         Raises
         ------
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column key fails identifier validation.
         """
         validate_identifiers(*where.keys())

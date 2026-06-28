@@ -30,7 +30,7 @@ from pycopg.base import (
     QueryMixin,
 )
 from pycopg.config import Config
-from pycopg.exceptions import DatabaseExists, ExtensionNotAvailable
+from pycopg.exceptions import DatabaseExistsError, ExtensionNotAvailableError
 from pycopg.utils import (
     validate_identifier,
     validate_identifiers,
@@ -353,7 +353,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        DatabaseExists
+        DatabaseExistsError
             If the database already exists and if_not_exists is False.
         """
         # Create config for the admin connection (to postgres database)
@@ -381,7 +381,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
                 if exists:
                     if not if_not_exists:
-                        raise DatabaseExists(f"Database '{name}' already exists")
+                        raise DatabaseExistsError(f"Database '{name}' already exists")
                 else:
                     # Create the database
                     owner_clause = f" OWNER {owner}" if owner else ""
@@ -873,7 +873,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         ValueError
             If ``where`` is empty or falsy (guard fires before any SQL or
             cursor is opened).
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
         if not where:
@@ -911,7 +911,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
         validate_identifiers(table, schema)
@@ -964,7 +964,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        InvalidIdentifier
+        InvalidIdentifierError
             If any column name in ``order_by`` or the table/schema identifier
             is invalid.
         """
@@ -1209,12 +1209,12 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         Raises
         ------
-        ExtensionNotAvailable
+        ExtensionNotAvailableError
             If PostGIS extension is not installed.
         """
         # Ensure PostGIS is available
         if not await self.schema.has_extension("postgis"):
-            raise ExtensionNotAvailable(
+            raise ExtensionNotAvailableError(
                 "PostGIS extension not installed. Run db.schema.create_extension('postgis')"
             )
 

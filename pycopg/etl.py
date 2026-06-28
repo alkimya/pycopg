@@ -94,7 +94,7 @@ def _validate_incremental(incremental_column: str | None, load_mode: str) -> Non
     ValueError
         If ``incremental_column`` is set and ``load_mode`` is ``"append"``
         or ``"replace"`` (the forbidden-combo intent error, checked first).
-    InvalidIdentifier
+    InvalidIdentifierError
         If ``incremental_column`` is not a valid SQL identifier (D-15).
     """
     # Non-incremental pipelines skip both checks (D-15 short-circuit).
@@ -342,7 +342,7 @@ def build_truncate_sql(table: str, schema: str = "public") -> tuple[str, list]:
     Called by the Phase 18 ``replace`` load path to empty the target
     table before the bulk insert. Identifiers are validated before
     interpolation (D-13) — an invalid ``table`` or ``schema`` name raises
-    ``InvalidIdentifier`` and no SQL is produced.
+    ``InvalidIdentifierError`` and no SQL is produced.
 
     Parameters
     ----------
@@ -361,7 +361,7 @@ def build_truncate_sql(table: str, schema: str = "public") -> tuple[str, list]:
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If ``table`` or ``schema`` is not a valid SQL identifier (D-13).
     """
     validate_identifiers(table, schema)
@@ -442,7 +442,7 @@ def _build_insert_sql(
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If ``table``, ``schema``, or any element of ``columns`` is not a
         valid SQL identifier (T-18-01, SC-6).
     """
@@ -502,7 +502,7 @@ def _build_upsert_sql(
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If any identifier in ``table``, ``schema``, ``conflict_columns``,
         ``update_columns``, or the column names derived from ``rows[0]``
         fails validation (T-18-01, SC-6).
@@ -570,7 +570,7 @@ def _build_incremental_extract_sql(
 
     Raises
     ------
-    InvalidIdentifier
+    InvalidIdentifierError
         If ``column`` (always) or ``source``/``schema`` (table source) is
         not a valid SQL identifier (T-26-02).
     """
