@@ -367,7 +367,7 @@ Plans:
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
-| 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete   | 2026-06-29 |
+| 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 0/? | Not started | - |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 0/? | Not started | - |
