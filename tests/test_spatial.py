@@ -1160,6 +1160,9 @@ _HELPER_CALLS = [
     ("union", {"other_geom": "geometry2"}),
     ("difference", {"other_geom": "geometry2"}),
     ("intersection", {"other_geom": "geometry2"}),
+    ("simplify", {"tolerance": 0.01}),
+    ("convex_hull", {}),
+    ("make_valid", {}),
 ]
 
 # Geometry-returning helpers valid for into="gdf", with expected geom column.
@@ -1173,6 +1176,9 @@ _GDF_CALLS = [
     ("union", {"other_geom": "geometry2"}, "union_geom"),
     ("difference", {"other_geom": "geometry2"}, "difference"),
     ("intersection", {"other_geom": "geometry2"}, "intersection"),
+    ("simplify", {"tolerance": 0.01}, "simplified"),
+    ("convex_hull", {}, "convex_hull"),
+    ("make_valid", {}, "made_valid"),
 ]
 
 
