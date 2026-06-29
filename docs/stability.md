@@ -112,6 +112,15 @@ two-positional convention is established and expected by users of the primitive 
 | `simplify` | `table` | `geom`, `schema`, `tolerance`, `preserve_topology`, `preserve_collapsed`, `filter`, `into`, `columns`, `order_by`, `limit` |
 | `convex_hull` | `table` | `geom`, `schema`, `filter`, `into`, `columns`, `order_by`, `limit` |
 | `make_valid` | `table` | `geom`, `schema`, `method`, `keep_collapsed`, `filter`, `into`, `columns`, `order_by`, `limit` |
+| `collect_geometries` | `table` | `geom`, `schema`, `group_by`, `filter`, `into`, `order_by`, `limit` |
+| `union_aggregate` | `table` | `geom`, `schema`, `group_by`, `filter`, `into`, `order_by`, `limit` |
+| `extent` | `table` | `geom`, `schema`, `group_by`, `srid`, `filter`, `into`, `order_by`, `limit` |
+
+**Note on `extent`:** `into="rows"` (default) returns a PostgreSQL ``box2d`` text string
+(e.g. ``"BOX(0 -1,0 1)"``). ``into="gdf"`` returns a real geometry tagged with ``srid``
+(default 4326) so GeoPandas can load it — the active geometry column is ``"extent"`` (D-04/D-05).
+No ``columns=`` parameter on the aggregate methods — the SELECT is the group columns plus the
+single aggregate expression (D-02).
 
 **Note on `within`:** 4 required positional identifiers (`left_table`, `left_geom`,
 `right_table`, `right_geom`) stay positional. `schema=` is keyword-only (FREEZE-03 D1 clean break).

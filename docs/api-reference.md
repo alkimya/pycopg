@@ -213,6 +213,9 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 | `simplify` | `table, *, geom="geometry", schema="public", tolerance, preserve_topology=True, preserve_collapsed=False, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `convex_hull` | `table, *, geom="geometry", schema="public", filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `make_valid` | `table, *, geom="geometry", schema="public", method=None, keep_collapsed=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `collect_geometries` | `table, *, geom="geometry", schema="public", group_by=None, filter=None, into="rows", order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `union_aggregate` | `table, *, geom="geometry", schema="public", group_by=None, filter=None, into="rows", order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `extent` | `table, *, geom="geometry", schema="public", group_by=None, srid=4326, filter=None, into="rows", order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 
 ### TimescaleDB Methods
 

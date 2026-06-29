@@ -86,7 +86,7 @@ pycopg organizes database operations into typed accessor namespaces:
 | `db.maint.*` | Maintenance | `size`, `vacuum`, `analyze`, `explain`, … (6 methods) |
 | `db.backup.*` | Backup & restore | `pg_dump`, `pg_restore`, `copy_to_csv`, `copy_from_csv` (4 methods) |
 | `db.timescale.*` | TimescaleDB | `create_hypertable`, `enable_compression`, `time_bucket`, `show_chunks`, … (15 methods) |
-| `db.spatial.*` | PostGIS helpers | `contains`, `within`, `intersects`, `union`, `simplify`, `make_valid`, … (19 methods) |
+| `db.spatial.*` | PostGIS helpers | `contains`, `within`, `intersects`, `union`, `simplify`, `collect_geometries`, `extent`, … (22 methods) |
 | `db.etl.*` | ETL pipelines | `run`, `history`, `last_run`, `init` (4 methods) |
 
 `Database` and `AsyncDatabase` also expose flat CRUD helpers directly (v0.9.0): `upsert`,
