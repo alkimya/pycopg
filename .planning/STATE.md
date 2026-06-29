@@ -132,8 +132,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 Last session: 2026-06-29T20:11:57.243Z
 Stopped at: Phase 44 context gathered
 Resume file: .planning/phases/44-spatial-v2-serialization-mvt/44-CONTEXT.md
-Next action: Execute Phase 43 Plan 02 (extent method)
+Next action: Plan Phase 44 with `/gsd-plan-phase 44`
 
 ## Operator Next Steps
 
-- Execute Phase 43 Plan 02 with `/gsd-execute-phase 43 02`
+- Plan Phase 44 (Spatial v2 — Serialization + MVT) with `/gsd-plan-phase 44`
