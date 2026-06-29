@@ -186,7 +186,21 @@ Plans:
 4. Passing a malicious identifier (e.g., `table="users; DROP TABLE users"`) to any new builder raises `InvalidIdentifierError` before any SQL is sent to the server (dedicated injection test per builder)
 5. Every new method has a working `AsyncSpatialAccessor` equivalent with identical signature, confirmed by `test_accessor_parity`
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+
+Plans:
+
+**Wave 1**
+
+- [ ] 42-01-PLAN.md — Binary trio: `union`/`difference`/`intersection` (shared `_build_binary_geom_sql` + 3 builders + 6 accessor methods + SQL-shape/injection/mixed-SRID/live tests) — SPAT2-01/05/06
+
+**Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
+
+- [ ] 42-02-PLAN.md — Unary trio: `simplify`/`convex_hull`/`make_valid` (3 builders w/ method whitelist + ValueError guards + `%s` params string + 6 accessor methods + SQL-shape/ValueError/injection/bowtie/tiny-polygon/structure live tests) — SPAT2-02/03/04
+
+**Wave 3** *(blocked on Wave 2; docs + surface gate)*
+
+- [ ] 42-03-PLAN.md — `test_spatial_v1_processing_surface` parity-surface test + docs (stability.md 6 rows + structure>=3.2 note, api-reference.md filter= rows, README count) + full-suite/coverage gate — SPAT2-01..06
 
 **UI hint**: no
 
@@ -338,7 +352,7 @@ Plans:
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
-| 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/? | Not started | - |
+| 42. Spatial v2 — Processing Helpers | v1.0.0 | 0/3 | Planned | - |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 0/? | Not started | - |
