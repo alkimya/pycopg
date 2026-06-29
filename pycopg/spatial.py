@@ -2246,6 +2246,211 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "geometry_transformed")
 
+    def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the pairwise union of two geometry columns.
+
+        Returns a ``union_geom`` geometry column via
+        ``ST_Union(t.{geom}, t.{other_geom})`` — valid for ``into="gdf"``.
+        No ``where=`` deprecated alias (born clean for 1.0 freeze, D-10).
+
+        Note: inputs with mismatched SRIDs will raise a native PostGIS error
+        at execution time (D-06). No pre-check is performed.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            First geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        other_geom : str
+            Second geometry column name (required, keyword-only).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``union_geom`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "union")
+        sql, params = build_union_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            other_geom=other_geom,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "union_geom")
+
+    def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the pairwise difference of two geometry columns.
+
+        Returns a ``difference`` geometry column via
+        ``ST_Difference(t.{geom}, t.{other_geom})`` (A minus B) — valid for
+        ``into="gdf"``. No ``where=`` deprecated alias (born clean, D-10).
+
+        Note: inputs with mismatched SRIDs will raise a native PostGIS error
+        at execution time (D-06). No pre-check is performed.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            First geometry column name (minuend), by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        other_geom : str
+            Second geometry column name (subtrahend, required, keyword-only).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``difference`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "difference")
+        sql, params = build_difference_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            other_geom=other_geom,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "difference")
+
+    def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the pairwise intersection of two geometry columns.
+
+        Returns an ``intersection`` geometry column via
+        ``ST_Intersection(t.{geom}, t.{other_geom})`` (shared portion) —
+        valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean,
+        D-10).
+
+        Note: inputs with mismatched SRIDs will raise a native PostGIS error
+        at execution time (D-06). No pre-check is performed.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            First geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        other_geom : str
+            Second geometry column name (required, keyword-only).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``intersection`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "intersection")
+        sql, params = build_intersection_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            other_geom=other_geom,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "intersection")
+
     def create_spatial_index(
         self,
         table: str,
@@ -3334,6 +3539,220 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, "geometry_transformed")
+
+    async def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the pairwise union of two geometry columns (async).
+
+        Returns a ``union_geom`` geometry column via
+        ``ST_Union(t.{geom}, t.{other_geom})`` — valid for ``into="gdf"``.
+        No ``where=`` deprecated alias (born clean for 1.0 freeze, D-10).
+
+        Note: inputs with mismatched SRIDs will raise a native PostGIS error
+        at execution time (D-06). No pre-check is performed.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            First geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        other_geom : str
+            Second geometry column name (required, keyword-only).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``union_geom`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "union")
+        sql, params = build_union_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            other_geom=other_geom,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "union_geom")
+
+    async def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the pairwise difference of two geometry columns (async).
+
+        Returns a ``difference`` geometry column via
+        ``ST_Difference(t.{geom}, t.{other_geom})`` (A minus B) — valid for
+        ``into="gdf"``. No ``where=`` deprecated alias (born clean, D-10).
+
+        Note: inputs with mismatched SRIDs will raise a native PostGIS error
+        at execution time (D-06). No pre-check is performed.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            First geometry column name (minuend), by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        other_geom : str
+            Second geometry column name (subtrahend, required, keyword-only).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``difference`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "difference")
+        sql, params = build_difference_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            other_geom=other_geom,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "difference")
+
+    async def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the pairwise intersection of two geometry columns (async).
+
+        Returns an ``intersection`` geometry column via
+        ``ST_Intersection(t.{geom}, t.{other_geom})`` (shared portion) —
+        valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean,
+        D-10).
+
+        Note: inputs with mismatched SRIDs will raise a native PostGIS error
+        at execution time (D-06). No pre-check is performed.
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            First geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        other_geom : str
+            Second geometry column name (required, keyword-only).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``intersection`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "intersection")
+        sql, params = build_intersection_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            other_geom=other_geom,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "intersection")
 
     async def create_spatial_index(
         self,
