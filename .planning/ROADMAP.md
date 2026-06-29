@@ -196,7 +196,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
 
-- [ ] 42-02-PLAN.md — Unary trio: `simplify`/`convex_hull`/`make_valid` (3 builders w/ method whitelist + ValueError guards + `%s` params string + 6 accessor methods + SQL-shape/ValueError/injection/bowtie/tiny-polygon/structure live tests) — SPAT2-02/03/04
+- [x] 42-02-PLAN.md — Unary trio: `simplify`/`convex_hull`/`make_valid` (3 builders w/ method whitelist + ValueError guards + `%s` params string + 6 accessor methods + SQL-shape/ValueError/injection/bowtie/tiny-polygon/structure live tests) — SPAT2-02/03/04
 
 **Wave 3** *(blocked on Wave 2; docs + surface gate)*
 
@@ -352,7 +352,7 @@ Plans:
 | 39. Couverture & Benchmarks | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
-| 42. Spatial v2 — Processing Helpers | v1.0.0 | 1/3 | In Progress|  |
+| 42. Spatial v2 — Processing Helpers | v1.0.0 | 2/3 | In Progress|  |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 0/? | Not started | - |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 0/? | Not started | - |
