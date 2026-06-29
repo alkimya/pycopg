@@ -1273,9 +1273,7 @@ class TestIntegration:
         t = _uniq("spat_agg_ua_grp")
         try:
             self._make_grouped_with_nulls(sdb, t)
-            rows = sdb.spatial.union_aggregate(
-                t, group_by="region", order_by="region"
-            )
+            rows = sdb.spatial.union_aggregate(t, group_by="region", order_by="region")
             assert len(rows) == 2
             regions = [r["region"] for r in rows]
             assert "north" in regions and "south" in regions
@@ -1289,9 +1287,7 @@ class TestIntegration:
         t = _uniq("spat_agg_ua_null")
         try:
             self._make_grouped_with_nulls(sdb, t)
-            rows = sdb.spatial.union_aggregate(
-                t, group_by="region", order_by="region"
-            )
+            rows = sdb.spatial.union_aggregate(t, group_by="region", order_by="region")
             assert len(rows) == 2
             for row in rows:
                 assert "dissolved" in row
