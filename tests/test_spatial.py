@@ -1244,6 +1244,8 @@ _HELPER_CALLS = [
     ("simplify", {"tolerance": 0.01}),
     ("convex_hull", {}),
     ("make_valid", {}),
+    ("collect_geometries", {}),
+    ("union_aggregate", {}),
 ]
 
 # Geometry-returning helpers valid for into="gdf", with expected geom column.
@@ -1260,6 +1262,8 @@ _GDF_CALLS = [
     ("simplify", {"tolerance": 0.01}, "simplified"),
     ("convex_hull", {}, "convex_hull"),
     ("make_valid", {}, "made_valid"),
+    ("collect_geometries", {}, "collected"),
+    ("union_aggregate", {}, "dissolved"),
 ]
 
 
@@ -1563,3 +1567,39 @@ class TestAggregateBuilders:
             build_union_aggregate_sql(
                 "zones", group_by=["region; DROP TABLE users; --"]
             )
+
+
+class TestAggregateAccessorGuards:
+    """DB-free guard tests for collect_geometries and union_aggregate accessor methods."""
+
+    def test_collect_geometries_empty_group_by_raises(self):
+        """collect_geometries with group_by=[] raises ValueError (Pitfall 5)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        with pytest.raises(ValueError, match="group_by cannot be an empty list"):
+            acc.collect_geometries("zones", group_by=[])
+
+    def test_union_aggregate_empty_group_by_raises(self):
+        """union_aggregate with group_by=[] raises ValueError (Pitfall 5)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        with pytest.raises(ValueError, match="group_by cannot be an empty list"):
+            acc.union_aggregate("zones", group_by=[])
+
+    def test_collect_geometries_str_group_by_normalized(self):
+        """collect_geometries normalizes a bare str group_by to [str] (D-01)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        result = acc.collect_geometries("zones", group_by="region")
+        assert result == [{"ok": 1}]
+        _, sql, _ = db.calls[-1]
+        assert "GROUP BY t.region" in sql
+
+    def test_union_aggregate_str_group_by_normalized(self):
+        """union_aggregate normalizes a bare str group_by to [str] (D-01)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        result = acc.union_aggregate("zones", group_by="region")
+        assert result == [{"ok": 1}]
+        _, sql, _ = db.calls[-1]
+        assert "GROUP BY t.region" in sql
