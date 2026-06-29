@@ -954,6 +954,230 @@ def build_transform_sql(
     return sql, [to_srid]
 
 
+def _build_binary_geom_sql(
+    op_func: str,
+    result_col: str,
+    table: str,
+    geom: str,
+    schema: str,
+    *,
+    other_geom: str,
+    columns: list[str] | None,
+    filter: str | None,
+    order_by: str | None,
+    limit: int | None,
+) -> tuple[str, list]:
+    """Build SQL for a pairwise (binary, 2-column) geometry operation."""
+    validate_identifiers(table, schema, geom, other_geom)
+    if columns:
+        validate_identifiers(*columns)
+    sql = (
+        f"SELECT {_cols_str(columns)}, "
+        f"{op_func}(t.{geom}, t.{other_geom}) AS {result_col} "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
+def build_union_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    other_geom: str,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting the pairwise union of two geometry columns.
+
+    Adds a ``union_geom`` geometry column via
+    ``ST_Union(t.{geom}, t.{other_geom})``. No ``%s`` parameters are
+    emitted — both geometry columns are identifier-validated and
+    interpolated directly into the SQL. The result is a geometry, valid
+    for ``into="gdf"``.
+
+    Note: inputs with mismatched SRIDs will raise a native PostGIS error
+    at execution time (D-06). No pre-check is performed.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        First geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    other_geom : str
+        Second geometry column name (required, keyword-only).
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier (``table``, ``schema``, ``geom``, ``other_geom``,
+        or any element of ``columns``) is invalid.
+    """
+    return _build_binary_geom_sql(
+        "ST_Union",
+        "union_geom",
+        table,
+        geom,
+        schema,
+        other_geom=other_geom,
+        columns=columns,
+        filter=filter,
+        order_by=order_by,
+        limit=limit,
+    )
+
+
+def build_difference_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    other_geom: str,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting the pairwise difference of two geometry columns.
+
+    Adds a ``difference`` geometry column via
+    ``ST_Difference(t.{geom}, t.{other_geom})`` (A minus B). No ``%s``
+    parameters are emitted — both geometry columns are identifier-validated
+    and interpolated directly into the SQL. The result is a geometry, valid
+    for ``into="gdf"``.
+
+    Note: inputs with mismatched SRIDs will raise a native PostGIS error
+    at execution time (D-06). No pre-check is performed.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        First geometry column name (minuend), by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    other_geom : str
+        Second geometry column name (subtrahend, required, keyword-only).
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier (``table``, ``schema``, ``geom``, ``other_geom``,
+        or any element of ``columns``) is invalid.
+    """
+    return _build_binary_geom_sql(
+        "ST_Difference",
+        "difference",
+        table,
+        geom,
+        schema,
+        other_geom=other_geom,
+        columns=columns,
+        filter=filter,
+        order_by=order_by,
+        limit=limit,
+    )
+
+
+def build_intersection_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    other_geom: str,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting the pairwise intersection of two geometry columns.
+
+    Adds an ``intersection`` geometry column via
+    ``ST_Intersection(t.{geom}, t.{other_geom})`` (shared portion of A and
+    B). No ``%s`` parameters are emitted — both geometry columns are
+    identifier-validated and interpolated directly into the SQL. The result
+    is a geometry, valid for ``into="gdf"``.
+
+    Note: inputs with mismatched SRIDs will raise a native PostGIS error
+    at execution time (D-06). No pre-check is performed.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        First geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    other_geom : str
+        Second geometry column name (required, keyword-only).
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier (``table``, ``schema``, ``geom``, ``other_geom``,
+        or any element of ``columns``) is invalid.
+    """
+    return _build_binary_geom_sql(
+        "ST_Intersection",
+        "intersection",
+        table,
+        geom,
+        schema,
+        other_geom=other_geom,
+        columns=columns,
+        filter=filter,
+        order_by=order_by,
+        limit=limit,
+    )
+
+
 #: Helpers whose result set has no geometry column — ``into="gdf"`` is
 #: rejected for these (D-02).
 _SCALAR_HELPERS = frozenset({"area", "perimeter", "distance", "centroid"})
