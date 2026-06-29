@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: verifying
-stopped_at: Phase 43 Plan 02 complete (extent method)
+status: phase_complete
+stopped_at: Phase 43 complete + verified (3/3 plans, 5/5 must-haves)
 last_updated: "2026-06-29T16:12:03.047Z"
 last_activity: 2026-06-29
 progress:
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 43 — spatial-v2-spatial-aggregates
+**Current focus:** Phase 44 — spatial-v2-serialization-mvt (not started)
 
 ## Current Position
 
 Phase: 44
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-29
+Status: Phase 43 complete + verified (5/5 must-haves); Phase 44 not started
+Last activity: 2026-06-29 — Phase 43 (spatial aggregates) executed, reviewed (0 blockers), verified PASSED, completed
 
 ## Performance Metrics
 
