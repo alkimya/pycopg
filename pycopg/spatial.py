@@ -1509,12 +1509,12 @@ def _build_agg_geom_sql(
     if group_by:
         validate_identifiers(*group_by)
     group_cols = [f"t.{col}" for col in group_by] if group_by else []
-    select_prefix = ", ".join(
-        group_cols + [f"{agg_func}(t.{geom}) AS {result_col}"]
-    )
+    select_prefix = ", ".join(group_cols + [f"{agg_func}(t.{geom}) AS {result_col}"])
     sql = f"SELECT {select_prefix} FROM {schema}.{table} AS t"
     group_by_str = ", ".join(group_cols) if group_cols else None
-    sql = _append_tail(sql, filter, order_by, limit, has_where=False, group_by=group_by_str)
+    sql = _append_tail(
+        sql, filter, order_by, limit, has_where=False, group_by=group_by_str
+    )
     return sql, []
 
 
@@ -3163,6 +3163,179 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "made_valid")
 
+    def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Collect geometries into a geometry collection per group via ST_Collect (SPAT2-07).
+
+        Adds a ``collected`` geometry column (D-06). The result is a
+        ``GEOMETRYCOLLECTION`` (or the input type for single-row groups).
+
+        NULL geometry inputs are skipped by the PostGIS aggregate; a group (or
+        the whole table) with all-NULL inputs yields one row with a NULL
+        ``collected`` value. No ``HAVING`` filter is applied (D-07).
+
+        Valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean,
+        D-09). ``group_by`` is keyword-only (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        group_by : str or list of str or None, optional
+            Column(s) to group by. A bare ``str`` is normalized to
+            ``[str]`` (D-01). Pass ``None`` (default) for a whole-table
+            aggregate. Raises ``ValueError`` for an empty list.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default ``"rows"``.
+        filter : str, optional
+            Raw SQL filter fragment (pre-aggregate WHERE clause).
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows or GeoDataFrame including the ``collected`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or ``group_by`` is an empty list.
+        InvalidIdentifierError
+            If any identifier (``table``, ``schema``, ``geom``, or
+            ``group_by`` columns) is invalid.
+
+        Examples
+        --------
+        Whole-table collection::
+
+            rows = db.spatial.collect_geometries("zones")
+
+        Grouped by region::
+
+            rows = db.spatial.collect_geometries("zones", group_by="region")
+        """
+        if isinstance(group_by, str):
+            group_by = [group_by]
+        if group_by == []:
+            raise ValueError(
+                "group_by cannot be an empty list; pass None for a whole-table aggregate"
+            )
+        _check_into(into, "collect_geometries")
+        sql, params = build_collect_geometries_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            group_by=group_by,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "collected")
+
+    def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Dissolve geometries into a merged boundary per group via ST_Union (SPAT2-08).
+
+        Adds a ``dissolved`` geometry column (D-06). Unlike the pairwise
+        ``union`` method (Phase 42), this form aggregates all geometries in
+        a group into a single merged result.
+
+        NULL geometry inputs are skipped by the PostGIS aggregate; a group (or
+        the whole table) with all-NULL inputs yields one row with a NULL
+        ``dissolved`` value. No ``HAVING`` filter is applied (D-07).
+
+        Valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean,
+        D-09). ``group_by`` is keyword-only (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        group_by : str or list of str or None, optional
+            Column(s) to group by. A bare ``str`` is normalized to
+            ``[str]`` (D-01). Pass ``None`` (default) for a whole-table
+            aggregate. Raises ``ValueError`` for an empty list.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default ``"rows"``.
+        filter : str, optional
+            Raw SQL filter fragment (pre-aggregate WHERE clause).
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows or GeoDataFrame including the ``dissolved`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or ``group_by`` is an empty list.
+        InvalidIdentifierError
+            If any identifier (``table``, ``schema``, ``geom``, or
+            ``group_by`` columns) is invalid.
+
+        Examples
+        --------
+        Whole-table dissolve::
+
+            rows = db.spatial.union_aggregate("zones")
+
+        Grouped by region::
+
+            gdf = db.spatial.union_aggregate("zones", group_by="region", into="gdf")
+        """
+        if isinstance(group_by, str):
+            group_by = [group_by]
+        if group_by == []:
+            raise ValueError(
+                "group_by cannot be an empty list; pass None for a whole-table aggregate"
+            )
+        _check_into(into, "union_aggregate")
+        sql, params = build_union_aggregate_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            group_by=group_by,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "dissolved")
+
     def create_spatial_index(
         self,
         table: str,
@@ -4686,6 +4859,150 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, "made_valid")
+
+    async def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Collect geometries into a geometry collection per group — async (ST_Collect).
+
+        Async mirror of :meth:`SpatialAccessor.collect_geometries`. Adds a
+        ``collected`` geometry column (D-06). Valid for ``into="gdf"``.
+        No ``where=`` deprecated alias (born clean, D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        group_by : str or list of str or None, optional
+            Column(s) to group by. A bare ``str`` is normalized to
+            ``[str]`` (D-01). Pass ``None`` for a whole-table aggregate.
+            Raises ``ValueError`` for an empty list.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default ``"rows"``.
+        filter : str, optional
+            Raw SQL filter fragment (pre-aggregate WHERE clause).
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows or GeoDataFrame including the ``collected`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or ``group_by`` is an empty list.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        if isinstance(group_by, str):
+            group_by = [group_by]
+        if group_by == []:
+            raise ValueError(
+                "group_by cannot be an empty list; pass None for a whole-table aggregate"
+            )
+        _check_into(into, "collect_geometries")
+        sql, params = build_collect_geometries_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            group_by=group_by,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "collected")
+
+    async def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Dissolve geometries into a merged boundary per group — async (ST_Union).
+
+        Async mirror of :meth:`SpatialAccessor.union_aggregate`. Adds a
+        ``dissolved`` geometry column (D-06). Valid for ``into="gdf"``.
+        No ``where=`` deprecated alias (born clean, D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        group_by : str or list of str or None, optional
+            Column(s) to group by. A bare ``str`` is normalized to
+            ``[str]`` (D-01). Pass ``None`` for a whole-table aggregate.
+            Raises ``ValueError`` for an empty list.
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default ``"rows"``.
+        filter : str, optional
+            Raw SQL filter fragment (pre-aggregate WHERE clause).
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows or GeoDataFrame including the ``dissolved`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or ``group_by`` is an empty list.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        if isinstance(group_by, str):
+            group_by = [group_by]
+        if group_by == []:
+            raise ValueError(
+                "group_by cannot be an empty list; pass None for a whole-table aggregate"
+            )
+        _check_into(into, "union_aggregate")
+        sql, params = build_union_aggregate_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            group_by=group_by,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "dissolved")
 
     async def create_spatial_index(
         self,
