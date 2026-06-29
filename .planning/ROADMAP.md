@@ -222,7 +222,21 @@ Plans:
 4. Passing a malicious identifier to any aggregate builder raises `InvalidIdentifierError` before any SQL is sent (dedicated injection test per builder)
 5. Every new aggregate method has a working `AsyncSpatialAccessor` equivalent confirmed by `test_accessor_parity`
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+
+Plans:
+
+**Wave 1**
+
+- [ ] 43-01-PLAN.md — `_append_tail` GROUP-BY extension + shared `_build_agg_geom_sql` + `collect_geometries`/`union_aggregate` (2 builders + 4 accessor methods, sync+async) + SQL-shape/injection/routing tests in `TestAggregateBuilders` — SPAT2-07/08
+
+**Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
+
+- [ ] 43-02-PLAN.md — `extent` dual-branch builder (box2d `::text` for rows, `ST_SetSRID(...::geometry, int(srid))` for gdf, D-04) + `srid=4326` kw-only + sync+async `extent` + branch/srid/group_by/injection tests — SPAT2-09
+
+**Wave 3** *(blocked on Waves 1-2; live integration + docs + surface gate)*
+
+- [ ] 43-03-PLAN.md — live PostGIS integration (whole-table + grouped + intentional-NULL D-07 fixture, extent box2d/gdf) + `test_spatial_aggregates_surface` + docs (stability.md 3 rows + extent srid note, api-reference.md filter= rows, README 19→22) + full-suite/coverage gate — SPAT2-07/08/09
 
 **UI hint**: no
 

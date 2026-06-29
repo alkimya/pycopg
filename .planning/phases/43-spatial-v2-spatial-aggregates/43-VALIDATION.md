@@ -1,8 +1,8 @@
 ---
 phase: 43
 slug: spatial-v2-spatial-aggregates
-status: draft
-nyquist_compliant: false
+status: planned
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-29
 ---
@@ -44,9 +44,9 @@ created: 2026-06-29
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 43-NN-MM | NN | 1 | SPAT2-07 | T-43-01 | malicious `table`/`geom`/`group_by` → `InvalidIdentifierError` before SQL | injection | `uv run pytest tests/test_spatial.py::TestAggregateBuilders -x` | ❌ W0 | ⬜ pending |
-| 43-NN-MM | NN | 1 | SPAT2-08 | T-43-01 | malicious identifiers rejected pre-SQL | injection | `uv run pytest tests/test_spatial.py::TestAggregateBuilders -x` | ❌ W0 | ⬜ pending |
-| 43-NN-MM | NN | 1 | SPAT2-09 | T-43-01 | malicious identifiers rejected pre-SQL | injection | `uv run pytest tests/test_spatial.py::TestAggregateBuilders -x` | ❌ W0 | ⬜ pending |
+| 43-01-1 | 01 | 1 | SPAT2-07 | T-43-01 | malicious `table`/`geom`/`group_by` → `InvalidIdentifierError` before SQL (collect_geometries) | injection | `uv run pytest tests/test_spatial.py::TestAggregateBuilders -x -o addopts=""` | created in 43-01 | ⬜ pending |
+| 43-01-1 | 01 | 1 | SPAT2-08 | T-43-01 | malicious identifiers rejected pre-SQL (union_aggregate) | injection | `uv run pytest tests/test_spatial.py::TestAggregateBuilders -x -o addopts=""` | created in 43-01 | ⬜ pending |
+| 43-02-1 | 02 | 2 | SPAT2-09 | T-43-01 | malicious identifiers rejected pre-SQL (extent) | injection | `uv run pytest tests/test_spatial.py::TestAggregateBuilders -x -o addopts=""` | created in 43-02 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -72,11 +72,11 @@ created: 2026-06-29
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 10s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 10s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved (plans 43-01/02/03 written; every task carries an <automated> verify mapped to the RESEARCH Validation Architecture table; Wave-0 test classes are created within the plans themselves)
