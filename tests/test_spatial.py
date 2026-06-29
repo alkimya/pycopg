@@ -1174,6 +1174,217 @@ class TestIntegration:
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
+    # -- Phase 43 aggregate integration tests (D-08 layer-b) ----------------
+
+    def _make_grouped_with_nulls(self, db, t):
+        """Create a table with grouped geometries including intentional NULL rows.
+
+        north: one non-NULL point + one NULL geometry (mixed-NULL group)
+        south: one non-NULL point (clean group)
+        Satisfies D-07 NULL-fixture requirement for SPAT2-07/08/09 criterion 3.
+        """
+        db.execute(
+            f'CREATE TABLE "{t}" (id INT, region TEXT, geometry geometry(Point, 4326))',
+            autocommit=True,
+        )
+        db.execute(
+            f'INSERT INTO "{t}" VALUES '
+            "(1, 'north', ST_GeomFromText('POINT(0 1)', 4326)), "
+            "(2, 'north', NULL), "
+            "(3, 'south', ST_GeomFromText('POINT(0 -1)', 4326))",
+            autocommit=True,
+        )
+
+    def test_collect_geometries_whole_table(self, sdb):
+        """collect_geometries with group_by=None returns exactly 1 row with 'collected'."""
+        t = _uniq("spat_agg_cg_whole")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.collect_geometries(t)
+            assert len(rows) == 1
+            assert "collected" in rows[0]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_collect_geometries_grouped(self, sdb):
+        """collect_geometries with group_by returns one row per group."""
+        t = _uniq("spat_agg_cg_grp")
+        try:
+            self._make_grouped_with_nulls(sdb, t)
+            rows = sdb.spatial.collect_geometries(
+                t, group_by="region", order_by="region"
+            )
+            assert len(rows) == 2
+            regions = [r["region"] for r in rows]
+            assert "north" in regions and "south" in regions
+            for row in rows:
+                assert "collected" in row
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_collect_geometries_null_rows_pass_through(self, sdb):
+        """collect_geometries: mixed-NULL group still returns its row (D-07 pass-through)."""
+        t = _uniq("spat_agg_cg_null")
+        try:
+            self._make_grouped_with_nulls(sdb, t)
+            rows = sdb.spatial.collect_geometries(
+                t, group_by="region", order_by="region"
+            )
+            # Both groups present; 'north' aggregate is over 1 non-NULL row (D-07)
+            assert len(rows) == 2
+            regions = [r["region"] for r in rows]
+            assert "north" in regions and "south" in regions
+            for row in rows:
+                assert "collected" in row
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_collect_geometries_all_null_group(self, sdb):
+        """All-NULL group returns one row with NULL aggregate (D-07, no HAVING)."""
+        t = _uniq("spat_agg_cg_allnull")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (region TEXT, geometry geometry(Point, 4326))',
+                autocommit=True,
+            )
+            sdb.execute(
+                f"INSERT INTO \"{t}\" VALUES ('x', NULL)",
+                autocommit=True,
+            )
+            rows = sdb.spatial.collect_geometries(t, group_by="region")
+            assert len(rows) == 1
+            assert rows[0]["collected"] is None  # NULL aggregate, not zero rows
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_union_aggregate_whole_table(self, sdb):
+        """union_aggregate with group_by=None returns exactly 1 row with 'dissolved'."""
+        t = _uniq("spat_agg_ua_whole")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.union_aggregate(t)
+            assert len(rows) == 1
+            assert "dissolved" in rows[0]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_union_aggregate_grouped(self, sdb):
+        """union_aggregate with group_by returns one row per group."""
+        t = _uniq("spat_agg_ua_grp")
+        try:
+            self._make_grouped_with_nulls(sdb, t)
+            rows = sdb.spatial.union_aggregate(
+                t, group_by="region", order_by="region"
+            )
+            assert len(rows) == 2
+            regions = [r["region"] for r in rows]
+            assert "north" in regions and "south" in regions
+            for row in rows:
+                assert "dissolved" in row
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_union_aggregate_null_rows_pass_through(self, sdb):
+        """union_aggregate: mixed-NULL group still returns its row (D-07 pass-through)."""
+        t = _uniq("spat_agg_ua_null")
+        try:
+            self._make_grouped_with_nulls(sdb, t)
+            rows = sdb.spatial.union_aggregate(
+                t, group_by="region", order_by="region"
+            )
+            assert len(rows) == 2
+            for row in rows:
+                assert "dissolved" in row
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_union_aggregate_all_null_group(self, sdb):
+        """All-NULL group union_aggregate returns one row with NULL aggregate (D-07, no HAVING)."""
+        t = _uniq("spat_agg_ua_allnull")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (region TEXT, geometry geometry(Point, 4326))',
+                autocommit=True,
+            )
+            sdb.execute(
+                f"INSERT INTO \"{t}\" VALUES ('x', NULL)",
+                autocommit=True,
+            )
+            rows = sdb.spatial.union_aggregate(t, group_by="region")
+            assert len(rows) == 1
+            assert rows[0]["dissolved"] is None  # NULL aggregate, not zero rows
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_extent_whole_table(self, sdb):
+        """extent with group_by=None returns exactly 1 row with 'extent'."""
+        t = _uniq("spat_agg_ext_whole")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.extent(t)
+            assert len(rows) == 1
+            assert "extent" in rows[0]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_extent_rows_returns_box2d_text(self, sdb):
+        """extent into='rows' returns a box2d text string starting with BOX (D-04)."""
+        t = _uniq("spat_agg_ext_box")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.extent(t, into="rows")
+            assert len(rows) == 1
+            val = rows[0]["extent"]
+            assert isinstance(val, str)
+            assert val.startswith("BOX")
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_extent_gdf_returns_geodataframe(self, sdb):
+        """extent into='gdf' returns a GeoDataFrame whose geometry column is 'extent' (D-04)."""
+        import geopandas as gpd
+
+        t = _uniq("spat_agg_ext_gdf")
+        try:
+            self._make_points(sdb, t)
+            gdf = sdb.spatial.extent(t, into="gdf")
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert gdf.geometry.name == "extent"
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_extent_grouped(self, sdb):
+        """extent with group_by returns one row per group."""
+        t = _uniq("spat_agg_ext_grp")
+        try:
+            self._make_grouped_with_nulls(sdb, t)
+            rows = sdb.spatial.extent(t, group_by="region", order_by="region")
+            assert len(rows) == 2
+            regions = [r["region"] for r in rows]
+            assert "north" in regions and "south" in regions
+            for row in rows:
+                assert "extent" in row
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_extent_null_group(self, sdb):
+        """All-NULL group extent returns one row with NULL extent (D-07, no HAVING)."""
+        t = _uniq("spat_agg_ext_null")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (region TEXT, geometry geometry(Point, 4326))',
+                autocommit=True,
+            )
+            sdb.execute(
+                f"INSERT INTO \"{t}\" VALUES ('x', NULL)",
+                autocommit=True,
+            )
+            rows = sdb.spatial.extent(t, group_by="region")
+            assert len(rows) == 1
+            assert rows[0]["extent"] is None  # NULL aggregate, not zero rows
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
 
 class _SyncSchemaStub:
     """Minimal schema stub so SpatialAccessor.__init__ passes without a real DB."""
