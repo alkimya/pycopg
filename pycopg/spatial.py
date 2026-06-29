@@ -1178,6 +1178,266 @@ def build_intersection_sql(
     )
 
 
+#: Valid ``method=`` values for :func:`build_make_valid_sql` (D-02).
+_VALID_MAKE_VALID_METHODS = {None, "linework", "structure"}
+
+
+def build_simplify_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    tolerance: float,
+    preserve_topology: bool = True,
+    preserve_collapsed: bool = False,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting rows with their geometry simplified.
+
+    By default uses ``ST_SimplifyPreserveTopology``, which guarantees a
+    non-NULL result even when all points collapse within ``tolerance``
+    (topology is preserved). Pass ``preserve_topology=False`` to use
+    ``ST_Simplify`` instead — that variant *may* return ``NULL`` when the
+    geometry collapses below ``tolerance`` (D-07).
+
+    When ``preserve_topology=False``, the ``preserve_collapsed`` flag is
+    forwarded to ``ST_Simplify`` as its third bound parameter.
+
+    The simplified geometry is aliased as ``simplified`` (D-01).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    tolerance : float
+        Simplification tolerance (required keyword-only, D-05). Units
+        depend on the geometry's SRID (degrees for 4326).
+    preserve_topology : bool, optional
+        If ``True`` (default) use ``ST_SimplifyPreserveTopology`` (no
+        NULL collapse). If ``False`` use ``ST_Simplify`` (faster,
+        but can return ``NULL``).
+    preserve_collapsed : bool, optional
+        Passed to ``ST_Simplify`` only when ``preserve_topology=False``.
+        Setting ``preserve_collapsed=True`` while ``preserve_topology=True``
+        raises ``ValueError`` (D-05).
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list.
+
+    Raises
+    ------
+    ValueError
+        If ``preserve_collapsed=True`` and ``preserve_topology=True``
+        (contradictory, D-05).
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant
+    if columns:
+        validate_identifiers(*columns)
+    # Contradictory-arg guard (D-05) — AFTER validate_identifiers
+    if preserve_collapsed and preserve_topology:
+        raise ValueError(
+            "preserve_collapsed=True has no effect when preserve_topology=True; "
+            "set preserve_topology=False to use ST_Simplify with preserve_collapsed."
+        )
+    if preserve_topology:
+        expr = f"ST_SimplifyPreserveTopology(t.{geom}, %s)"
+        params: list = [tolerance]
+    else:
+        expr = f"ST_Simplify(t.{geom}, %s, %s)"
+        params = [tolerance, preserve_collapsed]
+    sql = (
+        f"SELECT {_cols_str(columns)}, {expr} AS simplified "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, params
+
+
+def build_convex_hull_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting rows with the convex hull of each geometry.
+
+    Adds a ``convex_hull`` geometry column via ``ST_ConvexHull(t.{geom})``
+    (D-01). Returns ``NULL`` for empty geometries — pass-through (D-07).
+    Valid for ``into="gdf"``.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant
+    if columns:
+        validate_identifiers(*columns)
+    sql = (
+        f"SELECT {_cols_str(columns)}, ST_ConvexHull(t.{geom}) AS convex_hull "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
+def build_make_valid_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    method: str | None = None,
+    keep_collapsed: bool | None = None,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting rows with their geometry repaired via ST_MakeValid.
+
+    Adds a ``made_valid`` geometry column (D-01). Geometries that are
+    already valid are returned unchanged. Invalid geometries (e.g. bowtie
+    self-intersections) are repaired — the output type may change
+    (``POLYGON`` → ``MULTIPOLYGON`` or ``GEOMETRYCOLLECTION``, D-07).
+
+    ``method`` selects the repair algorithm:
+
+    - ``None`` (default) — PostGIS default algorithm (``ST_MakeValid(geom)``
+      form; available since PostGIS 3.0).
+    - ``"linework"`` — re-node the linework and assemble valid polygons;
+      bound as the params string ``"method=linework"`` via ``%s``.
+    - ``"structure"`` — divide into structure components and rebuild;
+      requires PostGIS ≥ 3.2 / GEOS ≥ 3.10 (D-04). On older servers,
+      PostGIS raises a native error — no server-version pre-check is
+      performed (D-04 passthrough). Bound as ``"method=structure"`` (plus
+      optional ``keepcollapsed`` key) via ``%s``.
+
+    The params string is assembled from programmer-controlled literals and
+    bound through ``%s`` — it is never f-string-interpolated (D-02, Pitfall 4).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    method : {None, "linework", "structure"}, optional
+        Repair algorithm, by default ``None``.
+    keep_collapsed : bool or None, optional
+        Only valid when ``method="structure"``. Controls whether degenerate
+        geometries that collapse to lower-dimensional forms are kept as
+        such (``True``/``False``) or dropped by PostGIS's default. Setting
+        ``keep_collapsed`` when ``method != "structure"`` raises
+        ``ValueError`` (D-03).
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list (empty when ``method=None``).
+
+    Raises
+    ------
+    ValueError
+        If ``method`` is not in ``{None, "linework", "structure"}`` (D-02),
+        or if ``keep_collapsed`` is set when ``method != "structure"`` (D-03).
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant
+    if columns:
+        validate_identifiers(*columns)
+    # method whitelist guard (D-02) — AFTER validate_identifiers, BEFORE SQL
+    if method not in _VALID_MAKE_VALID_METHODS:
+        raise ValueError(
+            f"method must be one of "
+            f"{sorted(str(m) for m in _VALID_MAKE_VALID_METHODS if m is not None) + [str(None)]}, "
+            f"got {method!r}"
+        )
+    # Contradictory-arg guard (D-03)
+    if keep_collapsed is not None and method != "structure":
+        raise ValueError(
+            "keep_collapsed is only valid when method='structure'; "
+            f"got method={method!r}"
+        )
+    if method is None:
+        expr = f"ST_MakeValid(t.{geom})"
+        params: list = []
+    else:
+        # Assemble params string from whitelisted literals — never f-string (D-02)
+        if method == "linework":
+            params_str = "method=linework"
+        else:  # "structure"
+            if keep_collapsed is None:
+                params_str = "method=structure"
+            elif keep_collapsed:
+                params_str = "method=structure keepcollapsed=true"
+            else:
+                params_str = "method=structure keepcollapsed=false"
+        expr = f"ST_MakeValid(t.{geom}, %s)"
+        params = [params_str]
+    sql = (
+        f"SELECT {_cols_str(columns)}, {expr} AS made_valid "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, params
+
+
 #: Helpers whose result set has no geometry column — ``into="gdf"`` is
 #: rejected for these (D-02).
 _SCALAR_HELPERS = frozenset({"area", "perimeter", "distance", "centroid"})
