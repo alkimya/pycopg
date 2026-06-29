@@ -13,6 +13,7 @@ from pycopg.spatial import (
     build_area_sql,
     build_buffer_sql,
     build_centroid_sql,
+    build_collect_geometries_sql,
     build_contains_sql,
     build_convex_hull_sql,
     build_difference_sql,
@@ -25,6 +26,7 @@ from pycopg.spatial import (
     build_perimeter_sql,
     build_simplify_sql,
     build_transform_sql,
+    build_union_aggregate_sql,
     build_union_sql,
     build_within_sql,
 )
@@ -1430,3 +1432,134 @@ class TestBuilderColumnsValidation:
         """make_valid validates columns= identifiers."""
         with pytest.raises(InvalidIdentifierError):
             build_make_valid_sql("parcels", columns=["bad-col"])
+
+
+class TestAggregateBuilders:
+    """DB-free SQL-shape + injection tests for collect_geometries and union_aggregate builders."""
+
+    # -- collect_geometries: whole-table ----------------------------------
+
+    def test_collect_geometries_whole_table(self):
+        """collect_geometries whole-table emits ST_Collect AS collected with empty params."""
+        sql, params = build_collect_geometries_sql("zones")
+        assert "ST_Collect(t.geometry) AS collected" in sql
+        assert "FROM public.zones AS t" in sql
+        assert "GROUP BY" not in sql
+        assert params == []
+
+    def test_collect_geometries_with_group_by(self):
+        """collect_geometries with group_by adds group column in SELECT and GROUP BY clause."""
+        sql, params = build_collect_geometries_sql("zones", group_by=["region"])
+        assert "t.region" in sql
+        assert "SELECT t.region," in sql
+        assert "ST_Collect(t.geometry) AS collected" in sql
+        assert "GROUP BY t.region" in sql
+        assert params == []
+
+    def test_collect_geometries_composite_group_by(self):
+        """collect_geometries with multiple group_by columns covers composite grouping."""
+        sql, params = build_collect_geometries_sql("zones", group_by=["region", "zone"])
+        assert "t.region" in sql
+        assert "t.zone" in sql
+        assert "GROUP BY t.region, t.zone" in sql
+        assert params == []
+
+    def test_collect_geometries_tail_clauses(self):
+        """collect_geometries: GROUP BY is after WHERE and before ORDER BY / LIMIT."""
+        sql, params = build_collect_geometries_sql(
+            "zones",
+            group_by=["region"],
+            filter="active = true",
+            order_by="t.region",
+            limit=10,
+        )
+        where_idx = sql.index("WHERE")
+        group_idx = sql.index("GROUP BY")
+        order_idx = sql.index("ORDER BY")
+        limit_idx = sql.index("LIMIT")
+        assert where_idx < group_idx < order_idx < limit_idx
+        assert params == []
+
+    def test_collect_geometries_no_params(self):
+        """collect_geometries always returns empty params list."""
+        sql, params = build_collect_geometries_sql("zones", group_by=["region"])
+        assert "%" not in sql
+        assert params == []
+
+    # -- collect_geometries: injection tests (T-43-01) --------------------
+
+    def test_collect_geometries_invalid_table(self):
+        """collect_geometries validates the table identifier (T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_collect_geometries_sql("bad-name")
+
+    def test_collect_geometries_invalid_geom(self):
+        """collect_geometries validates the geom identifier (T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_collect_geometries_sql("zones", geom="bad; DROP TABLE")
+
+    def test_collect_geometries_invalid_group_by(self):
+        """collect_geometries validates group_by columns before SQL assembly (Pitfall 1, T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_collect_geometries_sql(
+                "zones", group_by=["region; DROP TABLE users; --"]
+            )
+
+    # -- union_aggregate: whole-table -------------------------------------
+
+    def test_union_aggregate_whole_table(self):
+        """union_aggregate whole-table emits ST_Union AS dissolved (not union_geom)."""
+        sql, params = build_union_aggregate_sql("zones")
+        assert "ST_Union(t.geometry) AS dissolved" in sql
+        assert "FROM public.zones AS t" in sql
+        assert "GROUP BY" not in sql
+        assert params == []
+
+    def test_union_aggregate_with_group_by(self):
+        """union_aggregate with group_by adds group column in SELECT and GROUP BY clause."""
+        sql, params = build_union_aggregate_sql("zones", group_by=["region"])
+        assert "SELECT t.region," in sql
+        assert "ST_Union(t.geometry) AS dissolved" in sql
+        assert "GROUP BY t.region" in sql
+        assert params == []
+
+    def test_union_aggregate_tail_clauses(self):
+        """union_aggregate: GROUP BY is after WHERE and before ORDER BY / LIMIT."""
+        sql, params = build_union_aggregate_sql(
+            "zones",
+            group_by=["region"],
+            filter="active = true",
+            order_by="t.region",
+            limit=5,
+        )
+        where_idx = sql.index("WHERE")
+        group_idx = sql.index("GROUP BY")
+        order_idx = sql.index("ORDER BY")
+        limit_idx = sql.index("LIMIT")
+        assert where_idx < group_idx < order_idx < limit_idx
+        assert params == []
+
+    def test_union_aggregate_result_col_is_dissolved(self):
+        """union_aggregate result column is 'dissolved', NOT 'union_geom' (D-06)."""
+        sql, _ = build_union_aggregate_sql("zones")
+        assert "AS dissolved" in sql
+        assert "union_geom" not in sql
+
+    # -- union_aggregate: injection tests (T-43-01) -----------------------
+
+    def test_union_aggregate_invalid_table(self):
+        """union_aggregate validates the table identifier (T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_union_aggregate_sql("bad-name")
+
+    def test_union_aggregate_invalid_geom(self):
+        """union_aggregate validates the geom identifier (T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_union_aggregate_sql("zones", geom="bad; DROP TABLE")
+
+    def test_union_aggregate_invalid_group_by(self):
+        """union_aggregate validates group_by columns before SQL assembly (Pitfall 1, T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_union_aggregate_sql(
+                "zones", group_by=["region; DROP TABLE users; --"]
+            )
