@@ -1266,7 +1266,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             await self.schema.add_primary_key(table, primary_key, schema=schema)
 
         if spatial_index and if_exists != "append":
-            await self.spatial.create_spatial_index(table, column=geometry_column, schema=schema)
+            await self.spatial.create_spatial_index(
+                table, column=geometry_column, schema=schema
+            )
 
     # =========================================================================
     # BATCH OPERATIONS
@@ -1354,7 +1356,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         on_conflict = f"({conflict_str}) DO UPDATE SET {update_str}"
 
-        return await self.insert_many(table, rows, schema=schema, on_conflict=on_conflict)
+        return await self.insert_many(
+            table, rows, schema=schema, on_conflict=on_conflict
+        )
 
     async def upsert(
         self,

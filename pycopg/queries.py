@@ -320,9 +320,7 @@ TSDB_SHOW_CHUNKS = (
 # TSDB_DROP_CHUNKS — side-effecting call issued AFTER the preview list has
 # been captured via TSDB_SHOW_CHUNKS.  The schema/table and bound fragments
 # are interpolated identically; runtime VALUES bind as %s / %s::interval.
-TSDB_DROP_CHUNKS = (
-    "SELECT drop_chunks('{schema}.{table}'{older_arg}{newer_arg})"
-)
+TSDB_DROP_CHUNKS = "SELECT drop_chunks('{schema}.{table}'{older_arg}{newer_arg})"
 
 # =============================================================================
 # ETL QUERIES

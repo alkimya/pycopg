@@ -1247,12 +1247,8 @@ class TestDatabaseIntrospectionHelpers:
             patch.object(
                 db.schema, "table_info", return_value=expected_columns
             ) as m_ti,
-            patch.object(
-                db.schema, "primary_key", return_value=expected_pk
-            ) as m_pk,
-            patch.object(
-                db.schema, "foreign_keys", return_value=expected_fks
-            ) as m_fk,
+            patch.object(db.schema, "primary_key", return_value=expected_pk) as m_pk,
+            patch.object(db.schema, "foreign_keys", return_value=expected_fks) as m_fk,
             patch.object(
                 db.schema, "list_indexes", return_value=expected_indexes
             ) as m_li,

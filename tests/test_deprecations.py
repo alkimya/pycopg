@@ -21,7 +21,7 @@ class TestExceptionAliases:
         """Old name resolves to the identical class object."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            OldName = exceptions.InvalidIdentifier  # noqa: N806 — intentional class alias
+            OldName = exceptions.InvalidIdentifier  # noqa: N806  — intentional alias
         assert OldName is exceptions.InvalidIdentifierError
 
     def test_exception_alias_warns_on_access(self):
@@ -31,15 +31,15 @@ class TestExceptionAliases:
         w = record[0]
         assert "InvalidIdentifierError" in str(w.message)
         # D-09: stacklevel must point at THIS file, not exceptions.py
-        assert w.filename.endswith("test_deprecations.py"), (
-            f"Warning pointed at {w.filename!r}, expected test file"
-        )
+        assert w.filename.endswith(
+            "test_deprecations.py"
+        ), f"Warning pointed at {w.filename!r}, expected test file"
 
     def test_old_exception_name_still_catchable(self):
         """except OldName: catches exception raised with NewNameError (same object)."""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            OldName = exceptions.InvalidIdentifier  # noqa: N806 — intentional class alias
+            OldName = exceptions.InvalidIdentifier  # noqa: N806  — intentional alias
         with pytest.raises(OldName):
             raise exceptions.InvalidIdentifierError("test")
 
@@ -92,9 +92,9 @@ class TestWhereDeprecation:
         assert len(record) == 1
         w = record[0]
         assert "filter" in str(w.message)
-        assert w.filename.endswith("test_deprecations.py"), (
-            f"Warning pointed at {w.filename!r}, expected test file"
-        )
+        assert w.filename.endswith(
+            "test_deprecations.py"
+        ), f"Warning pointed at {w.filename!r}, expected test file"
 
     def test_filter_and_where_both_supplied_raises(self):
         """Supplying both filter= and where= raises TypeError."""
@@ -114,9 +114,7 @@ class TestWhereDeprecation:
         """All non-within sync accessor methods raise TypeError when both filter= and where= given."""
         accessor = _make_sync_accessor()
         with pytest.raises(TypeError, match="Cannot specify both"):
-            getattr(accessor, method)(
-                "tbl", **kwargs, filter="x > 0", where="y > 0"
-            )
+            getattr(accessor, method)("tbl", **kwargs, filter="x > 0", where="y > 0")
 
     def test_sync_within_where_warns(self):
         """SpatialAccessor.within emits DeprecationWarning when where= is used."""
@@ -173,15 +171,16 @@ class TestKwOnlyEnforcement:
 
     def test_flat_core_kw_only_schema(self):
         """to_dataframe schema= is kw-only; passing positionally raises TypeError."""
-        db = MagicMock()
         # to_dataframe(table=None, *, schema=...) — schema is kw-only
         from pycopg import Database
+
         db_mock = MagicMock(spec=Database)
         # Calling to_dataframe("tbl", "public") would pass "public" as positional
         # which matches `table`; there's no positional slot for schema any more.
         # Instead test count which has a clear `where` as kw-only:
         # count(table, *, where=None, schema=...) — 'where' is now kw-only
         from pycopg.database import Database as DBClass
+
         with pytest.raises(TypeError):
             DBClass.count(db_mock, "tbl", {"id": 1})  # where is kw-only
 
@@ -216,12 +215,14 @@ class TestTimeBucketWhereDeprecation:
         # Patch _run to avoid real DB call
         accessor._run = MagicMock(return_value=[])
         with pytest.warns(DeprecationWarning, match="filter=") as record:
-            accessor.time_bucket("tbl", "ts", "1 hour", "count(*)", where="id > 0", into="rows")
+            accessor.time_bucket(
+                "tbl", "ts", "1 hour", "count(*)", where="id > 0", into="rows"
+            )
         assert len(record) == 1
         w = record[0]
-        assert w.filename.endswith("test_deprecations.py"), (
-            f"Warning pointed at {w.filename!r}, expected test file"
-        )
+        assert w.filename.endswith(
+            "test_deprecations.py"
+        ), f"Warning pointed at {w.filename!r}, expected test file"
 
     def test_time_bucket_filter_and_where_raises(self):
         """time_bucket with both filter= and where= raises TypeError."""
@@ -229,7 +230,13 @@ class TestTimeBucketWhereDeprecation:
         accessor._run = MagicMock(return_value=[])
         with pytest.raises(TypeError, match="Cannot specify both"):
             accessor.time_bucket(
-                "tbl", "ts", "1 hour", "count(*)", filter="x > 0", where="y > 0", into="rows"
+                "tbl",
+                "ts",
+                "1 hour",
+                "count(*)",
+                filter="x > 0",
+                where="y > 0",
+                into="rows",
             )
 
     def test_time_bucket_gapfill_where_warns(self):
@@ -242,13 +249,20 @@ class TestTimeBucketWhereDeprecation:
         finish = datetime(2024, 1, 2)
         with pytest.warns(DeprecationWarning, match="filter=") as record:
             accessor.time_bucket_gapfill(
-                "tbl", "ts", "1 hour", start, finish, "count(*)", where="id > 0", into="rows"
+                "tbl",
+                "ts",
+                "1 hour",
+                start,
+                finish,
+                "count(*)",
+                where="id > 0",
+                into="rows",
             )
         assert len(record) == 1
         w = record[0]
-        assert w.filename.endswith("test_deprecations.py"), (
-            f"Warning pointed at {w.filename!r}, expected test file"
-        )
+        assert w.filename.endswith(
+            "test_deprecations.py"
+        ), f"Warning pointed at {w.filename!r}, expected test file"
 
     def test_time_bucket_gapfill_filter_and_where_raises(self):
         """time_bucket_gapfill with both filter= and where= raises TypeError."""
@@ -260,6 +274,13 @@ class TestTimeBucketWhereDeprecation:
         finish = datetime(2024, 1, 2)
         with pytest.raises(TypeError, match="Cannot specify both"):
             accessor.time_bucket_gapfill(
-                "tbl", "ts", "1 hour", start, finish, "count(*)",
-                filter="x > 0", where="y > 0", into="rows"
+                "tbl",
+                "ts",
+                "1 hour",
+                start,
+                finish,
+                "count(*)",
+                filter="x > 0",
+                where="y > 0",
+                into="rows",
             )

@@ -9,7 +9,11 @@ import uuid
 import pytest
 
 from pycopg import Database
-from pycopg.exceptions import DatabaseExistsError, ExtensionNotAvailableError, TableNotFoundError
+from pycopg.exceptions import (
+    DatabaseExistsError,
+    ExtensionNotAvailableError,
+    TableNotFoundError,
+)
 
 
 @pytest.fixture
@@ -359,7 +363,9 @@ class TestFromDataframeCopy:
         rows = db.execute(f'SELECT COUNT(*) AS n FROM public."{t}"')
         assert rows[0]["n"] == 3, "All data rows must be present via COPY"
         assert len(to_sql_calls) == 1, "to_sql must be called exactly once (DDL only)"
-        assert to_sql_calls[0] == 0, f"to_sql called on head(0), not {to_sql_calls[0]}-row df"
+        assert (
+            to_sql_calls[0] == 0
+        ), f"to_sql called on head(0), not {to_sql_calls[0]}-row df"
 
     def test_from_dataframe_replace(self, db, cleanup_table):
         """if_exists='replace' drops and recreates table; only new rows remain."""
@@ -1068,14 +1074,10 @@ class TestDatabaseCRUDErgonomics:
             ],
         )
 
-        count = db.update_where(
-            temp_table_name, {"name": "Updated"}, {"id": 1}
-        )
+        count = db.update_where(temp_table_name, {"name": "Updated"}, {"id": 1})
 
         assert count == 1
-        rows = db.execute(
-            f'SELECT name FROM "{temp_table_name}" WHERE id = 1'
-        )
+        rows = db.execute(f'SELECT name FROM "{temp_table_name}" WHERE id = 1')
         assert rows[0]["name"] == "Updated"
 
     def test_update_where_empty_raises(self, db):
@@ -1202,9 +1204,7 @@ class TestDatabaseReadHelpers:
         assert isinstance(rows[0], dict)
         assert rows[0]["id"] == 1
 
-        empty = db.fetch_all(
-            f'SELECT id FROM "{temp_table_name}" WHERE id = 9999'
-        )
+        empty = db.fetch_all(f'SELECT id FROM "{temp_table_name}" WHERE id = 9999')
         assert empty == []
 
 

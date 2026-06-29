@@ -1378,7 +1378,9 @@ class ETLAccessor:
             # ------------------------------------------------------------------
             # 4. EXISTENCE CHECK (D-03)
             # ------------------------------------------------------------------
-            exists = self._db.schema.table_exists(pipeline.target, schema=pipeline.schema)
+            exists = self._db.schema.table_exists(
+                pipeline.target, schema=pipeline.schema
+            )
 
             if pipeline.load_mode in ("append", "upsert") and not exists:
                 raise ETLTargetNotFoundError(

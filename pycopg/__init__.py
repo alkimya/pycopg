@@ -70,6 +70,7 @@ def __getattr__(name: str):
     """
     if name in _DEPRECATED_PACKAGE_ALIASES:
         import warnings
+
         new_name = _DEPRECATED_PACKAGE_ALIASES[name]
         warnings.warn(
             f"{name} is deprecated and will be removed in pycopg 2.0. "

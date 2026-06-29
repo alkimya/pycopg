@@ -1259,6 +1259,7 @@ class TimescaleAccessor:
                     "Cannot specify both 'filter' and 'where'; use 'filter=' only."
                 )
             import warnings
+
             warnings.warn(
                 "The 'where' keyword argument is deprecated and will be removed in "
                 "pycopg 2.0. Use 'filter=' instead.",
@@ -1353,6 +1354,7 @@ class TimescaleAccessor:
                     "Cannot specify both 'filter' and 'where'; use 'filter=' only."
                 )
             import warnings
+
             warnings.warn(
                 "The 'where' keyword argument is deprecated and will be removed in "
                 "pycopg 2.0. Use 'filter=' instead.",
@@ -2281,6 +2283,7 @@ class AsyncTimescaleAccessor:
                     "Cannot specify both 'filter' and 'where'; use 'filter=' only."
                 )
             import warnings
+
             warnings.warn(
                 "The 'where' keyword argument is deprecated and will be removed in "
                 "pycopg 2.0. Use 'filter=' instead.",
@@ -2371,6 +2374,7 @@ class AsyncTimescaleAccessor:
                     "Cannot specify both 'filter' and 'where'; use 'filter=' only."
                 )
             import warnings
+
             warnings.warn(
                 "The 'where' keyword argument is deprecated and will be removed in "
                 "pycopg 2.0. Use 'filter=' instead.",

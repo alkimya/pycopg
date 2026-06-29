@@ -53,9 +53,7 @@ def _make_async_db_with_mock_execute(config, execute_return=None):
     from pycopg import AsyncDatabase
 
     db = AsyncDatabase(config)
-    db.execute = AsyncMock(
-        return_value=execute_return or [{"QUERY PLAN": "Seq Scan"}]
-    )
+    db.execute = AsyncMock(return_value=execute_return or [{"QUERY PLAN": "Seq Scan"}])
     return db
 
 
@@ -204,7 +202,9 @@ class TestCR03FromGeoDataframeValidation:
         mock_gdf = MagicMock()
         mock_gdf.crs = None
         with pytest.raises(InvalidIdentifierError):
-            db.from_geodataframe(mock_gdf, table="bad table", schema="public", srid=4326)
+            db.from_geodataframe(
+                mock_gdf, table="bad table", schema="public", srid=4326
+            )
 
     @patch("pycopg.database.psycopg")
     def test_bad_schema_raises_invalid_identifier(self, _mock_psycopg, config):
@@ -373,7 +373,9 @@ class TestCR05PgRestoreMissingFile:
             pass
         if mock_run.called:
             cmd = mock_run.call_args[0][0]
-            assert "psql" in cmd[0], "Non-existent .sql should route to psql, not pg_restore"
+            assert (
+                "psql" in cmd[0]
+            ), "Non-existent .sql should route to psql, not pg_restore"
 
     @pytest.mark.asyncio
     async def test_async_missing_dump_raises_file_not_found(self, config):

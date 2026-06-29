@@ -271,7 +271,9 @@ class AsyncMaintAccessor:
             result = await self._db.execute(queries.TABLE_SIZE, [full_name])
             return result[0]["size"]
 
-    async def table_sizes(self, *, schema: str = "public", limit: int = 20) -> list[dict]:
+    async def table_sizes(
+        self, *, schema: str = "public", limit: int = 20
+    ) -> list[dict]:
         """Get sizes of all tables in schema, sorted by size.
 
         Parameters
@@ -324,7 +326,9 @@ class AsyncMaintAccessor:
 
         await self._db.execute(f"VACUUM{options_str}{table_str}", autocommit=True)
 
-    async def analyze(self, *, table: str | None = None, schema: str = "public") -> None:
+    async def analyze(
+        self, *, table: str | None = None, schema: str = "public"
+    ) -> None:
         """Update table statistics for query planner.
 
         Parameters

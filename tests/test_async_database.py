@@ -2310,7 +2310,9 @@ class TestAsyncDatabasePostGIS:
         mock_schema.has_extension = AsyncMock(return_value=True)
         db._schema = mock_schema
 
-        await db.spatial.create_spatial_index("parcels", column="geom", name="custom_idx")
+        await db.spatial.create_spatial_index(
+            "parcels", column="geom", name="custom_idx"
+        )
 
         db.execute.assert_called_once()
         sql = db.execute.call_args[0][0]
@@ -2905,7 +2907,9 @@ class TestAsyncDatabaseCorrectnessFixes:
         with patch("pandas.DataFrame.to_sql"):
             await db.from_dataframe(df, "users", primary_key="id")
 
-        mock_schema.add_primary_key.assert_awaited_once_with("users", "id", schema="public")
+        mock_schema.add_primary_key.assert_awaited_once_with(
+            "users", "id", schema="public"
+        )
 
     async def test_from_dataframe_append_skips_primary_key(self, config):
         """C1: with if_exists='append', primary_key is NOT applied (matches sync guard)."""

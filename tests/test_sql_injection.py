@@ -113,7 +113,9 @@ class TestSyncIdentifierInjection:
 
     def test_create_extension_schema_injection(self, sync_db):
         with pytest.raises(InvalidIdentifierError):
-            sync_db.schema.create_extension("postgis", schema="public; DROP SCHEMA public")
+            sync_db.schema.create_extension(
+                "postgis", schema="public; DROP SCHEMA public"
+            )
 
     def test_create_extension_hyphen_ok(self, sync_db):
         """Legitimate hyphenated extension must NOT be rejected."""

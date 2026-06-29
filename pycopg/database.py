@@ -1485,7 +1485,9 @@ class Database(DatabaseBase, QueryMixin):
             self.schema.add_primary_key(table, primary_key, schema=schema)
 
         if spatial_index and if_exists != "append":
-            self.spatial.create_spatial_index(table, column=geometry_column, schema=schema)
+            self.spatial.create_spatial_index(
+                table, column=geometry_column, schema=schema
+            )
 
     def to_geodataframe(
         self,

@@ -1463,7 +1463,9 @@ class AsyncSchemaAccessor:
         """
         return await self._db.execute(queries.LIST_INDEXES, [schema, table])
 
-    async def list_constraints(self, table: str, *, schema: str = "public") -> list[dict]:
+    async def list_constraints(
+        self, table: str, *, schema: str = "public"
+    ) -> list[dict]:
         """List constraints on a table.
 
         Parameters

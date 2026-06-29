@@ -162,9 +162,9 @@ def test_spatial_v1_processing_surface():
             name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
         }
         missing = v42_surface - public
-        assert not missing, (
-            f"{cls.__name__} is missing Phase 42 method(s): {sorted(missing)}"
-        )
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 42 method(s): {sorted(missing)}"
 
 
 class TestAsyncParity:
@@ -396,22 +396,13 @@ def test_accessor_parameter_kind_parity(sync_cls, async_cls):
             continue  # non-inspectable (property wrappers, etc.)
 
         # Build {param_name: kind} excluding 'self'
-        s_kinds = {
-            p: v.kind
-            for p, v in s_sig.parameters.items()
-            if p != "self"
-        }
-        a_kinds = {
-            p: v.kind
-            for p, v in a_sig.parameters.items()
-            if p != "self"
-        }
+        s_kinds = {p: v.kind for p, v in s_sig.parameters.items() if p != "self"}
+        a_kinds = {p: v.kind for p, v in a_sig.parameters.items() if p != "self"}
 
         if s_kinds != a_kinds:
+
             def _kind_name(k):
-                return inspect.Parameter(
-                    "x", k
-                ).kind.name  # VAR_POSITIONAL etc.
+                return inspect.Parameter("x", k).kind.name  # VAR_POSITIONAL etc.
 
             diff_params = {
                 p
@@ -459,16 +450,8 @@ def test_database_core_parameter_kind_parity():
         except (ValueError, TypeError):
             continue
 
-        s_kinds = {
-            p: v.kind
-            for p, v in s_sig.parameters.items()
-            if p != "self"
-        }
-        a_kinds = {
-            p: v.kind
-            for p, v in a_sig.parameters.items()
-            if p != "self"
-        }
+        s_kinds = {p: v.kind for p, v in s_sig.parameters.items() if p != "self"}
+        a_kinds = {p: v.kind for p, v in a_sig.parameters.items() if p != "self"}
 
         if s_kinds != a_kinds:
             diff_params = {
@@ -648,16 +631,20 @@ class TestBehavioralParity:
         """database_exists returns the same truth value on both sides."""
         sdb = Database(db_config)
         adb = AsyncDatabase(db_config)
-        assert sdb.schema.database_exists("pycopg_test") == await adb.schema.database_exists(
+        assert sdb.schema.database_exists(
             "pycopg_test"
-        )
-        assert sdb.schema.database_exists("nope_xyz") == await adb.schema.database_exists("nope_xyz")
+        ) == await adb.schema.database_exists("pycopg_test")
+        assert sdb.schema.database_exists(
+            "nope_xyz"
+        ) == await adb.schema.database_exists("nope_xyz")
 
     async def test_list_databases_parity(self, db_config):
         """list_databases returns the same set of names on both sides."""
         sdb = Database(db_config)
         adb = AsyncDatabase(db_config)
-        assert set(sdb.schema.list_databases()) == set(await adb.schema.list_databases())
+        assert set(sdb.schema.list_databases()) == set(
+            await adb.schema.list_databases()
+        )
 
     # --- C1 (PAR-04): from_dataframe applies primary_key on both sides ------
 

@@ -58,7 +58,9 @@ class TestPostGISErrorHandling:
 
         # Try to create spatial index on table that doesn't exist
         with pytest.raises(Exception) as exc_info:
-            db.spatial.create_spatial_index("nonexistent_table_xyz123", column="geometry")
+            db.spatial.create_spatial_index(
+                "nonexistent_table_xyz123", column="geometry"
+            )
 
         # Error should mention the table doesn't exist
         error_msg = str(exc_info.value).lower()
@@ -132,7 +134,9 @@ class TestPostGISErrorHandling:
             db.execute(f"CREATE TABLE {table_name} (id INTEGER, geom GEOMETRY)")
 
             # Create spatial index with custom name
-            db.spatial.create_spatial_index(table_name, column="geom", name=custom_index_name)
+            db.spatial.create_spatial_index(
+                table_name, column="geom", name=custom_index_name
+            )
 
             # Verify index was created with custom name
             result = db.execute(
