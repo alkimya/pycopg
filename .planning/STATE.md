@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 43 Plan 01 complete
-last_updated: "2026-06-29T15:41:05Z"
+stopped_at: Phase 43 Plan 02 complete (extent method)
+last_updated: "2026-06-29T15:54:30.418Z"
 last_activity: 2026-06-29 -- Phase 43 Plan 01 complete (collect_geometries + union_aggregate)
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 11
-  completed_plans: 9
-  percent: 32
+  completed_plans: 10
+  percent: 29
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 43 (spatial-v2-spatial-aggregates) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 43 (Plan 01 complete)
+Plan: 3 of 3
+Status: Ready to execute
 Last activity: 2026-06-29 -- Phase 43 Plan 01 complete (collect_geometries + union_aggregate)
 
 ## Performance Metrics
@@ -68,6 +68,7 @@ Last activity: 2026-06-29 -- Phase 43 Plan 01 complete (collect_geometries + uni
 | Phase 42 P02 | 18 minutes | 3 tasks | 2 files |
 | Phase 42 P03 | 8 minutes | 3 tasks | 4 files |
 | Phase 43 P01 | 5 minutes | 2 tasks | 2 files |
+| Phase 43 P02 | 5 minutes | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 42]: Shared _build_binary_geom_sql helper for DRY binary builders; each keeps own injection test + D-01 result column
 - [Phase 43-01]: _append_tail extended with keyword-only group_by (D-03); _build_agg_geom_sql shared for collect/union_aggregate; group_by=[] raises ValueError; str->list normalize at accessor level; born-clean filter= only
 - [Phase ?]: D-02: make_valid method whitelist bound through %s; D-05: simplify tolerance kw-only; D-09: structure tested live unguarded (PostGIS 3.6.4)
+- [Phase ?]: D-04: build_extent_sql sees into= (exception) — one builder, one branch; extent NOT in _SCALAR_HELPERS; into='gdf' valid via box2d::geometry cast
+- [Phase ?]: D-05: srid=4326 keyword-only on extent, int(srid) injection-safe, consulted only on gdf cast (T-43-03)
 
 ### Pending Todos
 
@@ -125,9 +128,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-29T15:41:05Z
-Stopped at: Phase 43 Plan 01 complete
-Resume file: .planning/phases/43-spatial-v2-spatial-aggregates/43-01-SUMMARY.md
+Last session: 2026-06-29T15:54:30.410Z
+Stopped at: Phase 43 Plan 02 complete (extent method)
+Resume file: None
 Next action: Execute Phase 43 Plan 02 (extent method)
 
 ## Operator Next Steps
