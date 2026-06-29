@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 43 context gathered
-last_updated: "2026-06-29T15:28:50.539Z"
-last_activity: 2026-06-29 -- Phase 43 planning complete
+stopped_at: Phase 43 Plan 01 complete
+last_updated: "2026-06-29T15:41:05Z"
+last_activity: 2026-06-29 -- Phase 43 Plan 01 complete (collect_geometries + union_aggregate)
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
-  percent: 29
+  total_plans: 11
+  completed_plans: 9
+  percent: 32
 ---
 
 # Project State
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 42 — spatial-v2-processing-helpers
+**Current focus:** Phase 43 — spatial-v2-spatial-aggregates
 
 ## Current Position
 
-Phase: 43
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-06-29 -- Phase 43 planning complete
+Phase: 43 (spatial-v2-spatial-aggregates) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 43 (Plan 01 complete)
+Last activity: 2026-06-29 -- Phase 43 Plan 01 complete (collect_geometries + union_aggregate)
 
 ## Performance Metrics
 
@@ -45,8 +45,8 @@ Last activity: 2026-06-29 -- Phase 43 planning complete
 | Phase | Plans | Complete | Status |
 | ----- | ----- | -------- | ------ |
 | 41. API Homogenization | 5 | 5 | Complete (verified PASSED 10/10; code-review CR-01 async-parity blocker found+fixed) |
-| 42. Spatial v2 — Processing Helpers | ? | 0 | Not started |
-| 43. Spatial v2 — Spatial Aggregates | ? | 0 | Not started |
+| 42. Spatial v2 — Processing Helpers | 3 | 3 | Complete (verified PASSED) |
+| 43. Spatial v2 — Spatial Aggregates | 3 | 1 | Executing (P01 complete: collect_geometries + union_aggregate) |
 | 44. Spatial v2 — Serialization + MVT | ? | 0 | Not started |
 | 45. API Completeness Gaps + Structured Logging | ? | 0 | Not started |
 | 46. mypy Strict + py.typed Gate | ? | 0 | Not started |
@@ -67,6 +67,7 @@ Last activity: 2026-06-29 -- Phase 43 planning complete
 | Phase 42 P01 | 6min | 3 tasks | 2 files |
 | Phase 42 P02 | 18 minutes | 3 tasks | 2 files |
 | Phase 42 P03 | 8 minutes | 3 tasks | 4 files |
+| Phase 43 P01 | 5 minutes | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: FREEZE-04: docs/stability.md published with SemVer contract, deprecation timeline (remove in 2.0), support matrix (pyproject.toml grounded), Stable API Contract table (FREEZE-03 audit), API stability tiers
 - [Phase ?]: D-08 relaxation documented: deprecated exception aliases warn at import/access (not catch-time), PEP 562 __getattr__, intentional design recorded in MIGRATION + stability.md
 - [Phase 42]: Shared _build_binary_geom_sql helper for DRY binary builders; each keeps own injection test + D-01 result column
+- [Phase 43-01]: _append_tail extended with keyword-only group_by (D-03); _build_agg_geom_sql shared for collect/union_aggregate; group_by=[] raises ValueError; str->list normalize at accessor level; born-clean filter= only
 - [Phase ?]: D-02: make_valid method whitelist bound through %s; D-05: simplify tolerance kw-only; D-09: structure tested live unguarded (PostGIS 3.6.4)
 
 ### Pending Todos
@@ -123,11 +125,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-29T14:44:02.550Z
-Stopped at: Phase 43 context gathered
-Resume file: .planning/phases/43-spatial-v2-spatial-aggregates/43-CONTEXT.md
-Next action: Plan Phase 41 with `/gsd-plan-phase 41`
+Last session: 2026-06-29T15:41:05Z
+Stopped at: Phase 43 Plan 01 complete
+Resume file: .planning/phases/43-spatial-v2-spatial-aggregates/43-01-SUMMARY.md
+Next action: Execute Phase 43 Plan 02 (extent method)
 
 ## Operator Next Steps
 
-- Start Phase 41 with `/gsd-plan-phase 41`
+- Execute Phase 43 Plan 02 with `/gsd-execute-phase 43 02`
