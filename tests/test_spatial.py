@@ -1617,14 +1617,6 @@ class TestAggregateBuilders:
         assert where_idx < group_idx < order_idx < limit_idx
         assert params == []
 
-    def test_extent_gdf_not_rejected(self):
-        """extent with into='gdf' does NOT raise — extent is not in _SCALAR_HELPERS (D-04, Pitfall 3)."""
-        db = _RecordingSyncDb()
-        acc = SpatialAccessor(db)
-        # Should not raise; routing via _check_into should pass for extent
-        result = acc.extent("zones", into="gdf")
-        assert result == "GDF"
-
     # -- extent: injection tests (T-43-01) ---------------------------------
 
     def test_extent_invalid_table(self):

@@ -1672,6 +1672,113 @@ def build_union_aggregate_sql(
     )
 
 
+def build_extent_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    group_by: list[str] | None = None,
+    srid: int = 4326,
+    into: str = "rows",
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL that computes the bounding extent of a geometry column via ST_Extent (SPAT2-09).
+
+    ``ST_Extent`` returns a PostgreSQL ``box2d`` type, **not** a PostGIS
+    geometry. This builder branches on ``into`` (D-04 exception — the only
+    aggregate builder that sees ``into``):
+
+    - ``into="rows"`` (default): casts to text — ``ST_Extent(t.{geom})::text
+      AS extent`` — returning the PostgreSQL ``BOX(xmin ymin, xmax ymax)``
+      string.
+    - ``into="gdf"``: wraps in ``ST_SetSRID(ST_Extent(t.{geom})::geometry,
+      {int(srid)})`` to produce a real SRID-tagged polygon geometry that
+      GeoPandas can load.
+
+    ``extent`` is **not** in ``_SCALAR_HELPERS`` — ``into="gdf"`` is valid
+    via the geometry cast (D-04, Pitfall 3).
+
+    The ``srid`` parameter is consulted **only** on the ``gdf`` branch via
+    ``int(srid)`` (injection-safe integer coercion; D-05). It is ignored for
+    ``into="rows"``.
+
+    NULL geometry inputs are skipped by the PostGIS aggregate; a group (or
+    the whole table) with all-NULL inputs yields one row with a NULL ``extent``
+    value. No ``HAVING`` filter is applied (D-07).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default ``"geometry"``.
+    schema : str, optional
+        Schema name, by default ``"public"``.
+    group_by : list of str or None, optional
+        Columns to group by. ``None`` (default) = whole-table aggregate
+        (exactly one row). Each column is validated via ``validate_identifiers``
+        before any f-string interpolation.
+    srid : int, optional
+        Spatial Reference Identifier for the ``into="gdf"`` cast, by default
+        ``4326``. Interpolated via ``int(srid)`` — a non-integer raises
+        ``ValueError``/``TypeError`` before SQL assembly (T-43-03, D-05).
+    into : str, optional
+        ``"rows"`` (default) or ``"gdf"`` — controls the SQL branch. The
+        accessor calls ``_check_into`` *before* delegating here; this
+        parameter is received only to select the SQL fragment.
+    filter : str, optional
+        Raw SQL filter fragment (pre-aggregate WHERE clause).
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If ``table``, ``schema``, ``geom``, or any element of ``group_by``
+        is invalid (T-43-01).
+    ValueError
+        If ``into`` is not ``"rows"`` or ``"gdf"`` (validated by the accessor
+        before this builder is called).
+
+    Examples
+    --------
+    Whole-table bounding box as text::
+
+        sql, params = build_extent_sql("zones")
+        # SELECT ST_Extent(t.geometry)::text AS extent FROM public.zones AS t
+
+    Grouped bounding box as geometry for GeoPandas::
+
+        sql, params = build_extent_sql("zones", group_by=["region"], into="gdf", srid=4326)
+        # SELECT t.region, ST_SetSRID(ST_Extent(t.geometry)::geometry, 4326) AS extent
+        # FROM public.zones AS t GROUP BY t.region
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant (T-43-01)
+    if group_by:
+        validate_identifiers(*group_by)
+    group_cols = [f"t.{col}" for col in group_by] if group_by else []
+    if into == "gdf":
+        agg_expr = (
+            f"ST_SetSRID(ST_Extent(t.{geom})::geometry, {int(srid)}) AS extent"
+        )
+    else:
+        agg_expr = f"ST_Extent(t.{geom})::text AS extent"
+    select_prefix = ", ".join(group_cols + [agg_expr]) if group_cols else agg_expr
+    sql = f"SELECT {select_prefix} FROM {schema}.{table} AS t"
+    group_by_str = ", ".join(group_cols) if group_cols else None
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False, group_by=group_by_str)
+    return sql, []
+
+
 #: Helpers whose result set has no geometry column — ``into="gdf"`` is
 #: rejected for these (D-02).
 _SCALAR_HELPERS = frozenset({"area", "perimeter", "distance", "centroid"})
