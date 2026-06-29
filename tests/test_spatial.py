@@ -1266,7 +1266,7 @@ _GDF_CALLS = [
     ("make_valid", {}, "made_valid"),
     ("collect_geometries", {}, "collected"),
     ("union_aggregate", {}, "dissolved"),
-    ("extent", {"into": "gdf"}, "extent"),
+    ("extent", {}, "extent"),
 ]
 
 

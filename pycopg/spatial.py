@@ -1767,15 +1767,15 @@ def build_extent_sql(
         validate_identifiers(*group_by)
     group_cols = [f"t.{col}" for col in group_by] if group_by else []
     if into == "gdf":
-        agg_expr = (
-            f"ST_SetSRID(ST_Extent(t.{geom})::geometry, {int(srid)}) AS extent"
-        )
+        agg_expr = f"ST_SetSRID(ST_Extent(t.{geom})::geometry, {int(srid)}) AS extent"
     else:
         agg_expr = f"ST_Extent(t.{geom})::text AS extent"
     select_prefix = ", ".join(group_cols + [agg_expr]) if group_cols else agg_expr
     sql = f"SELECT {select_prefix} FROM {schema}.{table} AS t"
     group_by_str = ", ".join(group_cols) if group_cols else None
-    sql = _append_tail(sql, filter, order_by, limit, has_where=False, group_by=group_by_str)
+    sql = _append_tail(
+        sql, filter, order_by, limit, has_where=False, group_by=group_by_str
+    )
     return sql, []
 
 
@@ -3442,6 +3442,115 @@ class SpatialAccessor:
             limit=limit,
         )
         return self._run(sql, params, into, "dissolved")
+
+    def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Compute the bounding extent of a geometry column via ST_Extent (SPAT2-09).
+
+        ``ST_Extent`` returns a PostgreSQL ``box2d`` type. This method branches
+        on ``into`` (D-04 exception — the only aggregate method that passes
+        ``into`` to the builder):
+
+        - ``into="rows"`` (default): returns the ``BOX(xmin ymin, xmax ymax)``
+          string via ``ST_Extent(t.{geom})::text AS extent``.
+        - ``into="gdf"``: returns a real SRID-tagged polygon geometry via
+          ``ST_SetSRID(ST_Extent(t.{geom})::geometry, {srid})``, loadable by
+          GeoPandas.
+
+        The ``srid`` parameter is consulted **only** on the ``gdf`` branch via
+        ``int(srid)`` (injection-safe; D-05). It is ignored for ``into="rows"``.
+
+        ``extent`` is **not** in ``_SCALAR_HELPERS`` — ``into="gdf"`` is valid
+        via the geometry cast (D-04, Pitfall 3).
+
+        NULL geometry inputs are skipped by the PostGIS aggregate; a group (or
+        the whole table) with all-NULL inputs yields one row with a NULL
+        ``extent`` value. No ``HAVING`` filter is applied (D-07).
+
+        Valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean,
+        D-09). ``group_by`` and ``srid`` are keyword-only (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        group_by : str or list of str or None, optional
+            Column(s) to group by. A bare ``str`` is normalized to
+            ``[str]`` (D-01). Pass ``None`` (default) for a whole-table
+            aggregate. Raises ``ValueError`` for an empty list.
+        srid : int, optional
+            SRID for the ``into="gdf"`` cast, by default ``4326``.
+            Ignored for ``into="rows"`` (D-05).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default ``"rows"``.
+        filter : str, optional
+            Raw SQL filter fragment (pre-aggregate WHERE clause).
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            For ``into="rows"``: list of dicts with an ``extent`` key
+            containing the ``BOX(...)`` text string (or ``None`` for
+            all-NULL groups). For ``into="gdf"``: GeoDataFrame with an
+            ``extent`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or ``group_by`` is an empty list.
+        InvalidIdentifierError
+            If any identifier (``table``, ``schema``, ``geom``, or
+            ``group_by`` columns) is invalid.
+
+        Examples
+        --------
+        Whole-table bounding box as text::
+
+            rows = db.spatial.extent("zones")
+            # [{"extent": "BOX(0 0, 10 10)"}]
+
+        Grouped bounding box as a GeoDataFrame::
+
+            gdf = db.spatial.extent("zones", group_by="region", into="gdf", srid=4326)
+        """
+        if isinstance(group_by, str):
+            group_by = [group_by]
+        if group_by == []:
+            raise ValueError(
+                "group_by cannot be an empty list; pass None for a whole-table aggregate"
+            )
+        _check_into(into, "extent")
+        sql, params = build_extent_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            group_by=group_by,
+            srid=srid,
+            into=into,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "extent")
 
     def create_spatial_index(
         self,
@@ -5110,6 +5219,85 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, "dissolved")
+
+    async def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Compute the bounding extent of a geometry column — async (ST_Extent).
+
+        Async mirror of :meth:`SpatialAccessor.extent`. Adds an ``extent``
+        column — text for ``into="rows"``, geometry for ``into="gdf"`` (D-04).
+        Valid for ``into="gdf"`` via the ``box2d::geometry`` cast. No
+        ``where=`` deprecated alias (born clean, D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        group_by : str or list of str or None, optional
+            Column(s) to group by. A bare ``str`` is normalized to
+            ``[str]`` (D-01). Pass ``None`` for a whole-table aggregate.
+            Raises ``ValueError`` for an empty list.
+        srid : int, optional
+            SRID for the ``into="gdf"`` cast, by default ``4326``.
+            Ignored for ``into="rows"`` (D-05).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default ``"rows"``.
+        filter : str, optional
+            Raw SQL filter fragment (pre-aggregate WHERE clause).
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows or GeoDataFrame including the ``extent`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or ``group_by`` is an empty list.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        if isinstance(group_by, str):
+            group_by = [group_by]
+        if group_by == []:
+            raise ValueError(
+                "group_by cannot be an empty list; pass None for a whole-table aggregate"
+            )
+        _check_into(into, "extent")
+        sql, params = build_extent_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            group_by=group_by,
+            srid=srid,
+            into=into,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "extent")
 
     async def create_spatial_index(
         self,
