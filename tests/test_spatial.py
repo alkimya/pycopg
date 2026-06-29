@@ -1247,6 +1247,7 @@ _HELPER_CALLS = [
     ("make_valid", {}),
     ("collect_geometries", {}),
     ("union_aggregate", {}),
+    ("extent", {}),
 ]
 
 # Geometry-returning helpers valid for into="gdf", with expected geom column.
@@ -1265,6 +1266,7 @@ _GDF_CALLS = [
     ("make_valid", {}, "made_valid"),
     ("collect_geometries", {}, "collected"),
     ("union_aggregate", {}, "dissolved"),
+    ("extent", {"into": "gdf"}, "extent"),
 ]
 
 
@@ -1669,3 +1671,28 @@ class TestAggregateAccessorGuards:
         assert result == [{"ok": 1}]
         _, sql, _ = db.calls[-1]
         assert "GROUP BY t.region" in sql
+
+    # -- extent accessor guard tests --------------------------------------
+
+    def test_extent_empty_group_by_raises(self):
+        """extent with group_by=[] raises ValueError (Pitfall 5)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        with pytest.raises(ValueError, match="group_by cannot be an empty list"):
+            acc.extent("zones", group_by=[])
+
+    def test_extent_str_group_by_normalized(self):
+        """extent normalizes a bare str group_by to [str] (D-01)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        result = acc.extent("zones", group_by="region")
+        assert result == [{"ok": 1}]
+        _, sql, _ = db.calls[-1]
+        assert "GROUP BY t.region" in sql
+
+    def test_extent_gdf_not_rejected(self):
+        """extent with into='gdf' does NOT raise — not in _SCALAR_HELPERS (D-04, Pitfall 3)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        result = acc.extent("zones", into="gdf")
+        assert result == "GDF"
