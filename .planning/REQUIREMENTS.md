@@ -17,12 +17,12 @@ Requirements for the 1.0 release. Each maps to exactly one roadmap phase.
 
 Extend `db.spatial.*` / `async_db.spatial.*`. Column-only builder shape (no geometry resolver). PostGIS floor ≥ 3.0 (≥ 3.2 recommended).
 
-- [ ] **SPAT2-01**: User can compute the pairwise union of two geometry columns via `db.spatial.union(table, geom, other_geom, ...)` (ST_Union)
+- [x] **SPAT2-01**: User can compute the pairwise union of two geometry columns via `db.spatial.union(table, geom, other_geom, ...)` (ST_Union)
 - [ ] **SPAT2-02**: User can simplify a geometry column via `db.spatial.simplify(table, geom, tolerance, preserve_topology=True)` (ST_SimplifyPreserveTopology by default to avoid NULL collapse)
 - [ ] **SPAT2-03**: User can compute the convex hull of a geometry column via `db.spatial.convex_hull(table, geom, ...)` (ST_ConvexHull)
 - [ ] **SPAT2-04**: User can repair invalid geometries via `db.spatial.make_valid(table, geom, method=None)` (ST_MakeValid, method whitelist; `method="structure"` documented as PostGIS ≥ 3.2)
-- [ ] **SPAT2-05**: User can compute the difference of two geometry columns via `db.spatial.difference(table, geom, other_geom, ...)` (ST_Difference)
-- [ ] **SPAT2-06**: User can compute the intersection of two geometry columns via `db.spatial.intersection(table, geom, other_geom, ...)` (ST_Intersection)
+- [x] **SPAT2-05**: User can compute the difference of two geometry columns via `db.spatial.difference(table, geom, other_geom, ...)` (ST_Difference)
+- [x] **SPAT2-06**: User can compute the intersection of two geometry columns via `db.spatial.intersection(table, geom, other_geom, ...)` (ST_Intersection)
 
 ### Spatial v2 — Spatial Aggregates
 
@@ -121,12 +121,12 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 | --- | --- | --- |
-| SPAT2-01 | Phase 42 | Pending |
+| SPAT2-01 | Phase 42 | Complete |
 | SPAT2-02 | Phase 42 | Pending |
 | SPAT2-03 | Phase 42 | Pending |
 | SPAT2-04 | Phase 42 | Pending |
-| SPAT2-05 | Phase 42 | Pending |
-| SPAT2-06 | Phase 42 | Pending |
+| SPAT2-05 | Phase 42 | Complete |
+| SPAT2-06 | Phase 42 | Complete |
 | SPAT2-07 | Phase 43 | Pending |
 | SPAT2-08 | Phase 43 | Pending |
 | SPAT2-09 | Phase 43 | Pending |

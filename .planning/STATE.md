@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 42 context gathered
-last_updated: "2026-06-29T08:53:50.111Z"
-last_activity: 2026-06-28 — Phase 41 shipped + verified (FREEZE-01..04; CR-01 async-parity blocker fixed)
+stopped_at: Phase 42 Plan 01 complete
+last_updated: "2026-06-29T09:07:48.152Z"
+last_activity: 2026-06-29 -- Phase 42 execution started
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
   percent: 14
 ---
 
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 42 — Spatial v2 (Processing Helpers). Phase 41 (API Homogenization) complete + verified.
+**Current focus:** Phase 42 — spatial-v2-processing-helpers
 
 ## Current Position
 
-Phase: 42 — Spatial v2 — Processing Helpers (not started)
-Plan: Not started
+Phase: 42 (spatial-v2-processing-helpers) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-28 — Phase 41 shipped + verified (FREEZE-01..04; CR-01 async-parity blocker fixed)
+Last activity: 2026-06-29 -- Phase 42 execution started
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Last activity: 2026-06-28 — Phase 41 shipped + verified (FREEZE-01..04; CR-01 
 | Phase 41 P03 | 90 minutes | 2 tasks | 2 files |
 | Phase 41 P04 | 3.5h | 3 tasks | 17 files |
 | Phase 41 P05 | 30m | 2 tasks | 4 files |
+| Phase 42 P01 | 6min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: D3: time_bucket/time_bucket_gapfill where=→filter= with one-cycle DeprecationWarning shim (stacklevel=2)
 - [Phase ?]: FREEZE-04: docs/stability.md published with SemVer contract, deprecation timeline (remove in 2.0), support matrix (pyproject.toml grounded), Stable API Contract table (FREEZE-03 audit), API stability tiers
 - [Phase ?]: D-08 relaxation documented: deprecated exception aliases warn at import/access (not catch-time), PEP 562 __getattr__, intentional design recorded in MIGRATION + stability.md
+- [Phase 42]: Shared _build_binary_geom_sql helper for DRY binary builders; each keeps own injection test + D-01 result column
 
 ### Pending Todos
 
@@ -118,8 +120,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-28T21:29:39.809Z
-Stopped at: Phase 42 context gathered
+Last session: 2026-06-29T09:07:48.145Z
+Stopped at: Phase 42 Plan 01 complete
 Resume file: .planning/phases/42-spatial-v2-processing-helpers/42-CONTEXT.md
 Next action: Plan Phase 41 with `/gsd-plan-phase 41`
 
