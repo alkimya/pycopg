@@ -132,6 +132,41 @@ def test_schema_v090_surface():
         ), f"{cls.__name__} is missing v0.9.0 method(s): {sorted(missing)}"
 
 
+def test_spatial_v1_processing_surface():
+    """Assert both spatial accessors expose the 6 Phase 42 processing methods.
+
+    A named frozenset of the v1.0 spatial processing surface — the Phase 42
+    additions (``union``, ``difference``, ``intersection``, ``simplify``,
+    ``convex_hull``, ``make_valid``) — must be a subset of the public members
+    of BOTH :class:`SpatialAccessor` and :class:`AsyncSpatialAccessor`, so a
+    silently dropped or renamed method fails loudly.  This complements the
+    bidirectional set-diff in :func:`test_accessor_parity` (which only checks
+    sync/async symmetry, not that the methods exist at all) and the
+    per-parameter kind check in :func:`test_accessor_parameter_kind_parity`.
+
+    ``ACCESSOR_PAIRS`` is not touched.
+    """
+    v42_surface = frozenset(
+        {
+            "union",
+            "difference",
+            "intersection",
+            "simplify",
+            "convex_hull",
+            "make_valid",
+        }
+    )
+
+    for cls in (SpatialAccessor, AsyncSpatialAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v42_surface - public
+        assert not missing, (
+            f"{cls.__name__} is missing Phase 42 method(s): {sorted(missing)}"
+        )
+
+
 class TestAsyncParity:
     """Test that AsyncDatabase maintains parity with Database API."""
 
