@@ -767,7 +767,7 @@ The following additions are required to `docs/stability.md` [VERIFIED: file read
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Second geometry column in routing tests**
    - What we know: `_HELPER_CALLS` must supply `other_geom="geometry2"` for binary ops; the recording mock doesn't need a real DB column but the integration tests do.
