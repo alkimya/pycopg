@@ -152,12 +152,21 @@ def _append_tail(
     order_by: str | None,
     limit: int | None,
     has_where: bool,
+    *,
+    group_by: str | None = None,
 ) -> str:
-    """Append ``filter``/``order_by``/``limit`` clauses to a SQL string.
+    """Append ``filter``/``group_by``/``order_by``/``limit`` clauses to a SQL string.
 
     Follows the ``_build_select_sql`` convention (D-11/D-12): when the
     statement already has a WHERE clause (spatial condition first), the
     ``filter=`` fragment is combined as ``AND ({filter})``.
+
+    The optional ``group_by`` argument is keyword-only (D-03) and inserts a
+    ``GROUP BY`` clause between the WHERE and ORDER BY fragments. The value
+    must be a pre-assembled, already-validated column expression string
+    (e.g., ``"t.region"`` or ``"t.region, t.zone"``); this function does
+    **not** call ``validate_identifiers`` — that is the builder's
+    responsibility.
 
     Parameters
     ----------
@@ -171,6 +180,9 @@ def _append_tail(
         LIMIT value (coerced with ``int``).
     has_where : bool
         Whether ``sql`` already contains a WHERE clause.
+    group_by : str, optional
+        Pre-assembled GROUP BY column expression. Inserted after WHERE and
+        before ORDER BY. Default ``None`` (no GROUP BY).
 
     Returns
     -------
@@ -179,6 +191,8 @@ def _append_tail(
     """
     if filter:
         sql += f" AND ({filter})" if has_where else f" WHERE {filter}"
+    if group_by:
+        sql += f" GROUP BY {group_by}"
     if order_by:
         sql += f" ORDER BY {order_by}"
     if limit is not None:
@@ -1436,6 +1450,226 @@ def build_make_valid_sql(
     )
     sql = _append_tail(sql, filter, order_by, limit, has_where=False)
     return sql, params
+
+
+def _build_agg_geom_sql(
+    agg_func: str,
+    result_col: str,
+    table: str,
+    geom: str,
+    schema: str,
+    *,
+    group_by: list[str] | None,
+    filter: str | None,
+    order_by: str | None,
+    limit: int | None,
+) -> tuple[str, list]:
+    """Build SQL for a single-column geometry aggregate (ST_Collect / ST_Union agg).
+
+    Shared internal helper backing ``build_collect_geometries_sql`` and
+    ``build_union_aggregate_sql``. Mirrors ``_build_binary_geom_sql`` for the
+    aggregate shape.
+
+    Parameters
+    ----------
+    agg_func : str
+        PostGIS aggregate function name (e.g. ``"ST_Collect"``).
+    result_col : str
+        Result column alias (e.g. ``"collected"`` or ``"dissolved"``).
+    table : str
+        Table to query (aliased ``t``).
+    geom : str
+        Geometry column name.
+    schema : str
+        Schema name.
+    group_by : list of str or None
+        List of validated column names to group by (already normalized from
+        ``str | list[str] | None`` at the accessor level). ``None`` means
+        whole-table aggregate (one row). Each element must pass
+        ``validate_identifiers`` before any f-string interpolation.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If ``table``, ``schema``, ``geom``, or any element of ``group_by``
+        is invalid.
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant
+    if group_by:
+        validate_identifiers(*group_by)
+    group_cols = [f"t.{col}" for col in group_by] if group_by else []
+    select_prefix = ", ".join(
+        group_cols + [f"{agg_func}(t.{geom}) AS {result_col}"]
+    )
+    sql = f"SELECT {select_prefix} FROM {schema}.{table} AS t"
+    group_by_str = ", ".join(group_cols) if group_cols else None
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False, group_by=group_by_str)
+    return sql, []
+
+
+def build_collect_geometries_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    group_by: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL that collects geometries into a collection via ST_Collect (SPAT2-07).
+
+    Produces ``SELECT [group_cols,] ST_Collect(t.{geom}) AS collected
+    FROM {schema}.{table} AS t [WHERE ...] [GROUP BY ...] [ORDER BY ...]
+    [LIMIT ...]``. No ``%s`` parameters are emitted — all identifiers are
+    validated and interpolated.
+
+    NULL geometry inputs are skipped by the PostGIS aggregate; a group (or
+    the whole table) with all-NULL inputs yields one row with a NULL
+    ``collected`` value. No ``HAVING`` filter is applied (D-07).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default ``"geometry"``.
+    schema : str, optional
+        Schema name, by default ``"public"``.
+    group_by : list of str or None, optional
+        Columns to group by. ``None`` (default) = whole-table aggregate
+        (exactly one row). Pass the pre-normalized list from the accessor
+        (``str`` inputs are normalized to ``[str]`` at the accessor level).
+    filter : str, optional
+        Raw SQL filter fragment (pre-aggregate WHERE clause).
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If ``table``, ``schema``, ``geom``, or any element of ``group_by``
+        is invalid.
+
+    Examples
+    --------
+    Whole-table aggregate::
+
+        sql, params = build_collect_geometries_sql("zones")
+        # SELECT ST_Collect(t.geometry) AS collected FROM public.zones AS t
+
+    Grouped by region::
+
+        sql, params = build_collect_geometries_sql("zones", group_by=["region"])
+        # SELECT t.region, ST_Collect(t.geometry) AS collected
+        # FROM public.zones AS t GROUP BY t.region
+    """
+    return _build_agg_geom_sql(
+        "ST_Collect",
+        "collected",
+        table,
+        geom,
+        schema,
+        group_by=group_by,
+        filter=filter,
+        order_by=order_by,
+        limit=limit,
+    )
+
+
+def build_union_aggregate_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    group_by: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL that dissolves geometries into a merged boundary via ST_Union (SPAT2-08).
+
+    Produces ``SELECT [group_cols,] ST_Union(t.{geom}) AS dissolved
+    FROM {schema}.{table} AS t [WHERE ...] [GROUP BY ...] [ORDER BY ...]
+    [LIMIT ...]``. The result column is ``dissolved`` (not ``union_geom``)
+    to distinguish this aggregate form from the Phase 42 pairwise
+    ``build_union_sql`` (D-06).
+
+    NULL geometry inputs are skipped by the PostGIS aggregate; a group (or
+    the whole table) with all-NULL inputs yields one row with a NULL
+    ``dissolved`` value. No ``HAVING`` filter is applied (D-07).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default ``"geometry"``.
+    schema : str, optional
+        Schema name, by default ``"public"``.
+    group_by : list of str or None, optional
+        Columns to group by. ``None`` (default) = whole-table aggregate
+        (exactly one row).
+    filter : str, optional
+        Raw SQL filter fragment (pre-aggregate WHERE clause).
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If ``table``, ``schema``, ``geom``, or any element of ``group_by``
+        is invalid.
+
+    Examples
+    --------
+    Whole-table dissolve::
+
+        sql, params = build_union_aggregate_sql("zones")
+        # SELECT ST_Union(t.geometry) AS dissolved FROM public.zones AS t
+
+    Grouped by region::
+
+        sql, params = build_union_aggregate_sql("zones", group_by=["region"])
+        # SELECT t.region, ST_Union(t.geometry) AS dissolved
+        # FROM public.zones AS t GROUP BY t.region
+    """
+    return _build_agg_geom_sql(
+        "ST_Union",
+        "dissolved",
+        table,
+        geom,
+        schema,
+        group_by=group_by,
+        filter=filter,
+        order_by=order_by,
+        limit=limit,
+    )
 
 
 #: Helpers whose result set has no geometry column — ``into="gdf"`` is
