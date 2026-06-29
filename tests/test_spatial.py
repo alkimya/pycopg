@@ -19,6 +19,7 @@ from pycopg.spatial import (
     build_difference_sql,
     build_distance_sql,
     build_dwithin_sql,
+    build_extent_sql,
     build_intersection_sql,
     build_intersects_sql,
     build_make_valid_sql,
@@ -1567,6 +1568,79 @@ class TestAggregateBuilders:
             build_union_aggregate_sql(
                 "zones", group_by=["region; DROP TABLE users; --"]
             )
+
+    # -- extent: rows branch -----------------------------------------------
+
+    def test_extent_rows_branch(self):
+        """extent rows branch emits ST_Extent(t.geometry)::text AS extent, NOT ST_SetSRID."""
+        sql, params = build_extent_sql("zones")
+        assert "ST_Extent(t.geometry)::text AS extent" in sql
+        assert "ST_SetSRID" not in sql
+        assert "FROM public.zones AS t" in sql
+        assert params == []
+
+    def test_extent_gdf_branch(self):
+        """extent gdf branch emits ST_SetSRID(ST_Extent(...)::geometry, 4326) AS extent."""
+        sql, params = build_extent_sql("zones", into="gdf")
+        assert "ST_SetSRID(ST_Extent(t.geometry)::geometry, 4326) AS extent" in sql
+        assert "::text" not in sql
+        assert params == []
+
+    def test_extent_custom_srid(self):
+        """extent gdf with srid=3857 interpolates the custom integer via int(srid)."""
+        sql, params = build_extent_sql("zones", into="gdf", srid=3857)
+        assert ", 3857) AS extent" in sql
+        assert ", 4326)" not in sql
+        assert params == []
+
+    def test_extent_with_group_by(self):
+        """extent with group_by adds group column in SELECT and GROUP BY clause."""
+        sql, params = build_extent_sql("zones", group_by=["region"])
+        assert "SELECT t.region," in sql
+        assert "ST_Extent(t.geometry)::text AS extent" in sql
+        assert "GROUP BY t.region" in sql
+        assert params == []
+
+    def test_extent_group_by_clause_ordering(self):
+        """extent: GROUP BY is after WHERE and before ORDER BY / LIMIT."""
+        sql, params = build_extent_sql(
+            "zones",
+            group_by=["region"],
+            filter="active = true",
+            order_by="t.region",
+            limit=10,
+        )
+        where_idx = sql.index("WHERE")
+        group_idx = sql.index("GROUP BY")
+        order_idx = sql.index("ORDER BY")
+        limit_idx = sql.index("LIMIT")
+        assert where_idx < group_idx < order_idx < limit_idx
+        assert params == []
+
+    def test_extent_gdf_not_rejected(self):
+        """extent with into='gdf' does NOT raise — extent is not in _SCALAR_HELPERS (D-04, Pitfall 3)."""
+        db = _RecordingSyncDb()
+        acc = SpatialAccessor(db)
+        # Should not raise; routing via _check_into should pass for extent
+        result = acc.extent("zones", into="gdf")
+        assert result == "GDF"
+
+    # -- extent: injection tests (T-43-01) ---------------------------------
+
+    def test_extent_invalid_table(self):
+        """extent validates the table identifier before any SQL (T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_extent_sql("bad-name")
+
+    def test_extent_invalid_geom(self):
+        """extent validates the geom identifier before any SQL (T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_extent_sql("zones", geom="bad; DROP TABLE")
+
+    def test_extent_invalid_group_by(self):
+        """extent validates group_by columns before SQL assembly (Pitfall 1, T-43-01)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_extent_sql("zones", group_by=["region; DROP TABLE users; --"])
 
 
 class TestAggregateAccessorGuards:
