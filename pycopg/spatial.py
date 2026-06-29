@@ -2711,6 +2711,224 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "intersection")
 
+    def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with their geometry simplified (ST_SimplifyPreserveTopology default).
+
+        Adds a ``simplified`` geometry column (D-01). The default uses
+        ``ST_SimplifyPreserveTopology`` which guarantees a non-NULL result.
+        Pass ``preserve_topology=False`` to use ``ST_Simplify`` — that variant
+        may return ``NULL`` when the geometry collapses below ``tolerance`` (D-07).
+        Valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        tolerance : float
+            Simplification tolerance (required keyword-only, D-05).
+        preserve_topology : bool, optional
+            If ``True`` (default) use ST_SimplifyPreserveTopology (no NULL
+            collapse). If ``False`` use ST_Simplify (can return NULL).
+        preserve_collapsed : bool, optional
+            Only consulted when ``preserve_topology=False``. Setting
+            ``preserve_collapsed=True`` while ``preserve_topology=True``
+            raises ``ValueError`` (D-05).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``simplified`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid, or if ``preserve_collapsed=True`` and
+            ``preserve_topology=True`` (contradictory, D-05).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "simplify")
+        sql, params = build_simplify_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            tolerance=tolerance,
+            preserve_topology=preserve_topology,
+            preserve_collapsed=preserve_collapsed,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "simplified")
+
+    def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the convex hull of each geometry (ST_ConvexHull).
+
+        Adds a ``convex_hull`` geometry column (D-01). Returns ``NULL`` for
+        empty geometries (pass-through, D-07). Valid for ``into="gdf"``. No
+        ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``convex_hull`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "convex_hull")
+        sql, params = build_convex_hull_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "convex_hull")
+
+    def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with their geometry repaired via ST_MakeValid.
+
+        Adds a ``made_valid`` geometry column (D-01). Invalid geometries
+        (e.g. bowtie self-intersections) are repaired — the output type may
+        change (``POLYGON`` → ``MULTIPOLYGON`` or ``GEOMETRYCOLLECTION``,
+        D-07). Already-valid geometries are returned unchanged. Valid for
+        ``into="gdf"``. No ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        method : {None, "linework", "structure"}, optional
+            Repair algorithm, by default ``None`` (PostGIS default).
+            ``"structure"`` requires PostGIS ≥ 3.2 / GEOS ≥ 3.10 (D-04);
+            on older servers, PostGIS raises a native error.
+        keep_collapsed : bool or None, optional
+            Only valid when ``method="structure"``. Controls whether
+            collapsed geometries are kept (``True``/``False``) or use the
+            PostGIS default (``None``). Raises ``ValueError`` when set with
+            any other method (D-03).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``made_valid`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid, ``method`` is not in the allowed set
+            (D-02), or ``keep_collapsed`` is set with a non-structure method
+            (D-03).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "make_valid")
+        sql, params = build_make_valid_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            method=method,
+            keep_collapsed=keep_collapsed,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "made_valid")
+
     def create_spatial_index(
         self,
         table: str,
@@ -4013,6 +4231,227 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, "intersection")
+
+    async def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with their geometry simplified — async (ST_SimplifyPreserveTopology default).
+
+        Async mirror of :meth:`SpatialAccessor.simplify`. Adds a
+        ``simplified`` geometry column (D-01). The default uses
+        ``ST_SimplifyPreserveTopology`` which guarantees a non-NULL result.
+        Pass ``preserve_topology=False`` to use ``ST_Simplify`` — that
+        variant may return ``NULL`` when the geometry collapses (D-07).
+        Valid for ``into="gdf"``. No ``where=`` deprecated alias (born clean,
+        D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        tolerance : float
+            Simplification tolerance (required keyword-only, D-05).
+        preserve_topology : bool, optional
+            If ``True`` (default) use ST_SimplifyPreserveTopology. If
+            ``False`` use ST_Simplify (can return NULL).
+        preserve_collapsed : bool, optional
+            Only consulted when ``preserve_topology=False`` (D-05).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``simplified`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid, or ``preserve_collapsed=True`` and
+            ``preserve_topology=True`` (contradictory, D-05).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "simplify")
+        sql, params = build_simplify_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            tolerance=tolerance,
+            preserve_topology=preserve_topology,
+            preserve_collapsed=preserve_collapsed,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "simplified")
+
+    async def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with the convex hull of each geometry — async (ST_ConvexHull).
+
+        Async mirror of :meth:`SpatialAccessor.convex_hull`. Adds a
+        ``convex_hull`` geometry column (D-01). Valid for ``into="gdf"``.
+        No ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``convex_hull`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "convex_hull")
+        sql, params = build_convex_hull_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "convex_hull")
+
+    async def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict] | gpd.GeoDataFrame:
+        """Select rows with their geometry repaired via ST_MakeValid — async.
+
+        Async mirror of :meth:`SpatialAccessor.make_valid`. Adds a
+        ``made_valid`` geometry column (D-01). The output type may change
+        (D-07). Valid for ``into="gdf"``. No ``where=`` deprecated alias
+        (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        method : {None, "linework", "structure"}, optional
+            Repair algorithm, by default ``None``. ``"structure"`` requires
+            PostGIS ≥ 3.2 / GEOS ≥ 3.10 (D-04).
+        keep_collapsed : bool or None, optional
+            Only valid when ``method="structure"`` (D-03).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``made_valid`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid, ``method`` not in allowed set (D-02),
+            or ``keep_collapsed`` set with non-structure method (D-03).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "make_valid")
+        sql, params = build_make_valid_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            method=method,
+            keep_collapsed=keep_collapsed,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "made_valid")
 
     async def create_spatial_index(
         self,
