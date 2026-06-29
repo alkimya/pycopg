@@ -106,6 +106,12 @@ two-positional convention is established and expected by users of the primitive 
 | `within` | `left_table`, `left_geom`, `right_table`, `right_geom` | `schema`, `filter`, `into` |
 | `create_spatial_index` | `table` | `column`, `schema`, `name` |
 | `list_geometry_columns` | _(none)_ | `schema` |
+| `union` | `table` | `geom`, `schema`, `other_geom`, `filter`, `into`, `columns`, `order_by`, `limit` |
+| `difference` | `table` | `geom`, `schema`, `other_geom`, `filter`, `into`, `columns`, `order_by`, `limit` |
+| `intersection` | `table` | `geom`, `schema`, `other_geom`, `filter`, `into`, `columns`, `order_by`, `limit` |
+| `simplify` | `table` | `geom`, `schema`, `tolerance`, `preserve_topology`, `preserve_collapsed`, `filter`, `into`, `columns`, `order_by`, `limit` |
+| `convex_hull` | `table` | `geom`, `schema`, `filter`, `into`, `columns`, `order_by`, `limit` |
+| `make_valid` | `table` | `geom`, `schema`, `method`, `keep_collapsed`, `filter`, `into`, `columns`, `order_by`, `limit` |
 
 **Note on `within`:** 4 required positional identifiers (`left_table`, `left_geom`,
 `right_table`, `right_geom`) stay positional. `schema=` is keyword-only (FREEZE-03 D1 clean break).
@@ -238,6 +244,12 @@ Version floors are grounded in `pyproject.toml` constraints — no version is in
 **PostGIS floor note:** PostGIS 3.0 is the hard minimum — it provides `ST_MakeValid` and
 the GeoDataFrame geometry type support used by `from_geodataframe` / `to_geodataframe`.
 PostGIS 3.2+ is recommended for full `ST_MakeValid method=structure` support.
+
+**`make_valid(method="structure")` version note (D-04):** `ST_MakeValid(method="structure")` requires
+PostGIS ≥ 3.2 / GEOS ≥ 3.10. On older servers, passing `method="structure"` raises a native
+PostGIS error — pycopg does not pre-check the server version. If you need to support PostGIS < 3.2,
+omit the `method` parameter (defaults to `None`, which calls `ST_MakeValid` without a method argument
+and works on all PostGIS 3.0+ servers).
 
 **TimescaleDB note:** TimescaleDB feature availability depends on your edition:
 
