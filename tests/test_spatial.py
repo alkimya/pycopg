@@ -14,13 +14,16 @@ from pycopg.spatial import (
     build_buffer_sql,
     build_centroid_sql,
     build_contains_sql,
+    build_convex_hull_sql,
     build_difference_sql,
     build_distance_sql,
     build_dwithin_sql,
     build_intersection_sql,
     build_intersects_sql,
+    build_make_valid_sql,
     build_nearest_sql,
     build_perimeter_sql,
+    build_simplify_sql,
     build_transform_sql,
     build_union_sql,
     build_within_sql,
@@ -568,6 +571,158 @@ class TestBuilders:
         """intersection validates the other_geom identifier."""
         with pytest.raises(InvalidIdentifierError):
             build_intersection_sql("parcels", other_geom="bad-col; DROP TABLE")
+
+    # -- simplify -------------------------------------------------------
+
+    def test_simplify_preserve_topology_default(self):
+        """simplify defaults to ST_SimplifyPreserveTopology with 1 param."""
+        sql, params = build_simplify_sql("parcels", tolerance=0.5)
+        assert sql == (
+            "SELECT *, ST_SimplifyPreserveTopology(t.geometry, %s) AS simplified "
+            "FROM public.parcels AS t"
+        )
+        assert params == [0.5]
+        assert sql.count("%s") == len(params)
+
+    def test_simplify_no_preserve_topology(self):
+        """preserve_topology=False emits ST_Simplify with 2 params."""
+        sql, params = build_simplify_sql(
+            "parcels", tolerance=0.5, preserve_topology=False
+        )
+        assert "ST_Simplify(t.geometry, %s, %s)" in sql
+        assert "AS simplified" in sql
+        assert params == [0.5, False]
+        assert sql.count("%s") == len(params)
+
+    def test_simplify_contradictory_args(self):
+        """preserve_collapsed=True + preserve_topology=True raises ValueError."""
+        with pytest.raises(ValueError, match="preserve_collapsed"):
+            build_simplify_sql(
+                "parcels",
+                tolerance=0.5,
+                preserve_topology=True,
+                preserve_collapsed=True,
+            )
+
+    def test_simplify_tail_clauses(self):
+        """simplify supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_simplify_sql(
+            "parcels",
+            tolerance=0.01,
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=5,
+        )
+        assert sql.startswith("SELECT id, ST_SimplifyPreserveTopology(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 5")
+
+    def test_simplify_invalid_table(self):
+        """simplify validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_simplify_sql("bad-name", tolerance=0.5)
+
+    def test_simplify_invalid_columns(self):
+        """simplify validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_simplify_sql("parcels", tolerance=0.5, columns=["bad-col"])
+
+    # -- convex_hull ----------------------------------------------------
+
+    def test_convex_hull_emits_st_convex_hull(self):
+        """convex_hull emits ST_ConvexHull with convex_hull alias and empty params."""
+        sql, params = build_convex_hull_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_ConvexHull(t.geometry) AS convex_hull "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_convex_hull_tail_clauses(self):
+        """convex_hull supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_convex_hull_sql(
+            "parcels",
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=3,
+        )
+        assert sql.startswith("SELECT id, ST_ConvexHull(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 3")
+
+    def test_convex_hull_invalid_table(self):
+        """convex_hull validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_convex_hull_sql("bad-name")
+
+    def test_convex_hull_invalid_columns(self):
+        """convex_hull validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_convex_hull_sql("parcels", columns=["bad-col"])
+
+    # -- make_valid -----------------------------------------------------
+
+    def test_make_valid_no_method(self):
+        """make_valid with no method emits ST_MakeValid(t.geom) with empty params."""
+        sql, params = build_make_valid_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_MakeValid(t.geometry) AS made_valid "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_make_valid_linework(self):
+        """make_valid(method='linework') emits %s with 'method=linework' param."""
+        sql, params = build_make_valid_sql("parcels", method="linework")
+        assert "ST_MakeValid(t.geometry, %s)" in sql
+        assert "AS made_valid" in sql
+        assert params == ["method=linework"]
+        assert sql.count("%s") == len(params)
+
+    def test_make_valid_structure_keepcollapsed_true(self):
+        """make_valid(method='structure', keep_collapsed=True) builds correct params string."""
+        sql, params = build_make_valid_sql(
+            "parcels", method="structure", keep_collapsed=True
+        )
+        assert "ST_MakeValid(t.geometry, %s)" in sql
+        assert params == ["method=structure keepcollapsed=true"]
+
+    def test_make_valid_structure_keepcollapsed_false(self):
+        """make_valid(method='structure', keep_collapsed=False) builds correct params string."""
+        sql, params = build_make_valid_sql(
+            "parcels", method="structure", keep_collapsed=False
+        )
+        assert params == ["method=structure keepcollapsed=false"]
+
+    def test_make_valid_structure_no_keepcollapsed(self):
+        """make_valid(method='structure', keep_collapsed=None) omits keepcollapsed."""
+        sql, params = build_make_valid_sql("parcels", method="structure")
+        assert params == ["method=structure"]
+
+    def test_make_valid_invalid_method(self):
+        """make_valid with an unknown method raises ValueError."""
+        with pytest.raises(ValueError, match="method must be one of"):
+            build_make_valid_sql("parcels", method="bogus")
+
+    def test_make_valid_keep_collapsed_without_structure(self):
+        """keep_collapsed with method!='structure' raises ValueError."""
+        with pytest.raises(ValueError, match="keep_collapsed"):
+            build_make_valid_sql("parcels", method="linework", keep_collapsed=True)
+
+    def test_make_valid_keep_collapsed_without_any_method(self):
+        """keep_collapsed with method=None raises ValueError."""
+        with pytest.raises(ValueError, match="keep_collapsed"):
+            build_make_valid_sql("parcels", method=None, keep_collapsed=True)
+
+    def test_make_valid_invalid_table(self):
+        """make_valid validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_make_valid_sql("bad-name")
+
+    def test_make_valid_invalid_columns(self):
+        """make_valid validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_make_valid_sql("parcels", columns=["bad-col"])
 
 
 class _FakeSyncSchema:
