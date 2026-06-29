@@ -788,22 +788,23 @@ The SQL-shape mock test must verify:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All three were resolved at plan time; the Phase 44 plans implement each recommendation (alias `AS mvt` + `rows[0]["mvt"]` in `_run_mvt`; dedicated `TestMvtRouting`, NOT `_HELPER_CALLS`; `filter=` in the inner subquery only).
 
 1. **`as_mvt` column alias in SQL**
    - What we know: `ST_AsMVT(…)` without alias produces column `st_asmvt` in psycopg3 `dict_row`
    - What's unclear: Should `build_mvt_sql` emit `AS mvt` to make the column name predictable?
-   - Recommendation: Yes — emit `SELECT ST_AsMVT(…) AS mvt` and use `rows[0]["mvt"]` in `_run_mvt`. Predictable key is better than `next(iter(rows[0]))` heuristic.
+   - RESOLVED: Yes — emit `SELECT ST_AsMVT(…) AS mvt` and use `rows[0]["mvt"]` in `_run_mvt`. Predictable key is better than `next(iter(rows[0]))` heuristic. (Adopted in 44-02.)
 
 2. **`as_mvt` `_HELPER_CALLS` routing test**
    - What we know: `_HELPER_CALLS` drives `TestAccessorRouting` parametrized tests (calls each method with `into="rows"`)
    - What's unclear: `as_mvt` returns `bytes`, not `list[dict]`. It cannot share the `_HELPER_CALLS` structure.
-   - Recommendation: Do NOT add `as_mvt` to `_HELPER_CALLS`. Add a separate `TestMvtRouting` class with a mock `_RecordingSyncDb` that returns a fake bytes row from `execute`, and assert the coercion path.
+   - RESOLVED: Do NOT add `as_mvt` to `_HELPER_CALLS`. Add a separate `TestMvtRouting` class with a mock `_RecordingSyncDb` that returns a fake bytes row from `execute`, and assert the coercion path. (Adopted in 44-02.)
 
 3. **`filter=` placement in `build_mvt_sql` inner vs outer query**
    - What we know: D-03 specifies `filter` goes in the inner subquery (`FROM {schema}.{table} AS t WHERE {filter}`)
-   - Confirmed: The inner-WHERE placement is correct — it filters source rows before clipping; outer WHERE only filters `q.geom_mvt IS NOT NULL`.
-   - Recommendation: `filter` in inner query only; `_append_tail` is NOT called for `as_mvt` (its tail structure is unique).
+   - RESOLVED: The inner-WHERE placement is correct — it filters source rows before clipping; outer WHERE only filters `q.geom_mvt IS NOT NULL`. `filter` in inner query only; `_append_tail` is NOT called for `as_mvt` (its tail structure is unique). (Adopted in 44-02.)
 
 ---
 
