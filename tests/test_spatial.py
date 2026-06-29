@@ -1092,6 +1092,85 @@ class TestIntegration:
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
+    # -- unary trio: simplify, convex_hull, make_valid ------------------
+
+    def _make_bowtie_table(self, db, t):
+        """Create a table with a single self-intersecting bowtie polygon (D-07)."""
+        db.execute(
+            f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+            "geometry geometry(Polygon, 4326))",
+            autocommit=True,
+        )
+        db.execute(
+            f'INSERT INTO "{t}" VALUES '
+            "(1, ST_GeomFromText('POLYGON((0 0, 1 1, 1 0, 0 1, 0 0))', 4326))",
+            autocommit=True,
+        )
+
+    def _make_tiny_polygon_table(self, db, t):
+        """Create a table with a tiny polygon (all points within tolerance=1.0)."""
+        db.execute(
+            f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+            "geometry geometry(Polygon, 4326))",
+            autocommit=True,
+        )
+        db.execute(
+            f'INSERT INTO "{t}" VALUES '
+            "(1, ST_GeomFromText('POLYGON((0 0, 0.0001 0, 0.0001 0.0001, 0 0.0001, 0 0))', 4326))",
+            autocommit=True,
+        )
+
+    def test_simplify_preserve_topology_non_null(self, sdb):
+        """simplify(preserve_topology=True) on a tiny polygon returns non-NULL (D-07)."""
+        t = _uniq("spat_simplify")
+        try:
+            self._make_tiny_polygon_table(sdb, t)
+            rows = sdb.spatial.simplify(
+                t, tolerance=1.0, preserve_topology=True, columns=["id"]
+            )
+            assert len(rows) == 1
+            assert "simplified" in rows[0]
+            assert rows[0]["simplified"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_simplify_no_preserve_topology_succeeds(self, sdb):
+        """simplify(preserve_topology=False) succeeds; NULL is a valid result (D-07)."""
+        t = _uniq("spat_simplify_npt")
+        try:
+            self._make_tiny_polygon_table(sdb, t)
+            rows = sdb.spatial.simplify(
+                t, tolerance=1.0, preserve_topology=False, columns=["id"]
+            )
+            # ST_Simplify may return NULL when geometry collapses — no value assertion
+            assert len(rows) == 1
+            assert "simplified" in rows[0]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_make_valid_bowtie(self, sdb):
+        """make_valid on a bowtie polygon returns a non-NULL repaired geometry (D-07)."""
+        t = _uniq("spat_makev")
+        try:
+            self._make_bowtie_table(sdb, t)
+            rows = sdb.spatial.make_valid(t, columns=["id"])
+            assert len(rows) == 1
+            assert "made_valid" in rows[0]
+            assert rows[0]["made_valid"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_make_valid_structure(self, sdb):
+        """make_valid(method='structure') succeeds on PostGIS 3.6.4 (D-09, no guard)."""
+        t = _uniq("spat_makev_struct")
+        try:
+            self._make_bowtie_table(sdb, t)
+            rows = sdb.spatial.make_valid(t, method="structure", columns=["id"])
+            assert len(rows) == 1
+            assert rows[0]["made_valid"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
 
 class _SyncSchemaStub:
     """Minimal schema stub so SpatialAccessor.__init__ passes without a real DB."""
@@ -1336,3 +1415,18 @@ class TestBuilderColumnsValidation:
         """intersection validates columns= identifiers."""
         with pytest.raises(InvalidIdentifierError):
             build_intersection_sql("parcels", other_geom="geom2", columns=["bad-col"])
+
+    def test_simplify_columns_validated(self):
+        """simplify validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_simplify_sql("parcels", tolerance=0.5, columns=["bad-col"])
+
+    def test_convex_hull_columns_validated(self):
+        """convex_hull validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_convex_hull_sql("parcels", columns=["bad-col"])
+
+    def test_make_valid_columns_validated(self):
+        """make_valid validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_make_valid_sql("parcels", columns=["bad-col"])
