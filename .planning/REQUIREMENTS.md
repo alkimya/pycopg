@@ -28,8 +28,8 @@ Extend `db.spatial.*` / `async_db.spatial.*`. Column-only builder shape (no geom
 
 New GROUP BY aggregate builder shape (one row per group; optional `group_by`). Documented NULL-propagation behavior.
 
-- [ ] **SPAT2-07**: User can collect geometries into a collection via `db.spatial.collect_geometries(table, geom, group_by=None, ...)` (ST_Collect)
-- [ ] **SPAT2-08**: User can dissolve geometries into a single boundary via `db.spatial.union_aggregate(table, geom, group_by=None, ...)` (ST_Union aggregate)
+- [x] **SPAT2-07**: User can collect geometries into a collection via `db.spatial.collect_geometries(table, geom, group_by=None, ...)` (ST_Collect)
+- [x] **SPAT2-08**: User can dissolve geometries into a single boundary via `db.spatial.union_aggregate(table, geom, group_by=None, ...)` (ST_Union aggregate)
 - [x] **SPAT2-09**: User can compute the bounding extent of a geometry column via `db.spatial.extent(table, geom, group_by=None, ...)` (ST_Extent; box2d for `into="rows"`, geometry for `into="gdf"`)
 
 ### Spatial v2 — Serialization
@@ -127,8 +127,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SPAT2-04 | Phase 42 | Complete |
 | SPAT2-05 | Phase 42 | Complete |
 | SPAT2-06 | Phase 42 | Complete |
-| SPAT2-07 | Phase 43 | Pending |
-| SPAT2-08 | Phase 43 | Pending |
+| SPAT2-07 | Phase 43 | Complete |
+| SPAT2-08 | Phase 43 | Complete |
 | SPAT2-09 | Phase 43 | Complete |
 | SPAT2-10 | Phase 44 | Pending |
 | SPAT2-11 | Phase 44 | Pending |

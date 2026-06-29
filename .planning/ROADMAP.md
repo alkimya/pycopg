@@ -122,7 +122,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 - [x] **Phase 41: API Homogenization** — `where=`→`filter=` rename on all 11 existing spatial methods + DeprecationWarning aliases; 4 N818 exception renames with deprecated aliases; public API consistency pass + Stable API Contract; SemVer + deprecation policy doc (`docs/stability.md`); MIGRATION guide sections for all renamed names (completed 2026-06-28)
 - [x] **Phase 42: Spatial v2 — Processing Helpers** — `union`, `simplify`, `convex_hull`, `make_valid`, `difference`, `intersection` on `SpatialAccessor` + `AsyncSpatialAccessor`; all builders use `filter=`; `validate_identifiers` first + injection tests; sync/async parity enforced by `test_accessor_parity` (completed 2026-06-29)
-- [ ] **Phase 43: Spatial v2 — Spatial Aggregates** — `collect_geometries`, `union_aggregate`, `extent` (GROUP BY aggregate builder shape); NULL-propagation documented and tested; `into="gdf"` box2d→geometry for `extent`; parity + injection tests
+- [x] **Phase 43: Spatial v2 — Spatial Aggregates** — `collect_geometries`, `union_aggregate`, `extent` (GROUP BY aggregate builder shape); NULL-propagation documented and tested; `into="gdf"` box2d→geometry for `extent`; parity + injection tests (completed 2026-06-29)
 - [ ] **Phase 44: Spatial v2 — Serialization + MVT** — `as_geojson`, `as_text` in `_SCALAR_HELPERS`; `as_mvt` returning `bytes` (ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline enforced); full sync/async parity + injection tests; SPAT2-13 parity acceptance finalized across spatial phases
 - [ ] **Phase 45: API Completeness Gaps + Structured Logging** — `db.transaction(isolation_level=, savepoint_name=)` + `db.session(isolation_level=)` + `db.savepoint()` context manager; `%(name)s` named params documented and type-annotated; `db.health()` (latency + server_version + pool_stats); `pycopg/logging.py` + `log_operation` context manager
 - [ ] **Phase 46: mypy Strict + py.typed Gate** — `strict=true` blocking in CI; 3 dev-group stubs (pandas-stubs, types-geopandas, types-shapely); `@overload` on all `into=` methods; measure error count first, fix bottom-up; zero strict errors over `pycopg/`; coverage ratchet held ≥95%
@@ -236,7 +236,7 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1-2; live integration + docs + surface gate)*
 
-- [ ] 43-03-PLAN.md — live PostGIS integration (whole-table + grouped + intentional-NULL D-07 fixture, extent box2d/gdf) + `test_spatial_aggregates_surface` + docs (stability.md 3 rows + extent srid note, api-reference.md filter= rows, README 19→22) + full-suite/coverage gate — SPAT2-07/08/09
+- [x] 43-03-PLAN.md — live PostGIS integration (whole-table + grouped + intentional-NULL D-07 fixture, extent box2d/gdf) + `test_spatial_aggregates_surface` + docs (stability.md 3 rows + extent srid note, api-reference.md filter= rows, README 19→22) + full-suite/coverage gate — SPAT2-07/08/09
 
 **UI hint**: no
 
@@ -367,7 +367,7 @@ Plans:
 | 40. Release v0.10.0 | v0.10.0 | 2/2 | Complete | 2026-06-26 |
 | 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
-| 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 2/3 | In Progress|  |
+| 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete   | 2026-06-29 |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 0/? | Not started | - |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 0/? | Not started | - |
