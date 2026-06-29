@@ -14,12 +14,15 @@ from pycopg.spatial import (
     build_buffer_sql,
     build_centroid_sql,
     build_contains_sql,
+    build_difference_sql,
     build_distance_sql,
     build_dwithin_sql,
+    build_intersection_sql,
     build_intersects_sql,
     build_nearest_sql,
     build_perimeter_sql,
     build_transform_sql,
+    build_union_sql,
     build_within_sql,
 )
 
@@ -464,6 +467,108 @@ class TestBuilders:
         with pytest.raises(InvalidIdentifierError):
             build_transform_sql("bad-name", to_srid=4326)
 
+    # -- union ---------------------------------------------------------
+
+    def test_union_emits_st_union(self):
+        """union emits ST_Union with union_geom alias and empty params."""
+        sql, params = build_union_sql("parcels", other_geom="geom2")
+        assert sql == (
+            "SELECT *, ST_Union(t.geometry, t.geom2) AS union_geom "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_union_tail_clauses(self):
+        """union supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_union_sql(
+            "parcels",
+            other_geom="geom2",
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=7,
+        )
+        assert sql.startswith("SELECT id, ST_Union(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 7")
+
+    def test_union_invalid_table(self):
+        """union validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_union_sql("bad-name", other_geom="geom2")
+
+    def test_union_invalid_other_geom(self):
+        """union validates the other_geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_union_sql("parcels", other_geom="bad-col; DROP TABLE")
+
+    # -- difference ----------------------------------------------------
+
+    def test_difference_emits_st_difference(self):
+        """difference emits ST_Difference with difference alias and empty params."""
+        sql, params = build_difference_sql("parcels", other_geom="geom2")
+        assert sql == (
+            "SELECT *, ST_Difference(t.geometry, t.geom2) AS difference "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_difference_tail_clauses(self):
+        """difference supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_difference_sql(
+            "parcels",
+            other_geom="geom2",
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=7,
+        )
+        assert sql.startswith("SELECT id, ST_Difference(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 7")
+
+    def test_difference_invalid_table(self):
+        """difference validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_difference_sql("bad-name", other_geom="geom2")
+
+    def test_difference_invalid_other_geom(self):
+        """difference validates the other_geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_difference_sql("parcels", other_geom="bad-col; DROP TABLE")
+
+    # -- intersection --------------------------------------------------
+
+    def test_intersection_emits_st_intersection(self):
+        """intersection emits ST_Intersection with intersection alias and empty params."""
+        sql, params = build_intersection_sql("parcels", other_geom="geom2")
+        assert sql == (
+            "SELECT *, ST_Intersection(t.geometry, t.geom2) AS intersection "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_intersection_tail_clauses(self):
+        """intersection supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_intersection_sql(
+            "parcels",
+            other_geom="geom2",
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=7,
+        )
+        assert sql.startswith("SELECT id, ST_Intersection(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 7")
+
+    def test_intersection_invalid_table(self):
+        """intersection validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_intersection_sql("bad-name", other_geom="geom2")
+
+    def test_intersection_invalid_other_geom(self):
+        """intersection validates the other_geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_intersection_sql("parcels", other_geom="bad-col; DROP TABLE")
+
 
 class _FakeSyncSchema:
     """Minimal schema stub for _FakeSyncDb."""
@@ -695,6 +800,143 @@ class TestIntegration:
         finally:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
+    def _make_two_geom_table(self, db, t):
+        """Create a table with two overlapping polygon geometry columns."""
+        db.execute(
+            f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+            "geom_a geometry(Polygon, 4326), geom_b geometry(Polygon, 4326))",
+            autocommit=True,
+        )
+        db.execute(
+            f'INSERT INTO "{t}" VALUES '
+            "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), "
+            "    ST_GeomFromText('POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))', 4326))",
+            autocommit=True,
+        )
+
+    def _make_mixed_srid_table(self, db, t):
+        """Create a table with two geometry columns of different SRIDs."""
+        db.execute(
+            f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+            "geom_a geometry(Polygon, 4326), geom_b geometry(Polygon, 32632))",
+            autocommit=True,
+        )
+        db.execute(
+            f'INSERT INTO "{t}" VALUES '
+            "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326), "
+            "    ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 32632))",
+            autocommit=True,
+        )
+
+    def test_union_pairwise(self, sdb):
+        """union returns non-empty rows with the union_geom D-01 key."""
+        t = _uniq("spat_union")
+        try:
+            self._make_two_geom_table(sdb, t)
+            rows = sdb.spatial.union(t, geom="geom_a", other_geom="geom_b")
+            assert len(rows) == 1
+            assert "union_geom" in rows[0]
+            assert rows[0]["union_geom"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_union_into_gdf(self, sdb):
+        """union with into='gdf' returns a GeoDataFrame with union_geom as geometry."""
+        import geopandas as gpd
+
+        t = _uniq("spat_union_gdf")
+        try:
+            self._make_two_geom_table(sdb, t)
+            gdf = sdb.spatial.union(t, geom="geom_a", other_geom="geom_b", into="gdf")
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert gdf.geometry.name == "union_geom"
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_union_mixed_srid_raises(self, sdb):
+        """union over mismatched-SRID columns raises a native PostGIS error (D-06)."""
+        t = _uniq("spat_union_srid")
+        try:
+            self._make_mixed_srid_table(sdb, t)
+            with pytest.raises(Exception):
+                sdb.spatial.union(t, geom="geom_a", other_geom="geom_b")
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_difference_pairwise(self, sdb):
+        """difference returns non-empty rows with the difference D-01 key."""
+        t = _uniq("spat_diff")
+        try:
+            self._make_two_geom_table(sdb, t)
+            rows = sdb.spatial.difference(t, geom="geom_a", other_geom="geom_b")
+            assert len(rows) == 1
+            assert "difference" in rows[0]
+            assert rows[0]["difference"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_difference_into_gdf(self, sdb):
+        """difference with into='gdf' returns a GeoDataFrame with difference geometry."""
+        import geopandas as gpd
+
+        t = _uniq("spat_diff_gdf")
+        try:
+            self._make_two_geom_table(sdb, t)
+            gdf = sdb.spatial.difference(
+                t, geom="geom_a", other_geom="geom_b", into="gdf"
+            )
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert gdf.geometry.name == "difference"
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_difference_mixed_srid_raises(self, sdb):
+        """difference over mismatched-SRID columns raises a native PostGIS error (D-06)."""
+        t = _uniq("spat_diff_srid")
+        try:
+            self._make_mixed_srid_table(sdb, t)
+            with pytest.raises(Exception):
+                sdb.spatial.difference(t, geom="geom_a", other_geom="geom_b")
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_intersection_pairwise(self, sdb):
+        """intersection returns non-empty rows with the intersection D-01 key."""
+        t = _uniq("spat_inter")
+        try:
+            self._make_two_geom_table(sdb, t)
+            rows = sdb.spatial.intersection(t, geom="geom_a", other_geom="geom_b")
+            assert len(rows) == 1
+            assert "intersection" in rows[0]
+            assert rows[0]["intersection"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_intersection_into_gdf(self, sdb):
+        """intersection with into='gdf' returns a GeoDataFrame with intersection geometry."""
+        import geopandas as gpd
+
+        t = _uniq("spat_inter_gdf")
+        try:
+            self._make_two_geom_table(sdb, t)
+            gdf = sdb.spatial.intersection(
+                t, geom="geom_a", other_geom="geom_b", into="gdf"
+            )
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert gdf.geometry.name == "intersection"
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_intersection_mixed_srid_raises(self, sdb):
+        """intersection over mismatched-SRID columns raises a native PostGIS error (D-06)."""
+        t = _uniq("spat_inter_srid")
+        try:
+            self._make_mixed_srid_table(sdb, t)
+            with pytest.raises(Exception):
+                sdb.spatial.intersection(t, geom="geom_a", other_geom="geom_b")
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
 
 class _SyncSchemaStub:
     """Minimal schema stub so SpatialAccessor.__init__ passes without a real DB."""
@@ -760,6 +1002,9 @@ _HELPER_CALLS = [
     ("centroid", {}),
     ("buffer", {"distance": 5}),
     ("transform", {"to_srid": 3857}),
+    ("union", {"other_geom": "geometry2"}),
+    ("difference", {"other_geom": "geometry2"}),
+    ("intersection", {"other_geom": "geometry2"}),
 ]
 
 # Geometry-returning helpers valid for into="gdf", with expected geom column.
@@ -770,6 +1015,9 @@ _GDF_CALLS = [
     ("nearest", {"point": (1, 2)}, "geometry"),
     ("buffer", {"distance": 5}, "buffer"),
     ("transform", {"to_srid": 3857}, "geometry_transformed"),
+    ("union", {"other_geom": "geometry2"}, "union_geom"),
+    ("difference", {"other_geom": "geometry2"}, "difference"),
+    ("intersection", {"other_geom": "geometry2"}, "intersection"),
 ]
 
 
@@ -912,3 +1160,18 @@ class TestBuilderColumnsValidation:
         """transform validates columns=."""
         with pytest.raises(InvalidIdentifierError):
             build_transform_sql("parcels", to_srid=4326, columns=["bad-col"])
+
+    def test_union_columns_validated(self):
+        """union validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_union_sql("parcels", other_geom="geom2", columns=["bad-col"])
+
+    def test_difference_columns_validated(self):
+        """difference validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_difference_sql("parcels", other_geom="geom2", columns=["bad-col"])
+
+    def test_intersection_columns_validated(self):
+        """intersection validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_intersection_sql("parcels", other_geom="geom2", columns=["bad-col"])
