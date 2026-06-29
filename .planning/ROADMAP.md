@@ -257,7 +257,21 @@ Plans:
 3. Passing a malicious identifier to `as_geojson`, `as_text`, or `as_mvt` raises `InvalidIdentifierError` before any SQL is sent (dedicated injection test per builder)
 4. Every serialization method has a working `AsyncSpatialAccessor` equivalent with identical signature confirmed by `test_accessor_parity`; `test_accessor_parity` covers the full spatial v2 surface (SPAT2-13 parity acceptance criterion satisfied)
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+
+Plans:
+
+**Wave 1**
+
+- [ ] 44-01-PLAN.md — Scalar serializers: `build_geojson_sql` (options bitmask D-06) + `build_text_sql` (one/two-arg precision D-07) + `as_geojson`/`as_text` on both accessors (D-08 `_SCALAR_HELPERS`, D-09 born-clean `filter=`, D-10 parity) + SQL-shape/injection/`into="gdf"`/live tests — SPAT2-10/11
+
+**Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
+
+- [ ] 44-02-PLAN.md — `as_mvt`: dedicated `build_mvt_sql` (D-01 full surface, D-02 `tile_z/x/y` required kw-only, D-03 enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT + `q.geom_mvt IS NOT NULL`, D-04 `srid` ST_SetSRID branch) + `_run_mvt`/`_arun_mvt` runners (D-05 always `bytes`, `None`→`b""`) + `as_mvt` on both accessors + SQL-shape/multi-arg-injection/bytes-routing tests + dependency-free MVT decoder + live decode-to-feature-count + empty-tile `b""` — SPAT2-12
+
+**Wave 3** *(blocked on Waves 1-2; parity acceptance + docs + surface gate)*
+
+- [ ] 44-03-PLAN.md — `test_spatial_serialization_surface` + full P42+P43+P44 parity/KIND-parity acceptance (SPAT2-13) + docs (api-reference.md 3 `filter=` rows, stability.md 3 rows + PostGIS-3.0 ST_AsMVT note + empty-tile/SRID-0 notes, spatial guide MVT example, README 22→25) + full-suite/coverage gate — SPAT2-13
 
 **UI hint**: no
 
