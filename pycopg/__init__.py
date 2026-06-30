@@ -4,10 +4,13 @@ pycopg - High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
 Simple, powerful, pythonic database operations.
 """
 
+from psycopg import IsolationLevel  # direct re-export — D-01 thin alias
+
 from pycopg import exceptions
 from pycopg.admin import AdminAccessor, AsyncAdminAccessor
 from pycopg.async_database import AsyncDatabase
 from pycopg.backup import AsyncBackupAccessor, BackupAccessor
+from pycopg.base import Params
 from pycopg.config import Config
 from pycopg.database import Database
 from pycopg.etl import AsyncETLAccessor, ETLAccessor, Pipeline, RunResult
@@ -138,6 +141,9 @@ __all__ = [
     "validate_identifiers",
     "validate_interval",
     "validate_index_method",
+    # Types
+    "IsolationLevel",
+    "Params",
     # Metadata
     "__version__",
 ]

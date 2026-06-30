@@ -7,11 +7,48 @@ Contains abstract base classes and mixins used by Database and AsyncDatabase.
 from __future__ import annotations
 
 from abc import ABC
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from pycopg.config import Config
 from pycopg.utils import validate_identifiers, validate_timestamp
+
+# Public type alias for query parameters — single source of truth exported via pycopg.__all__
+Params = Sequence[Any] | Mapping[str, Any] | None
+
+
+def _decode_server_version(v: int) -> str:
+    """Convert a psycopg server_version integer to a dotted version string.
+
+    psycopg exposes the server version as a single integer using PostgreSQL's
+    encoding scheme: ``major * 10000 + minor * 100 + patch`` (pre-10) or
+    ``major * 10000 + patch`` (PostgreSQL ≥ 10, where ``minor`` is always 0).
+
+    Parameters
+    ----------
+    v : int
+        Integer server version from ``connection.info.server_version``
+        (e.g. ``160001`` for PostgreSQL 16.1, ``90605`` for 9.6.5).
+
+    Returns
+    -------
+    str
+        Dotted version string.  PostgreSQL ≥ 10 uses two parts
+        (``"16.1"``); pre-10 uses three parts (``"9.6.5"``).
+
+    Examples
+    --------
+    >>> _decode_server_version(160001)
+    '16.1'
+    >>> _decode_server_version(90605)
+    '9.6.5'
+    """
+    major = v // 10000
+    if major >= 10:
+        return f"{major}.{v % 100}"
+    minor = (v % 10000) // 100
+    return f"{major}.{minor}.{v % 100}"
 
 
 def _validate_cli_pattern(value: str, context: str) -> None:
