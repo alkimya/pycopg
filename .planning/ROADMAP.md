@@ -263,7 +263,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 44-01-PLAN.md — Scalar serializers: `build_geojson_sql` (options bitmask D-06) + `build_text_sql` (one/two-arg precision D-07) + `as_geojson`/`as_text` on both accessors (D-08 `_SCALAR_HELPERS`, D-09 born-clean `filter=`, D-10 parity) + SQL-shape/injection/`into="gdf"`/live tests — SPAT2-10/11
+- [x] 44-01-PLAN.md — Scalar serializers: `build_geojson_sql` (options bitmask D-06) + `build_text_sql` (one/two-arg precision D-07) + `as_geojson`/`as_text` on both accessors (D-08 `_SCALAR_HELPERS`, D-09 born-clean `filter=`, D-10 parity) + SQL-shape/injection/`into="gdf"`/live tests — SPAT2-10/11
 
 **Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
 
@@ -382,7 +382,7 @@ Plans:
 | 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
-| 44. Spatial v2 — Serialization + MVT | v1.0.0 | 0/? | Not started | - |
+| 44. Spatial v2 — Serialization + MVT | v1.0.0 | 1/3 | In Progress|  |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 0/? | Not started | - |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 0/? | Not started | - |
 | 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |

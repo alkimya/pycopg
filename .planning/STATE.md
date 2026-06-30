@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 44 context gathered
-last_updated: "2026-06-30T06:38:37.517Z"
-last_activity: 2026-06-30 -- Phase 44 execution started
+stopped_at: Completed 44-01-PLAN.md (as_geojson + as_text scalar serializers)
+last_updated: "2026-06-30T06:47:56.357Z"
+last_activity: 2026-06-30
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 14
-  completed_plans: 11
-  percent: 43
+  completed_plans: 12
+  percent: 86
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 44 (spatial-v2-serialization-mvt) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 44
-Last activity: 2026-06-30 -- Phase 44 execution started
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-06-30
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ Last activity: 2026-06-30 -- Phase 44 execution started
 | Phase 43 P01 | 5 minutes | 2 tasks | 2 files |
 | Phase 43 P02 | 5 minutes | 2 tasks | 2 files |
 | Phase 43 P03 | 5 minutes | 3 tasks | 5 files |
+| Phase 44 P01 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: D-02: make_valid method whitelist bound through %s; D-05: simplify tolerance kw-only; D-09: structure tested live unguarded (PostGIS 3.6.4)
 - [Phase ?]: D-04: build_extent_sql sees into= (exception) — one builder, one branch; extent NOT in _SCALAR_HELPERS; into='gdf' valid via box2d::geometry cast
 - [Phase ?]: D-05: srid=4326 keyword-only on extent, int(srid) injection-safe, consulted only on gdf cast (T-43-03)
+- [Phase ?]: Phase 44-01: D-06 options bitmask for ST_AsGeoJSON (include_bbox bit1 + include_crs bit2), frozen geojson result key
+- [Phase ?]: Phase 44-01: D-07 conditional ST_AsText precision — None=one-arg full precision, set=two-arg; frozen wkt result key
+- [Phase ?]: Phase 44-01: D-09 born-clean filter= only (no where= shim) + D-10 same-change KIND parity confirmed on as_geojson/as_text
 
 ### Pending Todos
 
@@ -129,9 +133,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-29T20:11:57.243Z
-Stopped at: Phase 44 context gathered
-Resume file: .planning/phases/44-spatial-v2-serialization-mvt/44-CONTEXT.md
+Last session: 2026-06-30T06:47:56.337Z
+Stopped at: Completed 44-01-PLAN.md (as_geojson + as_text scalar serializers)
+Resume file: None
 Next action: Plan Phase 44 with `/gsd-plan-phase 44`
 
 ## Operator Next Steps
