@@ -115,6 +115,9 @@ two-positional convention is established and expected by users of the primitive 
 | `collect_geometries` | `table` | `geom`, `schema`, `group_by`, `filter`, `into`, `order_by`, `limit` |
 | `union_aggregate` | `table` | `geom`, `schema`, `group_by`, `filter`, `into`, `order_by`, `limit` |
 | `extent` | `table` | `geom`, `schema`, `group_by`, `srid`, `filter`, `into`, `order_by`, `limit` |
+| `as_geojson` | `table` | `geom`, `schema`, `max_decimal_digits`, `include_bbox`, `include_crs`, `into`, `columns`, `filter`, `order_by`, `limit` |
+| `as_text` | `table` | `geom`, `schema`, `max_decimal_digits`, `into`, `columns`, `filter`, `order_by`, `limit` |
+| `as_mvt` | `table` | `geom`, `schema`, `tile_z`, `tile_x`, `tile_y`, `layer_name`, `extent`, `columns`, `feature_id_column`, `srid`, `filter` |
 
 **Note on `extent`:** `into="rows"` (default) returns a PostgreSQL ``box2d`` text string
 (e.g. ``"BOX(0 -1,0 1)"``). ``into="gdf"`` returns a real geometry tagged with ``srid``
@@ -124,6 +127,20 @@ single aggregate expression (D-02).
 
 **Note on `within`:** 4 required positional identifiers (`left_table`, `left_geom`,
 `right_table`, `right_geom`) stay positional. `schema=` is keyword-only (FREEZE-03 D1 clean break).
+
+**Note on `as_geojson` precision (D-06):** `max_decimal_digits=6` is the default — GeoJSON is
+typically used as a web payload where 6 decimal degrees is sub-metre precision and keeps
+response sizes small. `as_text` defaults to `max_decimal_digits=None` (full precision, no
+silent truncation) because WKT is used for exact interchange. This asymmetry is intentional.
+The `include_bbox=False` / `include_crs=False` options map to the ``ST_AsGeoJSON`` bitmask
+(bit1=bbox, bit2=crs); both default to off.
+
+**Note on `as_mvt` empty-tile contract and SRID rescue (D-04/D-05):** `as_mvt` always returns
+``bytes`` — never ``None`` or a ``memoryview``. An empty tile (no features in the requested
+tile envelope) returns ``b""`` (empty bytes). If the stored geometry has an unknown or wrong
+SRID, pass ``srid=<int>`` to inject ``ST_SetSRID`` before the ``ST_Transform`` to EPSG:3857.
+`ST_AsMVT`, `ST_AsMVTGeom`, and `ST_TileEnvelope` require PostGIS ≥ 3.0. Since the pycopg
+PostGIS floor is already 3.0, this is documented for completeness and not gated at runtime.
 
 ### db.schema.* / async_db.schema.*
 

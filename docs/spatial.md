@@ -287,6 +287,82 @@ gdf = await async_db.spatial.dwithin(
 )
 ```
 
+## Serialization Helpers (Phase 44 / v1.0)
+
+Three serialization helpers on `db.spatial.*` convert stored geometries to portable
+formats. All use born-clean `filter=` (no deprecated `where=`).
+
+### as_geojson
+
+Returns rows with a ``geojson`` key containing the geometry as a GeoJSON string.
+`max_decimal_digits=6` by default (web-payload precision). Set `include_bbox=True`
+or `include_crs=True` to embed bounding-box / CRS metadata in each GeoJSON object.
+`into="gdf"` is forbidden (raises ``ValueError``) because the result is already a
+string, not a geometry column.
+
+```python
+rows = db.spatial.as_geojson(
+    "parcels",
+    geom="geometry",
+    columns=["id", "name"],
+    max_decimal_digits=6,
+)
+# Each row: {"id": 1, "name": "Lot A", "geojson": '{"type":"Polygon",...}'}
+```
+
+### as_text
+
+Returns rows with a ``wkt`` key containing the geometry as a WKT string.
+`max_decimal_digits=None` by default (full precision, no silent truncation).
+`into="gdf"` is forbidden.
+
+```python
+rows = db.spatial.as_text(
+    "parcels",
+    geom="geometry",
+    columns=["id"],
+)
+# Each row: {"id": 1, "wkt": "POLYGON((0 0,1 0,1 1,0 1,0 0))"}
+```
+
+### as_mvt
+
+Returns a Mapbox Vector Tile as raw ``bytes``. Uses the
+``ST_Transform → ST_AsMVTGeom(ST_TileEnvelope(z, x, y)) → ST_AsMVT`` pipeline.
+An empty tile (no features inside the requested tile envelope) returns ``b""``.
+Requires PostGIS ≥ 3.0 (the pycopg floor). `tile_z`, `tile_x`, `tile_y` are
+required keyword arguments.
+
+```python
+# Tile endpoint shape: serve /tiles/{z}/{x}/{y}.mvt
+tile_bytes = db.spatial.as_mvt(
+    "roads",
+    geom="geometry",
+    tile_z=14,
+    tile_x=8192,
+    tile_y=5464,
+    layer_name="roads",
+    columns=["id", "name", "highway"],
+)
+
+# In a web framework (e.g. FastAPI):
+# from fastapi import Response
+# return Response(content=tile_bytes, media_type="application/vnd.mapbox-vector-tile")
+```
+
+If the stored geometry has an unknown SRID, rescue it with `srid=`:
+
+```python
+tile_bytes = db.spatial.as_mvt(
+    "parcels",
+    geom="geometry",
+    tile_z=14,
+    tile_x=8192,
+    tile_y=5464,
+    srid=4326,  # inject ST_SetSRID before ST_Transform
+)
+```
+
 ## Security
 
 All identifier arguments (table, schema, geometry column, `columns=` entries, `ref=`

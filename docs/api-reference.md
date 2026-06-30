@@ -216,6 +216,9 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 | `collect_geometries` | `table, *, geom="geometry", schema="public", group_by=None, filter=None, into="rows", order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `union_aggregate` | `table, *, geom="geometry", schema="public", group_by=None, filter=None, into="rows", order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `extent` | `table, *, geom="geometry", schema="public", group_by=None, srid=4326, filter=None, into="rows", order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `as_geojson` | `table, *, geom="geometry", schema="public", max_decimal_digits=6, include_bbox=False, include_crs=False, into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
+| `as_text` | `table, *, geom="geometry", schema="public", max_decimal_digits=None, into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
+| `as_mvt` | `table, *, geom="geometry", schema="public", tile_z, tile_x, tile_y, layer_name="default", extent=4096, columns=None, feature_id_column=None, srid=None, filter=None` | `bytes` |
 
 ### TimescaleDB Methods
 
