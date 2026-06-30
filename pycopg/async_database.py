@@ -498,13 +498,24 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                 yield cur
                 if not autocommit:
                     status = self._session_conn.info.transaction_status
-                    if status == TransactionStatus.INTRANS:
+                    # Do NOT call commit() when inside a psycopg transaction()
+                    # block (savepoint or nested transaction) — psycopg raises
+                    # ProgrammingError if commit() is called inside a
+                    # conn.transaction() CM. The outer CM handles commit/rollback.
+                    try:
+                        in_txn_block = self._session_conn._num_transactions > 0
+                    except TypeError:
+                        in_txn_block = (
+                            False  # mock / unexpected type — behave as before
+                        )
+                    if status == TransactionStatus.INTRANS and not in_txn_block:
                         await self._session_conn.commit()
-                    elif status == TransactionStatus.INERROR:
+                    elif status == TransactionStatus.INERROR and not in_txn_block:
                         await self._session_conn.rollback()
                     # IDLE: no open transaction, nothing to do
                     # ACTIVE: should not occur at cursor exit
                     # UNKNOWN: connection in bad state, skip
+                    # INTRANS + in_txn_block: savepoint/transaction CM handles it
         else:
             async with self.connect(autocommit=autocommit) as conn:
                 async with conn.cursor(row_factory=dict_row) as cur:
@@ -592,6 +603,39 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             True if in session mode, False otherwise.
         """
         return self._session_conn is not None
+
+    @asynccontextmanager
+    async def savepoint(self, *, name: str | None = None) -> AsyncIterator[None]:
+        """Async nested savepoint within an active session.
+
+        Creates a named (or auto-named) savepoint via psycopg's native
+        ``conn.transaction(savepoint_name=...)`` API. Rolling back inside the
+        savepoint block reverts only that block's work; the outer session
+        transaction is NOT unwound (partial rollback semantics).
+
+        Parameters
+        ----------
+        name : str or None, optional
+            Savepoint name. When *None* (default), psycopg auto-generates a
+            name. Keyword-only. The name reaches psycopg's parameterized
+            savepoint API and is never string-interpolated into SQL.
+
+        Yields
+        ------
+        None
+
+        Raises
+        ------
+        RuntimeError
+            If called outside an active ``db.session()``.
+        """
+        if self._session_conn is None:
+            raise RuntimeError(
+                "db.savepoint() requires an active db.session(). "
+                "Use 'with db.session(): with db.savepoint(): ...' pattern."
+            )
+        async with self._session_conn.transaction(savepoint_name=name):
+            yield
 
     @asynccontextmanager
     async def transaction(

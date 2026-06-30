@@ -6,17 +6,13 @@ All sync and async guard/isolation behaviours are covered.
 
 from __future__ import annotations
 
-from contextlib import contextmanager, asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from contextlib import asynccontextmanager, contextmanager
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
-import psycopg
 from psycopg import IsolationLevel
 
-from pycopg import AsyncDatabase, Database
-from pycopg import Config
-
+from pycopg import AsyncDatabase, Config, Database
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,7 +20,9 @@ from pycopg import Config
 
 
 def _make_config() -> Config:
-    return Config(host="localhost", port=5432, database="testdb", user="u", password="p")
+    return Config(
+        host="localhost", port=5432, database="testdb", user="u", password="p"
+    )
 
 
 # ---------------------------------------------------------------------------

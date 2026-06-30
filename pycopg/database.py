@@ -489,13 +489,24 @@ class Database(DatabaseBase, QueryMixin):
                 yield cur
                 if not autocommit:
                     status = self._session_conn.info.transaction_status
-                    if status == TransactionStatus.INTRANS:
+                    # Do NOT call commit() when inside a psycopg transaction()
+                    # block (savepoint or nested transaction) — psycopg raises
+                    # ProgrammingError if commit() is called inside a
+                    # conn.transaction() CM. The outer CM handles commit/rollback.
+                    try:
+                        in_txn_block = self._session_conn._num_transactions > 0
+                    except TypeError:
+                        in_txn_block = (
+                            False  # mock / unexpected type — behave as before
+                        )
+                    if status == TransactionStatus.INTRANS and not in_txn_block:
                         self._session_conn.commit()
-                    elif status == TransactionStatus.INERROR:
+                    elif status == TransactionStatus.INERROR and not in_txn_block:
                         self._session_conn.rollback()
                     # IDLE: no open transaction, nothing to do
                     # ACTIVE: should not occur at cursor exit (mid-query)
                     # UNKNOWN: connection in bad state, skip
+                    # INTRANS + in_txn_block: savepoint/transaction CM handles it
         else:
             with self.connect(autocommit=autocommit) as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
@@ -639,6 +650,52 @@ class Database(DatabaseBase, QueryMixin):
             True if in session mode, False otherwise.
         """
         return self._session_conn is not None
+
+    @contextmanager
+    def savepoint(self, *, name: str | None = None) -> Iterator[None]:
+        """Nested savepoint within an active session.
+
+        Creates a named (or auto-named) savepoint via psycopg's native
+        ``conn.transaction(savepoint_name=...)`` API. Rolling back inside the
+        savepoint block reverts only that block's work; the outer session
+        transaction is NOT unwound (partial rollback semantics).
+
+        Parameters
+        ----------
+        name : str or None, optional
+            Savepoint name. When *None* (default), psycopg auto-generates a
+            name. Keyword-only. The name reaches psycopg's parameterized
+            savepoint API and is never string-interpolated into SQL.
+
+        Yields
+        ------
+        None
+
+        Raises
+        ------
+        RuntimeError
+            If called outside an active ``db.session()``.
+
+        Examples
+        --------
+        Partial rollback — row A survives, row B does not::
+
+            with db.session():
+                db.execute("INSERT INTO t VALUES (1)")  # row A
+                try:
+                    with db.savepoint(name="sp1"):
+                        db.execute("INSERT INTO t VALUES (2)")  # row B
+                        raise ValueError("oops")
+                except ValueError:
+                    pass  # sp1 rolled back; outer session still alive
+        """
+        if self._session_conn is None:
+            raise RuntimeError(
+                "db.savepoint() requires an active db.session(). "
+                "Use 'with db.session(): with db.savepoint(): ...' pattern."
+            )
+        with self._session_conn.transaction(savepoint_name=name):
+            yield
 
     def execute(
         self, sql: str, params: Sequence | None = None, autocommit: bool = False
