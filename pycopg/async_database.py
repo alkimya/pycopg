@@ -506,8 +506,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                     # block (savepoint or nested transaction) — psycopg raises
                     # ProgrammingError if commit() is called inside a
                     # conn.transaction() CM. The outer CM handles commit/rollback.
+                    ntx = getattr(self._session_conn, "_num_transactions", 0)
                     try:
-                        in_txn_block = self._session_conn._num_transactions > 0
+                        in_txn_block = ntx > 0
                     except TypeError:
                         in_txn_block = (
                             False  # mock / unexpected type — behave as before
