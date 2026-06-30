@@ -1410,7 +1410,9 @@ class ETLAccessor:
                         schema=pipeline.schema,
                     )
                 elif pipeline.load_mode == "replace":
-                    truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
+                    truncate_sql, _ = build_truncate_sql(
+                        pipeline.target, pipeline.schema
+                    )
 
                 # append: no SQL builder — rows stream via COPY below
 
@@ -1445,8 +1447,12 @@ class ETLAccessor:
                 )
                 raise
 
-            wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
-            self._end_run(run_id, "success", rows_extracted, rows_loaded, watermark=wm_env)
+            wm_env = (
+                _encode_watermark(raw_watermark) if raw_watermark is not None else None
+            )
+            self._end_run(
+                run_id, "success", rows_extracted, rows_loaded, watermark=wm_env
+            )
             # Fetch the stored result (watermark_recorded comes via _row_to_result),
             # then inject watermark_used (per-run input, never stored — D-A1).
             result = self._fetch_run_result(run_id)
@@ -2090,7 +2096,9 @@ class AsyncETLAccessor:
                         schema=pipeline.schema,
                     )
                 elif pipeline.load_mode == "replace":
-                    truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
+                    truncate_sql, _ = build_truncate_sql(
+                        pipeline.target, pipeline.schema
+                    )
 
                 # append: no SQL builder — rows stream via COPY below
 
@@ -2125,7 +2133,9 @@ class AsyncETLAccessor:
                 )
                 raise
 
-            wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
+            wm_env = (
+                _encode_watermark(raw_watermark) if raw_watermark is not None else None
+            )
             await self._end_run(
                 run_id, "success", rows_extracted, rows_loaded, watermark=wm_env
             )

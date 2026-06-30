@@ -182,23 +182,35 @@ class TestInstrumentationSites:
             patch.object(pd.DataFrame, "to_sql", mock_to_sql),
             patch("pycopg.database._stream_df_copy", mock_stream),
             patch.object(Database, "connect", return_value=mock_conn),
-            patch.object(Database, "engine", new_callable=lambda: property(lambda self: MagicMock())),
-            patch.object(Database, "schema", new_callable=lambda: property(lambda self: MagicMock())),
+            patch.object(
+                Database,
+                "engine",
+                new_callable=lambda: property(lambda self: MagicMock()),
+            ),
+            patch.object(
+                Database,
+                "schema",
+                new_callable=lambda: property(lambda self: MagicMock()),
+            ),
             caplog.at_level(logging.DEBUG, logger="pycopg"),
         ):
             db.from_dataframe(df, "test_table")
 
         debug_records = [r for r in caplog.records if r.levelno == logging.DEBUG]
         ops = [getattr(r, "operation", None) for r in debug_records]
-        assert "database.from_dataframe" in ops, (
-            f"Expected 'database.from_dataframe' in operations; got {ops}"
-        )
+        assert (
+            "database.from_dataframe" in ops
+        ), f"Expected 'database.from_dataframe' in operations; got {ops}"
 
         # Find the specific record and verify fields
-        rec = next(r for r in debug_records if getattr(r, "operation", None) == "database.from_dataframe")
-        assert isinstance(rec.duration_ms, float), (
-            f"duration_ms must be float, got {type(rec.duration_ms)}"
+        rec = next(
+            r
+            for r in debug_records
+            if getattr(r, "operation", None) == "database.from_dataframe"
         )
+        assert isinstance(
+            rec.duration_ms, float
+        ), f"duration_ms must be float, got {type(rec.duration_ms)}"
         assert rec.duration_ms >= 0
 
     def test_instrumentation_sites_operation_strings_present_in_source(self):
@@ -220,12 +232,12 @@ class TestInstrumentationSites:
             (database_mod, "database.from_geodataframe"),
             (async_database_mod, "database.from_dataframe"),
             (async_database_mod, "database.from_geodataframe"),
-            (database_mod, "database.health"),          # Plan 03 site
-            (async_database_mod, "database.health"),    # Plan 03 site
+            (database_mod, "database.health"),  # Plan 03 site
+            (async_database_mod, "database.health"),  # Plan 03 site
         ]
 
         for mod, op_name in expected_sites:
             src = inspect.getsource(mod)
-            assert f'"{op_name}"' in src or f"'{op_name}'" in src, (
-                f"Expected log_operation site '{op_name}' not found in {mod.__name__}"
-            )
+            assert (
+                f'"{op_name}"' in src or f"'{op_name}'" in src
+            ), f"Expected log_operation site '{op_name}' not found in {mod.__name__}"

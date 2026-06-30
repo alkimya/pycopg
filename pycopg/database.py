@@ -1535,7 +1535,9 @@ class Database(DatabaseBase, QueryMixin):
             # DDL commits on the engine (D-04: two-phase accepted for replace)
 
             # Step 2 — COPY: stream row data on a separate psycopg connection (D-03)
-            columns = list(df_ddl.columns)  # derived from df_ddl (not df) — must match DDL
+            columns = list(
+                df_ddl.columns
+            )  # derived from df_ddl (not df) — must match DDL
             with self.connect() as conn:
                 with conn.cursor() as cur:
                     _stream_df_copy(cur, df_ddl, table, schema, columns)

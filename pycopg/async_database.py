@@ -1297,7 +1297,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             # DDL commits on the async engine (D-04: two-phase accepted for replace)
 
             # Step 2 — COPY: stream row data on a separate async psycopg connection (D-03)
-            columns = list(df_ddl.columns)  # derived from df_ddl (not df) — must match DDL
+            columns = list(
+                df_ddl.columns
+            )  # derived from df_ddl (not df) — must match DDL
             async with self.connect() as conn:
                 async with conn.cursor() as cur:
                     await _async_stream_df_copy(cur, df_ddl, table, schema, columns)
