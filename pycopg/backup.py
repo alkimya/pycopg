@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from pycopg.base import build_pg_dump_cmd, build_pg_restore_cmd
+from pycopg.logging import log_operation
 from pycopg.utils import validate_csv_option, validate_identifiers
 
 if TYPE_CHECKING:
@@ -83,32 +84,33 @@ class BackupAccessor:
         """
         import subprocess
 
-        cmd = build_pg_dump_cmd(
-            host=self._db.config.host,
-            port=self._db.config.port,
-            user=self._db.config.user,
-            database=self._db.config.database,
-            output_file=output_file,
-            format=format,
-            schema_only=schema_only,
-            data_only=data_only,
-            tables=tables,
-            exclude_tables=exclude_tables,
-            schemas=schemas,
-            compress=compress,
-            jobs=jobs,
-        )
+        with log_operation("backup.pg_dump"):
+            cmd = build_pg_dump_cmd(
+                host=self._db.config.host,
+                port=self._db.config.port,
+                user=self._db.config.user,
+                database=self._db.config.database,
+                output_file=output_file,
+                format=format,
+                schema_only=schema_only,
+                data_only=data_only,
+                tables=tables,
+                exclude_tables=exclude_tables,
+                schemas=schemas,
+                compress=compress,
+                jobs=jobs,
+            )
 
-        # Run with password in environment
-        env = (
-            {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
-        )
-        result = subprocess.run(
-            cmd, env={**os.environ, **env}, capture_output=True, text=True
-        )
+            # Run with password in environment
+            env = (
+                {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+            )
+            result = subprocess.run(
+                cmd, env={**os.environ, **env}, capture_output=True, text=True
+            )
 
-        if result.returncode != 0:
-            raise RuntimeError(f"pg_dump failed: {result.stderr}")
+            if result.returncode != 0:
+                raise RuntimeError(f"pg_dump failed: {result.stderr}")
 
     def pg_restore(
         self,
@@ -154,47 +156,48 @@ class BackupAccessor:
         """
         import subprocess
 
-        input_file = Path(input_file)
+        with log_operation("backup.pg_restore"):
+            input_file = Path(input_file)
 
-        # Plain SQL files always go to psql, regardless of existence (CR-05)
-        if input_file.suffix == ".sql":
-            self._psql_restore(input_file)
-            return
+            # Plain SQL files always go to psql, regardless of existence (CR-05)
+            if input_file.suffix == ".sql":
+                self._psql_restore(input_file)
+                return
 
-        # Non-.sql (archive format): require the file to exist (CR-05)
-        if not input_file.exists():
-            raise FileNotFoundError(f"Backup file not found: {input_file}")
+            # Non-.sql (archive format): require the file to exist (CR-05)
+            if not input_file.exists():
+                raise FileNotFoundError(f"Backup file not found: {input_file}")
 
-        cmd = build_pg_restore_cmd(
-            host=self._db.config.host,
-            port=self._db.config.port,
-            user=self._db.config.user,
-            database=self._db.config.database,
-            input_file=input_file,
-            clean=clean,
-            if_exists=if_exists,
-            create=create,
-            data_only=data_only,
-            schema_only=schema_only,
-            tables=tables,
-            schemas=schemas,
-            jobs=jobs,
-            no_owner=no_owner,
-            no_privileges=no_privileges,
-        )
+            cmd = build_pg_restore_cmd(
+                host=self._db.config.host,
+                port=self._db.config.port,
+                user=self._db.config.user,
+                database=self._db.config.database,
+                input_file=input_file,
+                clean=clean,
+                if_exists=if_exists,
+                create=create,
+                data_only=data_only,
+                schema_only=schema_only,
+                tables=tables,
+                schemas=schemas,
+                jobs=jobs,
+                no_owner=no_owner,
+                no_privileges=no_privileges,
+            )
 
-        # Run with password in environment
-        env = (
-            {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
-        )
-        result = subprocess.run(
-            cmd, env={**os.environ, **env}, capture_output=True, text=True
-        )
+            # Run with password in environment
+            env = (
+                {"PGPASSWORD": self._db.config.password} if self._db.config.password else {}
+            )
+            result = subprocess.run(
+                cmd, env={**os.environ, **env}, capture_output=True, text=True
+            )
 
-        if (
-            result.returncode != 0
-        ):  # pragma: no cover — requires pg_restore subprocess failure; environment-dependent
-            raise RuntimeError(f"pg_restore failed: {result.stderr}")
+            if (
+                result.returncode != 0
+            ):  # pragma: no cover — requires pg_restore subprocess failure; environment-dependent
+                raise RuntimeError(f"pg_restore failed: {result.stderr}")
 
     def _psql_restore(self, sql_file: Path) -> None:
         """Restore from plain SQL file using psql."""
@@ -424,38 +427,39 @@ class AsyncBackupAccessor:
         jobs : int, optional
             Parallel jobs (for directory format), by default 1.
         """
-        cmd = build_pg_dump_cmd(
-            host=self._db.config.host,
-            port=self._db.config.port,
-            user=self._db.config.user,
-            database=self._db.config.database,
-            output_file=output_file,
-            format=format,
-            schema_only=schema_only,
-            data_only=data_only,
-            tables=tables,
-            exclude_tables=exclude_tables,
-            schemas=schemas,
-            compress=compress,
-            jobs=jobs,
-        )
+        with log_operation("backup.pg_dump"):
+            cmd = build_pg_dump_cmd(
+                host=self._db.config.host,
+                port=self._db.config.port,
+                user=self._db.config.user,
+                database=self._db.config.database,
+                output_file=output_file,
+                format=format,
+                schema_only=schema_only,
+                data_only=data_only,
+                tables=tables,
+                exclude_tables=exclude_tables,
+                schemas=schemas,
+                compress=compress,
+                jobs=jobs,
+            )
 
-        # Run with password in environment
-        env = {**os.environ}
-        if self._db.config.password:
-            env["PGPASSWORD"] = self._db.config.password
+            # Run with password in environment
+            env = {**os.environ}
+            if self._db.config.password:
+                env["PGPASSWORD"] = self._db.config.password
 
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
 
-        _, stderr = await proc.communicate()
+            _, stderr = await proc.communicate()
 
-        if proc.returncode != 0:
-            raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
+            if proc.returncode != 0:
+                raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
 
     async def pg_restore(
         self,
@@ -499,51 +503,52 @@ class AsyncBackupAccessor:
         no_privileges : bool, optional
             Don't restore privileges, by default False.
         """
-        input_file = Path(input_file)
+        with log_operation("backup.pg_restore"):
+            input_file = Path(input_file)
 
-        # Plain SQL files always go to psql, regardless of existence (CR-05)
-        if input_file.suffix == ".sql":
-            await self._psql_restore(input_file)
-            return
+            # Plain SQL files always go to psql, regardless of existence (CR-05)
+            if input_file.suffix == ".sql":
+                await self._psql_restore(input_file)
+                return
 
-        # Non-.sql (archive format): require the file to exist (CR-05)
-        if not input_file.exists():
-            raise FileNotFoundError(f"Backup file not found: {input_file}")
+            # Non-.sql (archive format): require the file to exist (CR-05)
+            if not input_file.exists():
+                raise FileNotFoundError(f"Backup file not found: {input_file}")
 
-        cmd = build_pg_restore_cmd(
-            host=self._db.config.host,
-            port=self._db.config.port,
-            user=self._db.config.user,
-            database=self._db.config.database,
-            input_file=input_file,
-            clean=clean,
-            if_exists=if_exists,
-            create=create,
-            data_only=data_only,
-            schema_only=schema_only,
-            tables=tables,
-            schemas=schemas,
-            jobs=jobs,
-            no_owner=no_owner,
-            no_privileges=no_privileges,
-        )
+            cmd = build_pg_restore_cmd(
+                host=self._db.config.host,
+                port=self._db.config.port,
+                user=self._db.config.user,
+                database=self._db.config.database,
+                input_file=input_file,
+                clean=clean,
+                if_exists=if_exists,
+                create=create,
+                data_only=data_only,
+                schema_only=schema_only,
+                tables=tables,
+                schemas=schemas,
+                jobs=jobs,
+                no_owner=no_owner,
+                no_privileges=no_privileges,
+            )
 
-        # Run with password in environment
-        env = {**os.environ}
-        if self._db.config.password:
-            env["PGPASSWORD"] = self._db.config.password
+            # Run with password in environment
+            env = {**os.environ}
+            if self._db.config.password:
+                env["PGPASSWORD"] = self._db.config.password
 
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
 
-        _, stderr = await proc.communicate()
+            _, stderr = await proc.communicate()
 
-        if proc.returncode != 0:
-            raise RuntimeError(f"pg_restore failed: {stderr.decode()}")
+            if proc.returncode != 0:
+                raise RuntimeError(f"pg_restore failed: {stderr.decode()}")
 
     async def _psql_restore(self, sql_file: Path) -> None:
         """Restore from plain SQL file using psql."""

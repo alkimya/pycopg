@@ -44,6 +44,7 @@ from pycopg.exceptions import (  # noqa: F401
     ETLTargetNotFoundError,
     ETLTransformError,
 )
+from pycopg.logging import log_operation
 from pycopg.utils import validate_identifiers
 
 if TYPE_CHECKING:
@@ -1188,269 +1189,270 @@ class ETLAccessor:
         """
         name = pipeline.name
 
-        # ------------------------------------------------------------------
-        # DRY-RUN EARLY FORK (D-08/D-09/ETL-15)
-        # Forks before init/start_run — writes no pipeline_runs row.
-        # ------------------------------------------------------------------
-        if dry_run:
-            started_at = datetime.now(UTC)
-            rows_extracted = 0
+        with log_operation("etl.run"):
+            # ------------------------------------------------------------------
+            # DRY-RUN EARLY FORK (D-08/D-09/ETL-15)
+            # Forks before init/start_run — writes no pipeline_runs row.
+            # ------------------------------------------------------------------
+            if dry_run:
+                started_at = datetime.now(UTC)
+                rows_extracted = 0
 
-            # Read prior watermark (None on first run or non-incremental) — D-A2
-            dry_wm = (
+                # Read prior watermark (None on first run or non-incremental) — D-A2
+                dry_wm = (
+                    self._read_watermark(name)
+                    if pipeline.incremental_column is not None
+                    else None
+                )
+
+                # Shared filtered extract (D-A2a) — same path as real run
+                df = self._do_extract(pipeline, dry_wm)
+                rows_extracted = len(df)
+
+                # Capture would-be watermark from RAW filtered batch (D-A2)
+                dry_raw_watermark = None
+                dry_col = pipeline.incremental_column
+                if dry_col is not None:
+                    if dry_col not in df.columns:
+                        raise ETLError(
+                            f"incremental_column {dry_col!r} not found in extracted batch "
+                            f"columns {list(df.columns)} (ETL-INC-04)"
+                        )
+                    if len(df):
+                        m = df[dry_col].max()
+                        if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
+                            dry_raw_watermark = None
+                        elif isinstance(m, pd.Timestamp):
+                            dry_raw_watermark = m.to_pydatetime()
+                        elif isinstance(m, str):
+                            dry_raw_watermark = str(m)
+                        elif pd.api.types.is_float(m):
+                            raise ETLError(
+                                f"incremental_column {dry_col!r} has float dtype; float "
+                                f"watermarks are not supported (cast to INTEGER or "
+                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
+                            )
+                        else:
+                            dry_raw_watermark = int(m)
+
+                # Transform chain (same as normal path)
+                transform = pipeline.transform
+                if transform is None:
+                    steps: list = []
+                elif callable(transform):
+                    steps = [transform]
+                else:
+                    steps = list(transform)
+
+                for i, step in enumerate(steps, start=1):
+                    try:
+                        df = step(df)
+                    except Exception as exc:
+                        raise ETLTransformError(
+                            f"transform step {i} ('{_step_label(step)}')"
+                            f" raised {type(exc).__name__}: {exc}"
+                        ) from exc
+
+                rows_extracted = len(df)
+                finished_at = datetime.now(UTC)
+                return RunResult(
+                    run_id=None,
+                    pipeline_name=name,
+                    status="dry_run",
+                    rows_extracted=rows_extracted,
+                    rows_loaded=0,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    error=None,
+                    watermark_used=dry_wm,
+                    watermark_recorded=dry_raw_watermark,
+                )
+
+            self.init()
+            run_id = self._start_run(name)
+            rows_extracted = 0
+            rows_loaded = 0
+
+            # Read prior watermark before extract (None on first run or non-incremental)
+            wm = (
                 self._read_watermark(name)
                 if pipeline.incremental_column is not None
                 else None
             )
 
-            # Shared filtered extract (D-A2a) — same path as real run
-            df = self._do_extract(pipeline, dry_wm)
-            rows_extracted = len(df)
+            try:
+                # ------------------------------------------------------------------
+                # 1. EXTRACT (shared filtered path — D-A2a)
+                # ------------------------------------------------------------------
+                df = self._do_extract(pipeline, wm)
 
-            # Capture would-be watermark from RAW filtered batch (D-A2)
-            dry_raw_watermark = None
-            dry_col = pipeline.incremental_column
-            if dry_col is not None:
-                if dry_col not in df.columns:
-                    raise ETLError(
-                        f"incremental_column {dry_col!r} not found in extracted batch "
-                        f"columns {list(df.columns)} (ETL-INC-04)"
-                    )
-                if len(df):
-                    m = df[dry_col].max()
-                    if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
-                        dry_raw_watermark = None
-                    elif isinstance(m, pd.Timestamp):
-                        dry_raw_watermark = m.to_pydatetime()
-                    elif isinstance(m, str):
-                        dry_raw_watermark = str(m)
-                    elif pd.api.types.is_float(m):
+                rows_extracted = len(df)
+
+                # ------------------------------------------------------------------
+                # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
+                # Capture max(col) from the RAW batch BEFORE the transform chain
+                # (D-02: transforms may rename/drop the column).  Only when
+                # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
+                # to plain Python types so _encode_watermark's strict allowlist is
+                # satisfied (D-07 resolved by call-site coercion — do NOT reopen
+                # _encode_watermark).
+                # ------------------------------------------------------------------
+                raw_watermark = None
+                col = pipeline.incremental_column
+                if col is not None:
+                    if col not in df.columns:
                         raise ETLError(
-                            f"incremental_column {dry_col!r} has float dtype; float "
-                            f"watermarks are not supported (cast to INTEGER or "
-                            f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                        )
-                    else:
-                        dry_raw_watermark = int(m)
-
-            # Transform chain (same as normal path)
-            transform = pipeline.transform
-            if transform is None:
-                steps: list = []
-            elif callable(transform):
-                steps = [transform]
-            else:
-                steps = list(transform)
-
-            for i, step in enumerate(steps, start=1):
-                try:
-                    df = step(df)
-                except Exception as exc:
-                    raise ETLTransformError(
-                        f"transform step {i} ('{_step_label(step)}')"
-                        f" raised {type(exc).__name__}: {exc}"
-                    ) from exc
-
-            rows_extracted = len(df)
-            finished_at = datetime.now(UTC)
-            return RunResult(
-                run_id=None,
-                pipeline_name=name,
-                status="dry_run",
-                rows_extracted=rows_extracted,
-                rows_loaded=0,
-                started_at=started_at,
-                finished_at=finished_at,
-                error=None,
-                watermark_used=dry_wm,
-                watermark_recorded=dry_raw_watermark,
-            )
-
-        self.init()
-        run_id = self._start_run(name)
-        rows_extracted = 0
-        rows_loaded = 0
-
-        # Read prior watermark before extract (None on first run or non-incremental)
-        wm = (
-            self._read_watermark(name)
-            if pipeline.incremental_column is not None
-            else None
-        )
-
-        try:
-            # ------------------------------------------------------------------
-            # 1. EXTRACT (shared filtered path — D-A2a)
-            # ------------------------------------------------------------------
-            df = self._do_extract(pipeline, wm)
-
-            rows_extracted = len(df)
-
-            # ------------------------------------------------------------------
-            # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
-            # Capture max(col) from the RAW batch BEFORE the transform chain
-            # (D-02: transforms may rename/drop the column).  Only when
-            # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
-            # to plain Python types so _encode_watermark's strict allowlist is
-            # satisfied (D-07 resolved by call-site coercion — do NOT reopen
-            # _encode_watermark).
-            # ------------------------------------------------------------------
-            raw_watermark = None
-            col = pipeline.incremental_column
-            if col is not None:
-                if col not in df.columns:
-                    raise ETLError(
-                        f"incremental_column {col!r} not found in extracted batch "
-                        f"columns {list(df.columns)} (ETL-INC-04)"
-                    )  # D-06 — clear ETLError, not a bare KeyError
-                if len(df):  # guard: max() on empty df is NaN
-                    m = df[col].max()
-                    if pd.isna(m):
-                        # All values NULL (NaN/NaT) — record no watermark for
-                        # this run, same as the empty-batch path; the prior
-                        # successful watermark is preserved.  Must precede the
-                        # is_float branch below: NaN is itself a float.
-                        raw_watermark = None
-                    elif isinstance(m, pd.Timestamp):
-                        raw_watermark = (
-                            m.to_pydatetime()
-                        )  # plain datetime, offset preserved
-                    elif isinstance(m, str):
-                        raw_watermark = str(m)  # normalize numpy.str_ → str
-                    elif pd.api.types.is_float(m):
-                        # float/Decimal columns have no defined watermark
-                        # semantics — int() would silently truncate (99.99 → 99)
-                        # and regress the watermark.  Fail loud (D-06 contract).
-                        raise ETLError(
-                            f"incremental_column {col!r} has float dtype; float "
-                            f"watermarks are not supported (cast to INTEGER or "
-                            f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                        )
-                    else:
-                        raw_watermark = int(m)  # numpy.int64 → plain int
-
-            # ------------------------------------------------------------------
-            # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
-            # ------------------------------------------------------------------
-            transform = pipeline.transform
-            if transform is None:
-                steps: list = []
-            elif callable(transform):
-                steps = [transform]
-            else:
-                steps = list(transform)
-
-            for i, step in enumerate(steps, start=1):
-                try:
-                    df = step(df)
-                except Exception as exc:
-                    raise ETLTransformError(
-                        f"transform step {i} ('{_step_label(step)}')"
-                        f" raised {type(exc).__name__}: {exc}"
-                    ) from exc
-
-            # ------------------------------------------------------------------
-            # 3. ROWS: early-exit on empty + derive columns (D-02b / D-02c)
-            # ------------------------------------------------------------------
-            # No rows to load (empty extract, or transforms dropped every row):
-            # record success with 0 rows_loaded and NO watermark — even if a
-            # raw_watermark was captured above, a no-load run must not advance
-            # the watermark.  The prior successful watermark is preserved by
-            # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
-            if df.empty:
-                self._end_run(run_id, "success", rows_extracted, 0)
-                return self._fetch_run_result(run_id)
-
-            columns = list(df.columns)
-
-            # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
-            # append/replace stream directly via COPY — no full-frame astype(object)
-            # materialization needed (D-02 / D-02c / PERF-02).
-            if pipeline.load_mode == "upsert":
-                rows = (
-                    df.astype(object)
-                    .where(pd.notnull(df), None)
-                    .to_dict(orient="records")
-                )
-            else:
-                rows = []  # unused for append/replace COPY path
-
-            # ------------------------------------------------------------------
-            # 4. EXISTENCE CHECK (D-03)
-            # ------------------------------------------------------------------
-            exists = self._db.schema.table_exists(
-                pipeline.target, schema=pipeline.schema
-            )
-
-            if pipeline.load_mode in ("append", "upsert") and not exists:
-                raise ETLTargetNotFoundError(
-                    f"{pipeline.load_mode} target"
-                    f" {pipeline.schema}.{pipeline.target} does not exist"
-                )
-
-            if pipeline.load_mode == "replace" and not exists:
-                # Create empty typed table before the load txn (D-03 / D-03a)
-                self._db.from_dataframe(
-                    df.head(0),
-                    pipeline.target,
-                    schema=pipeline.schema,
-                    if_exists="replace",
-                )
-
-            # ------------------------------------------------------------------
-            # 5. BUILD LOAD SQL (pure builders — upsert only; COPY needs no INSERT SQL)
-            # ------------------------------------------------------------------
-            if pipeline.load_mode == "upsert":
-                insert_sql, insert_params = _build_upsert_sql(
-                    pipeline.target,
-                    rows,
-                    list(pipeline.conflict_columns),
-                    schema=pipeline.schema,
-                )
-            elif pipeline.load_mode == "replace":
-                truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
-
-            # append: no SQL builder — rows stream via COPY below
-
-            # ------------------------------------------------------------------
-            # 6. ATOMIC LOAD — the seam (RESEARCH Q1 / SC-3 / D-02a)
-            #    append/replace: COPY inline on the transaction cursor.
-            #    upsert: INSERT … ON CONFLICT via execute() (D-02c).
-            #    Never call copy_insert() here — it opens its own connection +
-            #    commit, breaking run-log atomicity (D-02a / T-38-06).
-            # ------------------------------------------------------------------
-            with self._db.session():
-                with self._db.transaction() as conn:
-                    with conn.cursor() as cur:
-                        if pipeline.load_mode == "replace":
-                            cur.execute(truncate_sql)
-                        if pipeline.load_mode in ("append", "replace"):
-                            rows_loaded += _stream_df_copy(
-                                cur, df, pipeline.target, pipeline.schema, columns
+                            f"incremental_column {col!r} not found in extracted batch "
+                            f"columns {list(df.columns)} (ETL-INC-04)"
+                        )  # D-06 — clear ETLError, not a bare KeyError
+                    if len(df):  # guard: max() on empty df is NaN
+                        m = df[col].max()
+                        if pd.isna(m):
+                            # All values NULL (NaN/NaT) — record no watermark for
+                            # this run, same as the empty-batch path; the prior
+                            # successful watermark is preserved.  Must precede the
+                            # is_float branch below: NaN is itself a float.
+                            raw_watermark = None
+                        elif isinstance(m, pd.Timestamp):
+                            raw_watermark = (
+                                m.to_pydatetime()
+                            )  # plain datetime, offset preserved
+                        elif isinstance(m, str):
+                            raw_watermark = str(m)  # normalize numpy.str_ → str
+                        elif pd.api.types.is_float(m):
+                            # float/Decimal columns have no defined watermark
+                            # semantics — int() would silently truncate (99.99 → 99)
+                            # and regress the watermark.  Fail loud (D-06 contract).
+                            raise ETLError(
+                                f"incremental_column {col!r} has float dtype; float "
+                                f"watermarks are not supported (cast to INTEGER or "
+                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
                             )
-                        else:  # upsert
-                            cur.execute(insert_sql, insert_params)
-                            rows_loaded += cur.rowcount
+                        else:
+                            raw_watermark = int(m)  # numpy.int64 → plain int
 
-        except Exception as exc:
-            self._end_run(
-                run_id,
-                "failed",
-                rows_extracted,
-                0,
-                error_message=str(exc),
-                error_traceback=traceback.format_exc(),
-            )
-            raise
+                # ------------------------------------------------------------------
+                # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
+                # ------------------------------------------------------------------
+                transform = pipeline.transform
+                if transform is None:
+                    steps: list = []
+                elif callable(transform):
+                    steps = [transform]
+                else:
+                    steps = list(transform)
 
-        wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
-        self._end_run(run_id, "success", rows_extracted, rows_loaded, watermark=wm_env)
-        # Fetch the stored result (watermark_recorded comes via _row_to_result),
-        # then inject watermark_used (per-run input, never stored — D-A1).
-        result = self._fetch_run_result(run_id)
-        if wm is not None or pipeline.incremental_column is not None:
-            result = dc_replace(result, watermark_used=wm)
-        return result
+                for i, step in enumerate(steps, start=1):
+                    try:
+                        df = step(df)
+                    except Exception as exc:
+                        raise ETLTransformError(
+                            f"transform step {i} ('{_step_label(step)}')"
+                            f" raised {type(exc).__name__}: {exc}"
+                        ) from exc
+
+                # ------------------------------------------------------------------
+                # 3. ROWS: early-exit on empty + derive columns (D-02b / D-02c)
+                # ------------------------------------------------------------------
+                # No rows to load (empty extract, or transforms dropped every row):
+                # record success with 0 rows_loaded and NO watermark — even if a
+                # raw_watermark was captured above, a no-load run must not advance
+                # the watermark.  The prior successful watermark is preserved by
+                # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
+                if df.empty:
+                    self._end_run(run_id, "success", rows_extracted, 0)
+                    return self._fetch_run_result(run_id)
+
+                columns = list(df.columns)
+
+                # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
+                # append/replace stream directly via COPY — no full-frame astype(object)
+                # materialization needed (D-02 / D-02c / PERF-02).
+                if pipeline.load_mode == "upsert":
+                    rows = (
+                        df.astype(object)
+                        .where(pd.notnull(df), None)
+                        .to_dict(orient="records")
+                    )
+                else:
+                    rows = []  # unused for append/replace COPY path
+
+                # ------------------------------------------------------------------
+                # 4. EXISTENCE CHECK (D-03)
+                # ------------------------------------------------------------------
+                exists = self._db.schema.table_exists(
+                    pipeline.target, schema=pipeline.schema
+                )
+
+                if pipeline.load_mode in ("append", "upsert") and not exists:
+                    raise ETLTargetNotFoundError(
+                        f"{pipeline.load_mode} target"
+                        f" {pipeline.schema}.{pipeline.target} does not exist"
+                    )
+
+                if pipeline.load_mode == "replace" and not exists:
+                    # Create empty typed table before the load txn (D-03 / D-03a)
+                    self._db.from_dataframe(
+                        df.head(0),
+                        pipeline.target,
+                        schema=pipeline.schema,
+                        if_exists="replace",
+                    )
+
+                # ------------------------------------------------------------------
+                # 5. BUILD LOAD SQL (pure builders — upsert only; COPY needs no INSERT SQL)
+                # ------------------------------------------------------------------
+                if pipeline.load_mode == "upsert":
+                    insert_sql, insert_params = _build_upsert_sql(
+                        pipeline.target,
+                        rows,
+                        list(pipeline.conflict_columns),
+                        schema=pipeline.schema,
+                    )
+                elif pipeline.load_mode == "replace":
+                    truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
+
+                # append: no SQL builder — rows stream via COPY below
+
+                # ------------------------------------------------------------------
+                # 6. ATOMIC LOAD — the seam (RESEARCH Q1 / SC-3 / D-02a)
+                #    append/replace: COPY inline on the transaction cursor.
+                #    upsert: INSERT … ON CONFLICT via execute() (D-02c).
+                #    Never call copy_insert() here — it opens its own connection +
+                #    commit, breaking run-log atomicity (D-02a / T-38-06).
+                # ------------------------------------------------------------------
+                with self._db.session():
+                    with self._db.transaction() as conn:
+                        with conn.cursor() as cur:
+                            if pipeline.load_mode == "replace":
+                                cur.execute(truncate_sql)
+                            if pipeline.load_mode in ("append", "replace"):
+                                rows_loaded += _stream_df_copy(
+                                    cur, df, pipeline.target, pipeline.schema, columns
+                                )
+                            else:  # upsert
+                                cur.execute(insert_sql, insert_params)
+                                rows_loaded += cur.rowcount
+
+            except Exception as exc:
+                self._end_run(
+                    run_id,
+                    "failed",
+                    rows_extracted,
+                    0,
+                    error_message=str(exc),
+                    error_traceback=traceback.format_exc(),
+                )
+                raise
+
+            wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
+            self._end_run(run_id, "success", rows_extracted, rows_loaded, watermark=wm_env)
+            # Fetch the stored result (watermark_recorded comes via _row_to_result),
+            # then inject watermark_used (per-run input, never stored — D-A1).
+            result = self._fetch_run_result(run_id)
+            if wm is not None or pipeline.incremental_column is not None:
+                result = dc_replace(result, watermark_used=wm)
+            return result
 
 
 class AsyncETLAccessor:
@@ -1866,269 +1868,270 @@ class AsyncETLAccessor:
         """
         name = pipeline.name
 
-        # ------------------------------------------------------------------
-        # DRY-RUN EARLY FORK (D-08/D-09/ETL-15)
-        # Forks before init/start_run — writes no pipeline_runs row.
-        # ------------------------------------------------------------------
-        if dry_run:
-            started_at = datetime.now(UTC)
-            rows_extracted = 0
+        with log_operation("etl.run"):
+            # ------------------------------------------------------------------
+            # DRY-RUN EARLY FORK (D-08/D-09/ETL-15)
+            # Forks before init/start_run — writes no pipeline_runs row.
+            # ------------------------------------------------------------------
+            if dry_run:
+                started_at = datetime.now(UTC)
+                rows_extracted = 0
 
-            # Read prior watermark (None on first run or non-incremental) — D-A2
-            dry_wm = (
+                # Read prior watermark (None on first run or non-incremental) — D-A2
+                dry_wm = (
+                    await self._read_watermark(name)
+                    if pipeline.incremental_column is not None
+                    else None
+                )
+
+                # Shared filtered extract (D-A2a) — same path as real run
+                df = await self._do_extract(pipeline, dry_wm)
+                rows_extracted = len(df)
+
+                # Capture would-be watermark from RAW filtered batch (D-A2)
+                dry_raw_watermark = None
+                dry_col = pipeline.incremental_column
+                if dry_col is not None:
+                    if dry_col not in df.columns:
+                        raise ETLError(
+                            f"incremental_column {dry_col!r} not found in extracted batch "
+                            f"columns {list(df.columns)} (ETL-INC-04)"
+                        )
+                    if len(df):
+                        m = df[dry_col].max()
+                        if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
+                            dry_raw_watermark = None
+                        elif isinstance(m, pd.Timestamp):
+                            dry_raw_watermark = m.to_pydatetime()
+                        elif isinstance(m, str):
+                            dry_raw_watermark = str(m)
+                        elif pd.api.types.is_float(m):
+                            raise ETLError(
+                                f"incremental_column {dry_col!r} has float dtype; float "
+                                f"watermarks are not supported (cast to INTEGER or "
+                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
+                            )
+                        else:
+                            dry_raw_watermark = int(m)
+
+                # Transform chain (same as normal path, but dispatched via to_thread — SC-2)
+                transform = pipeline.transform
+                if transform is None:
+                    steps: list = []
+                elif callable(transform):
+                    steps = [transform]
+                else:
+                    steps = list(transform)
+
+                for i, step in enumerate(steps, start=1):
+                    try:
+                        df = await asyncio.to_thread(step, df)
+                    except Exception as exc:
+                        raise ETLTransformError(
+                            f"transform step {i} ('{_step_label(step)}')"
+                            f" raised {type(exc).__name__}: {exc}"
+                        ) from exc
+
+                rows_extracted = len(df)
+                finished_at = datetime.now(UTC)
+                return RunResult(
+                    run_id=None,
+                    pipeline_name=name,
+                    status="dry_run",
+                    rows_extracted=rows_extracted,
+                    rows_loaded=0,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    error=None,
+                    watermark_used=dry_wm,
+                    watermark_recorded=dry_raw_watermark,
+                )
+
+            await self.init()
+            run_id = await self._start_run(name)
+            rows_extracted = 0
+            rows_loaded = 0
+
+            # Read prior watermark before extract (None on first run or non-incremental)
+            wm = (
                 await self._read_watermark(name)
                 if pipeline.incremental_column is not None
                 else None
             )
 
-            # Shared filtered extract (D-A2a) — same path as real run
-            df = await self._do_extract(pipeline, dry_wm)
-            rows_extracted = len(df)
+            try:
+                # ------------------------------------------------------------------
+                # 1. EXTRACT (shared filtered path — D-A2a)
+                # ------------------------------------------------------------------
+                df = await self._do_extract(pipeline, wm)
 
-            # Capture would-be watermark from RAW filtered batch (D-A2)
-            dry_raw_watermark = None
-            dry_col = pipeline.incremental_column
-            if dry_col is not None:
-                if dry_col not in df.columns:
-                    raise ETLError(
-                        f"incremental_column {dry_col!r} not found in extracted batch "
-                        f"columns {list(df.columns)} (ETL-INC-04)"
-                    )
-                if len(df):
-                    m = df[dry_col].max()
-                    if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
-                        dry_raw_watermark = None
-                    elif isinstance(m, pd.Timestamp):
-                        dry_raw_watermark = m.to_pydatetime()
-                    elif isinstance(m, str):
-                        dry_raw_watermark = str(m)
-                    elif pd.api.types.is_float(m):
+                rows_extracted = len(df)
+
+                # ------------------------------------------------------------------
+                # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
+                # Capture max(col) from the RAW batch BEFORE the transform chain
+                # (D-02: transforms may rename/drop the column).  Only when
+                # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
+                # to plain Python types so _encode_watermark's strict allowlist is
+                # satisfied (D-07 resolved by call-site coercion — do NOT reopen
+                # _encode_watermark).
+                # ------------------------------------------------------------------
+                raw_watermark = None
+                col = pipeline.incremental_column
+                if col is not None:
+                    if col not in df.columns:
                         raise ETLError(
-                            f"incremental_column {dry_col!r} has float dtype; float "
-                            f"watermarks are not supported (cast to INTEGER or "
-                            f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                        )
-                    else:
-                        dry_raw_watermark = int(m)
-
-            # Transform chain (same as normal path, but dispatched via to_thread — SC-2)
-            transform = pipeline.transform
-            if transform is None:
-                steps: list = []
-            elif callable(transform):
-                steps = [transform]
-            else:
-                steps = list(transform)
-
-            for i, step in enumerate(steps, start=1):
-                try:
-                    df = await asyncio.to_thread(step, df)
-                except Exception as exc:
-                    raise ETLTransformError(
-                        f"transform step {i} ('{_step_label(step)}')"
-                        f" raised {type(exc).__name__}: {exc}"
-                    ) from exc
-
-            rows_extracted = len(df)
-            finished_at = datetime.now(UTC)
-            return RunResult(
-                run_id=None,
-                pipeline_name=name,
-                status="dry_run",
-                rows_extracted=rows_extracted,
-                rows_loaded=0,
-                started_at=started_at,
-                finished_at=finished_at,
-                error=None,
-                watermark_used=dry_wm,
-                watermark_recorded=dry_raw_watermark,
-            )
-
-        await self.init()
-        run_id = await self._start_run(name)
-        rows_extracted = 0
-        rows_loaded = 0
-
-        # Read prior watermark before extract (None on first run or non-incremental)
-        wm = (
-            await self._read_watermark(name)
-            if pipeline.incremental_column is not None
-            else None
-        )
-
-        try:
-            # ------------------------------------------------------------------
-            # 1. EXTRACT (shared filtered path — D-A2a)
-            # ------------------------------------------------------------------
-            df = await self._do_extract(pipeline, wm)
-
-            rows_extracted = len(df)
-
-            # ------------------------------------------------------------------
-            # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
-            # Capture max(col) from the RAW batch BEFORE the transform chain
-            # (D-02: transforms may rename/drop the column).  Only when
-            # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
-            # to plain Python types so _encode_watermark's strict allowlist is
-            # satisfied (D-07 resolved by call-site coercion — do NOT reopen
-            # _encode_watermark).
-            # ------------------------------------------------------------------
-            raw_watermark = None
-            col = pipeline.incremental_column
-            if col is not None:
-                if col not in df.columns:
-                    raise ETLError(
-                        f"incremental_column {col!r} not found in extracted batch "
-                        f"columns {list(df.columns)} (ETL-INC-04)"
-                    )  # D-06 — clear ETLError, not a bare KeyError
-                if len(df):  # guard: max() on empty df is NaN
-                    m = df[col].max()
-                    if pd.isna(m):
-                        # All values NULL (NaN/NaT) — record no watermark for
-                        # this run, same as the empty-batch path; the prior
-                        # successful watermark is preserved.  Must precede the
-                        # is_float branch below: NaN is itself a float.
-                        raw_watermark = None
-                    elif isinstance(m, pd.Timestamp):
-                        raw_watermark = (
-                            m.to_pydatetime()
-                        )  # plain datetime, offset preserved
-                    elif isinstance(m, str):
-                        raw_watermark = str(m)  # normalize numpy.str_ → str
-                    elif pd.api.types.is_float(m):
-                        # float/Decimal columns have no defined watermark
-                        # semantics — int() would silently truncate (99.99 → 99)
-                        # and regress the watermark.  Fail loud (D-06 contract).
-                        raise ETLError(
-                            f"incremental_column {col!r} has float dtype; float "
-                            f"watermarks are not supported (cast to INTEGER or "
-                            f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                        )
-                    else:
-                        raw_watermark = int(m)  # numpy.int64 → plain int
-
-            # ------------------------------------------------------------------
-            # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
-            #    Each step dispatched via asyncio.to_thread (SC-2).
-            # ------------------------------------------------------------------
-            transform = pipeline.transform
-            if transform is None:
-                steps: list = []
-            elif callable(transform):
-                steps = [transform]
-            else:
-                steps = list(transform)
-
-            for i, step in enumerate(steps, start=1):
-                try:
-                    df = await asyncio.to_thread(step, df)
-                except Exception as exc:
-                    raise ETLTransformError(
-                        f"transform step {i} ('{_step_label(step)}')"
-                        f" raised {type(exc).__name__}: {exc}"
-                    ) from exc
-
-            # ------------------------------------------------------------------
-            # 3. ROWS: early-exit on empty + derive columns (D-02b / D-02c)
-            # ------------------------------------------------------------------
-            # No rows to load (empty extract, or transforms dropped every row):
-            # record success with 0 rows_loaded and NO watermark — even if a
-            # raw_watermark was captured above, a no-load run must not advance
-            # the watermark.  The prior successful watermark is preserved by
-            # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
-            if df.empty:
-                await self._end_run(run_id, "success", rows_extracted, 0)
-                return await self._fetch_run_result(run_id)
-
-            columns = list(df.columns)
-
-            # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
-            # append/replace stream directly via COPY — no full-frame astype(object)
-            # materialization needed (D-02 / D-02c / PERF-02).
-            if pipeline.load_mode == "upsert":
-                rows = (
-                    df.astype(object)
-                    .where(pd.notnull(df), None)
-                    .to_dict(orient="records")
-                )
-            else:
-                rows = []  # unused for append/replace COPY path
-
-            # ------------------------------------------------------------------
-            # 4. EXISTENCE CHECK (D-03)
-            # ------------------------------------------------------------------
-            exists = await self._db.schema.table_exists(
-                pipeline.target, schema=pipeline.schema
-            )
-
-            if pipeline.load_mode in ("append", "upsert") and not exists:
-                raise ETLTargetNotFoundError(
-                    f"{pipeline.load_mode} target"
-                    f" {pipeline.schema}.{pipeline.target} does not exist"
-                )
-
-            if pipeline.load_mode == "replace" and not exists:
-                # Create empty typed table before the load txn (D-03 / D-03a)
-                await self._db.from_dataframe(
-                    df.head(0),
-                    pipeline.target,
-                    schema=pipeline.schema,
-                    if_exists="replace",
-                )
-
-            # ------------------------------------------------------------------
-            # 5. BUILD LOAD SQL (pure builders — upsert only; COPY needs no INSERT SQL)
-            # ------------------------------------------------------------------
-            if pipeline.load_mode == "upsert":
-                insert_sql, insert_params = _build_upsert_sql(
-                    pipeline.target,
-                    rows,
-                    list(pipeline.conflict_columns),
-                    schema=pipeline.schema,
-                )
-            elif pipeline.load_mode == "replace":
-                truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
-
-            # append: no SQL builder — rows stream via COPY below
-
-            # ------------------------------------------------------------------
-            # 6. ATOMIC LOAD — async seam (RESEARCH §7 / SC-3 / D-02a)
-            #    append/replace: COPY inline on the transaction cursor.
-            #    upsert: INSERT … ON CONFLICT via execute() (D-02c).
-            #    Never call copy_insert() here — it opens its own connection +
-            #    commit, breaking run-log atomicity (D-02a / T-38-06).
-            # ------------------------------------------------------------------
-            async with self._db.session():
-                async with self._db.transaction() as conn:
-                    async with conn.cursor() as cur:
-                        if pipeline.load_mode == "replace":
-                            await cur.execute(truncate_sql)
-                        if pipeline.load_mode in ("append", "replace"):
-                            rows_loaded += await _async_stream_df_copy(
-                                cur, df, pipeline.target, pipeline.schema, columns
+                            f"incremental_column {col!r} not found in extracted batch "
+                            f"columns {list(df.columns)} (ETL-INC-04)"
+                        )  # D-06 — clear ETLError, not a bare KeyError
+                    if len(df):  # guard: max() on empty df is NaN
+                        m = df[col].max()
+                        if pd.isna(m):
+                            # All values NULL (NaN/NaT) — record no watermark for
+                            # this run, same as the empty-batch path; the prior
+                            # successful watermark is preserved.  Must precede the
+                            # is_float branch below: NaN is itself a float.
+                            raw_watermark = None
+                        elif isinstance(m, pd.Timestamp):
+                            raw_watermark = (
+                                m.to_pydatetime()
+                            )  # plain datetime, offset preserved
+                        elif isinstance(m, str):
+                            raw_watermark = str(m)  # normalize numpy.str_ → str
+                        elif pd.api.types.is_float(m):
+                            # float/Decimal columns have no defined watermark
+                            # semantics — int() would silently truncate (99.99 → 99)
+                            # and regress the watermark.  Fail loud (D-06 contract).
+                            raise ETLError(
+                                f"incremental_column {col!r} has float dtype; float "
+                                f"watermarks are not supported (cast to INTEGER or "
+                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
                             )
-                        else:  # upsert
-                            await cur.execute(insert_sql, insert_params)
-                            rows_loaded += cur.rowcount
+                        else:
+                            raw_watermark = int(m)  # numpy.int64 → plain int
 
-        except Exception as exc:
+                # ------------------------------------------------------------------
+                # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
+                #    Each step dispatched via asyncio.to_thread (SC-2).
+                # ------------------------------------------------------------------
+                transform = pipeline.transform
+                if transform is None:
+                    steps: list = []
+                elif callable(transform):
+                    steps = [transform]
+                else:
+                    steps = list(transform)
+
+                for i, step in enumerate(steps, start=1):
+                    try:
+                        df = await asyncio.to_thread(step, df)
+                    except Exception as exc:
+                        raise ETLTransformError(
+                            f"transform step {i} ('{_step_label(step)}')"
+                            f" raised {type(exc).__name__}: {exc}"
+                        ) from exc
+
+                # ------------------------------------------------------------------
+                # 3. ROWS: early-exit on empty + derive columns (D-02b / D-02c)
+                # ------------------------------------------------------------------
+                # No rows to load (empty extract, or transforms dropped every row):
+                # record success with 0 rows_loaded and NO watermark — even if a
+                # raw_watermark was captured above, a no-load run must not advance
+                # the watermark.  The prior successful watermark is preserved by
+                # ETL_GET_LAST_WATERMARK's `watermark IS NOT NULL` predicate.
+                if df.empty:
+                    await self._end_run(run_id, "success", rows_extracted, 0)
+                    return await self._fetch_run_result(run_id)
+
+                columns = list(df.columns)
+
+                # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
+                # append/replace stream directly via COPY — no full-frame astype(object)
+                # materialization needed (D-02 / D-02c / PERF-02).
+                if pipeline.load_mode == "upsert":
+                    rows = (
+                        df.astype(object)
+                        .where(pd.notnull(df), None)
+                        .to_dict(orient="records")
+                    )
+                else:
+                    rows = []  # unused for append/replace COPY path
+
+                # ------------------------------------------------------------------
+                # 4. EXISTENCE CHECK (D-03)
+                # ------------------------------------------------------------------
+                exists = await self._db.schema.table_exists(
+                    pipeline.target, schema=pipeline.schema
+                )
+
+                if pipeline.load_mode in ("append", "upsert") and not exists:
+                    raise ETLTargetNotFoundError(
+                        f"{pipeline.load_mode} target"
+                        f" {pipeline.schema}.{pipeline.target} does not exist"
+                    )
+
+                if pipeline.load_mode == "replace" and not exists:
+                    # Create empty typed table before the load txn (D-03 / D-03a)
+                    await self._db.from_dataframe(
+                        df.head(0),
+                        pipeline.target,
+                        schema=pipeline.schema,
+                        if_exists="replace",
+                    )
+
+                # ------------------------------------------------------------------
+                # 5. BUILD LOAD SQL (pure builders — upsert only; COPY needs no INSERT SQL)
+                # ------------------------------------------------------------------
+                if pipeline.load_mode == "upsert":
+                    insert_sql, insert_params = _build_upsert_sql(
+                        pipeline.target,
+                        rows,
+                        list(pipeline.conflict_columns),
+                        schema=pipeline.schema,
+                    )
+                elif pipeline.load_mode == "replace":
+                    truncate_sql, _ = build_truncate_sql(pipeline.target, pipeline.schema)
+
+                # append: no SQL builder — rows stream via COPY below
+
+                # ------------------------------------------------------------------
+                # 6. ATOMIC LOAD — async seam (RESEARCH §7 / SC-3 / D-02a)
+                #    append/replace: COPY inline on the transaction cursor.
+                #    upsert: INSERT … ON CONFLICT via execute() (D-02c).
+                #    Never call copy_insert() here — it opens its own connection +
+                #    commit, breaking run-log atomicity (D-02a / T-38-06).
+                # ------------------------------------------------------------------
+                async with self._db.session():
+                    async with self._db.transaction() as conn:
+                        async with conn.cursor() as cur:
+                            if pipeline.load_mode == "replace":
+                                await cur.execute(truncate_sql)
+                            if pipeline.load_mode in ("append", "replace"):
+                                rows_loaded += await _async_stream_df_copy(
+                                    cur, df, pipeline.target, pipeline.schema, columns
+                                )
+                            else:  # upsert
+                                await cur.execute(insert_sql, insert_params)
+                                rows_loaded += cur.rowcount
+
+            except Exception as exc:
+                await self._end_run(
+                    run_id,
+                    "failed",
+                    rows_extracted,
+                    0,
+                    error_message=str(exc),
+                    error_traceback=traceback.format_exc(),
+                )
+                raise
+
+            wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
             await self._end_run(
-                run_id,
-                "failed",
-                rows_extracted,
-                0,
-                error_message=str(exc),
-                error_traceback=traceback.format_exc(),
+                run_id, "success", rows_extracted, rows_loaded, watermark=wm_env
             )
-            raise
-
-        wm_env = _encode_watermark(raw_watermark) if raw_watermark is not None else None
-        await self._end_run(
-            run_id, "success", rows_extracted, rows_loaded, watermark=wm_env
-        )
-        # Fetch the stored result (watermark_recorded comes via _row_to_result),
-        # then inject watermark_used (per-run input, never stored — D-A1).
-        result = await self._fetch_run_result(run_id)
-        if wm is not None or pipeline.incremental_column is not None:
-            result = dc_replace(result, watermark_used=wm)
-        return result
+            # Fetch the stored result (watermark_recorded comes via _row_to_result),
+            # then inject watermark_used (per-run input, never stored — D-A1).
+            result = await self._fetch_run_result(run_id)
+            if wm is not None or pipeline.incremental_column is not None:
+                result = dc_replace(result, watermark_used=wm)
+            return result

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pycopg.exceptions import MigrationError
+from pycopg.logging import log_operation
 from pycopg.utils import validate_identifier
 
 logger = logging.getLogger(__name__)
@@ -188,15 +189,16 @@ class Migrator:
         if target is not None:
             pending = [m for m in pending if m.version <= target]
 
-        applied = []
-        for migration in pending:
-            try:
-                self._apply(migration)
-                applied.append(migration)
-            except Exception as e:
-                raise MigrationError(
-                    f"Migration {migration.version:03d}_{migration.name} failed: {e}"
-                ) from e
+        applied: list[Migration] = []
+        with log_operation("migrations.migrate"):
+            for migration in pending:
+                try:
+                    self._apply(migration)
+                    applied.append(migration)
+                except Exception as e:
+                    raise MigrationError(
+                        f"Migration {migration.version:03d}_{migration.name} failed: {e}"
+                    ) from e
 
         return applied
 
