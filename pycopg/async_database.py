@@ -689,10 +689,18 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         with log_operation("database.health"):
             try:
                 t0 = time.perf_counter()
-                async with self.connect() as conn:
+                # Bypass _connect_with_retry so the probe fails fast (no retry
+                # budget) — a down DB returns connected=False immediately rather
+                # than blocking for several seconds (WR-02).
+                conn = await psycopg.AsyncConnection.connect(
+                    **self.config.connect_params()
+                )
+                try:
                     async with conn.cursor() as cur:
                         await cur.execute("SELECT 1")
                     server_ver_int = conn.info.server_version
+                finally:
+                    await conn.close()
                 latency_ms = round((time.perf_counter() - t0) * 1000, 2)
                 return {
                     "connected": True,

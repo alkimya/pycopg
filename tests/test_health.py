@@ -66,12 +66,12 @@ def test_health_connected():
     fake_cur.execute = MagicMock()
 
     fake_conn = MagicMock()
-    fake_conn.__enter__ = MagicMock(return_value=fake_conn)
-    fake_conn.__exit__ = MagicMock(return_value=False)
     fake_conn.cursor.return_value = fake_cur
     fake_conn.info.server_version = 160001
 
-    with patch.object(db, "connect", return_value=fake_conn):
+    # health() bypasses _connect_with_retry and calls psycopg.connect directly
+    # (WR-02: fast probe, no retry budget).
+    with patch("pycopg.database.psycopg.connect", return_value=fake_conn):
         result = db.health()
 
     assert result["connected"] is True
@@ -85,7 +85,7 @@ def test_health_never_raises():
     """health() returns connected=False dict and NEVER raises on connection failure."""
     db = _make_sync_db()
 
-    with patch.object(db, "connect", side_effect=Exception("boom")):
+    with patch("pycopg.database.psycopg.connect", side_effect=Exception("boom")):
         result = db.health()
 
     assert result["connected"] is False
@@ -115,7 +115,7 @@ async def test_async_health_connected():
     fake_cur = AsyncMock()
     fake_cur.execute = AsyncMock()
 
-    fake_conn = MagicMock()
+    fake_conn = AsyncMock()
     fake_conn.info.server_version = 150004
 
     @asynccontextmanager
@@ -124,11 +124,13 @@ async def test_async_health_connected():
 
     fake_conn.cursor = MagicMock(side_effect=lambda: _fake_cur_cm())
 
-    @asynccontextmanager
-    async def _fake_connect_cm():
-        yield fake_conn
-
-    with patch.object(db, "connect", return_value=_fake_connect_cm()):
+    # health() bypasses _connect_with_retry and calls psycopg.AsyncConnection.connect
+    # directly (WR-02: fast probe, no retry budget).
+    with patch(
+        "pycopg.async_database.psycopg.AsyncConnection.connect",
+        new_callable=AsyncMock,
+        return_value=fake_conn,
+    ):
         result = await db.health()
 
     assert result["connected"] is True
@@ -140,19 +142,16 @@ async def test_async_health_connected():
 @pytest.mark.asyncio
 async def test_async_health_never_raises():
     """AsyncDatabase.health() returns connected=False dict and NEVER raises on failure."""
-    from contextlib import asynccontextmanager
-
     from pycopg import Config
 
     cfg = Config(host="localhost", port=5432, database="test", user="u", password="p")
     db = AsyncDatabase(cfg)
 
-    @asynccontextmanager
-    async def _failing_cm():
-        raise Exception("async boom")
-        yield  # pragma: no cover
-
-    with patch.object(db, "connect", return_value=_failing_cm()):
+    with patch(
+        "pycopg.async_database.psycopg.AsyncConnection.connect",
+        new_callable=AsyncMock,
+        side_effect=Exception("async boom"),
+    ):
         result = await db.health()
 
     assert result["connected"] is False

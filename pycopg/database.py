@@ -749,10 +749,16 @@ class Database(DatabaseBase, QueryMixin):
         with log_operation("database.health"):
             try:
                 t0 = time.perf_counter()
-                with self.connect() as conn:
+                # Bypass _connect_with_retry so the probe fails fast (no retry
+                # budget) — a down DB returns connected=False immediately rather
+                # than blocking for several seconds (WR-02).
+                conn = psycopg.connect(**self.config.connect_params())
+                try:
                     with conn.cursor() as cur:
                         cur.execute("SELECT 1")
                     server_ver_int = conn.info.server_version
+                finally:
+                    conn.close()
                 latency_ms = round((time.perf_counter() - t0) * 1000, 2)
                 return {
                     "connected": True,
