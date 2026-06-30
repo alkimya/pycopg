@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: executing
-stopped_at: Completed 44-03-PLAN.md (SPAT2-13 parity acceptance: serialization surface test + docs)
-last_updated: "2026-06-30T07:09:00.000Z"
+status: completed
+stopped_at: "Completed 44-03-PLAN.md (SPAT2-13 parity acceptance: serialization surface test + docs)"
+last_updated: "2026-06-30T07:26:38.678Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 13
-  percent: 43
+  completed_plans: 14
+  percent: 57
 ---
 
 # Project State
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 44 — spatial-v2-serialization-mvt (COMPLETE) → Phase 45 next
+**Current focus:** Phase 45 — api-completeness-gaps + structured logging (not started); Phase 44 spatial-v2 serialization COMPLETE
 
 ## Current Position
 
-Phase: 44 (spatial-v2-serialization-mvt) — COMPLETE
-Plan: 3 of 3 (all plans done)
-Status: Phase complete — ready for Phase 45
-Last activity: 2026-06-30
+Phase: 45
+Plan: Not started
+Status: Phase 44 complete — ready for Phase 45
+Last activity: 2026-06-30 — Phase 44 (serialization + MVT) executed: 3 plans / 3 sequential waves on main; as_geojson/as_text/as_mvt on both accessors (db.spatial.* 22→25); code-review 0 blockers (2 warn: WR-01 as_text two-arg needs PostGIS 3.1 vs documented 3.0 floor); verifier PASSED 19/19; full suite 1690 passed @96.18%
 
 ## Performance Metrics
 

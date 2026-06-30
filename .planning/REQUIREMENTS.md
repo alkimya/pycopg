@@ -133,7 +133,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SPAT2-10 | Phase 44 | Complete |
 | SPAT2-11 | Phase 44 | Complete |
 | SPAT2-12 | Phase 44 | Complete |
-| SPAT2-13 | Phase 44 | Pending |
+| SPAT2-13 | Phase 44 | Complete |
 | TXN-01 | Phase 45 | Pending |
 | TXN-02 | Phase 45 | Pending |
 | PARAM-01 | Phase 45 | Pending |
