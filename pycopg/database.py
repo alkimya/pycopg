@@ -28,6 +28,7 @@ from tenacity import (
 
 from pycopg.base import (
     DatabaseBase,
+    Params,
     QueryMixin,
 )
 from pycopg.config import Config
@@ -698,7 +699,7 @@ class Database(DatabaseBase, QueryMixin):
             yield
 
     def execute(
-        self, sql: str, params: Sequence | None = None, autocommit: bool = False
+        self, sql: str, params: Params = None, autocommit: bool = False
     ) -> list[dict]:
         """Execute SQL and return results as list of dicts.
 
@@ -706,8 +707,10 @@ class Database(DatabaseBase, QueryMixin):
         ----------
         sql : str
             SQL query to execute.
-        params : Sequence, optional
-            Query parameters.
+        params : Params, optional
+            Query parameters — either a positional sequence (``%s``
+            placeholders) or a named mapping (``%(name)s`` placeholders).
+            psycopg binds both forms natively without any translation.
         autocommit : bool, optional
             Enable autocommit mode, by default False.
 
@@ -1234,15 +1237,17 @@ class Database(DatabaseBase, QueryMixin):
             conn.commit()
             return len(rows)
 
-    def fetch_one(self, sql: str, params: Sequence | None = None) -> dict | None:
+    def fetch_one(self, sql: str, params: Params = None) -> dict | None:
         """Execute SQL and return single row.
 
         Parameters
         ----------
         sql : str
             SQL query.
-        params : Sequence, optional
-            Query parameters.
+        params : Params, optional
+            Query parameters — either a positional sequence (``%s``
+            placeholders) or a named mapping (``%(name)s`` placeholders).
+            psycopg binds both forms natively without any translation.
 
         Returns
         -------
@@ -1253,15 +1258,17 @@ class Database(DatabaseBase, QueryMixin):
             cur.execute(sql, params)
             return cur.fetchone()
 
-    def fetch_val(self, sql: str, params: Sequence | None = None) -> Any:
+    def fetch_val(self, sql: str, params: Params = None) -> Any:
         """Execute SQL and return single value.
 
         Parameters
         ----------
         sql : str
             SQL query returning single column.
-        params : Sequence, optional
-            Query parameters.
+        params : Params, optional
+            Query parameters — either a positional sequence (``%s``
+            placeholders) or a named mapping (``%(name)s`` placeholders).
+            psycopg binds both forms natively without any translation.
 
         Returns
         -------
@@ -1273,7 +1280,7 @@ class Database(DatabaseBase, QueryMixin):
             return list(row.values())[0]
         return None
 
-    def fetch_all(self, sql: str, params: Sequence | None = None) -> list[dict]:
+    def fetch_all(self, sql: str, params: Params = None) -> list[dict]:
         """Execute SQL and return all rows as a list of dicts.
 
         Thin ``list[dict]`` complement to :meth:`fetch_one`. The core uses
@@ -1288,8 +1295,10 @@ class Database(DatabaseBase, QueryMixin):
             SQL query. The caller owns the SQL string and must parameterize
             dynamic values via ``params`` (same trust model as
             :meth:`execute` / :meth:`fetch_one`).
-        params : Sequence, optional
-            Positional query parameters (bound as ``%s``).
+        params : Params, optional
+            Query parameters — either a positional sequence (``%s``
+            placeholders) or a named mapping (``%(name)s`` placeholders).
+            psycopg binds both forms natively without any translation.
 
         Returns
         -------
@@ -1476,7 +1485,7 @@ class Database(DatabaseBase, QueryMixin):
         *,
         schema: str = "public",
         sql: str | None = None,
-        params: dict | None = None,
+        params: Params = None,
     ) -> pd.DataFrame:
         """Read table or query into pandas DataFrame.
 
@@ -1488,8 +1497,14 @@ class Database(DatabaseBase, QueryMixin):
             Schema name, by default "public".
         sql : str, optional
             SQL query (mutually exclusive with table).
-        params : dict, optional
-            Query parameters for sql.
+        params : Params, optional
+            Query parameters for *sql*.  This method routes through
+            SQLAlchemy ``text()`` / ``pd.read_sql``, which uses the
+            ``:name`` (colon-prefix) named-parameter style — **not**
+            the ``%(name)s`` style used by the psycopg-backed
+            ``execute`` / ``fetch_*`` methods.  When passing a mapping,
+            use ``:name`` placeholders in *sql*, e.g.
+            ``"SELECT :x AS v"`` with ``params={"x": 9}``.
 
         Returns
         -------
