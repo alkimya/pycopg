@@ -267,7 +267,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
 
-- [ ] 44-02-PLAN.md — `as_mvt`: dedicated `build_mvt_sql` (D-01 full surface, D-02 `tile_z/x/y` required kw-only, D-03 enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT + `q.geom_mvt IS NOT NULL`, D-04 `srid` ST_SetSRID branch) + `_run_mvt`/`_arun_mvt` runners (D-05 always `bytes`, `None`→`b""`) + `as_mvt` on both accessors + SQL-shape/multi-arg-injection/bytes-routing tests + dependency-free MVT decoder + live decode-to-feature-count + empty-tile `b""` — SPAT2-12
+- [x] 44-02-PLAN.md — `as_mvt`: dedicated `build_mvt_sql` (D-01 full surface, D-02 `tile_z/x/y` required kw-only, D-03 enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT + `q.geom_mvt IS NOT NULL`, D-04 `srid` ST_SetSRID branch) + `_run_mvt`/`_arun_mvt` runners (D-05 always `bytes`, `None`→`b""`) + `as_mvt` on both accessors + SQL-shape/multi-arg-injection/bytes-routing tests + dependency-free MVT decoder + live decode-to-feature-count + empty-tile `b""` — SPAT2-12
 
 **Wave 3** *(blocked on Waves 1-2; parity acceptance + docs + surface gate)*
 
@@ -382,7 +382,7 @@ Plans:
 | 41. API Homogenization | v1.0.0 | 5/5 | Complete    | 2026-06-28 |
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
-| 44. Spatial v2 — Serialization + MVT | v1.0.0 | 1/3 | In Progress|  |
+| 44. Spatial v2 — Serialization + MVT | v1.0.0 | 2/3 | In Progress|  |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 0/? | Not started | - |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 0/? | Not started | - |
 | 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |

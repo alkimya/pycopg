@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Completed 44-01-PLAN.md (as_geojson + as_text scalar serializers)
-last_updated: "2026-06-30T06:47:56.357Z"
+stopped_at: Completed 44-02-PLAN.md (as_mvt builder, bytea runners, live integration tests)
+last_updated: "2026-06-30T07:02:00.000Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 14
-  completed_plans: 12
-  percent: 86
+  completed_plans: 13
+  percent: 43
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 44 (spatial-v2-serialization-mvt) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-30
 
@@ -71,6 +71,7 @@ Last activity: 2026-06-30
 | Phase 43 P02 | 5 minutes | 2 tasks | 2 files |
 | Phase 43 P03 | 5 minutes | 3 tasks | 5 files |
 | Phase 44 P01 | 5min | 2 tasks | 2 files |
+| Phase 44 P02 | 7min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 44-01: D-06 options bitmask for ST_AsGeoJSON (include_bbox bit1 + include_crs bit2), frozen geojson result key
 - [Phase ?]: Phase 44-01: D-07 conditional ST_AsText precision — None=one-arg full precision, set=two-arg; frozen wkt result key
 - [Phase ?]: Phase 44-01: D-09 born-clean filter= only (no where= shim) + D-10 same-change KIND parity confirmed on as_geojson/as_text
+- [Phase 44-02]: D-03 enforced: build_mvt_sql always emits ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline; outer q.geom_mvt IS NOT NULL; no raw-geometry shortcut; AS mvt alias; params=[layer_name, ext] only
+- [Phase 44-02]: D-05: _run_mvt/_arun_mvt always return bytes; memoryview coerced, None→b""; never None/memoryview
+- [Phase 44-02]: D-09 + no _SCALAR_HELPERS + no _HELPER_CALLS: as_mvt born-clean, bytes-only, dedicated runners; criterion #2 live proof via pure-Python _count_mvt_features decoder
 
 ### Pending Todos
 
@@ -133,11 +137,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-30T06:47:56.337Z
-Stopped at: Completed 44-01-PLAN.md (as_geojson + as_text scalar serializers)
+Last session: 2026-06-30T07:02:00.000Z
+Stopped at: Completed 44-02-PLAN.md (as_mvt builder, bytea runners, live integration tests)
 Resume file: None
-Next action: Plan Phase 44 with `/gsd-plan-phase 44`
+Next action: Execute Phase 44 Plan 03 (parity test)
 
 ## Operator Next Steps
 
-- Plan Phase 44 (Spatial v2 — Serialization + MVT) with `/gsd-plan-phase 44`
+- Execute Phase 44 Plan 03 (parity surface test for serialization methods)

@@ -36,7 +36,7 @@ New GROUP BY aggregate builder shape (one row per group; optional `group_by`). D
 
 - [x] **SPAT2-10**: User can serialize geometries to GeoJSON via `db.spatial.as_geojson(table, geom, max_decimal_digits=6, ...)` (ST_AsGeoJSON; text return)
 - [x] **SPAT2-11**: User can serialize geometries to WKT via `db.spatial.as_text(table, geom, ...)` (ST_AsText; text return)
-- [ ] **SPAT2-12**: User can render a Mapbox Vector Tile via `db.spatial.as_mvt(table, geom, tile_z, tile_x, tile_y, ...)` returning `bytes` (enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline; no raw-geometry shortcut)
+- [x] **SPAT2-12**: User can render a Mapbox Vector Tile via `db.spatial.as_mvt(table, geom, tile_z, tile_x, tile_y, ...)` returning `bytes` (enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline; no raw-geometry shortcut)
 - [ ] **SPAT2-13**: Every new spatial v2 method has a working, tested `AsyncDatabase` equivalent at full parity (`test_accessor_parity`); every new builder runs `validate_identifiers` first with a dedicated injection test
 
 ### Transaction Control
@@ -132,7 +132,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SPAT2-09 | Phase 43 | Complete |
 | SPAT2-10 | Phase 44 | Complete |
 | SPAT2-11 | Phase 44 | Complete |
-| SPAT2-12 | Phase 44 | Pending |
+| SPAT2-12 | Phase 44 | Complete |
 | SPAT2-13 | Phase 44 | Pending |
 | TXN-01 | Phase 45 | Pending |
 | TXN-02 | Phase 45 | Pending |
