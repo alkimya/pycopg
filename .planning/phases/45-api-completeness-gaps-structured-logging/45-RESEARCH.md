@@ -638,17 +638,19 @@ The following sites require `log_operation` wrapping (D-09 — coarse only):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`to_dataframe` `:name` vs `%(name)s` param style**
    - What we know: `to_dataframe` already accepts `dict | None`; it routes through SQLAlchemy `text()`.
    - What's unclear: Does the existing implementation use SQLAlchemy's `:name` bindparams style, or does it pass the dict directly to psycopg? Needs one targeted test.
    - Recommendation: Add a test in Wave 0 that calls `to_dataframe(sql="SELECT :val", params={"val": 1})` and confirms it works, before widening the annotation.
+   - **RESOLVED (planning):** `to_dataframe` uses the SQLAlchemy `:name` style (it binds through `text()`), distinct from the `%(name)s` style of `execute`/`fetch_*`. This is confirmed by the targeted test `test_to_dataframe_named_style` in Plan 03 Task 1 and documented in the method's widened-annotation docstring. NO translator/`_rewrite_named_params` is built (D-12 lock holds); the annotation is widened to `Params` and the divergence is documented, not papered over.
 
 2. **`AsyncPooledDatabase.stats` missing `requests_num`**
    - What we know: The sync `PooledDatabase.stats` includes `requests_num` (line 214) but the async `AsyncPooledDatabase.stats` (lines 422-431) only has 5 keys (no `requests_num`). This is a pre-existing asymmetry.
    - What's unclear: Should `pooled health()` on async use the async `.stats` (which lacks `requests_num`) or should the async stats be fixed as a pre-req?
    - Recommendation: Do not fix the async stats asymmetry in this phase (out of scope). Use `self.stats` verbatim on both pooled classes; the shape difference is pre-existing and documented.
+   - **RESOLVED (planning):** Pre-existing asymmetry left AS-IS (out of scope for Phase 45). Both pooled classes' `health()` use `self.stats` verbatim for the `pool_stats` key (Plan 03 Task 2); the async shape simply lacks `requests_num`, which is acceptable and documented. No pool plumbing changes.
 
 ---
 
