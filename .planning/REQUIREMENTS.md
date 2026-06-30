@@ -49,7 +49,7 @@ Additive to the flat transactional core (`db.transaction`/`db.session`), full sy
 ### API Ergonomics & Observability
 
 - [x] **PARAM-01**: User can pass named query parameters as a dict using psycopg3-native `%(name)s` placeholders on `execute`/`fetch_one`/`fetch_val`/`fetch_all`/`to_dataframe`, documented and type-annotated (no `:name` translator — decided 2026-06-27)
-- [ ] **HEALTH-01**: User can probe connection/pool health via `db.health()` returning `{connected, latency_ms, server_version}` (plus pool stats when pooled), sync + async
+- [x] **HEALTH-01**: User can probe connection/pool health via `db.health()` returning `{connected, latency_ms, server_version}` (plus pool stats when pooled), sync + async
 - [x] **LOG-01**: User can enable structured logging of pycopg operations via stdlib `logging` (new `pycopg/logging.py`: `NullHandler` default, `get_logger` + `log_operation` context manager with `extra={}` fields), zero new runtime deps
 
 ### API Freeze & Homogenization
@@ -137,7 +137,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | TXN-01 | Phase 45 | Complete |
 | TXN-02 | Phase 45 | Complete |
 | PARAM-01 | Phase 45 | Complete |
-| HEALTH-01 | Phase 45 | Pending |
+| HEALTH-01 | Phase 45 | Complete |
 | LOG-01 | Phase 45 | Complete |
 | FREEZE-01 | Phase 41 | Complete |
 | FREEZE-02 | Phase 41 | Complete |
