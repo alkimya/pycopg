@@ -808,6 +808,30 @@ class TestGuard:
         with pytest.raises(ValueError, match="into must be one of"):
             acc.contains("parcels", point=(1, 2), into="query")
 
+    def test_sync_as_geojson_gdf_raises(self):
+        """as_geojson with into='gdf' raises ValueError (D-08, scalar)."""
+        acc = SpatialAccessor(_FakeSyncDb(has_postgis=True))
+        with pytest.raises(ValueError, match="into='gdf' is invalid for as_geojson"):
+            acc.as_geojson("parcels", into="gdf")
+
+    def test_sync_as_text_gdf_raises(self):
+        """as_text with into='gdf' raises ValueError (D-08, scalar)."""
+        acc = SpatialAccessor(_FakeSyncDb(has_postgis=True))
+        with pytest.raises(ValueError, match="into='gdf' is invalid for as_text"):
+            acc.as_text("parcels", into="gdf")
+
+    async def test_async_as_geojson_gdf_raises(self):
+        """Async as_geojson with into='gdf' raises ValueError (D-08, scalar)."""
+        acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=True))
+        with pytest.raises(ValueError, match="into='gdf' is invalid for as_geojson"):
+            await acc.as_geojson("parcels", into="gdf")
+
+    async def test_async_as_text_gdf_raises(self):
+        """Async as_text with into='gdf' raises ValueError (D-08, scalar)."""
+        acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=True))
+        with pytest.raises(ValueError, match="into='gdf' is invalid for as_text"):
+            await acc.as_text("parcels", into="gdf")
+
 
 def _uniq(prefix):
     """Generate a unique lowercase table name for integration tests."""
@@ -1383,6 +1407,59 @@ class TestIntegration:
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
+    def test_as_geojson_returns_geojson_string(self, sdb):
+        """as_geojson rows carry a 'geojson' key that is a JSON string with 'type'."""
+        t = _uniq("spat_geojson")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.as_geojson(t, columns=["id"], order_by="id")
+            assert len(rows) == 3
+            for row in rows:
+                assert "geojson" in row
+                assert isinstance(row["geojson"], str)
+                parsed = json.loads(row["geojson"])
+                assert "type" in parsed
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_as_text_returns_wkt_string(self, sdb):
+        """as_text rows carry a 'wkt' key that is a WKT string starting with POINT."""
+        t = _uniq("spat_wkt")
+        try:
+            self._make_points(sdb, t)
+            rows = sdb.spatial.as_text(t, columns=["id"], order_by="id")
+            assert len(rows) == 3
+            for row in rows:
+                assert "wkt" in row
+                assert isinstance(row["wkt"], str)
+                assert row["wkt"].startswith("POINT")
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_async_as_geojson_returns_geojson_string(self, sdb, db_config):
+        """Async as_geojson rows carry a 'geojson' key (parity proof, SPAT2-13)."""
+        from pycopg import AsyncDatabase
+
+        adb = AsyncDatabase(db_config)
+        t = _uniq("spat_async_geojson")
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Point, 4326))",
+                autocommit=True,
+            )
+            await adb.execute(
+                f'INSERT INTO "{t}" VALUES ' "(1, ST_GeomFromText('POINT(0 0)', 4326))",
+                autocommit=True,
+            )
+            rows = await adb.spatial.as_geojson(t, columns=["id"])
+            assert len(rows) == 1
+            assert "geojson" in rows[0]
+            parsed = json.loads(rows[0]["geojson"])
+            assert "type" in parsed
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
 
 class _SyncSchemaStub:
     """Minimal schema stub so SpatialAccessor.__init__ passes without a real DB."""
@@ -1457,6 +1534,8 @@ _HELPER_CALLS = [
     ("collect_geometries", {}),
     ("union_aggregate", {}),
     ("extent", {}),
+    ("as_geojson", {}),
+    ("as_text", {}),
 ]
 
 # Geometry-returning helpers valid for into="gdf", with expected geom column.

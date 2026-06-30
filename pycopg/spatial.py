@@ -1923,7 +1923,9 @@ def build_extent_sql(
 
 #: Helpers whose result set has no geometry column — ``into="gdf"`` is
 #: rejected for these (D-02).
-_SCALAR_HELPERS = frozenset({"area", "perimeter", "distance", "centroid"})
+_SCALAR_HELPERS = frozenset(
+    {"area", "perimeter", "distance", "centroid", "as_geojson", "as_text"}
+)
 
 #: Accepted ``into=`` values (D-01; ``into="query"`` deferred to the ETL
 #: milestone).
@@ -2821,6 +2823,155 @@ class SpatialAccessor:
             table,
             geom=geom,
             schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def as_geojson(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        max_decimal_digits: int = 6,
+        include_bbox: bool = False,
+        include_crs: bool = False,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their geometry serialized as a GeoJSON string.
+
+        Scalar result (``geojson`` column containing a JSON string);
+        ``into="gdf"`` raises ``ValueError`` per D-08. Callers use
+        ``json.loads(row["geojson"])`` when a dict is needed (D-06).
+
+        Born-clean ``filter=`` only — no ``where=`` deprecated alias
+        (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        max_decimal_digits : int, optional
+            Maximum decimal digits in coordinates, by default 6 (D-06).
+        include_bbox : bool, optional
+            Include bounding box in GeoJSON output (options bit 1), by
+            default False (D-06).
+        include_crs : bool, optional
+            Include short CRS name in GeoJSON output (options bit 2), by
+            default False (D-06).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-08).
+        columns : list of str, optional
+            Columns to select alongside the GeoJSON text (D-08).
+        filter : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``geojson`` column (JSON string).
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper, D-08).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "as_geojson")
+        sql, params = build_geojson_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            max_decimal_digits=max_decimal_digits,
+            include_bbox=include_bbox,
+            include_crs=include_crs,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    def as_text(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        max_decimal_digits: int | None = None,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their geometry serialized as a WKT string.
+
+        Scalar result (``wkt`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-08. Defaults to full precision
+        (``max_decimal_digits=None``) — WKT is for exact interchange and
+        round-trip use; silent truncation would be a data loss (D-07).
+
+        Born-clean ``filter=`` only — no ``where=`` deprecated alias
+        (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        max_decimal_digits : int or None, optional
+            Maximum decimal digits in coordinates, by default ``None``
+            (full precision, one-arg ``ST_AsText``). When set, two-arg
+            form is used (D-07).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-08).
+        columns : list of str, optional
+            Columns to select alongside the WKT text (D-08).
+        filter : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``wkt`` column (WKT string).
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper, D-08).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "as_text")
+        sql, params = build_text_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            max_decimal_digits=max_decimal_digits,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -4609,6 +4760,161 @@ class AsyncSpatialAccessor:
             table,
             geom=geom,
             schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def as_geojson(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        max_decimal_digits: int = 6,
+        include_bbox: bool = False,
+        include_crs: bool = False,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their geometry serialized as a GeoJSON string (async).
+
+        Scalar result (``geojson`` column containing a JSON string);
+        ``into="gdf"`` raises ``ValueError`` per D-08. Callers use
+        ``json.loads(row["geojson"])`` when a dict is needed (D-06).
+
+        Born-clean ``filter=`` only — no ``where=`` deprecated alias
+        (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        max_decimal_digits : int, optional
+            Maximum decimal digits in coordinates, by default 6 (D-06).
+        include_bbox : bool, optional
+            Include bounding box in GeoJSON output (options bit 1), by
+            default False (D-06).
+        include_crs : bool, optional
+            Include short CRS name in GeoJSON output (options bit 2), by
+            default False (D-06).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-08).
+        columns : list of str, optional
+            Columns to select alongside the GeoJSON text (D-08).
+        filter : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``geojson`` column (JSON string).
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper, D-08).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "as_geojson")
+        sql, params = build_geojson_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            max_decimal_digits=max_decimal_digits,
+            include_bbox=include_bbox,
+            include_crs=include_crs,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    async def as_text(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        max_decimal_digits: int | None = None,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Select rows with their geometry serialized as a WKT string (async).
+
+        Scalar result (``wkt`` column); ``into="gdf"`` raises
+        ``ValueError`` per D-08. Defaults to full precision
+        (``max_decimal_digits=None``) — WKT is for exact interchange and
+        round-trip use; silent truncation would be a data loss (D-07).
+
+        Born-clean ``filter=`` only — no ``where=`` deprecated alias
+        (D-09).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        max_decimal_digits : int or None, optional
+            Maximum decimal digits in coordinates, by default ``None``
+            (full precision, one-arg ``ST_AsText``). When set, two-arg
+            form is used (D-07).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-08).
+        columns : list of str, optional
+            Columns to select alongside the WKT text (D-08).
+        filter : str, optional
+            Raw SQL filter fragment (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``wkt`` column (WKT string).
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper, D-08).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "as_text")
+        sql, params = build_text_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            max_decimal_digits=max_decimal_digits,
             columns=columns,
             filter=filter,
             order_by=order_by,
