@@ -6,6 +6,7 @@ Provides sync and async connection pools using psycopg_pool.
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 from contextlib import asynccontextmanager, contextmanager
 from typing import TYPE_CHECKING, Any
@@ -13,7 +14,9 @@ from typing import TYPE_CHECKING, Any
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool, ConnectionPool
 
+from pycopg.base import _decode_server_version
 from pycopg.config import Config
+from pycopg.logging import log_operation
 
 if TYPE_CHECKING:
     import psycopg
@@ -213,6 +216,74 @@ class PooledDatabase:
             "requests_waiting": self._pool.get_stats().get("requests_waiting", 0),
             "requests_num": self._pool.get_stats().get("requests_num", 0),
         }
+
+    def health(self) -> dict[str, Any]:
+        """Return a health-check dict for this pooled database connection.
+
+        Acquires a connection from the pool, executes ``SELECT 1``, and
+        measures the round-trip latency.  The method **never raises** — on
+        any failure it returns a dict with ``connected=False`` and the
+        exception message in the ``error`` key.  The ``pool_stats`` key
+        provides a snapshot of pool metrics sourced from :attr:`stats`.
+
+        Returns
+        -------
+        dict
+            On success::
+
+                {
+                    "connected": True,
+                    "latency_ms": <float>,
+                    "server_version": "<str>",
+                    "pool_stats": <dict>,
+                }
+
+            On failure::
+
+                {
+                    "connected": False,
+                    "latency_ms": None,
+                    "server_version": None,
+                    "error": "<exception message>",
+                    "pool_stats": None,
+                }
+
+        Notes
+        -----
+        Wrapped in ``log_operation("database.health")`` (D-09).  The
+        ``error`` string is the raw psycopg exception message — credentials
+        are never appended (T-45-07).
+
+        Examples
+        --------
+        >>> status = pool_db.health()
+        >>> status["connected"]
+        True
+        >>> "pool_stats" in status
+        True
+        """
+        with log_operation("database.health"):
+            try:
+                t0 = time.perf_counter()
+                with self.connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                    server_ver_int = conn.info.server_version
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                return {
+                    "connected": True,
+                    "latency_ms": latency_ms,
+                    "server_version": _decode_server_version(server_ver_int),
+                    "pool_stats": self.stats,
+                }
+            except Exception as exc:
+                return {
+                    "connected": False,
+                    "latency_ms": None,
+                    "server_version": None,
+                    "error": str(exc),
+                    "pool_stats": None,
+                }
 
     def resize(self, min_size: int, max_size: int) -> None:
         """Resize the pool.
@@ -429,6 +500,74 @@ class AsyncPooledDatabase:
             "pool_available": self._pool.get_stats().get("pool_available", 0),
             "requests_waiting": self._pool.get_stats().get("requests_waiting", 0),
         }
+
+    async def health(self) -> dict[str, Any]:
+        """Return a health-check dict for this async pooled database connection.
+
+        Acquires a connection from the pool, executes ``SELECT 1``, and
+        measures the round-trip latency.  The method **never raises** — on
+        any failure it returns a dict with ``connected=False`` and the
+        exception message in the ``error`` key.  The ``pool_stats`` key
+        provides a snapshot of pool metrics sourced from :attr:`stats`.
+
+        Returns
+        -------
+        dict
+            On success::
+
+                {
+                    "connected": True,
+                    "latency_ms": <float>,
+                    "server_version": "<str>",
+                    "pool_stats": <dict>,
+                }
+
+            On failure::
+
+                {
+                    "connected": False,
+                    "latency_ms": None,
+                    "server_version": None,
+                    "error": "<exception message>",
+                    "pool_stats": None,
+                }
+
+        Notes
+        -----
+        Wrapped in ``log_operation("database.health")`` (D-09).  The
+        ``error`` string is the raw psycopg exception message — credentials
+        are never appended (T-45-07).
+
+        Examples
+        --------
+        >>> status = await async_pool_db.health()
+        >>> status["connected"]
+        True
+        >>> "pool_stats" in status
+        True
+        """
+        with log_operation("database.health"):
+            try:
+                t0 = time.perf_counter()
+                async with self.connection() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("SELECT 1")
+                    server_ver_int = conn.info.server_version
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                return {
+                    "connected": True,
+                    "latency_ms": latency_ms,
+                    "server_version": _decode_server_version(server_ver_int),
+                    "pool_stats": self.stats,
+                }
+            except Exception as exc:
+                return {
+                    "connected": False,
+                    "latency_ms": None,
+                    "server_version": None,
+                    "error": str(exc),
+                    "pool_stats": None,
+                }
 
     def resize(self, min_size: int, max_size: int) -> None:
         """Resize the pool."""

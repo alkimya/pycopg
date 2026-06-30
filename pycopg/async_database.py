@@ -7,6 +7,7 @@ Provides async/await interface for PostgreSQL operations using psycopg's async s
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -29,9 +30,11 @@ from pycopg.base import (
     DatabaseBase,
     Params,
     QueryMixin,
+    _decode_server_version,
 )
 from pycopg.config import Config
 from pycopg.exceptions import DatabaseExistsError, ExtensionNotAvailableError
+from pycopg.logging import log_operation
 from pycopg.utils import (
     validate_identifier,
     validate_identifiers,
@@ -637,6 +640,68 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             )
         async with self._session_conn.transaction(savepoint_name=name):
             yield
+
+    async def health(self) -> dict[str, Any]:
+        """Return a health-check dict for this database connection.
+
+        Opens a fresh async connection, executes ``SELECT 1``, and measures
+        the round-trip latency.  The method **never raises** — on any failure
+        it returns a dict with ``connected=False`` and the exception message
+        in the ``error`` key, so monitoring loops can call it unconditionally.
+
+        Returns
+        -------
+        dict
+            On success::
+
+                {
+                    "connected": True,
+                    "latency_ms": <float>,       # round-trip in milliseconds
+                    "server_version": "<str>",   # e.g. "16.1"
+                }
+
+            On failure::
+
+                {
+                    "connected": False,
+                    "latency_ms": None,
+                    "server_version": None,
+                    "error": "<exception message>",
+                }
+
+        Notes
+        -----
+        The method is wrapped in ``log_operation("database.health")`` so
+        monitoring probes appear in the structured log stream (D-09).
+        The ``error`` string is the raw psycopg exception message — pycopg
+        never appends the DSN, password, or credentials (T-45-07).
+
+        Examples
+        --------
+        >>> status = await db.health()
+        >>> status["connected"]
+        True
+        """
+        with log_operation("database.health"):
+            try:
+                t0 = time.perf_counter()
+                async with self.connect() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("SELECT 1")
+                    server_ver_int = conn.info.server_version
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                return {
+                    "connected": True,
+                    "latency_ms": latency_ms,
+                    "server_version": _decode_server_version(server_ver_int),
+                }
+            except Exception as exc:
+                return {
+                    "connected": False,
+                    "latency_ms": None,
+                    "server_version": None,
+                    "error": str(exc),
+                }
 
     @asynccontextmanager
     async def transaction(
