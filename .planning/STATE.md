@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Completed 44-02-PLAN.md (as_mvt builder, bytea runners, live integration tests)
-last_updated: "2026-06-30T07:02:00.000Z"
+stopped_at: Completed 44-03-PLAN.md (SPAT2-13 parity acceptance: serialization surface test + docs)
+last_updated: "2026-06-30T07:09:00.000Z"
 last_activity: 2026-06-30
 progress:
   total_phases: 7
@@ -22,13 +22,13 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 44 — spatial-v2-serialization-mvt
+**Current focus:** Phase 44 — spatial-v2-serialization-mvt (COMPLETE) → Phase 45 next
 
 ## Current Position
 
-Phase: 44 (spatial-v2-serialization-mvt) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
+Phase: 44 (spatial-v2-serialization-mvt) — COMPLETE
+Plan: 3 of 3 (all plans done)
+Status: Phase complete — ready for Phase 45
 Last activity: 2026-06-30
 
 ## Performance Metrics
@@ -72,6 +72,7 @@ Last activity: 2026-06-30
 | Phase 43 P03 | 5 minutes | 3 tasks | 5 files |
 | Phase 44 P01 | 5min | 2 tasks | 2 files |
 | Phase 44 P02 | 7min | 3 tasks | 2 files |
+| Phase 44 P03 | 4min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 44-02]: D-03 enforced: build_mvt_sql always emits ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline; outer q.geom_mvt IS NOT NULL; no raw-geometry shortcut; AS mvt alias; params=[layer_name, ext] only
 - [Phase 44-02]: D-05: _run_mvt/_arun_mvt always return bytes; memoryview coerced, None→b""; never None/memoryview
 - [Phase 44-02]: D-09 + no _SCALAR_HELPERS + no _HELPER_CALLS: as_mvt born-clean, bytes-only, dedicated runners; criterion #2 live proof via pure-Python _count_mvt_features decoder
+- [Phase 44-03]: SPAT2-13 finalized: test_spatial_serialization_surface (named frozenset) + test_accessor_parity (auto-extend) + test_accessor_parameter_kind_parity (KIND-parity) assert full P42+P43+P44 surface on both accessors; docs/api-reference + stability + spatial guide + README all updated with born-clean filter= (22→25 methods)
 
 ### Pending Todos
 
@@ -137,11 +139,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-30T07:02:00.000Z
-Stopped at: Completed 44-02-PLAN.md (as_mvt builder, bytea runners, live integration tests)
+Last session: 2026-06-30T07:09:00.000Z
+Stopped at: Completed 44-03-PLAN.md (SPAT2-13 parity acceptance: serialization surface test + docs)
 Resume file: None
-Next action: Execute Phase 44 Plan 03 (parity test)
+Next action: Execute Phase 45 (API Completeness Gaps + Structured Logging)
 
 ## Operator Next Steps
 
-- Execute Phase 44 Plan 03 (parity surface test for serialization methods)
+- Execute Phase 45 (API Completeness Gaps + Structured Logging)
