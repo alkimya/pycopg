@@ -526,7 +526,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                 async with conn.cursor(row_factory=dict_row) as cur:
                     yield cur
                     if not autocommit:
-                        await conn.commit()
+                        if conn.info.transaction_status == TransactionStatus.INERROR:
+                            await conn.rollback()
+                        else:
+                            await conn.commit()
 
     @asynccontextmanager
     async def session(

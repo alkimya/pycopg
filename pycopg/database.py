@@ -517,7 +517,10 @@ class Database(DatabaseBase, QueryMixin):
                 with conn.cursor(row_factory=dict_row) as cur:
                     yield cur
                     if not autocommit:
-                        conn.commit()
+                        if conn.info.transaction_status == TransactionStatus.INERROR:
+                            conn.rollback()
+                        else:
+                            conn.commit()
 
     @contextmanager
     def transaction(
