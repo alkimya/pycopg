@@ -2002,6 +2002,119 @@ class TestBuildMvtSql:
         assert "FROM myschema.roads AS t" in sql
 
 
+class _MvtSyncDb:
+    """Sync mock DB that returns a configurable MVT row from execute."""
+
+    def __init__(self, mvt_value=b"\x1a\x05fake"):
+        self.calls = []
+        self.mvt_value = mvt_value
+        self.schema = _SyncSchemaStub()
+
+    def has_extension(self, name):
+        return True
+
+    def execute(self, sql, params):
+        self.calls.append(("execute", sql, params))
+        return [{"mvt": self.mvt_value}]
+
+
+class _MvtAsyncDb:
+    """Async mock DB that returns a configurable MVT row from execute."""
+
+    def __init__(self, mvt_value=b"\x1a\x05fake"):
+        self.calls = []
+        self.mvt_value = mvt_value
+        self.schema = _AsyncSchemaStub()
+
+    async def has_extension(self, name):
+        return True
+
+    async def execute(self, sql, params):
+        self.calls.append(("execute", sql, params))
+        return [{"mvt": self.mvt_value}]
+
+
+class TestMvtRouting:
+    """DB-free bytes-coercion routing tests for _run_mvt/_arun_mvt and as_mvt (SPAT2-12)."""
+
+    # -- sync bytes pass-through ------------------------------------------
+
+    def test_sync_bytes_passthrough(self):
+        """as_mvt returns raw bytes from the db.execute 'mvt' cell."""
+        db = _MvtSyncDb(mvt_value=b"\x1a\x05fakebytes")
+        acc = SpatialAccessor(db)
+        result = acc.as_mvt("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert result == b"\x1a\x05fakebytes"
+        assert isinstance(result, bytes)
+
+    def test_sync_memoryview_coerced_to_bytes(self):
+        """as_mvt coerces memoryview to bytes (psycopg2 bytea compat, D-05)."""
+        db = _MvtSyncDb(mvt_value=memoryview(b"\x1a\x03abc"))
+        acc = SpatialAccessor(db)
+        result = acc.as_mvt("roads", tile_z=0, tile_x=0, tile_y=0)
+        assert isinstance(result, bytes)
+        assert result == b"\x1a\x03abc"
+
+    def test_sync_none_yields_empty_bytes(self):
+        """as_mvt maps None mvt cell to b'' (D-05 empty-tile contract)."""
+        db = _MvtSyncDb(mvt_value=None)
+        acc = SpatialAccessor(db)
+        result = acc.as_mvt("roads", tile_z=0, tile_x=0, tile_y=0)
+        assert result == b""
+        assert isinstance(result, bytes)
+
+    def test_sync_empty_bytes_value_passthrough(self):
+        """as_mvt passes through b'' from db (empty tile, D-05)."""
+        db = _MvtSyncDb(mvt_value=b"")
+        acc = SpatialAccessor(db)
+        result = acc.as_mvt("roads", tile_z=0, tile_x=0, tile_y=0)
+        assert result == b""
+
+    def test_sync_params_count_matches_placeholders(self):
+        """Number of %s placeholders in SQL matches len(params) sent to execute."""
+        db = _MvtSyncDb()
+        acc = SpatialAccessor(db)
+        acc.as_mvt("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        _, sql, params = db.calls[0]
+        assert sql.count("%s") == len(params)
+        assert len(params) == 2
+
+    # -- async bytes pass-through -----------------------------------------
+
+    async def test_async_bytes_passthrough(self):
+        """Async as_mvt returns raw bytes from the db.execute 'mvt' cell."""
+        db = _MvtAsyncDb(mvt_value=b"\x1a\x05fakebytes")
+        acc = AsyncSpatialAccessor(db)
+        result = await acc.as_mvt("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert result == b"\x1a\x05fakebytes"
+        assert isinstance(result, bytes)
+
+    async def test_async_memoryview_coerced_to_bytes(self):
+        """Async as_mvt coerces memoryview to bytes (D-05)."""
+        db = _MvtAsyncDb(mvt_value=memoryview(b"\x1a\x03abc"))
+        acc = AsyncSpatialAccessor(db)
+        result = await acc.as_mvt("roads", tile_z=0, tile_x=0, tile_y=0)
+        assert isinstance(result, bytes)
+        assert result == b"\x1a\x03abc"
+
+    async def test_async_none_yields_empty_bytes(self):
+        """Async as_mvt maps None mvt cell to b'' (D-05)."""
+        db = _MvtAsyncDb(mvt_value=None)
+        acc = AsyncSpatialAccessor(db)
+        result = await acc.as_mvt("roads", tile_z=0, tile_x=0, tile_y=0)
+        assert result == b""
+        assert isinstance(result, bytes)
+
+    async def test_async_params_count_matches_placeholders(self):
+        """Async: number of %s placeholders matches len(params) sent to execute."""
+        db = _MvtAsyncDb()
+        acc = AsyncSpatialAccessor(db)
+        await acc.as_mvt("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        _, sql, params = db.calls[0]
+        assert sql.count("%s") == len(params)
+        assert len(params) == 2
+
+
 class TestAggregateBuilders:
     """DB-free SQL-shape + injection tests for collect_geometries and union_aggregate builders."""
 

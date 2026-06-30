@@ -2206,6 +2206,31 @@ class SpatialAccessor:
             )
         return self._db.execute(sql, params)
 
+    def _run_mvt(self, sql: str, params: list) -> bytes:
+        """Execute a build_mvt_sql query and return the MVT tile as bytes.
+
+        Always returns ``bytes``: a ``memoryview`` value is coerced to
+        ``bytes``, and ``None`` (theoretically possible for a NULL
+        aggregate) is mapped to ``b""`` (D-05 empty-tile contract).
+
+        Parameters
+        ----------
+        sql : str
+            SQL from ``build_mvt_sql`` with ``%s`` placeholders.
+        params : list
+            Parameter list (``[layer_name, extent]``).
+
+        Returns
+        -------
+        bytes
+            MVT tile bytes, or ``b""`` for an empty tile.
+        """
+        rows = self._db.execute(sql, params)
+        val = rows[0]["mvt"]  # "mvt" alias set in build_mvt_sql (Pitfall 5)
+        if isinstance(val, memoryview):
+            return bytes(val)
+        return val if val is not None else b""
+
     def contains(
         self,
         table: str,
@@ -3138,6 +3163,105 @@ class SpatialAccessor:
             limit=limit,
         )
         return self._run(sql, params, into, geom)
+
+    def as_mvt(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tile_z: int,
+        tile_x: int,
+        tile_y: int,
+        layer_name: str = "default",
+        extent: int = 4096,
+        columns: list[str] | None = None,
+        feature_id_column: str | None = None,
+        srid: int | None = None,
+        filter: str | None = None,
+    ) -> bytes:
+        """Generate a Mapbox Vector Tile (MVT) for a slippy-map tile coordinate.
+
+        Returns the MVT tile as ``bytes`` (protobuf-encoded). An empty tile
+        (all geometry clips outside the tile envelope) returns ``b""`` — never
+        ``None`` or ``memoryview`` (D-05).
+
+        Born-clean ``filter=`` only — no deprecated ``where=`` alias (D-09).
+        No ``into=`` parameter (this method returns ``bytes``, not rows or a
+        GeoDataFrame, and is NOT in ``_SCALAR_HELPERS``).
+
+        The enforced pipeline (D-03)::
+
+            ST_Transform(t.geom, 3857)          # → Web Mercator
+            → ST_AsMVTGeom(…, ST_TileEnvelope(z, x, y), extent)  # clip+scale
+            → ST_AsMVT(q.*, layer_name, extent, 'geom_mvt')       # encode
+
+        SRID-0 rescue (D-04): if the geometry column stores SRID 0
+        (untagged), pass ``srid=<source_srid>`` to inject
+        ``ST_SetSRID`` before the transform::
+
+            db.spatial.as_mvt("points", tile_z=10, tile_x=512, tile_y=400, srid=4326)
+
+        ``feature_id_column`` must reference an **integer-type** column —
+        PostGIS enforces this (MVT spec requires 64-bit integer feature IDs).
+
+        Requires PostGIS ≥ 3.0 (``ST_TileEnvelope``, five-arg ``ST_AsMVT``).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        tile_z : int
+            Tile zoom level. Required keyword-only (D-02).
+        tile_x : int
+            Tile column index. Required keyword-only (D-02).
+        tile_y : int
+            Tile row index. Required keyword-only (D-02).
+        layer_name : str, optional
+            MVT layer name, by default ``"default"``.
+        extent : int, optional
+            MVT tile extent in pixel units, by default ``4096``.
+        columns : list of str, optional
+            Extra columns to include as MVT feature properties.
+        feature_id_column : str or None, optional
+            Integer-typed column to use as MVT feature ID (PostGIS
+            requirement). ``None`` (default) = no feature ID.
+        srid : int or None, optional
+            Source SRID override for SRID-0 geometry columns (D-04).
+        filter : str, optional
+            Raw SQL fragment appended as ``WHERE {filter}`` inside the
+            inner subquery (T-44-02c documented escape hatch).
+
+        Returns
+        -------
+        bytes
+            MVT protobuf tile bytes, or ``b""`` for an empty tile (D-05).
+
+        Raises
+        ------
+        InvalidIdentifierError
+            If any identifier (table, schema, geom, columns, or
+            feature_id_column) is invalid (T-44-02).
+        """
+        sql, params = build_mvt_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            tile_z=tile_z,
+            tile_x=tile_x,
+            tile_y=tile_y,
+            layer_name=layer_name,
+            extent=extent,
+            columns=columns,
+            feature_id_column=feature_id_column,
+            srid=srid,
+            filter=filter,
+        )
+        return self._run_mvt(sql, params)
 
     def buffer(
         self,
@@ -4117,6 +4241,31 @@ class AsyncSpatialAccessor:
             )
         return await self._db.execute(sql, params)
 
+    async def _arun_mvt(self, sql: str, params: list) -> bytes:
+        """Execute a build_mvt_sql query asynchronously and return MVT bytes.
+
+        Always returns ``bytes``: a ``memoryview`` value is coerced to
+        ``bytes``, and ``None`` (theoretically possible for a NULL
+        aggregate) is mapped to ``b""`` (D-05 empty-tile contract).
+
+        Parameters
+        ----------
+        sql : str
+            SQL from ``build_mvt_sql`` with ``%s`` placeholders.
+        params : list
+            Parameter list (``[layer_name, extent]``).
+
+        Returns
+        -------
+        bytes
+            MVT tile bytes, or ``b""`` for an empty tile.
+        """
+        rows = await self._db.execute(sql, params)
+        val = rows[0]["mvt"]  # "mvt" alias set in build_mvt_sql (Pitfall 5)
+        if isinstance(val, memoryview):
+            return bytes(val)
+        return val if val is not None else b""
+
     async def contains(
         self,
         table: str,
@@ -5081,6 +5230,96 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, geom)
+
+    async def as_mvt(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tile_z: int,
+        tile_x: int,
+        tile_y: int,
+        layer_name: str = "default",
+        extent: int = 4096,
+        columns: list[str] | None = None,
+        feature_id_column: str | None = None,
+        srid: int | None = None,
+        filter: str | None = None,
+    ) -> bytes:
+        """Generate a Mapbox Vector Tile (MVT) for a slippy-map tile coordinate (async).
+
+        Returns the MVT tile as ``bytes`` (protobuf-encoded). An empty tile
+        (all geometry clips outside the tile envelope) returns ``b""`` — never
+        ``None`` or ``memoryview`` (D-05).
+
+        Born-clean ``filter=`` only — no deprecated ``where=`` alias (D-09).
+        No ``into=`` parameter (this method returns ``bytes``, not rows or a
+        GeoDataFrame, and is NOT in ``_SCALAR_HELPERS``).
+
+        The enforced pipeline (D-03)::
+
+            ST_Transform(t.geom, 3857)
+            → ST_AsMVTGeom(…, ST_TileEnvelope(z, x, y), extent)
+            → ST_AsMVT(q.*, layer_name, extent, 'geom_mvt')
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default ``"geometry"``.
+        schema : str, optional
+            Schema name, by default ``"public"``.
+        tile_z : int
+            Tile zoom level. Required keyword-only (D-02).
+        tile_x : int
+            Tile column index. Required keyword-only (D-02).
+        tile_y : int
+            Tile row index. Required keyword-only (D-02).
+        layer_name : str, optional
+            MVT layer name, by default ``"default"``.
+        extent : int, optional
+            MVT tile extent in pixel units, by default ``4096``.
+        columns : list of str, optional
+            Extra columns to include as MVT feature properties.
+        feature_id_column : str or None, optional
+            Integer-typed column to use as MVT feature ID. ``None``
+            (default) = no feature ID.
+        srid : int or None, optional
+            Source SRID override for SRID-0 geometry columns (D-04).
+        filter : str, optional
+            Raw SQL fragment appended as ``WHERE {filter}`` inside the
+            inner subquery (T-44-02c documented escape hatch).
+
+        Returns
+        -------
+        bytes
+            MVT protobuf tile bytes, or ``b""`` for an empty tile (D-05).
+
+        Raises
+        ------
+        InvalidIdentifierError
+            If any identifier is invalid (T-44-02).
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        sql, params = build_mvt_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            tile_z=tile_z,
+            tile_x=tile_x,
+            tile_y=tile_y,
+            layer_name=layer_name,
+            extent=extent,
+            columns=columns,
+            feature_id_column=feature_id_column,
+            srid=srid,
+            filter=filter,
+        )
+        return await self._arun_mvt(sql, params)
 
     async def buffer(
         self,
