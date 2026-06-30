@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import psycopg
-from psycopg import AsyncConnection, AsyncCursor, OperationalError
+from psycopg import AsyncConnection, AsyncCursor, IsolationLevel, OperationalError
 from psycopg.pq import TransactionStatus
 from psycopg.rows import dict_row
 from tenacity import (
@@ -513,7 +513,12 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                         await conn.commit()
 
     @asynccontextmanager
-    async def session(self, autocommit: bool = False) -> AsyncIterator[AsyncDatabase]:
+    async def session(
+        self,
+        autocommit: bool = False,
+        *,
+        isolation_level: IsolationLevel | None = None,
+    ) -> AsyncIterator[AsyncDatabase]:
         """Async context manager for session mode with connection reuse.
 
         In session mode, all operations reuse the same connection,
@@ -523,11 +528,20 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         ----------
         autocommit : bool, optional
             Enable autocommit mode for the session, by default False.
+        isolation_level : IsolationLevel or None, optional
+            Transaction isolation level set on the session connection
+            immediately after connecting and before any transaction opens.
+            Keyword-only. When *None* (default), the server default is used.
 
         Yields
         ------
         AsyncDatabase
             Self (AsyncDatabase instance with active session).
+
+        Raises
+        ------
+        RuntimeError
+            If already inside an active session.
         """
         if self._session_conn is not None:
             raise RuntimeError(
@@ -537,6 +551,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         self._session_conn = await psycopg.AsyncConnection.connect(
             **self.config.connect_params(), autocommit=autocommit
         )
+        if isolation_level is not None:
+            self._session_conn.isolation_level = isolation_level
         try:
             yield self
         finally:
@@ -578,25 +594,58 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         return self._session_conn is not None
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncIterator[AsyncConnection]:
+    async def transaction(
+        self,
+        *,
+        isolation_level: IsolationLevel | None = None,
+        savepoint_name: str | None = None,
+    ) -> AsyncIterator[AsyncConnection]:
         """Async context manager for transactions.
 
         Automatically commits on success, rolls back on exception.
         If a session is active, reuses the session connection.
 
+        Parameters
+        ----------
+        isolation_level : IsolationLevel or None, optional
+            Transaction isolation level (e.g. ``IsolationLevel.SERIALIZABLE``).
+            Keyword-only. When *None* (default), the server default is used.
+            Raises ``RuntimeError`` if called inside an active ``db.session()``
+            (cannot change isolation mid-session — use
+            ``db.session(isolation_level=...)`` instead).
+        savepoint_name : str or None, optional
+            Named savepoint to open via psycopg's native
+            ``conn.transaction(savepoint_name=...)`` API. Keyword-only.
+            When *None* (default), no savepoint is created. Inside a session,
+            this creates a nested savepoint without unwinding the outer
+            transaction.
+
         Yields
         ------
         AsyncConnection
             psycopg AsyncConnection in a transaction.
+
+        Raises
+        ------
+        RuntimeError
+            If ``isolation_level`` is set while inside an active
+            ``db.session()``.
         """
         if self._session_conn is not None:
             # Reuse existing session connection
-            async with self._session_conn.transaction():
+            if isolation_level is not None:
+                raise RuntimeError(
+                    "Cannot set isolation_level inside an active db.session(). "
+                    "Set isolation_level on db.session(isolation_level=...) instead."
+                )
+            async with self._session_conn.transaction(savepoint_name=savepoint_name):
                 yield self._session_conn
         else:
             # Create new connection
             async with self.connect() as conn:
-                async with conn.transaction():
+                if isolation_level is not None:
+                    conn.isolation_level = isolation_level
+                async with conn.transaction(savepoint_name=savepoint_name):
                     yield conn
 
     async def execute(
