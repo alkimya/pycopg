@@ -124,7 +124,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 - [x] **Phase 42: Spatial v2 — Processing Helpers** — `union`, `simplify`, `convex_hull`, `make_valid`, `difference`, `intersection` on `SpatialAccessor` + `AsyncSpatialAccessor`; all builders use `filter=`; `validate_identifiers` first + injection tests; sync/async parity enforced by `test_accessor_parity` (completed 2026-06-29)
 - [x] **Phase 43: Spatial v2 — Spatial Aggregates** — `collect_geometries`, `union_aggregate`, `extent` (GROUP BY aggregate builder shape); NULL-propagation documented and tested; `into="gdf"` box2d→geometry for `extent`; parity + injection tests (completed 2026-06-29)
 - [x] **Phase 44: Spatial v2 — Serialization + MVT** — `as_geojson`, `as_text` in `_SCALAR_HELPERS`; `as_mvt` returning `bytes` (ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline enforced); full sync/async parity + injection tests; SPAT2-13 parity acceptance finalized across spatial phases (completed 2026-06-30)
-- [ ] **Phase 45: API Completeness Gaps + Structured Logging** — `db.transaction(isolation_level=, savepoint_name=)` + `db.session(isolation_level=)` + `db.savepoint()` context manager; `%(name)s` named params documented and type-annotated; `db.health()` (latency + server_version + pool_stats); `pycopg/logging.py` + `log_operation` context manager
+- [x] **Phase 45: API Completeness Gaps + Structured Logging** — `db.transaction(isolation_level=, savepoint_name=)` + `db.session(isolation_level=)` + `db.savepoint()` context manager; `%(name)s` named params documented and type-annotated; `db.health()` (latency + server_version + pool_stats); `pycopg/logging.py` + `log_operation` context manager (completed 2026-06-30)
 - [ ] **Phase 46: mypy Strict + py.typed Gate** — `strict=true` blocking in CI; 3 dev-group stubs (pandas-stubs, types-geopandas, types-shapely); `@overload` on all `into=` methods; measure error count first, fix bottom-up; zero strict errors over `pycopg/`; coverage ratchet held ≥95%
 - [ ] **Phase 47: Release v1.0.0** — version bump (all sources), CHANGELOG `[1.0.0]` Breaking + Added, MIGRATION guide complete, all 5 gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` exit 0), tag `v1.0.0` + human-gated OIDC PyPI publish + clean-venv smoke
 
@@ -383,6 +383,6 @@ Plans:
 | 42. Spatial v2 — Processing Helpers | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
-| 45. API Completeness Gaps + Structured Logging | v1.0.0 | 3/4 | In Progress|  |
+| 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete   | 2026-06-30 |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 0/? | Not started | - |
 | 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |

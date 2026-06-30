@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: executing
-stopped_at: Phase 45 Plan 03 complete — PARAM-01 params widening + HEALTH-01 health probe on all four classes
-last_updated: "2026-06-30T18:40:48.214Z"
+status: verifying
+stopped_at: Phase 45 Plan 04 complete — LOG-01 coarse instrumentation (D-09) fully applied
+last_updated: "2026-06-30T18:58:59.925Z"
 last_activity: 2026-06-30 -- Phase 45 execution started
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 18
-  completed_plans: 17
-  percent: 57
+  completed_plans: 18
+  percent: 71
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 Phase: 45 (api-completeness-gaps-structured-logging) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-30 -- Phase 45 execution started
 
 ## Performance Metrics
@@ -76,6 +76,7 @@ Last activity: 2026-06-30 -- Phase 45 execution started
 | Phase 45 P01 | 6m | 2 tasks | 4 files |
 | Phase 45 P02 | 46 | 2 tasks | 4 files |
 | Phase 45 P03 | 9min | 2 tasks | 5 files |
+| Phase 45 P04 | 12 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: PARAM-01 D-12: params annotation widened to Params alias on 5 methods x 2 classes; no translator built; dict %(name)s works natively via psycopg
 - [Phase ?]: HEALTH-01 D-05/D-07: health() never-raises on all four classes; pooled adds pool_stats from self.stats @property; server_version via _decode_server_version; wrapped in log_operation
 - [Phase ?]: RESEARCH Q1 resolved: to_dataframe uses SQLAlchemy :name colon style; divergence documented in docstring + confirmed by test_to_dataframe_named_style
+- [Phase ?]: D-09 LOG-01 complete: 13 coarse instrumentation sites wrapped; rows=None fallback for etl.run and migrations.migrate; rows=len(df/gdf) for COPY paths
 
 ### Pending Todos
 
@@ -148,8 +150,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-30T18:40:48.205Z
-Stopped at: Phase 45 Plan 03 complete — PARAM-01 params widening + HEALTH-01 health probe on all four classes
+Last session: 2026-06-30T18:58:59.912Z
+Stopped at: Phase 45 Plan 04 complete — LOG-01 coarse instrumentation (D-09) fully applied
 Resume file: None
 Next action: Execute Phase 45 (API Completeness Gaps + Structured Logging)
 
