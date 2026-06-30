@@ -9,9 +9,10 @@ Tests cover:
 
 from __future__ import annotations
 
+import ast
+import inspect
 import logging
-
-import pytest
+import time
 
 from pycopg.logging import get_logger, log_operation
 
@@ -66,16 +67,12 @@ class TestLogOperation:
 
     def test_log_operation_rows_is_kwonly(self):
         """rows parameter must be keyword-only."""
-        import inspect
-
         sig = inspect.signature(log_operation)
         rows_param = sig.parameters["rows"]
         assert rows_param.kind == inspect.Parameter.KEYWORD_ONLY
 
     def test_log_operation_duration_is_positive(self, caplog):
         """duration_ms must be a non-negative float."""
-        import time
-
         with caplog.at_level(logging.DEBUG, logger="pycopg"):
             with log_operation("t.timing"):
                 time.sleep(0.001)
@@ -85,8 +82,6 @@ class TestLogOperation:
 
     def test_log_operation_no_basicconfig_call(self):
         """log_operation must never call logging.basicConfig()."""
-        import ast
-        import inspect
         import pycopg.logging as logging_mod
 
         source = inspect.getsource(logging_mod)
@@ -124,8 +119,6 @@ class TestNullHandlerSilence:
 
     def test_module_does_not_call_basicconfig(self):
         """pycopg/logging.py must not contain any logging.basicConfig() call."""
-        import ast
-        import inspect
         import pycopg.logging as logging_mod
 
         source = inspect.getsource(logging_mod)
