@@ -85,10 +85,20 @@ class TestLogOperation:
 
     def test_log_operation_no_basicconfig_call(self):
         """log_operation must never call logging.basicConfig()."""
+        import ast
+        import inspect
         import pycopg.logging as logging_mod
 
-        source = __import__("inspect").getsource(logging_mod)
-        assert "basicConfig" not in source
+        source = inspect.getsource(logging_mod)
+        tree = ast.parse(source)
+        # Walk the AST to find actual basicConfig calls (not mentions in comments/docstrings)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and func.attr == "basicConfig":
+                    raise AssertionError(
+                        "pycopg/logging.py must not call logging.basicConfig()"
+                    )
 
 
 class TestNullHandlerSilence:
@@ -114,8 +124,16 @@ class TestNullHandlerSilence:
 
     def test_module_does_not_call_basicconfig(self):
         """pycopg/logging.py must not contain any logging.basicConfig() call."""
-        import pycopg.logging as logging_mod
+        import ast
         import inspect
+        import pycopg.logging as logging_mod
 
         source = inspect.getsource(logging_mod)
-        assert "basicConfig" not in source
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Attribute) and func.attr == "basicConfig":
+                    raise AssertionError(
+                        "pycopg/logging.py must not call logging.basicConfig()"
+                    )
