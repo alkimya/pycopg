@@ -10,11 +10,9 @@ Covers:
 from __future__ import annotations
 
 import pytest
-import pytest_asyncio
 
 import pycopg
-from pycopg import AsyncDatabase, Database, IsolationLevel, Params
-
+from pycopg import AsyncDatabase, Database, Params
 
 # ---------------------------------------------------------------------------
 # Unit — export checks (no DB)
@@ -23,7 +21,9 @@ from pycopg import AsyncDatabase, Database, IsolationLevel, Params
 
 def test_params_alias_exported():
     """Params and IsolationLevel are importable from pycopg and in __all__."""
-    # Direct import already succeeded above; verify __all__ membership
+    from pycopg import IsolationLevel  # noqa: F401 — import proves it is accessible
+
+    # verify __all__ membership
     assert "Params" in pycopg.__all__, "Params not in pycopg.__all__"
     assert "IsolationLevel" in pycopg.__all__, "IsolationLevel not in pycopg.__all__"
 
