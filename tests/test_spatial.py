@@ -24,6 +24,7 @@ from pycopg.spatial import (
     build_intersection_sql,
     build_intersects_sql,
     build_make_valid_sql,
+    build_mvt_sql,
     build_nearest_sql,
     build_perimeter_sql,
     build_simplify_sql,
@@ -1871,6 +1872,134 @@ class TestBuildTextSql:
         """Custom geom column name is reflected in the ST_AsText expression."""
         sql, _ = build_text_sql("roads", geom="geom_col")
         assert "ST_AsText(t.geom_col)" in sql
+
+
+class TestBuildMvtSql:
+    """DB-free SQL-shape + injection tests for build_mvt_sql (SPAT2-12)."""
+
+    def test_invalid_table_raises(self):
+        """Malicious table name raises InvalidIdentifierError before any SQL."""
+        with pytest.raises(InvalidIdentifierError):
+            build_mvt_sql("'; DROP TABLE foo; --", tile_z=0, tile_x=0, tile_y=0)
+
+    def test_invalid_geom_raises(self):
+        """Malicious geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_mvt_sql(
+                "roads", geom="'; DROP TABLE foo; --", tile_z=0, tile_x=0, tile_y=0
+            )
+
+    def test_invalid_column_raises(self):
+        """Malicious columns= entry raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_mvt_sql(
+                "roads",
+                tile_z=0,
+                tile_x=0,
+                tile_y=0,
+                columns=["'; DROP TABLE foo; --"],
+            )
+
+    def test_invalid_feature_id_column_raises(self):
+        """Malicious feature_id_column raises InvalidIdentifierError (T-44-02)."""
+        with pytest.raises(InvalidIdentifierError):
+            build_mvt_sql(
+                "roads",
+                tile_z=0,
+                tile_x=0,
+                tile_y=0,
+                feature_id_column="'; DROP TABLE foo; --",
+            )
+
+    def test_sql_contains_st_transform(self):
+        """Generated SQL contains ST_Transform (D-03: always-3857 pipeline)."""
+        sql, _ = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert "ST_Transform" in sql
+
+    def test_sql_contains_st_asmvtgeom(self):
+        """Generated SQL contains ST_AsMVTGeom (D-03: enforced pipeline)."""
+        sql, _ = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert "ST_AsMVTGeom" in sql
+
+    def test_sql_contains_st_tileenvelope_with_literal_coords(self):
+        """ST_TileEnvelope is emitted with literal integer z/x/y values."""
+        sql, _ = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert "ST_TileEnvelope(12, 2048, 1361)" in sql
+
+    def test_sql_contains_st_asmvt(self):
+        """Generated SQL contains ST_AsMVT aggregate (D-03)."""
+        sql, _ = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert "ST_AsMVT" in sql
+
+    def test_sql_contains_geom_mvt_is_not_null_filter(self):
+        """Outer WHERE clause filters q.geom_mvt IS NOT NULL (D-03)."""
+        sql, _ = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert "q.geom_mvt IS NOT NULL" in sql
+
+    def test_sql_contains_as_mvt_alias(self):
+        """ST_AsMVT aggregate is aliased AS mvt for reliable row access (Pitfall 5)."""
+        sql, _ = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        assert "AS mvt" in sql
+
+    def test_srid_adds_st_setsrid_and_literal(self):
+        """srid=4326 adds ST_SetSRID and the literal 4326 in the SQL (D-04)."""
+        sql, _ = build_mvt_sql("roads", tile_z=0, tile_x=0, tile_y=0, srid=4326)
+        assert "ST_SetSRID" in sql
+        assert "4326" in sql
+
+    def test_no_srid_does_not_add_st_setsrid(self):
+        """Default srid=None does NOT emit ST_SetSRID (D-04)."""
+        sql, _ = build_mvt_sql("roads", tile_z=0, tile_x=0, tile_y=0)
+        assert "ST_SetSRID" not in sql
+
+    def test_params_exactly_two_layer_name_and_extent(self):
+        """params == [layer_name, extent] — exactly 2 %s params; coords are literal (D-03)."""
+        sql, params = build_mvt_sql(
+            "roads",
+            tile_z=12,
+            tile_x=2048,
+            tile_y=1361,
+            layer_name="roads_layer",
+            extent=4096,
+        )
+        assert params == ["roads_layer", 4096]
+        assert sql.count("%s") == 2
+
+    def test_feature_id_column_interpolated_not_in_params(self):
+        """feature_id_column is a literal SQL identifier in SQL; params stays 2."""
+        sql, params = build_mvt_sql(
+            "roads",
+            tile_z=0,
+            tile_x=0,
+            tile_y=0,
+            feature_id_column="gid",
+        )
+        assert "'gid'" in sql
+        assert params == ["default", 4096]
+        assert sql.count("%s") == 2
+
+    def test_filter_appears_in_inner_subquery(self):
+        """filter= is appended to the inner subquery WHERE (NOT outer WHERE)."""
+        sql, _ = build_mvt_sql(
+            "roads", tile_z=0, tile_x=0, tile_y=0, filter="active = true"
+        )
+        # The inner subquery should have the filter before the closing paren
+        # The outer WHERE is always 'q.geom_mvt IS NOT NULL'
+        assert "WHERE active = true" in sql
+        assert "q.geom_mvt IS NOT NULL" in sql
+
+    def test_columns_appear_in_inner_select(self):
+        """columns= entries appear in the inner SELECT before ST_AsMVTGeom."""
+        sql, _ = build_mvt_sql(
+            "roads", tile_z=0, tile_x=0, tile_y=0, columns=["id", "name"]
+        )
+        assert "id, name" in sql
+        assert "ST_AsMVTGeom" in sql
+
+    def test_schema_and_table_in_sql(self):
+        """Schema and table appear in the inner FROM clause."""
+        sql, _ = build_mvt_sql("roads", schema="myschema", tile_z=0, tile_x=0, tile_y=0)
+        assert "FROM myschema.roads AS t" in sql
 
 
 class TestAggregateBuilders:

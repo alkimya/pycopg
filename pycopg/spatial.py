@@ -926,6 +926,166 @@ def build_text_sql(
     return sql, params
 
 
+def build_mvt_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    tile_z: int,
+    tile_x: int,
+    tile_y: int,
+    layer_name: str = "default",
+    extent: int = 4096,
+    columns: list[str] | None = None,
+    feature_id_column: str | None = None,
+    srid: int | None = None,
+    filter: str | None = None,
+) -> tuple[str, list]:
+    """Build SQL that generates a Mapbox Vector Tile (MVT) via ST_AsMVT.
+
+    Always emits the enforced ``ST_Transform → ST_AsMVTGeom →
+    ST_AsMVT`` pipeline (D-03). The pipeline transforms input geometry
+    to Web Mercator (EPSG:3857), clips it to the tile envelope, and
+    encodes it as a protobuf MVT blob. An outer ``WHERE q.geom_mvt IS
+    NOT NULL`` filter discards rows that clip entirely outside the tile.
+
+    Tile coordinates (``tile_z``, ``tile_x``, ``tile_y``) and the
+    ``extent`` are coerced via ``int()`` and interpolated directly into
+    the SQL — not as ``%s`` bind parameters.  The only ``%s``
+    placeholders are ``layer_name`` and ``extent``, making the params
+    list exactly ``[layer_name, extent]`` (D-03).
+
+    SRID-0 / untagged columns
+    --------------------------
+    If the source geometry column has SRID 0 (untagged), PostGIS cannot
+    determine the source CRS and ``ST_Transform`` silently produces wrong
+    results. Use ``srid=4326`` (or the correct source SRID) to inject
+    ``ST_SetSRID`` before the transform (D-04)::
+
+        # SRID-0 column rescue:
+        build_mvt_sql("points", srid=4326, tile_z=z, tile_x=x, tile_y=y)
+        # → ST_Transform(ST_SetSRID(t.geometry, 4326), 3857)
+
+    ``feature_id_column``
+    ---------------------
+    When set, the column name is embedded as a literal SQL identifier in
+    the ``ST_AsMVT`` call. It must reference an **integer-type** column
+    in the source table — PostGIS enforces this at query time (MVT spec
+    requires 64-bit integer feature IDs). Pass ``feature_id_column=None``
+    (the default) to omit the feature ID.
+
+    PostGIS requirement
+    -------------------
+    Requires PostGIS ≥ 3.0 for ``ST_TileEnvelope`` and the five-arg
+    ``ST_AsMVT`` form (documented requirement, not a runtime gate).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default ``"geometry"``.
+    schema : str, optional
+        Schema name, by default ``"public"``.
+    tile_z : int
+        Tile zoom level. Required keyword-only (D-02).
+    tile_x : int
+        Tile column index. Required keyword-only (D-02).
+    tile_y : int
+        Tile row index. Required keyword-only (D-02).
+    layer_name : str, optional
+        MVT layer name, by default ``"default"``. Passed as a ``%s``
+        bind parameter.
+    extent : int, optional
+        MVT tile extent in pixel units, by default ``4096``. Interpolated
+        as an integer literal (injection-safe) and also passed as a
+        ``%s`` bind parameter to ``ST_AsMVT``.
+    columns : list of str, optional
+        Extra columns to select alongside the geometry in the inner
+        subquery (available as MVT feature properties).
+    feature_id_column : str or None, optional
+        Integer-typed source column to use as the MVT feature ID.
+        Validated as an identifier and interpolated directly — not a
+        ``%s`` param. Must be an integer column (PostGIS requirement).
+        By default ``None`` (no feature ID in the MVT).
+    srid : int or None, optional
+        Source SRID to inject via ``ST_SetSRID`` before the transform
+        (D-04). Use this when the geometry column has SRID 0 or an
+        incorrect SRID tag. ``None`` (default) — trusts the stored SRID.
+    filter : str, optional
+        Raw SQL fragment appended as ``WHERE {filter}`` inside the inner
+        subquery (before clipping). This is a documented escape hatch;
+        callers own the fragment (T-44-02c).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string with ``%s`` placeholders and the parameter list
+        ``[layer_name, extent]`` (exactly two elements).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If ``table``, ``schema``, ``geom``, any entry in ``columns``, or
+        ``feature_id_column`` is an invalid SQL identifier (T-44-02).
+    ValueError
+        If ``tile_z``, ``tile_x``, ``tile_y``, ``extent``, or ``srid``
+        cannot be coerced to ``int`` (T-44-02b).
+
+    Examples
+    --------
+    Basic tile for a roads table::
+
+        sql, params = build_mvt_sql("roads", tile_z=12, tile_x=2048, tile_y=1361)
+        # SELECT ST_AsMVT(q.*, %s, %s, 'geom_mvt') AS mvt
+        # FROM (SELECT ST_AsMVTGeom(ST_Transform(t.geometry, 3857),
+        #              ST_TileEnvelope(12, 2048, 1361), 4096) AS geom_mvt
+        #       FROM public.roads AS t) AS q
+        # WHERE q.geom_mvt IS NOT NULL
+        # params == ['default', 4096]
+
+    With SRID-0 rescue and a feature ID column::
+
+        sql, params = build_mvt_sql(
+            "places", tile_z=10, tile_x=512, tile_y=400,
+            srid=4326, feature_id_column="gid",
+        )
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1: security invariant (T-44-02)
+    if columns:
+        validate_identifiers(*columns)
+    if feature_id_column is not None:
+        validate_identifiers(feature_id_column)
+
+    # Coerce numerics via int() — non-integer input raises ValueError/TypeError
+    # before any SQL assembly (T-44-02b).
+    z, x, y, ext = int(tile_z), int(tile_x), int(tile_y), int(extent)
+
+    # Build transform expression per D-04.
+    if srid is not None:
+        transform = f"ST_Transform(ST_SetSRID(t.{geom}, {int(srid)}), 3857)"
+    else:
+        transform = f"ST_Transform(t.{geom}, 3857)"
+
+    # Build inner SELECT (clip geometry to tile envelope).
+    col_prefix = (_cols_str(columns) + ", ") if columns else ""
+    inner = (
+        f"SELECT {col_prefix}ST_AsMVTGeom("
+        f"{transform}, ST_TileEnvelope({z}, {x}, {y}), {ext}"
+        f") AS geom_mvt FROM {schema}.{table} AS t"
+    )
+    if filter:
+        inner += f" WHERE {filter}"
+
+    # Build ST_AsMVT aggregate (feature_id_column is a validated literal, not a param).
+    if feature_id_column is not None:
+        agg = f"ST_AsMVT(q.*, %s, %s, 'geom_mvt', '{feature_id_column}')"
+    else:
+        agg = "ST_AsMVT(q.*, %s, %s, 'geom_mvt')"
+    sql = f"SELECT {agg} AS mvt FROM ({inner}) AS q WHERE q.geom_mvt IS NOT NULL"
+    return sql, [layer_name, ext]
+
+
 def build_centroid_sql(
     table: str,
     geom: str = "geometry",
