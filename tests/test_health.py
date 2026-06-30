@@ -33,6 +33,14 @@ def test_server_version_decode():
     assert _decode_server_version(100000) == "10.0"
 
 
+def test_server_version_decode_three_digit_patch():
+    """_decode_server_version handles 3-digit patch numbers (PG >= 10, % 10000 not % 100)."""
+    # 14 * 10000 + 999 = 140999 — regression for WR-04 (was incorrectly "14.99")
+    assert _decode_server_version(140999) == "14.999"
+    # Sanity-check: pre-10 three-part path is unaffected (% 100 still correct there)
+    assert _decode_server_version(90605) == "9.6.5"
+
+
 # ---------------------------------------------------------------------------
 # Unit — Database.health() (sync, mocked connection)
 # ---------------------------------------------------------------------------

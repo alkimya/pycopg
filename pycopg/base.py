@@ -46,7 +46,7 @@ def _decode_server_version(v: int) -> str:
     """
     major = v // 10000
     if major >= 10:
-        return f"{major}.{v % 100}"
+        return f"{major}.{v % 10000}"
     minor = (v % 10000) // 100
     return f"{major}.{minor}.{v % 100}"
 
