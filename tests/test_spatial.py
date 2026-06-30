@@ -38,6 +38,79 @@ from pycopg.spatial import (
 _GJ = {"type": "Point", "coordinates": [1.0, 2.0]}
 
 
+# ---------------------------------------------------------------------------
+# Pure-Python MVT decoder (test helper — no runtime dependency)
+# Source: 44-RESEARCH.md "Pure Python MVT Decoder" — verified against PostGIS
+# 3.6 ST_AsMVT output. Returns 0 for b"" (empty tile). Introduces NO new
+# runtime dependency (test-only).
+# ---------------------------------------------------------------------------
+
+
+def _read_varint(data: bytes, pos: int) -> tuple:
+    """Read a protobuf variable-length integer from data at pos.
+
+    Returns (value, new_pos).
+    """
+    result, shift = 0, 0
+    while pos < len(data):
+        b = data[pos]
+        pos += 1
+        result |= (b & 0x7F) << shift
+        if not (b & 0x80):
+            break
+        shift += 7
+    return result, pos
+
+
+def _count_mvt_features(blob) -> int:
+    """Return total feature count across all layers in an MVT blob.
+
+    Returns 0 for an empty blob (b'' = empty tile). Accepts bytes or
+    memoryview. Layer = protobuf field 3, wire type 2 (tag 0x1a). Feature
+    inside layer = field 2, wire type 2 (tag 0x12).
+    """
+    data = bytes(blob) if isinstance(blob, memoryview) else blob
+    pos, features = 0, 0
+    while pos < len(data):
+        tag, pos = _read_varint(data, pos)
+        fn, wt = tag >> 3, tag & 0x07
+        if wt == 0:
+            _, pos = _read_varint(data, pos)
+        elif wt == 1:
+            pos += 8
+        elif wt == 2:
+            length, pos = _read_varint(data, pos)
+            if fn == 3:  # MVT layer field
+                end = pos + length
+                lpos = pos
+                while lpos < end:
+                    t2, lpos = _read_varint(data, lpos)
+                    f2, w2 = t2 >> 3, t2 & 0x07
+                    if w2 == 0:
+                        _, lpos = _read_varint(data, lpos)
+                    elif w2 == 2:
+                        l2, lpos = _read_varint(data, lpos)
+                        if f2 == 2:  # feature
+                            features += 1
+                        lpos += l2
+                    elif w2 == 5:
+                        lpos += 4
+                    elif w2 == 1:
+                        lpos += 8
+                    else:
+                        break
+            pos += length
+        elif wt == 5:
+            pos += 4
+        else:
+            break
+    return features
+
+
+# Self-check: empty blob must decode to zero features.
+assert _count_mvt_features(b"") == 0, "_count_mvt_features(b'') must return 0"
+
+
 class TestGeometryResolver:
     """DB-free tests for _resolve_geometry — all 4 forms + exclusivity."""
 
@@ -1458,6 +1531,82 @@ class TestIntegration:
             assert "geojson" in rows[0]
             parsed = json.loads(rows[0]["geojson"])
             assert "type" in parsed
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_as_mvt_decodes_to_feature_count(self, sdb):
+        """as_mvt with a point inside a zoom-0 tile returns bytes that decode to >= 1 feature.
+
+        Uses zoom=0 (the single tile that covers the whole world at Web Mercator)
+        so any SRID-4326 point is guaranteed inside the tile envelope.
+        Decode-not-isinstance proves criterion #2: wrong coordinates would still
+        produce bytes but decode to 0 features (Pitfall 2).
+        """
+        t = _uniq("spat_mvt_feat")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Point, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES ' "(1, ST_GeomFromText('POINT(0 0)', 4326))",
+                autocommit=True,
+            )
+            # zoom=0, x=0, y=0 covers the entire world at Web Mercator.
+            result = sdb.spatial.as_mvt(t, tile_z=0, tile_x=0, tile_y=0)
+            assert isinstance(result, bytes)
+            assert len(result) > 0
+            assert _count_mvt_features(result) >= 1  # decode, not just isinstance
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_as_mvt_empty_tile_returns_empty_bytes(self, sdb):
+        """as_mvt with out-of-range tile coordinates returns b'' (D-05 empty-tile contract).
+
+        Using zoom=20, x=0, y=0 which covers only a tiny area near the North Pole
+        far from POINT(0 0), so every geometry clips away and ST_AsMVT returns b''.
+        Proves: never None, never memoryview.
+        """
+        t = _uniq("spat_mvt_empty")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Point, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES ' "(1, ST_GeomFromText('POINT(0 0)', 4326))",
+                autocommit=True,
+            )
+            # zoom=20, x=0, y=0: covers near the date-line north pole — POINT(0 0) is far away.
+            result = sdb.spatial.as_mvt(t, tile_z=20, tile_x=0, tile_y=0)
+            assert isinstance(result, bytes)
+            assert result == b""
+            assert _count_mvt_features(result) == 0
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_async_as_mvt_decodes_to_feature_count(self, sdb, db_config):
+        """Async as_mvt with a point inside zoom=0 tile decodes to >= 1 feature (D-10 parity)."""
+        from pycopg import AsyncDatabase
+
+        adb = AsyncDatabase(db_config)
+        t = _uniq("spat_async_mvt")
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Point, 4326))",
+                autocommit=True,
+            )
+            await adb.execute(
+                f'INSERT INTO "{t}" VALUES ' "(1, ST_GeomFromText('POINT(0 0)', 4326))",
+                autocommit=True,
+            )
+            result = await adb.spatial.as_mvt(t, tile_z=0, tile_x=0, tile_y=0)
+            assert isinstance(result, bytes)
+            assert len(result) > 0
+            assert _count_mvt_features(result) >= 1
         finally:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
