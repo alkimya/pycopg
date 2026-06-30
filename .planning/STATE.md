@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: verifying
-stopped_at: Phase 45 Plan 04 complete — LOG-01 coarse instrumentation (D-09) fully applied
+status: executing
+stopped_at: Phase 45 complete — verified PASSED 6/6; code-review 0 blockers (WR-01..04 fixed)
 last_updated: "2026-06-30T19:25:21.148Z"
-last_activity: 2026-06-30
+last_activity: "2026-06-30 — Phase 45 (API completeness gaps + structured logging) COMPLETE: 4 plans sequential on main (strict chain 01→02→03→04); TXN-01/02 isolation_level + savepoint(), PARAM-01 Params named-param widening, HEALTH-01 never-raises db.health() on all 4 classes, LOG-01 pycopg/logging.py + log_operation coarse D-09 instrumentation; code-review 5 warn → WR-01..04 fixed (getattr txn guard, fast-fail health, INERROR commit guard, version %10000), WR-05+IN-* deferred; verifier PASSED 6/6; full suite 1736 passed @96.36%"
 progress:
   total_phases: 7
   completed_phases: 5
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 45 — api-completeness-gaps-structured-logging
+**Current focus:** Phase 46 — mypy Strict + py.typed Gate (not started); Phase 45 COMPLETE (verified PASSED 6/6)
 
 ## Current Position
 
 Phase: 46
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-06-30
+Status: Phase 45 complete — verified PASSED 6/6; ready to plan Phase 46
+Last activity: 2026-06-30 — Phase 45 (API completeness gaps + structured logging) executed: 4 plans sequential on main (strict dependency chain 01→02→03→04); transaction isolation_level + savepoint() surfaces (TXN-01/02), Params named-param annotation widening (PARAM-01), never-raises db.health() on all 4 DB classes (HEALTH-01), pycopg/logging.py + log_operation coarse D-09 instrumentation (LOG-01); code-review 0 blockers (5 warn → WR-01..04 fixed, WR-05+IN-* deferred); verifier PASSED 6/6; full suite 1736 passed @96.36%
 
 ## Performance Metrics
 
@@ -46,9 +46,9 @@ Last activity: 2026-06-30
 | ----- | ----- | -------- | ------ |
 | 41. API Homogenization | 5 | 5 | Complete (verified PASSED 10/10; code-review CR-01 async-parity blocker found+fixed) |
 | 42. Spatial v2 — Processing Helpers | 3 | 3 | Complete (verified PASSED) |
-| 43. Spatial v2 — Spatial Aggregates | 3 | 1 | Executing (P01 complete: collect_geometries + union_aggregate) |
-| 44. Spatial v2 — Serialization + MVT | ? | 0 | Not started |
-| 45. API Completeness Gaps + Structured Logging | ? | 0 | Not started |
+| 43. Spatial v2 — Spatial Aggregates | 3 | 3 | Complete (verified PASSED; collect/union_aggregate + extent dual into=) |
+| 44. Spatial v2 — Serialization + MVT | 3 | 3 | Complete (verified PASSED 19/19; as_geojson/as_text/as_mvt) |
+| 45. API Completeness Gaps + Structured Logging | 4 | 4 | Complete (verified PASSED 6/6; code-review 5 warn → WR-01..04 fixed, WR-05+IN-* deferred) |
 | 46. mypy Strict + py.typed Gate | ? | 0 | Not started |
 | 47. Release v1.0.0 | ? | 0 | Not started |
 
