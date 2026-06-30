@@ -20,12 +20,14 @@ from pycopg.spatial import (
     build_distance_sql,
     build_dwithin_sql,
     build_extent_sql,
+    build_geojson_sql,
     build_intersection_sql,
     build_intersects_sql,
     build_make_valid_sql,
     build_nearest_sql,
     build_perimeter_sql,
     build_simplify_sql,
+    build_text_sql,
     build_transform_sql,
     build_union_aggregate_sql,
     build_union_sql,
@@ -1646,6 +1648,150 @@ class TestBuilderColumnsValidation:
         """make_valid validates columns= identifiers."""
         with pytest.raises(InvalidIdentifierError):
             build_make_valid_sql("parcels", columns=["bad-col"])
+
+
+class TestBuildGeojsonSql:
+    """DB-free SQL-shape + injection tests for build_geojson_sql (SPAT2-10)."""
+
+    def test_invalid_table_raises(self):
+        """Malicious table name raises InvalidIdentifierError before any SQL."""
+        with pytest.raises(InvalidIdentifierError):
+            build_geojson_sql("'; DROP TABLE foo; --")
+
+    def test_invalid_geom_raises(self):
+        """Malicious geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_geojson_sql("roads", geom="'; DROP TABLE foo; --")
+
+    def test_invalid_column_raises(self):
+        """Malicious columns= entry raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_geojson_sql("roads", columns=["'; DROP TABLE foo; --"])
+
+    def test_default_sql_shape(self):
+        """Default call emits ST_AsGeoJSON and AS geojson alias."""
+        sql, params = build_geojson_sql("roads")
+        assert "ST_AsGeoJSON" in sql
+        assert "AS geojson" in sql
+        assert "FROM public.roads AS t" in sql
+
+    def test_default_params(self):
+        """Default params are [max_decimal_digits=6, options=0]."""
+        _, params = build_geojson_sql("roads")
+        assert params == [6, 0]
+
+    def test_include_bbox_sets_bit1(self):
+        """include_bbox=True sets options bit 1 (options==1)."""
+        _, params = build_geojson_sql("roads", include_bbox=True)
+        assert params[1] == 1
+
+    def test_include_crs_sets_bit2(self):
+        """include_crs=True sets options bit 2 (options==2)."""
+        _, params = build_geojson_sql("roads", include_crs=True)
+        assert params[1] == 2
+
+    def test_both_flags_sets_bit3(self):
+        """include_bbox=True + include_crs=True sets options==3."""
+        _, params = build_geojson_sql("roads", include_bbox=True, include_crs=True)
+        assert params[1] == 3
+
+    def test_max_decimal_digits_in_params(self):
+        """max_decimal_digits is the first element of params."""
+        _, params = build_geojson_sql("roads", max_decimal_digits=3)
+        assert params[0] == 3
+
+    def test_columns_appear_in_sql(self):
+        """columns= entries appear before the ST_AsGeoJSON expression."""
+        sql, _ = build_geojson_sql("roads", columns=["id", "name"])
+        assert sql.startswith("SELECT id, name, ST_AsGeoJSON(")
+
+    def test_filter_appended(self):
+        """filter= is appended as WHERE clause."""
+        sql, _ = build_geojson_sql("roads", filter="id > 10")
+        assert "WHERE id > 10" in sql
+
+    def test_order_by_appended(self):
+        """order_by= is appended as ORDER BY clause."""
+        sql, _ = build_geojson_sql("roads", order_by="id ASC")
+        assert "ORDER BY id ASC" in sql
+
+    def test_limit_appended(self):
+        """limit= is appended as LIMIT clause."""
+        sql, _ = build_geojson_sql("roads", limit=5)
+        assert "LIMIT 5" in sql
+
+    def test_params_count_matches_placeholders(self):
+        """Number of %s placeholders equals len(params)."""
+        sql, params = build_geojson_sql("roads", include_bbox=True)
+        assert sql.count("%s") == len(params)
+
+
+class TestBuildTextSql:
+    """DB-free SQL-shape + injection tests for build_text_sql (SPAT2-11)."""
+
+    def test_invalid_table_raises(self):
+        """Malicious table name raises InvalidIdentifierError before any SQL."""
+        with pytest.raises(InvalidIdentifierError):
+            build_text_sql("'; DROP TABLE foo; --")
+
+    def test_invalid_geom_raises(self):
+        """Malicious geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_text_sql("roads", geom="'; DROP TABLE foo; --")
+
+    def test_invalid_column_raises(self):
+        """Malicious columns= entry raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_text_sql("roads", columns=["'; DROP TABLE foo; --"])
+
+    def test_default_one_arg_shape(self):
+        """Default (max_decimal_digits=None) emits one-arg ST_AsText."""
+        sql, params = build_text_sql("roads")
+        assert "ST_AsText(t.geometry) AS wkt" in sql
+        assert "%s" not in sql  # no placeholder for one-arg form
+        assert params == []
+
+    def test_default_sql_has_wkt_alias(self):
+        """Default SQL contains AS wkt alias."""
+        sql, _ = build_text_sql("roads")
+        assert "AS wkt" in sql
+        assert "FROM public.roads AS t" in sql
+
+    def test_two_arg_when_max_decimal_digits_set(self):
+        """When max_decimal_digits is set, two-arg ST_AsText(t.geom, %s) is emitted."""
+        sql, params = build_text_sql("roads", max_decimal_digits=4)
+        assert "ST_AsText(t.geometry, %s) AS wkt" in sql
+        assert params == [4]
+
+    def test_two_arg_params_count_matches_placeholders(self):
+        """Two-arg form: number of %s placeholders equals len(params)."""
+        sql, params = build_text_sql("roads", max_decimal_digits=4)
+        assert sql.count("%s") == len(params)
+
+    def test_columns_appear_in_sql(self):
+        """columns= entries appear before the ST_AsText expression."""
+        sql, _ = build_text_sql("roads", columns=["id", "name"])
+        assert sql.startswith("SELECT id, name, ST_AsText(")
+
+    def test_filter_appended(self):
+        """filter= is appended as WHERE clause."""
+        sql, _ = build_text_sql("roads", filter="id > 10")
+        assert "WHERE id > 10" in sql
+
+    def test_order_by_appended(self):
+        """order_by= is appended as ORDER BY clause."""
+        sql, _ = build_text_sql("roads", order_by="id ASC")
+        assert "ORDER BY id ASC" in sql
+
+    def test_limit_appended(self):
+        """limit= is appended as LIMIT clause."""
+        sql, _ = build_text_sql("roads", limit=5)
+        assert "LIMIT 5" in sql
+
+    def test_custom_geom_column(self):
+        """Custom geom column name is reflected in the ST_AsText expression."""
+        sql, _ = build_text_sql("roads", geom="geom_col")
+        assert "ST_AsText(t.geom_col)" in sql
 
 
 class TestAggregateBuilders:

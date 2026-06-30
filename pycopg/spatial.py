@@ -784,6 +784,148 @@ def build_perimeter_sql(
     return sql, []
 
 
+def build_geojson_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    max_decimal_digits: int = 6,
+    include_bbox: bool = False,
+    include_crs: bool = False,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting rows with their geometry as a GeoJSON string.
+
+    Adds a scalar ``ST_AsGeoJSON(...) AS geojson`` column containing the
+    geometry serialized as a GeoJSON text string. The result key is the
+    frozen alias ``geojson``; callers use ``json.loads(row["geojson"])``
+    when a dict is needed (D-06).
+
+    The ``include_bbox`` and ``include_crs`` flags compose the
+    ``ST_AsGeoJSON`` options bitmask (``1`` = bounding box, ``2`` = short
+    CRS name) passed as a ``%s`` parameter alongside ``max_decimal_digits``
+    (D-06).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    max_decimal_digits : int, optional
+        Maximum decimal digits in coordinates, by default 6 (D-06).
+    include_bbox : bool, optional
+        Include bounding box in GeoJSON output (options bit 1), by default
+        False (D-06).
+    include_crs : bool, optional
+        Include short CRS name in GeoJSON output (options bit 2), by
+        default False (D-06).
+    columns : list of str, optional
+        Columns to select alongside the GeoJSON text, by default all
+        (D-08).
+    filter : str, optional
+        Raw SQL filter fragment (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list ``[max_decimal_digits, options]``.
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier (table, schema, geom, or columns entries) is
+        invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    options = (1 if include_bbox else 0) | (2 if include_crs else 0)
+    sql = (
+        f"SELECT {_cols_str(columns)}, "
+        f"ST_AsGeoJSON(t.{geom}, %s, %s) AS geojson "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, [max_decimal_digits, options]
+
+
+def build_text_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    max_decimal_digits: int | None = None,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list]:
+    """Build SQL selecting rows with their geometry as a WKT string.
+
+    Adds a scalar ``ST_AsText(...) AS wkt`` column. The result key is the
+    frozen alias ``wkt``. When ``max_decimal_digits`` is ``None`` (default)
+    the one-arg ``ST_AsText(t.geom)`` form is used, preserving full
+    precision — WKT is intended for exact interchange and round-trip use,
+    so silent truncation is undesirable (D-07). When set, the two-arg
+    ``ST_AsText(t.geom, %s)`` form is used.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    max_decimal_digits : int or None, optional
+        Maximum decimal digits in coordinates, by default ``None`` (full
+        precision — one-arg form). When set, two-arg form is emitted
+        (D-07).
+    columns : list of str, optional
+        Columns to select alongside the WKT text, by default all (D-08).
+    filter : str, optional
+        Raw SQL filter fragment (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list (``[]`` when ``max_decimal_digits``
+        is ``None``; ``[max_decimal_digits]`` when set).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier (table, schema, geom, or columns entries) is
+        invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    if max_decimal_digits is not None:
+        st_call = f"ST_AsText(t.{geom}, %s) AS wkt"
+        params: list = [max_decimal_digits]
+    else:
+        st_call = f"ST_AsText(t.{geom}) AS wkt"
+        params = []
+    sql = f"SELECT {_cols_str(columns)}, {st_call} FROM {schema}.{table} AS t"
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, params
+
+
 def build_centroid_sql(
     table: str,
     geom: str = "geometry",
