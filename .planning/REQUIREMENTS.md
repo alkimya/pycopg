@@ -43,8 +43,8 @@ New GROUP BY aggregate builder shape (one row per group; optional `group_by`). D
 
 Additive to the flat transactional core (`db.transaction`/`db.session`), full sync/async parity. psycopg3-native, zero new runtime deps.
 
-- [ ] **TXN-01**: User can set the transaction isolation level via `db.transaction(isolation_level=...)` and `db.session(isolation_level=...)` (psycopg3 `IsolationLevel`)
-- [ ] **TXN-02**: User can create nested savepoints with partial rollback via a `db.savepoint(name=None)` context manager (and `transaction(savepoint_name=...)`)
+- [x] **TXN-01**: User can set the transaction isolation level via `db.transaction(isolation_level=...)` and `db.session(isolation_level=...)` (psycopg3 `IsolationLevel`)
+- [x] **TXN-02**: User can create nested savepoints with partial rollback via a `db.savepoint(name=None)` context manager (and `transaction(savepoint_name=...)`)
 
 ### API Ergonomics & Observability
 
@@ -134,8 +134,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SPAT2-11 | Phase 44 | Complete |
 | SPAT2-12 | Phase 44 | Complete |
 | SPAT2-13 | Phase 44 | Complete |
-| TXN-01 | Phase 45 | Pending |
-| TXN-02 | Phase 45 | Pending |
+| TXN-01 | Phase 45 | Complete |
+| TXN-02 | Phase 45 | Complete |
 | PARAM-01 | Phase 45 | Complete |
 | HEALTH-01 | Phase 45 | Pending |
 | LOG-01 | Phase 45 | Complete |

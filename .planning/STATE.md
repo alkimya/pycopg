@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 45 context gathered
-last_updated: "2026-06-30T17:34:51.004Z"
+stopped_at: Phase 45 Plan 02 complete — transaction isolation + savepoint surfaces
+last_updated: "2026-06-30T18:25:07.072Z"
 last_activity: 2026-06-30 -- Phase 45 execution started
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 18
-  completed_plans: 15
+  completed_plans: 16
   percent: 57
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 45 (api-completeness-gaps-structured-logging) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-06-30 -- Phase 45 execution started
 
@@ -74,6 +74,7 @@ Last activity: 2026-06-30 -- Phase 45 execution started
 | Phase 44 P02 | 7min | 3 tasks | 2 files |
 | Phase 44 P03 | 4min | 2 tasks | 5 files |
 | Phase 45 P01 | 6m | 2 tasks | 4 files |
+| Phase 45 P02 | 46 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 44-02]: D-09 + no _SCALAR_HELPERS + no _HELPER_CALLS: as_mvt born-clean, bytes-only, dedicated runners; criterion #2 live proof via pure-Python _count_mvt_features decoder
 - [Phase 44-03]: SPAT2-13 finalized: test_spatial_serialization_surface (named frozenset) + test_accessor_parity (auto-extend) + test_accessor_parameter_kind_parity (KIND-parity) assert full P42+P43+P44 surface on both accessors; docs/api-reference + stability + spatial guide + README all updated with born-clean filter= (22→25 methods)
 - [Phase ?]: 45-01 logging substrate
+- [Phase ?]: D-03 honored: transaction(isolation_level=) inside active session raises RuntimeError (TXN-01)
+- [Phase ?]: D-02 two savepoint surfaces: standalone savepoint() + transaction(savepoint_name=) via psycopg native API (TXN-02)
 
 ### Pending Todos
 
@@ -141,9 +144,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-06-30T17:34:48.171Z
-Stopped at: Phase 45 context gathered
-Resume file: .planning/phases/45-api-completeness-gaps-structured-logging/45-CONTEXT.md
+Last session: 2026-06-30T18:25:07.062Z
+Stopped at: Phase 45 Plan 02 complete — transaction isolation + savepoint surfaces
+Resume file: None
 Next action: Execute Phase 45 (API Completeness Gaps + Structured Logging)
 
 ## Operator Next Steps
