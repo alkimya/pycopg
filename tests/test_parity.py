@@ -199,6 +199,43 @@ def test_spatial_aggregates_surface():
         ), f"{cls.__name__} is missing Phase 43 method(s): {sorted(missing)}"
 
 
+def test_spatial_serialization_surface():
+    """Assert both spatial accessors expose the 3 Phase 44 serialization methods.
+
+    A named frozenset of the v1.0 spatial serialization surface — the Phase 44
+    additions (``as_geojson``, ``as_text``, ``as_mvt``) — must be a subset of
+    the public members of BOTH :class:`SpatialAccessor` and
+    :class:`AsyncSpatialAccessor`, so a silently dropped or renamed method fails
+    loudly.  This is the SPAT2-13 full-surface acceptance: together with the
+    P42/P43 surface tests and the generic parity + KIND-parity tests, the entire
+    P42+P43+P44 spatial v2 surface is asserted at name-level AND kind-level
+    parity.
+
+    This complements the bidirectional set-diff in :func:`test_accessor_parity`
+    (which only checks sync/async symmetry, not that the methods exist at all)
+    and the per-parameter kind check in
+    :func:`test_accessor_parameter_kind_parity`.
+
+    ``ACCESSOR_PAIRS`` is not touched.
+    """
+    v44_surface = frozenset(
+        {
+            "as_geojson",
+            "as_text",
+            "as_mvt",
+        }
+    )
+
+    for cls in (SpatialAccessor, AsyncSpatialAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v44_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 44 method(s): {sorted(missing)}"
+
+
 class TestAsyncParity:
     """Test that AsyncDatabase maintains parity with Database API."""
 
