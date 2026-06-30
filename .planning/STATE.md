@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: completed
+status: executing
 stopped_at: Phase 45 context gathered
-last_updated: "2026-06-30T08:43:24.563Z"
+last_updated: "2026-06-30T17:12:46.087Z"
 last_activity: "2026-06-30 — Phase 44 (serialization + MVT) executed: 3 plans / 3 sequential waves on main; as_geojson/as_text/as_mvt on both accessors (db.spatial.* 22→25); code-review 0 blockers (2 warn: WR-01 as_text two-arg needs PostGIS 3.1 vs documented 3.0 floor); verifier PASSED 19/19; full suite 1690 passed @96.18%"
 progress:
   total_phases: 7
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 Phase: 45
 Plan: Not started
-Status: Phase 44 complete — ready for Phase 45
+Status: Ready to execute
 Last activity: 2026-06-30 — Phase 44 (serialization + MVT) executed: 3 plans / 3 sequential waves on main; as_geojson/as_text/as_mvt on both accessors (db.spatial.* 22→25); code-review 0 blockers (2 warn: WR-01 as_text two-arg needs PostGIS 3.1 vs documented 3.0 floor); verifier PASSED 19/19; full suite 1690 passed @96.18%
 
 ## Performance Metrics
