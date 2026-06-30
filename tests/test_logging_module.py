@@ -205,11 +205,11 @@ class TestInstrumentationSites:
         """Assert that all instrumentation site strings are present in source files (D-09 audit)."""
         import inspect
 
+        import pycopg.async_database as async_database_mod
         import pycopg.backup as backup_mod
+        import pycopg.database as database_mod
         import pycopg.etl as etl_mod
         import pycopg.migrations as migrations_mod
-        import pycopg.database as database_mod
-        import pycopg.async_database as async_database_mod
 
         expected_sites = [
             (etl_mod, "etl.run"),

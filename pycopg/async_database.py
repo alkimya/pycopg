@@ -1277,34 +1277,35 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         """
         validate_identifiers(table, schema)
 
-        # D-01a: promote index columns into the frame so DDL and COPY see the same columns
-        df_ddl = df.reset_index() if index else df
+        with log_operation("database.from_dataframe", rows=len(df)):
+            # D-01a: promote index columns into the frame so DDL and COPY see the same columns
+            df_ddl = df.reset_index() if index else df
 
-        # Step 1 — DDL: create/replace/append the empty typed schema via run_sync bridge
-        # index=False because df_ddl already contains the index column(s) as regular columns
-        async with self.async_engine.connect() as conn:
-            await conn.run_sync(
-                lambda sync_conn: df_ddl.head(0).to_sql(
-                    name=table,
-                    con=sync_conn,
-                    schema=schema,
-                    if_exists=if_exists,
-                    index=False,
-                    dtype=dtype,
+            # Step 1 — DDL: create/replace/append the empty typed schema via run_sync bridge
+            # index=False because df_ddl already contains the index column(s) as regular columns
+            async with self.async_engine.connect() as conn:
+                await conn.run_sync(
+                    lambda sync_conn: df_ddl.head(0).to_sql(
+                        name=table,
+                        con=sync_conn,
+                        schema=schema,
+                        if_exists=if_exists,
+                        index=False,
+                        dtype=dtype,
+                    )
                 )
-            )
-        # DDL commits on the async engine (D-04: two-phase accepted for replace)
+            # DDL commits on the async engine (D-04: two-phase accepted for replace)
 
-        # Step 2 — COPY: stream row data on a separate async psycopg connection (D-03)
-        columns = list(df_ddl.columns)  # derived from df_ddl (not df) — must match DDL
-        async with self.connect() as conn:
-            async with conn.cursor() as cur:
-                await _async_stream_df_copy(cur, df_ddl, table, schema, columns)
-            await conn.commit()
+            # Step 2 — COPY: stream row data on a separate async psycopg connection (D-03)
+            columns = list(df_ddl.columns)  # derived from df_ddl (not df) — must match DDL
+            async with self.connect() as conn:
+                async with conn.cursor() as cur:
+                    await _async_stream_df_copy(cur, df_ddl, table, schema, columns)
+                await conn.commit()
 
-        # Step 3 — PK (unchanged path, post-load)
-        if primary_key and if_exists != "append":
-            await self.schema.add_primary_key(table, primary_key, schema=schema)
+            # Step 3 — PK (unchanged path, post-load)
+            if primary_key and if_exists != "append":
+                await self.schema.add_primary_key(table, primary_key, schema=schema)
 
     async def to_geodataframe(
         self,
@@ -1402,46 +1403,47 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         validate_identifiers(table, schema)
 
-        # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
-        if srid is None:
-            if gdf.crs is None:
-                raise ValueError(
-                    "GeoDataFrame has no CRS defined. "
-                    "Set gdf.crs or provide explicit srid parameter."
-                )
-            try:
-                srid = gdf.crs.to_epsg()
-                if srid is None:
+        with log_operation("database.from_geodataframe", rows=len(gdf)):
+            # Handle SRID — fail explicitly on unknown CRS instead of silently defaulting
+            if srid is None:
+                if gdf.crs is None:
                     raise ValueError(
-                        f"Cannot determine EPSG code for CRS: {gdf.crs}. "
-                        f"Provide explicit srid parameter."
+                        "GeoDataFrame has no CRS defined. "
+                        "Set gdf.crs or provide explicit srid parameter."
                     )
-            except ValueError:
-                raise
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to infer SRID from CRS {gdf.crs}. "
-                    f"Provide explicit srid parameter. Error: {e}"
-                ) from e
+                try:
+                    srid = gdf.crs.to_epsg()
+                    if srid is None:
+                        raise ValueError(
+                            f"Cannot determine EPSG code for CRS: {gdf.crs}. "
+                            f"Provide explicit srid parameter."
+                        )
+                except ValueError:
+                    raise
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to infer SRID from CRS {gdf.crs}. "
+                        f"Provide explicit srid parameter. Error: {e}"
+                    ) from e
 
-        async with self.async_engine.connect() as conn:
-            await conn.run_sync(
-                lambda sync_conn: gdf.to_postgis(
-                    name=table,
-                    con=sync_conn,
-                    schema=schema,
-                    if_exists=if_exists,
-                    index=False,
+            async with self.async_engine.connect() as conn:
+                await conn.run_sync(
+                    lambda sync_conn: gdf.to_postgis(
+                        name=table,
+                        con=sync_conn,
+                        schema=schema,
+                        if_exists=if_exists,
+                        index=False,
+                    )
                 )
-            )
 
-        if primary_key and if_exists != "append":
-            await self.schema.add_primary_key(table, primary_key, schema=schema)
+            if primary_key and if_exists != "append":
+                await self.schema.add_primary_key(table, primary_key, schema=schema)
 
-        if spatial_index and if_exists != "append":
-            await self.spatial.create_spatial_index(
-                table, column=geometry_column, schema=schema
-            )
+            if spatial_index and if_exists != "append":
+                await self.spatial.create_spatial_index(
+                    table, column=geometry_column, schema=schema
+                )
 
     # =========================================================================
     # BATCH OPERATIONS
