@@ -313,7 +313,16 @@ Plans:
 4. `py.typed` marker is present and complete — the package is a valid PEP 561 typed package with no `ignore_missing_imports` gaps from pycopg's own code (only external stubs may require overrides)
 5. Coverage ratchet remains at ≥95% (no regression from annotation work)
 
-**Plans**: TBD
+**Plans**: 7 plans
+
+Plans:
+- [ ] 46-01-PLAN.md — Toolchain: strict=true + warn_unreachable, 3 dev stubs, prune overrides, overload-safe interrogate/coverage config (wave 0)
+- [ ] 46-02-PLAN.md — Foundation modules annotate + `--no-implicit-reexport`/`__all__` audit (wave 1)
+- [ ] 46-03-PLAN.md — spatial.py: @overload into= surface (both classes) + annotate to zero (wave 1)
+- [ ] 46-04-PLAN.md — timescale.py @overload df/rows + schema.py annotate to zero (wave 2)
+- [ ] 46-05-PLAN.md — etl.py (fix redef + unused-coroutine latent bugs) + pool.py annotate to zero (wave 2)
+- [ ] 46-06-PLAN.md — database.py + async_database.py annotate to zero (wave 3)
+- [ ] 46-07-PLAN.md — whole-package strict exit 0 verify + coverage/py.typed confirm + CI blocking-gate flip (wave 4)
 
 ---
 
@@ -384,5 +393,5 @@ Plans:
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
-| 46. mypy Strict + py.typed Gate | v1.0.0 | 0/? | Not started | - |
+| 46. mypy Strict + py.typed Gate | v1.0.0 | 0/7 | Planned | - |
 | 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |
