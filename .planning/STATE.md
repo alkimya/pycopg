@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: planning
-stopped_at: Phase 46 context gathered
-last_updated: "2026-07-01T11:48:16.377Z"
-last_activity: "2026-06-30 — Phase 45 (API completeness gaps + structured logging) executed: 4 plans sequential on main (strict dependency chain 01→02→03→04); transaction isolation_level + savepoint() surfaces (TXN-01/02), Params named-param annotation widening (PARAM-01), never-raises db.health() on all 4 DB classes (HEALTH-01), pycopg/logging.py + log_operation coarse D-09 instrumentation (LOG-01); code-review 0 blockers (5 warn → WR-01..04 fixed, WR-05+IN-* deferred); verifier PASSED 6/6; full suite 1736 passed @96.36%"
+status: executing
+stopped_at: Phase 46 planned
+last_updated: "2026-07-01T12:42:10.143Z"
+last_activity: "2026-07-01 — Phase 46 (mypy Strict + py.typed Gate) planned: 7 plans in 4 waves, bottom-up (toolchain strict+warn_unreachable+3 dev stubs → foundations annotate + __all__/no-implicit-reexport audit → spatial/timescale/etl+pool accessors incl. @overload into= KIND-parity on both classes → database+async_database → whole-package mypy exit-0 verify + coverage≥95% + CI blocking-gate flip); D-01..D-04 locked; baseline 328 errors/15 files measured in CONTEXT; research skipped (STACK.md §3 covers it), Nyquist continue-anyway; plan-checker 0 blockers / 2 warnings fixed inline (46-03 depends_on 46-02; pool baseline 22)"
 progress:
   total_phases: 7
   completed_phases: 5
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 46 — mypy Strict + py.typed Gate (not started); Phase 45 COMPLETE (verified PASSED 6/6)
+**Current focus:** Phase 46 — mypy Strict + py.typed Gate (planned — 7 plans ready to execute); Phase 45 COMPLETE (verified PASSED 6/6)
 
 ## Current Position
 
 Phase: 46
-Plan: Not started
-Status: Phase 45 complete — verified PASSED 6/6; ready to plan Phase 46
-Last activity: 2026-06-30 — Phase 45 (API completeness gaps + structured logging) executed: 4 plans sequential on main (strict dependency chain 01→02→03→04); transaction isolation_level + savepoint() surfaces (TXN-01/02), Params named-param annotation widening (PARAM-01), never-raises db.health() on all 4 DB classes (HEALTH-01), pycopg/logging.py + log_operation coarse D-09 instrumentation (LOG-01); code-review 0 blockers (5 warn → WR-01..04 fixed, WR-05+IN-* deferred); verifier PASSED 6/6; full suite 1736 passed @96.36%
+Plan: 7 plans ready (waves 0–4, bottom-up)
+Status: Ready to execute
+Last activity: 2026-07-01 — Phase 46 (mypy Strict + py.typed Gate) planned: 7 plans in 4 waves, bottom-up (toolchain strict+warn_unreachable+3 dev stubs → foundations annotate + __all__/no-implicit-reexport audit → spatial/timescale/etl+pool accessors incl. @overload into= KIND-parity on both classes → database+async_database → whole-package mypy exit-0 verify + coverage≥95% + CI blocking-gate flip); D-01..D-04 locked; baseline 328 errors/15 files measured in CONTEXT; research skipped (STACK.md §3 covers it), Nyquist continue-anyway; plan-checker 0 blockers / 2 warnings fixed inline (46-03 depends_on 46-02; pool baseline 22)
 
 ## Performance Metrics
 

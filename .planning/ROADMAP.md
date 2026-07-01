@@ -314,15 +314,29 @@ Plans:
 5. Coverage ratchet remains at ≥95% (no regression from annotation work)
 
 **Plans**: 7 plans
-
 Plans:
+**Wave 1**
+
 - [ ] 46-01-PLAN.md — Toolchain: strict=true + warn_unreachable, 3 dev stubs, prune overrides, overload-safe interrogate/coverage config (wave 0)
 - [ ] 46-02-PLAN.md — Foundation modules annotate + `--no-implicit-reexport`/`__all__` audit (wave 1)
-- [ ] 46-03-PLAN.md — spatial.py: @overload into= surface (both classes) + annotate to zero (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 46-03-PLAN.md — spatial.py: @overload into= surface (both classes) + annotate to zero (wave 2)
 - [ ] 46-04-PLAN.md — timescale.py @overload df/rows + schema.py annotate to zero (wave 2)
 - [ ] 46-05-PLAN.md — etl.py (fix redef + unused-coroutine latent bugs) + pool.py annotate to zero (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 46-06-PLAN.md — database.py + async_database.py annotate to zero (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 46-07-PLAN.md — whole-package strict exit 0 verify + coverage/py.typed confirm + CI blocking-gate flip (wave 4)
+
+**Cross-cutting constraints:**
+
+- Any narrow `# type: ignore[code]` sits at a genuinely-unstubbed edge with a one-line justification (D-01)
 
 ---
 
