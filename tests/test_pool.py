@@ -332,17 +332,6 @@ class TestAsyncPooledDatabase:
         assert stats["pool_size"] == 5
 
     @patch("pycopg.pool.AsyncConnectionPool")
-    def test_resize(self, mock_pool_class, config):
-        """Test resize method."""
-        mock_pool = MagicMock()
-        mock_pool_class.return_value = mock_pool
-
-        db = AsyncPooledDatabase(config)
-        db.resize(min_size=10, max_size=50)
-
-        mock_pool.resize.assert_called_once_with(min_size=10, max_size=50)
-
-    @patch("pycopg.pool.AsyncConnectionPool")
     def test_repr(self, mock_pool_class, config):
         """Test string representation."""
         mock_pool = MagicMock()
@@ -398,6 +387,25 @@ class TestAsyncPooledDatabaseAsync:
         await db.check()
 
         mock_pool.check.assert_called_once()
+
+    @patch("pycopg.pool.AsyncConnectionPool")
+    async def test_resize(self, mock_pool_class, config):
+        """Test resize method awaits the underlying psycopg_pool coroutine.
+
+        Regression test (46-05): AsyncConnectionPool.resize is a coroutine
+        function; a prior sync AsyncPooledDatabase.resize() implementation
+        created but never awaited it, so the resize never actually took
+        effect. mock_pool.resize is an AsyncMock so a missing await would
+        surface as "coroutine was never awaited"/assert failure here.
+        """
+        mock_pool = MagicMock()
+        mock_pool.resize = AsyncMock()
+        mock_pool_class.return_value = mock_pool
+
+        db = AsyncPooledDatabase(config)
+        await db.resize(min_size=10, max_size=50)
+
+        mock_pool.resize.assert_awaited_once_with(min_size=10, max_size=50)
 
     @patch("pycopg.pool.AsyncConnectionPool")
     async def test_context_manager(self, mock_pool_class, config):

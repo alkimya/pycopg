@@ -9,12 +9,13 @@ from __future__ import annotations
 import time
 from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 from contextlib import asynccontextmanager, contextmanager
+from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool, ConnectionPool
 
-from pycopg.base import _decode_server_version
+from pycopg.base import Params, _decode_server_version
 from pycopg.config import Config
 from pycopg.logging import log_operation
 
@@ -39,8 +40,8 @@ class PooledDatabase:
         timeout: float = 30.0,
         num_workers: int = 3,
         reconnect_timeout: float = 300.0,
-        reconnect_failed: Callable | None = None,
-        check: Callable | None = None,
+        reconnect_failed: Callable[..., Any] | None = None,
+        check: Callable[..., Any] | None = None,
     ):
         """Initialize connection pool.
 
@@ -89,7 +90,7 @@ class PooledDatabase:
         dotenv_path: str | None = None,
         min_size: int = 2,
         max_size: int = 10,
-        **kwargs,
+        **kwargs: Any,
     ) -> PooledDatabase:
         """Create PooledDatabase from environment variables.
 
@@ -119,7 +120,7 @@ class PooledDatabase:
         url: str,
         min_size: int = 2,
         max_size: int = 10,
-        **kwargs,
+        **kwargs: Any,
     ) -> PooledDatabase:
         """Create PooledDatabase from connection URL.
 
@@ -153,14 +154,14 @@ class PooledDatabase:
         with self._pool.connection() as conn:
             yield conn
 
-    def execute(self, sql: str, params: Sequence | None = None) -> list[dict]:
+    def execute(self, sql: str, params: Params = None) -> list[dict[str, Any]]:
         """Execute SQL and return results.
 
         Parameters
         ----------
         sql : str
             SQL query.
-        params : sequence, optional
+        params : Params, optional
             Query parameters.
 
         Returns
@@ -175,7 +176,7 @@ class PooledDatabase:
                 conn.commit()
                 return rows
 
-    def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
+    def execute_many(self, sql: str, params_seq: Sequence[Sequence[Any]]) -> int:
         """Execute SQL for multiple parameter sets.
 
         Parameters
@@ -200,7 +201,7 @@ class PooledDatabase:
         return total
 
     @property
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, Any]:
         """Get pool statistics.
 
         Returns
@@ -319,7 +320,12 @@ class PooledDatabase:
         """Enter the context manager, returning self."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit the context manager and close the pool."""
         self.close()
 
@@ -348,8 +354,8 @@ class AsyncPooledDatabase:
         timeout: float = 30.0,
         num_workers: int = 3,
         reconnect_timeout: float = 300.0,
-        reconnect_failed: Callable | None = None,
-        check: Callable | None = None,
+        reconnect_failed: Callable[..., Any] | None = None,
+        check: Callable[..., Any] | None = None,
     ):
         """Initialize async connection pool.
 
@@ -398,7 +404,7 @@ class AsyncPooledDatabase:
         dotenv_path: str | None = None,
         min_size: int = 2,
         max_size: int = 10,
-        **kwargs,
+        **kwargs: Any,
     ) -> AsyncPooledDatabase:
         """Create AsyncPooledDatabase from environment variables."""
         return cls(
@@ -411,7 +417,7 @@ class AsyncPooledDatabase:
         url: str,
         min_size: int = 2,
         max_size: int = 10,
-        **kwargs,
+        **kwargs: Any,
     ) -> AsyncPooledDatabase:
         """Create AsyncPooledDatabase from connection URL."""
         return cls(Config.from_url(url), min_size=min_size, max_size=max_size, **kwargs)
@@ -433,14 +439,14 @@ class AsyncPooledDatabase:
         async with self._pool.connection() as conn:
             yield conn
 
-    async def execute(self, sql: str, params: Sequence | None = None) -> list[dict]:
+    async def execute(self, sql: str, params: Params = None) -> list[dict[str, Any]]:
         """Execute SQL and return results.
 
         Parameters
         ----------
         sql : str
             SQL query.
-        params : sequence, optional
+        params : Params, optional
             Query parameters.
 
         Returns
@@ -455,7 +461,7 @@ class AsyncPooledDatabase:
                 await conn.commit()
                 return rows
 
-    async def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
+    async def execute_many(self, sql: str, params_seq: Sequence[Sequence[Any]]) -> int:
         """Execute SQL for multiple parameter sets."""
         total = 0
         async with self.connection() as conn:
@@ -466,14 +472,14 @@ class AsyncPooledDatabase:
                 await conn.commit()
         return total
 
-    async def fetch_one(self, sql: str, params: Sequence | None = None) -> dict | None:
+    async def fetch_one(self, sql: str, params: Params = None) -> dict[str, Any] | None:
         """Fetch single row."""
         async with self.connection() as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(sql, params)
                 return await cur.fetchone()
 
-    async def fetch_val(self, sql: str, params: Sequence | None = None) -> Any:
+    async def fetch_val(self, sql: str, params: Params = None) -> Any:
         """Fetch single value."""
         row = await self.fetch_one(sql, params)
         if row:
@@ -491,7 +497,7 @@ class AsyncPooledDatabase:
                 yield conn
 
     @property
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, Any]:
         """Get pool statistics."""
         return {
             "pool_min": self._pool.min_size,
@@ -569,9 +575,9 @@ class AsyncPooledDatabase:
                     "pool_stats": None,
                 }
 
-    def resize(self, min_size: int, max_size: int) -> None:
+    async def resize(self, min_size: int, max_size: int) -> None:
         """Resize the pool."""
-        self._pool.resize(min_size=min_size, max_size=max_size)
+        await self._pool.resize(min_size=min_size, max_size=max_size)
 
     async def check(self) -> None:
         """Check pool health."""
@@ -586,7 +592,12 @@ class AsyncPooledDatabase:
         await self.open()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit the async context manager and close the pool."""
         await self.close()
 
