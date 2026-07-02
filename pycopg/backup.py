@@ -313,7 +313,7 @@ class BackupAccessor:
             cur.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
             row = cur.fetchone()
             assert row is not None  # COUNT(*) always returns exactly one row
-            return int(row["count"])  # type: ignore[call-overload]  # cur.fetchone() row type is Any-typed tuple by default cursor factory; dict_row is configured at connection level, not statically visible here (D-01)
+            return int(row["count"])
 
     def copy_from_csv(
         self,

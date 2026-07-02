@@ -4,6 +4,8 @@ pycopg - High-level Python API for PostgreSQL/PostGIS/TimescaleDB.
 Simple, powerful, pythonic database operations.
 """
 
+from typing import cast
+
 from psycopg import IsolationLevel  # direct re-export — D-01 thin alias
 
 from pycopg import exceptions
@@ -53,7 +55,7 @@ except (
 from pycopg.exceptions import _DEPRECATED_NAMES as _DEPRECATED_PACKAGE_ALIASES
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> type:
     """Resolve deprecated exception names at the package level (PEP 562).
 
     Parameters
@@ -81,7 +83,10 @@ def __getattr__(name: str):
             DeprecationWarning,
             stacklevel=2,
         )
-        return getattr(exceptions, new_name)
+        # getattr() with a dynamic string name is statically Any; every value in
+        # _DEPRECATED_PACKAGE_ALIASES is a *Error class name defined in
+        # pycopg.exceptions (D-01 genuinely-dynamic attribute lookup).
+        return cast("type", getattr(exceptions, new_name))
     raise AttributeError(f"module 'pycopg' has no attribute {name!r}")
 
 
