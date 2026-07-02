@@ -64,7 +64,7 @@ Breaking changes allowed; every break served via `@deprecated_alias`/`Deprecatio
 
 ### Release
 
-- [ ] **REL-11**: pycopg 1.0.0 released to PyPI via OIDC — version bump (all sources), CHANGELOG `[1.0.0]` Breaking + Added, MIGRATION guide complete, all gates green (coverage ≥ 95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` exit 0), annotated tag `v1.0.0`, clean-venv smoke confirms `__version__ == "1.0.0"`
+- [x] **REL-11**: pycopg 1.0.0 released to PyPI via OIDC — version bump (all sources), CHANGELOG `[1.0.0]` Breaking + Added, MIGRATION guide complete, all gates green (coverage ≥ 95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` exit 0), annotated tag `v1.0.0`, clean-venv smoke confirms `__version__ == "1.0.0"`
 
 ## Future Requirements (deferred to additive 1.x — non-breaking under the frozen API)
 
@@ -144,7 +144,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FREEZE-03 | Phase 41 | Complete |
 | FREEZE-04 | Phase 41 | Complete |
 | FREEZE-05 | Phase 46 | Complete |
-| REL-11 | Phase 47 | Pending |
+| REL-11 | Phase 47 | Complete |
 
 **Coverage:**
 

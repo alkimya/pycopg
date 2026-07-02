@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Completed 47-02-PLAN.md (version 1.0.0 bump + CHANGELOG [1.0.0] assembly + MIGRATION.md final review); ready for 47-03 (gates + tag + human-gated OIDC publish + smoke)
-last_updated: "2026-07-02T14:15:30.447Z"
-last_activity: 2026-07-02 -- Phase 47 execution started
+stopped_at: v1.0.0 SHIPPED — Phase 47 complete (3/3): docs debt closed, version 1.0.0 across 3 sources, CHANGELOG [1.0.0], 5 gates green (cov 96.45%), annotated tag v1.0.0 pushed, OIDC publish workflow green, clean-venv smoke ok. pycopg 1.0.0 LIVE on PyPI. Milestone "Spatial v2 + gel API" complete — next: /gsd-complete-milestone
+last_updated: "2026-07-02T14:36:53.540Z"
+last_activity: 2026-07-02
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 28
-  completed_plans: 27
-  percent: 96
+  completed_plans: 28
+  percent: 100
 ---
 
 # Project State
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 47 — release-v1-0-0
+**Current focus:** v1.0.0 SHIPPED — milestone "Spatial v2 + gel API" complete (all 7 phases 41–47 done). Next: `/gsd-complete-milestone`.
 
 ## Current Position
 
-Phase: 47 (release-v1-0-0) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-07-02 -- Phase 47 execution started
+Phase: 47 — release-v1-0-0 (COMPLETE, milestone-closing)
+Plan: 3/3 complete (47-01 docs debt · 47-02 version+CHANGELOG+MIGRATION · 47-03 gates+tag+OIDC publish+smoke)
+Status: pycopg 1.0.0 published to PyPI — milestone complete, ready for `/gsd-complete-milestone`
+Last activity: 2026-07-02
 
 ## Performance Metrics
 
@@ -50,7 +50,7 @@ Last activity: 2026-07-02 -- Phase 47 execution started
 | 44. Spatial v2 — Serialization + MVT | 3 | 3 | Complete (verified PASSED 19/19; as_geojson/as_text/as_mvt) |
 | 45. API Completeness Gaps + Structured Logging | 4 | 4 | Complete (verified PASSED 6/6; code-review 5 warn → WR-01..04 fixed, WR-05+IN-* deferred) |
 | 46. mypy Strict + py.typed Gate | 7 | 7 | Complete (46-01 strict config live, 46-02 foundation tier 356->303, 46-03 spatial.py 303->187 via 96 @overload stubs, 46-04 timescale.py+schema.py 187->144 via 12 @overload stubs, 46-05 etl.py+pool.py 144->76 + steps no-redef/resize unused-coroutine bugs fixed, 46-06 database.py+async_database.py 76->0, 46-07 terminal verification + CI blocking flip; FREEZE-05 complete) |
-| 47. Release v1.0.0 | 3 | 0 | Planned (3 plans, ready to execute; sequential 47-01→02→03, publish human-gated) |
+| 47. Release v1.0.0 | 3 | 3 | Complete (verified PASSED 9/9; 5 gates green cov 96.45%, annotated tag v1.0.0 pushed, OIDC publish workflow green, clean-venv smoke ok — pycopg 1.0.0 LIVE on PyPI; code-review 0 crit/2 warn: WR-01 docs still show deprecated exception names, WR-02 pyproject Beta classifier on 1.0.0 + IN-01 stale CLAUDE.md version — all non-blocking post-1.0 follow-ups) |
 
 **v0.10.0 phases (all complete, shipped 2026-06-26):**
 
@@ -86,6 +86,7 @@ Last activity: 2026-07-02 -- Phase 47 execution started
 | Phase 46 P07 | 12min | 3 tasks | 1 files |
 | Phase 47 P01 | 5min | 3 tasks | 4 files |
 | Phase 47 P02 | 15min | 3 tasks | 5 files |
+| Phase 47 P03 | 12min | 4 tasks | 0 files (gates + tag + OIDC publish + smoke) |
 
 ## Accumulated Context
 
@@ -142,7 +143,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ### Pending Todos
 
-- None — Phase 47 planned (3 plans). Next: `/gsd-execute-phase 47`.
+- None blocking — Phase 47 complete, pycopg 1.0.0 shipped. Next: `/gsd-complete-milestone`.
+- Post-1.0 follow-ups from 47-REVIEW (all non-blocking, baked into published 1.0.0 → address in a 1.0.1/next patch): WR-01 `docs/api-reference.md` still shows deprecated exception names (`ExtensionNotAvailable`/`TableNotFound`/`InvalidIdentifier`) as the import surface (breaks under `error::DeprecationWarning`); WR-02 `pyproject.toml:25` classifier `Development Status :: 4 - Beta` should be `5 - Production/Stable` for 1.0.0; IN-01 `CLAUDE.md:13` Version line stale (reads v0.9.0).
 
 ### Blockers/Concerns
 
@@ -172,11 +174,12 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 ## Session Continuity
 
 Last session: 2026-07-02T14:14:47.981Z
-Stopped at: Completed 47-02-PLAN.md (version 1.0.0 bump + CHANGELOG [1.0.0] assembly + MIGRATION.md final review); ready for 47-03 (gates + tag + human-gated OIDC publish + smoke)
+Stopped at: Phase 47 COMPLETE (3/3) — v1.0.0 shipped. Gates green (cov 96.45%, interrogate 100%, Sphinx -W, -W error::DeprecationWarning, mypy 0/18), annotated tag v1.0.0 pushed to origin (SHA verified), OIDC publish workflow 28597685797 green, clean-venv smoke `smoke ok 1.0.0`. pycopg 1.0.0 LIVE on PyPI. Verified PASSED 9/9; code-review 0 crit/2 warn/1 info (non-blocking follow-ups).
 Resume file: None
-Next action: Run `/gsd-execute-phase 47` to execute the release (47-01 debt triage → 47-02 version+CHANGELOG+MIGRATION → 47-03 gates+tag+human-gated OIDC publish+smoke)
+Next action: Run `/gsd-complete-milestone` to archive the v1.0.0 milestone (all 7 phases 41–47 done).
 
 ## Operator Next Steps
 
-- Run `/gsd-execute-phase 47` (Release v1.0.0 — 3 plans; the milestone-closing phase)
-- 47-03 pauses at the human-gated publish: push the annotated `v1.0.0` tag + publish the GitHub Release (triggers OIDC PyPI publish), then run the clean-venv smoke
+- Run `/gsd-complete-milestone` (archive "Spatial v2 + gel API" v1.0.0 — the milestone is fully shipped and verified).
+- pycopg 1.0.0 is live: `pip install pycopg==1.0.0` (<https://pypi.org/project/pycopg/1.0.0/>).
+- Optional post-1.0 patch (1.0.1): apply the 47-REVIEW follow-ups — WR-02 flip pyproject classifier to `5 - Production/Stable`, WR-01 update api-reference to the `*Error` names, IN-01 bump CLAUDE.md Version line.
