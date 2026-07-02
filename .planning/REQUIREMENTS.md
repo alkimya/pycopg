@@ -73,31 +73,31 @@ Explicitly excluded from v1.1.0. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Populated during roadmap creation (Phase numbering continues from Phase 47 → starts at Phase 48).
+Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TSDB-F01 | — | Pending |
-| TSDB-F02 | — | Pending |
-| TSDB-F03 | — | Pending |
-| TSDB-F04 | — | Pending |
-| ETL-INC-F01 | — | Pending |
-| ETL-INC-F02 | — | Pending |
-| ETL-INC-F03 | — | Pending |
-| ETL-INC-F04 | — | Pending |
-| CRUD-F01 | — | Pending |
-| CRUD-F02 | — | Pending |
-| CRUD-F03 | — | Pending |
-| INTRO-F01 | — | Pending |
-| INTRO-F02 | — | Pending |
-| DOC-13 | — | Pending |
-| REL-12 | — | Pending |
+| TSDB-F01 | Phase 48 | Pending |
+| TSDB-F02 | Phase 48 | Pending |
+| TSDB-F03 | Phase 48 | Pending |
+| TSDB-F04 | Phase 48 | Pending |
+| ETL-INC-F01 | Phase 49 | Pending |
+| ETL-INC-F02 | Phase 49 | Pending |
+| ETL-INC-F03 | Phase 49 | Pending |
+| ETL-INC-F04 | Phase 49 | Pending |
+| CRUD-F01 | Phase 50 | Pending |
+| CRUD-F02 | Phase 50 | Pending |
+| CRUD-F03 | Phase 50 | Pending |
+| INTRO-F01 | Phase 50 | Pending |
+| INTRO-F02 | Phase 50 | Pending |
+| DOC-13 | Phase 51 | Pending |
+| REL-12 | Phase 51 | Pending |
 
 **Coverage:**
 - v1.1.0 requirements: 15 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 15 ⚠️ (filled by `/gsd-new-milestone` roadmapper)
+- Mapped to phases: 15/15 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-02 after initial definition (milestone v1.1.0 start)*
+*Last updated: 2026-07-02 after roadmap creation (Phases 48-51 mapped, 100% coverage)*

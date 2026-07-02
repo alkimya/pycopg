@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs (TimescaleDB · ETL incrémental · CRUD/introspection)
-status: planning
-last_updated: "2026-07-02T17:49:06.216Z"
+status: roadmap_ready
+last_updated: "2026-07-02T18:05:00.000Z"
 last_activity: 2026-07-02
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,16 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Planning next milestone. v1.0.0 "Spatial v2 + gel API" SHIPPED + CLOSED 2026-07-02 (all 7 phases 41–47 archived; public API frozen under SemVer 1.0). No active feature milestone — next work is additive 1.x point releases (ready 1.0.1 doc/metadata patch, then deferred TSDB-F/ETL-INC-F/CRUD-F/INTRO-F/SPAT-F/RASTER-F families). Next: `/gsd-new-milestone`.
+**Current focus:** v1.1.0 "Follow-ups additifs" roadmap created 2026-07-02 — 4 phases (48-51), 15/15 requirements mapped (100% coverage). Ready to plan Phase 48 (TimescaleDB Follow-ups). Next: `/gsd-plan-phase 48`.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-02 — Milestone v1.1.0 started
+Phase: 48 of 51 (TimescaleDB Follow-ups) — not yet planned
+Plan: — (awaiting /gsd-plan-phase 48)
+Status: Roadmap ready
+Last activity: 2026-07-02 — v1.1.0 ROADMAP.md created (Phases 48-51, 15/15 reqs mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -161,22 +163,20 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 | toolchain | AUDIT-02: `vulture` not wired into Makefile/CI target | NEW (v0.10.0 audit) — `vulture_whitelist.py` + dev-dep exist but must be run manually; dead-code scan can't drift-detect |
 | tech_debt | DEBT-03b + 37-REVIEW WR-03 `copy_insert` session bypass | **CLOSED-with-justification, deferred to v1.0.0** — WR-03 INTERVAL-literal, %/structural-SQL UX, IN-03 `chunk_seq`, copy_insert session semantics; recorded in `37-DECISIONS.md` §1/§2 |
 | process | Phase 40 (release) has no VERIFICATION.md | Verified via the ship gate (tag + OIDC publish + clean-venv smoke) — release-phase convention, not a coverage gap |
-| future | TSDB-F01: `drop_continuous_aggregate` / `remove_continuous_aggregate_policy` removal | deferred from v0.8.0 |
-| future | TSDB-F02: `time_bucket` `origin`/`offset` alignment params | deferred from v0.8.0 |
-| future | TSDB-F03: `compress_chunk` / `decompress_chunk` per-chunk control | deferred from v0.8.0 |
-| future | TSDB-F04: `show_chunks` physical-time filters | deferred from v0.8.0 |
-| future | ETL-INC-F01..F05: incremental ETL follow-ups | deferred to a future ETL milestone |
-| v2 | CRUD-F01..F03, INTRO-F01..F02 | deferred from v0.9.0 cadrage |
+| v1.1.0 | TSDB-F01..F04: cagg lifecycle removal, time_bucket origin/offset, compress/decompress_chunk, show_chunks physical-time filters | MAPPED to Phase 48 (2026-07-02 roadmap) |
+| v1.1.0 | ETL-INC-F01..F04: initial_watermark, configurable boundary, multi-column watermark, advisory-lock concurrency | MAPPED to Phase 49 (2026-07-02 roadmap) |
+| v1.1.0 | CRUD-F01..F03, INTRO-F01..F02: raw-SQL escape hatch, keyset pagination, page envelope, describe dataclass/DataFrame, materialized_views | MAPPED to Phase 50 (2026-07-02 roadmap) |
+| future | ETL-INC-F05: CDC / WAL change capture | deferred out of v1.1.0 (2026-07-02) — large distinct subsystem, future ETL milestone |
 | v2 | SPAT-F01: gridSize precision on overlay functions (GEOS ≥ 3.9) | deferred from v1.0.0 cadrage |
 | v2 | RASTER-F01: PostGIS raster I/O | deferred post-1.0 per 2026-06-27 cadrage |
 
 ## Session Continuity
 
-Last session: 2026-07-02 — milestone v1.0.0 CLOSED via `/gsd-complete-milestone`.
-Stopped at: Milestone v1.0.0 "Spatial v2 + gel API" archived. Audit PASSED (24/24 requirements, 7/7 phases, integration WIRED, 0 blockers). ROADMAP/REQUIREMENTS/AUDIT archived to `milestones/v1.0.0-*`, ROADMAP collapsed, PROJECT.md fully evolved (24 reqs → Validated, Active emptied, 9 Key Decisions added, "What This Is"/Current State → v1.0.0), REQUIREMENTS.md removed (fresh for next milestone). Tag `v1.0.0` live on PyPI (from Phase 47). pycopg 1.0.0 is the frozen SemVer 1.0 surface.
+Last session: 2026-07-02 — v1.1.0 roadmap created via `/gsd-new-project` roadmapper.
+Stopped at: `.planning/ROADMAP.md` written with 4 phases (48-51) for milestone v1.1.0 "Follow-ups additifs" — Phase 48 TimescaleDB Follow-ups (TSDB-F01..04), Phase 49 Incremental ETL Follow-ups (ETL-INC-F01..04), Phase 50 CRUD + Introspection Follow-ups (CRUD-F01..03, INTRO-F01..02), Phase 51 Release v1.1.0 (DOC-13, REL-12). `.planning/REQUIREMENTS.md` Traceability table filled (15/15 mapped, 0 unmapped). STATE.md position updated to Phase 48 ready-to-plan.
 Resume file: None
-Next action: `/gsd-new-milestone` to start the next cycle (additive 1.x) — or ship the ready 1.0.1 doc/metadata patch first.
+Next action: `/gsd-plan-phase 48` to plan the first phase (TimescaleDB Follow-ups).
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan the first phase with /gsd-plan-phase 48
