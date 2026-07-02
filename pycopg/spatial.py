@@ -881,7 +881,8 @@ def build_text_sql(
     the one-arg ``ST_AsText(t.geom)`` form is used, preserving full
     precision — WKT is intended for exact interchange and round-trip use,
     so silent truncation is undesirable (D-07). When set, the two-arg
-    ``ST_AsText(t.geom, %s)`` form is used.
+    ``ST_AsText(t.geom, %s)`` form is used, which requires PostGIS >= 3.1
+    (the one-arg full-precision form works on all PostGIS 3.0+ servers).
 
     Parameters
     ----------
@@ -3417,7 +3418,7 @@ class SpatialAccessor:
         max_decimal_digits : int or None, optional
             Maximum decimal digits in coordinates, by default ``None``
             (full precision, one-arg ``ST_AsText``). When set, two-arg
-            form is used (D-07).
+            form is used (D-07); the two-arg form requires PostGIS >= 3.1.
         into : str, optional
             Only ``"rows"`` is valid for this helper (D-08).
         columns : list of str, optional
@@ -6242,7 +6243,7 @@ class AsyncSpatialAccessor:
         max_decimal_digits : int or None, optional
             Maximum decimal digits in coordinates, by default ``None``
             (full precision, one-arg ``ST_AsText``). When set, two-arg
-            form is used (D-07).
+            form is used (D-07); the two-arg form requires PostGIS >= 3.1.
         into : str, optional
             Only ``"rows"`` is valid for this helper (D-08).
         columns : list of str, optional

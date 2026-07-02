@@ -135,6 +135,10 @@ silent truncation) because WKT is used for exact interchange. This asymmetry is 
 The `include_bbox=False` / `include_crs=False` options map to the ``ST_AsGeoJSON`` bitmask
 (bit1=bbox, bit2=crs); both default to off.
 
+**`as_text(max_decimal_digits=...)` version note:** passing `max_decimal_digits=` uses the
+two-arg `ST_AsText(geom, ndigits)` form, which requires PostGIS >= 3.1. The default
+(`None`, full precision, one-arg form) works on all PostGIS 3.0+ servers.
+
 **Note on `as_mvt` empty-tile contract and SRID rescue (D-04/D-05):** `as_mvt` always returns
 ``bytes`` — never ``None`` or a ``memoryview``. An empty tile (no features in the requested
 tile envelope) returns ``b""`` (empty bytes). If the stored geometry has an unknown or wrong

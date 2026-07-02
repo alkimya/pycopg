@@ -314,7 +314,9 @@ rows = db.spatial.as_geojson(
 
 Returns rows with a ``wkt`` key containing the geometry as a WKT string.
 `max_decimal_digits=None` by default (full precision, no silent truncation).
-`into="gdf"` is forbidden.
+`into="gdf"` is forbidden. Setting `max_decimal_digits=` emits the two-arg
+`ST_AsText(geom, ndigits)` form, which requires PostGIS >= 3.1; the default
+(`None`, full precision, one-arg form) works on all PostGIS 3.0+ servers.
 
 ```python
 rows = db.spatial.as_text(

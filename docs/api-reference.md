@@ -196,17 +196,17 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 
 | Method | Key Parameters | Returns |
 |--------|----------------|---------|
-| `contains` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `within` | `left_table, left_geom, right_table, right_geom, schema="public", into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `intersects` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `dwithin` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, distance=, unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `distance` | `table, geom="geometry", point=, wkt=, geojson=, srid=4326, unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
-| `nearest` | `table, geom="geometry", point=, wkt=, geojson=, srid=4326, k=5, into="rows", columns=, where=` | `list[dict] \| GeoDataFrame` |
-| `area` | `table, geom="geometry", unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
-| `perimeter` | `table, geom="geometry", unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
-| `centroid` | `table, geom="geometry", into="rows", columns=, where=, order_by=, limit=` | `list[dict]` |
-| `buffer` | `table, geom="geometry", distance=, unit="m", into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `transform` | `table, geom="geometry", to_srid=, into="rows", columns=, where=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `contains` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `within` | `left_table, left_geom, right_table, right_geom, schema="public", into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `intersects` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `dwithin` | `table, geom="geometry", point=, wkt=, geojson=, ref=, srid=4326, distance=, unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `distance` | `table, geom="geometry", point=, wkt=, geojson=, srid=4326, unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict]` |
+| `nearest` | `table, geom="geometry", point=, wkt=, geojson=, srid=4326, k=5, into="rows", columns=, filter=` | `list[dict] \| GeoDataFrame` |
+| `area` | `table, geom="geometry", unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict]` |
+| `perimeter` | `table, geom="geometry", unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict]` |
+| `centroid` | `table, geom="geometry", into="rows", columns=, filter=, order_by=, limit=` | `list[dict]` |
+| `buffer` | `table, geom="geometry", distance=, unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `transform` | `table, geom="geometry", to_srid=, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
 | `union` | `table, *, geom="geometry", schema="public", other_geom, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `difference` | `table, *, geom="geometry", schema="public", other_geom, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `intersection` | `table, *, geom="geometry", schema="public", other_geom, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
@@ -237,8 +237,8 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 | `create_continuous_aggregate` | `view_name, select_sql, schema="public", materialized_only=True, with_no_data=False` | `-` |
 | `refresh_continuous_aggregate` | `view_name, window_start=None, window_end=None, schema="public"` | `-` |
 | `add_continuous_aggregate_policy` | `view_name, start_offset, end_offset, schedule_interval="1 hour", schema="public", if_not_exists=True` | `-` |
-| `time_bucket` | `table, time_column, bucket_width, aggregates, where=None, schema="public", into="df"` | `DataFrame \| list[dict]` |
-| `time_bucket_gapfill` | `table, time_column, bucket_width, start, finish, aggregates, where=None, schema="public", into="df"` | `DataFrame \| list[dict]` |
+| `time_bucket` | `table, time_column, bucket_width, aggregates, filter=None, schema="public", into="df"` | `DataFrame \| list[dict]` |
+| `time_bucket_gapfill` | `table, time_column, bucket_width, start, finish, aggregates, filter=None, schema="public", into="df"` | `DataFrame \| list[dict]` |
 
 ### Role Methods
 
