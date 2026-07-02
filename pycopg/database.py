@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Hashable, Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import psycopg
 from psycopg import IsolationLevel, OperationalError
@@ -57,7 +58,7 @@ if TYPE_CHECKING:
 
 
 def _stream_df_copy(
-    cur,
+    cur: psycopg.Cursor[Any],
     df: pd.DataFrame,
     table: str,
     schema: str,
@@ -474,7 +475,9 @@ class Database(DatabaseBase, QueryMixin):
             conn.close()
 
     @contextmanager
-    def cursor(self, autocommit: bool = False) -> Iterator[psycopg.Cursor]:
+    def cursor(
+        self, autocommit: bool = False
+    ) -> Iterator[psycopg.Cursor[dict[str, Any]]]:
         """Context manager for psycopg cursor with dict rows.
 
         Parameters
@@ -775,7 +778,7 @@ class Database(DatabaseBase, QueryMixin):
 
     def execute(
         self, sql: str, params: Params = None, autocommit: bool = False
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Execute SQL and return results as list of dicts.
 
         Parameters
@@ -800,7 +803,7 @@ class Database(DatabaseBase, QueryMixin):
                 return cur.fetchall()
             return []
 
-    def execute_many(self, sql: str, params_seq: Sequence[Sequence]) -> int:
+    def execute_many(self, sql: str, params_seq: Sequence[Sequence[Any]]) -> int:
         """Execute SQL for multiple parameter sets.
 
         Uses psycopg's executemany() for better performance than sequential
@@ -825,7 +828,7 @@ class Database(DatabaseBase, QueryMixin):
     def insert_many(
         self,
         table: str,
-        rows: list[dict],
+        rows: list[dict[str, Any]],
         *,
         schema: str = "public",
         on_conflict: str | None = None,
@@ -863,7 +866,7 @@ class Database(DatabaseBase, QueryMixin):
     def upsert_many(
         self,
         table: str,
-        rows: list[dict],
+        rows: list[dict[str, Any]],
         conflict_columns: list[str],
         *,
         update_columns: list[str] | None = None,
@@ -909,12 +912,12 @@ class Database(DatabaseBase, QueryMixin):
     def upsert(
         self,
         table: str,
-        row: dict,
+        row: dict[str, Any],
         conflict_columns: list[str],
         *,
         update_columns: list[str] | None = None,
         schema: str = "public",
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Upsert a single row and return the affected row.
 
         Parameters
@@ -972,7 +975,7 @@ class Database(DatabaseBase, QueryMixin):
     def delete_where(
         self,
         table: str,
-        where: dict,
+        where: dict[str, Any],
         *,
         schema: str = "public",
     ) -> int:
@@ -1013,8 +1016,8 @@ class Database(DatabaseBase, QueryMixin):
     def update_where(
         self,
         table: str,
-        values: dict,
-        where: dict,
+        values: dict[str, Any],
+        where: dict[str, Any],
         *,
         schema: str = "public",
     ) -> int:
@@ -1064,7 +1067,7 @@ class Database(DatabaseBase, QueryMixin):
     def exists(
         self,
         table: str,
-        where: dict,
+        where: dict[str, Any],
         *,
         schema: str = "public",
     ) -> bool:
@@ -1107,7 +1110,7 @@ class Database(DatabaseBase, QueryMixin):
         self,
         table: str,
         *,
-        where: dict | None = None,
+        where: dict[str, Any] | None = None,
         schema: str = "public",
     ) -> int:
         """Count rows in a table, optionally filtered by equality conditions.
@@ -1144,10 +1147,10 @@ class Database(DatabaseBase, QueryMixin):
     def stream(
         self,
         sql: str,
-        params: Sequence | None = None,
+        params: Sequence[Any] | None = None,
         *,
         batch_size: int = 1000,
-    ) -> Iterator[dict]:
+    ) -> Iterator[dict[str, Any]]:
         """Stream query results in batches.
 
         Memory-efficient way to process large result sets.
@@ -1193,7 +1196,7 @@ class Database(DatabaseBase, QueryMixin):
     def insert_batch(
         self,
         table: str,
-        rows: list[dict],
+        rows: list[dict[str, Any]],
         *,
         schema: str = "public",
         on_conflict: str | None = None,
@@ -1248,7 +1251,7 @@ class Database(DatabaseBase, QueryMixin):
                 # Build VALUES (...), (...), ...
                 row_placeholders = ", ".join(["%s"] * len(columns))
                 placeholders = []
-                params = []
+                params: list[Any] = []
                 for row in batch:
                     placeholders.append(f"({row_placeholders})")
                     params.extend(row.get(col) for col in columns)
@@ -1264,7 +1267,7 @@ class Database(DatabaseBase, QueryMixin):
     def copy_insert(
         self,
         table: str,
-        rows: list[dict],
+        rows: list[dict[str, Any]],
         *,
         schema: str = "public",
         columns: list[str] | None = None,
@@ -1312,7 +1315,7 @@ class Database(DatabaseBase, QueryMixin):
             conn.commit()
             return len(rows)
 
-    def fetch_one(self, sql: str, params: Params = None) -> dict | None:
+    def fetch_one(self, sql: str, params: Params = None) -> dict[str, Any] | None:
         """Execute SQL and return single row.
 
         Parameters
@@ -1355,7 +1358,7 @@ class Database(DatabaseBase, QueryMixin):
             return list(row.values())[0]
         return None
 
-    def fetch_all(self, sql: str, params: Params = None) -> list[dict]:
+    def fetch_all(self, sql: str, params: Params = None) -> list[dict[str, Any]]:
         """Execute SQL and return all rows as a list of dicts.
 
         Thin ``list[dict]`` complement to :meth:`fetch_one`. The core uses
@@ -1401,10 +1404,10 @@ class Database(DatabaseBase, QueryMixin):
         *,
         offset: int = 0,
         order_by: str | list[str] | None = None,
-        where: dict | None = None,
+        where: dict[str, Any] | None = None,
         descending: bool = False,
         schema: str = "public",
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Return a page of rows from a table.
 
         Parameters
@@ -1442,7 +1445,7 @@ class Database(DatabaseBase, QueryMixin):
         """
         validate_identifiers(table, schema)
 
-        params: list = []
+        params: list[Any] = []
         where_clause = ""
         if where:
             fragment, where_params = self._build_where_dict(where)
@@ -1487,7 +1490,7 @@ class Database(DatabaseBase, QueryMixin):
         if_exists: Literal["fail", "replace", "append"] = "fail",
         primary_key: str | list[str] | None = None,
         index: bool = False,
-        dtype: dict | None = None,
+        dtype: dict[str, Any] | None = None,
     ) -> None:
         """Create or append to table from pandas DataFrame.
 
@@ -1534,13 +1537,16 @@ class Database(DatabaseBase, QueryMixin):
 
             # Step 1 — DDL: create/replace/append the empty typed schema
             # index=False because df_ddl already contains the index column(s) as regular columns
+            # dtype is our public dict[str, Any] -> SQLAlchemy type contract; pandas-stubs'
+            # to_sql() narrows the value union to concrete dtype/ExtensionDtype types that
+            # don't include arbitrary Any, so cast() bridges the two (D-01 unstubbed-edge).
             df_ddl.head(0).to_sql(
                 name=table,
                 con=self.engine,
                 schema=schema,
                 if_exists=if_exists,
                 index=False,
-                dtype=dtype,
+                dtype=cast("dict[Hashable, Any] | None", dtype),
             )
             # DDL commits on the engine (D-04: two-phase accepted for replace)
 
@@ -1600,6 +1606,9 @@ class Database(DatabaseBase, QueryMixin):
             validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
+        # sql is guaranteed non-None here: either passed directly, or just
+        # built from `table` above (the earlier guard rejects both-None).
+        assert sql is not None
         return pd.read_sql(text(sql), self.engine, params=params)
 
     def from_geodataframe(
@@ -1696,7 +1705,7 @@ class Database(DatabaseBase, QueryMixin):
         schema: str = "public",
         sql: str | None = None,
         geometry_column: str = "geometry",
-        params: dict | None = None,
+        params: dict[str, Any] | None = None,
     ) -> gpd.GeoDataFrame:
         """Read table or query into GeoDataFrame.
 
@@ -1729,8 +1738,20 @@ class Database(DatabaseBase, QueryMixin):
             validate_identifiers(table, schema)
             sql = f"SELECT * FROM {schema}.{table}"
 
-        return gpd.read_postgis(
-            text(sql), self.engine, geom_col=geometry_column, params=params
+        # sql is guaranteed non-None here: either passed directly, or just
+        # built from `table` above (the earlier guard rejects both-None).
+        assert sql is not None
+        # geopandas-stubs' read_postgis() overloads key on the absent `chunksize`
+        # kwarg via a precise Sequence/Mapping params union that our public
+        # dict[str, Any] contract can't statically satisfy — mypy cannot select
+        # a variant even after narrowing `params`'s value type, so the call
+        # itself is cast to its (correct, runtime-verified) return type at this
+        # unstubbed-precision edge (D-01).
+        return cast(
+            "gpd.GeoDataFrame",
+            gpd.read_postgis(  # type: ignore[call-overload]
+                text(sql), self.engine, geom_col=geometry_column, params=params
+            ),
         )
 
     def close(self) -> None:
@@ -1743,6 +1764,11 @@ class Database(DatabaseBase, QueryMixin):
         """Enter the context manager, returning self."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit the context manager and close the connection."""
         self.close()
