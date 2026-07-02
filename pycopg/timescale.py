@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from psycopg import DatabaseError
 
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 def _build_chunk_bound_fragments(
     older_than: str | datetime | None,
     newer_than: str | datetime | None,
-) -> tuple[str, str, list]:
+) -> tuple[str, str, list[Any]]:
     """Build SQL bound fragments and params list for show_chunks / drop_chunks.
 
     Parameters
@@ -54,7 +54,7 @@ def _build_chunk_bound_fragments(
     params : list
         Bound parameter values, in older-then-newer order (D-02 footgun guard).
     """
-    params: list = []
+    params: list[Any] = []
     if older_than is None:
         older_frag = ""
     elif isinstance(older_than, str):
@@ -180,7 +180,7 @@ def _check_into(into: str, helper: str) -> None:
         raise ValueError(f"{helper}(): into must be one of {_VALID_INTO}, got {into!r}")
 
 
-def _to_named_binds(sql: str, params: list) -> tuple[str, dict]:
+def _to_named_binds(sql: str, params: list[Any]) -> tuple[str, dict[str, Any]]:
     """Convert ``%s`` placeholders to named binds for SQLAlchemy ``text()``.
 
     The pure builders emit psycopg-style ``%s`` placeholders with a
@@ -204,7 +204,7 @@ def _to_named_binds(sql: str, params: list) -> tuple[str, dict]:
     """
     parts = sql.split("%s")
     out = parts[0]
-    binds: dict = {}
+    binds: dict[str, Any] = {}
     for i, part in enumerate(parts[1:]):
         out += f":p{i}{part}"
         binds[f"p{i}"] = params[i]
@@ -218,7 +218,7 @@ def _build_time_bucket_sql(
     aggregates: str,
     where: str | None = None,
     schema: str = "public",
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build a ``time_bucket`` bucketed-aggregation SELECT (D-01, D-05).
 
     Identifiers (``table``, ``time_column``, ``schema``) are validated and
@@ -271,7 +271,7 @@ def _build_time_bucket_gapfill_sql(
     aggregates: str,
     where: str | None = None,
     schema: str = "public",
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build a ``time_bucket_gapfill`` gap-filled SELECT (D-01, D-05, D-10).
 
     Identifiers (``table``, ``time_column``, ``schema``) are validated and
@@ -528,7 +528,7 @@ class TimescaleAccessor:
             )
         """)
 
-    def list_hypertables(self) -> list[dict]:
+    def list_hypertables(self) -> list[dict[str, Any]]:
         """List all hypertables.
 
         Returns
@@ -549,7 +549,7 @@ class TimescaleAccessor:
 
         return self._db.execute(queries.LIST_HYPERTABLES)
 
-    def hypertable_info(self, table: str, *, schema: str = "public") -> dict:
+    def hypertable_info(self, table: str, *, schema: str = "public") -> dict[str, Any]:
         """Get detailed info about a hypertable.
 
         Parameters
@@ -848,8 +848,14 @@ class TimescaleAccessor:
         validate_identifier(column)
 
         if partition_type == "hash":
+            # number_partitions is guaranteed not None here — validated above
+            # (mypy cannot narrow across the earlier construction-time check).
+            assert number_partitions is not None
             dim = f"by_hash('{column}', {int(number_partitions)})"
         else:  # range
+            # chunk_interval is guaranteed not None here — validated above
+            # (mypy cannot narrow across the earlier construction-time check).
+            assert chunk_interval is not None
             validate_interval(chunk_interval)
             dim = f"by_range('{column}', INTERVAL '{chunk_interval}')"
 
@@ -1171,7 +1177,9 @@ class TimescaleAccessor:
             f"{ne}) AS job_id"
         )
 
-    def _run(self, sql: str, params: list, into: str) -> pd.DataFrame | list[dict]:
+    def _run(
+        self, sql: str, params: list[Any], into: str
+    ) -> pd.DataFrame | list[dict[str, Any]]:
         """Execute a built query helper SELECT, routing on ``into=`` (D-02, D-06).
 
         Parameters
@@ -1196,6 +1204,45 @@ class TimescaleAccessor:
             return self._db.to_dataframe(sql=named_sql, params=binds)
         return self._db.execute(sql, params)
 
+    @overload
+    def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["df"] = "df",
+    ) -> pd.DataFrame: ...
+    @overload
+    def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["rows"],
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: str,
+    ) -> pd.DataFrame | list[dict[str, Any]]: ...
     def time_bucket(
         self,
         table: str,
@@ -1207,7 +1254,7 @@ class TimescaleAccessor:
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
-    ) -> pd.DataFrame | list[dict]:
+    ) -> pd.DataFrame | list[dict[str, Any]]:
         """Run a ``time_bucket`` bucketed aggregation (TS-ADV-06).
 
         Buckets ``time_column`` into fixed ``bucket_width`` intervals and
@@ -1277,6 +1324,51 @@ class TimescaleAccessor:
         )
         return self._run(sql, params, into)
 
+    @overload
+    def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["df"] = "df",
+    ) -> pd.DataFrame: ...
+    @overload
+    def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["rows"],
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: str,
+    ) -> pd.DataFrame | list[dict[str, Any]]: ...
     def time_bucket_gapfill(
         self,
         table: str,
@@ -1290,7 +1382,7 @@ class TimescaleAccessor:
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
-    ) -> pd.DataFrame | list[dict]:
+    ) -> pd.DataFrame | list[dict[str, Any]]:
         """Run a gap-filled ``time_bucket_gapfill`` aggregation (TS-ADV-07).
 
         Like :meth:`time_bucket` but NULL-pads missing buckets across the
@@ -1582,7 +1674,7 @@ class AsyncTimescaleAccessor:
             )
         """)
 
-    async def list_hypertables(self) -> list[dict]:
+    async def list_hypertables(self) -> list[dict[str, Any]]:
         """List all hypertables.
 
         Returns
@@ -1603,7 +1695,9 @@ class AsyncTimescaleAccessor:
 
         return await self._db.execute(queries.LIST_HYPERTABLES)
 
-    async def hypertable_info(self, table: str, *, schema: str = "public") -> dict:
+    async def hypertable_info(
+        self, table: str, *, schema: str = "public"
+    ) -> dict[str, Any]:
         """Get detailed info about a hypertable.
 
         Parameters
@@ -1895,8 +1989,14 @@ class AsyncTimescaleAccessor:
         validate_identifier(column)
 
         if partition_type == "hash":
+            # number_partitions is guaranteed not None here — validated above
+            # (mypy cannot narrow across the earlier construction-time check).
+            assert number_partitions is not None
             dim = f"by_hash('{column}', {int(number_partitions)})"
         else:  # range
+            # chunk_interval is guaranteed not None here — validated above
+            # (mypy cannot narrow across the earlier construction-time check).
+            assert chunk_interval is not None
             validate_interval(chunk_interval)
             dim = f"by_range('{column}', INTERVAL '{chunk_interval}')"
 
@@ -2192,8 +2292,8 @@ class AsyncTimescaleAccessor:
         )
 
     async def _run(
-        self, sql: str, params: list, into: str
-    ) -> pd.DataFrame | list[dict]:
+        self, sql: str, params: list[Any], into: str
+    ) -> pd.DataFrame | list[dict[str, Any]]:
         """Execute a built query helper SELECT asynchronously (D-07).
 
         Exact awaited mirror of :meth:`TimescaleAccessor._run`.
@@ -2220,6 +2320,45 @@ class AsyncTimescaleAccessor:
             return await self._db.to_dataframe(sql=named_sql, params=binds)
         return await self._db.execute(sql, params)
 
+    @overload
+    async def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["df"] = "df",
+    ) -> pd.DataFrame: ...
+    @overload
+    async def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["rows"],
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def time_bucket(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: str,
+    ) -> pd.DataFrame | list[dict[str, Any]]: ...
     async def time_bucket(
         self,
         table: str,
@@ -2231,7 +2370,7 @@ class AsyncTimescaleAccessor:
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
-    ) -> pd.DataFrame | list[dict]:
+    ) -> pd.DataFrame | list[dict[str, Any]]:
         """Run a ``time_bucket`` bucketed aggregation (TS-ADV-06, TS-ADV-10).
 
         Async mirror of :meth:`TimescaleAccessor.time_bucket` — buckets
@@ -2301,6 +2440,51 @@ class AsyncTimescaleAccessor:
         )
         return await self._run(sql, params, into)
 
+    @overload
+    async def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["df"] = "df",
+    ) -> pd.DataFrame: ...
+    @overload
+    async def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: Literal["rows"],
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def time_bucket_gapfill(
+        self,
+        table: str,
+        time_column: str,
+        bucket_width: str,
+        start: datetime,
+        finish: datetime,
+        aggregates: str,
+        *,
+        filter: str | None = None,
+        where: str | None = None,
+        schema: str = "public",
+        into: str,
+    ) -> pd.DataFrame | list[dict[str, Any]]: ...
     async def time_bucket_gapfill(
         self,
         table: str,
@@ -2314,7 +2498,7 @@ class AsyncTimescaleAccessor:
         where: str | None = None,
         schema: str = "public",
         into: str = "df",
-    ) -> pd.DataFrame | list[dict]:
+    ) -> pd.DataFrame | list[dict[str, Any]]:
         """Run a gap-filled ``time_bucket_gapfill`` aggregation (TS-ADV-07/10).
 
         Async mirror of :meth:`TimescaleAccessor.time_bucket_gapfill` — NULL-pads
