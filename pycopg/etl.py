@@ -30,7 +30,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 from psycopg.rows import dict_row
@@ -204,7 +204,7 @@ class Pipeline:
     load_mode: str = "append"
     conflict_columns: tuple[str, ...] = ()
     schema: str = "public"
-    transform: Callable | list[Callable] | None = None
+    transform: Callable[..., Any] | list[Callable[..., Any]] | None = None
     extract_limit: int | None = None
     incremental_column: str | None = None
 
@@ -223,7 +223,11 @@ class Pipeline:
         # Reject a bare string before normalization: a str is iterable, so
         # tuple("user_id") would silently explode into per-character columns
         # (('u', 's', ...)) and pass the non-empty upsert check (D-07).
-        if isinstance(self.conflict_columns, str):
+        # D-01: runtime guard against untyped/dynamically-constructed callers
+        # (e.g. JSON-configured pipelines) — the dataclass field annotation
+        # does not enforce the type at runtime, so mypy's static view (which
+        # only sees `tuple[str, ...]`) considers this branch unreachable.
+        if isinstance(self.conflict_columns, str):  # type: ignore[unreachable]
             raise ValueError(
                 "conflict_columns must be a sequence of column names, not a "
                 f"single string; got {self.conflict_columns!r} (did you mean "
@@ -231,8 +235,13 @@ class Pipeline:
             )
         # Normalize conflict_columns from any iterable to a tuple (D-02).
         # Frozen dataclass requires object.__setattr__ for mutation.
+        # D-01: same runtime-guard rationale as the isinstance(str) check
+        # above — callers may pass a list/other iterable despite the
+        # `tuple[str, ...]` static annotation.
         if not isinstance(self.conflict_columns, tuple):
-            object.__setattr__(self, "conflict_columns", tuple(self.conflict_columns))
+            object.__setattr__(  # type: ignore[unreachable]
+                self, "conflict_columns", tuple(self.conflict_columns)
+            )
         # Validate load_mode first (D-06).
         _validate_load_mode(self.load_mode)
         # Validate incremental_column / load_mode combo + identifier
@@ -337,7 +346,7 @@ def _is_sql_source(source: str) -> bool:
     return " " in stripped
 
 
-def build_truncate_sql(table: str, schema: str = "public") -> tuple[str, list]:
+def build_truncate_sql(table: str, schema: str = "public") -> tuple[str, list[Any]]:
     """Build a TRUNCATE SQL statement for a replace-mode load target.
 
     Called by the Phase 18 ``replace`` load path to empty the target
@@ -369,7 +378,7 @@ def build_truncate_sql(table: str, schema: str = "public") -> tuple[str, list]:
     return f"TRUNCATE TABLE {schema}.{table}", []
 
 
-def build_init_sql() -> tuple[str, list]:
+def build_init_sql() -> tuple[str, list[Any]]:
     """Return the idempotent DDL for creating the ``pipeline_runs`` table.
 
     Returns the ``ETL_INIT_PIPELINE_RUNS`` constant from
@@ -402,10 +411,10 @@ def build_init_sql() -> tuple[str, list]:
 def _build_insert_sql(
     table: str,
     columns: list[str],
-    rows: list[dict],
+    rows: list[dict[str, Any]],
     schema: str = "public",
     on_conflict: str | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build a parameterized batch INSERT SQL statement.
 
     Pure builder — no ``self``, no I/O, no DB connection.  Mirrors the
@@ -453,7 +462,7 @@ def _build_insert_sql(
     conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
 
     placeholders: list[str] = []
-    params: list = []
+    params: list[Any] = []
     for row in rows:
         row_placeholders = ", ".join(["%s"] * len(columns))
         placeholders.append(f"({row_placeholders})")
@@ -466,11 +475,11 @@ def _build_insert_sql(
 
 def _build_upsert_sql(
     table: str,
-    rows: list[dict],
+    rows: list[dict[str, Any]],
     conflict_columns: list[str] | tuple[str, ...],
     update_columns: list[str] | None = None,
     schema: str = "public",
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build a parameterized INSERT … ON CONFLICT … DO UPDATE SET SQL statement.
 
     Pure builder — delegates the INSERT body to :func:`_build_insert_sql`
@@ -531,8 +540,8 @@ def _build_incremental_extract_sql(
     source: str,
     column: str,
     schema: str = "public",
-    watermark=None,
-) -> tuple[str, list]:
+    watermark: datetime | int | str | None = None,
+) -> tuple[str, list[Any]]:
     """Build the watermark-filtered incremental extract SQL.
 
     Pure builder — no ``self``, no I/O, no DB connection.  Dispatches on
@@ -595,7 +604,7 @@ def _build_incremental_extract_sql(
 _WATERMARK_SUPPORTED = "{datetime, int, str}"
 
 
-def _encode_watermark(value) -> dict:
+def _encode_watermark(value: datetime | int | str) -> dict[str, Any]:
     """Encode a watermark scalar into a typed JSONB envelope (D-01).
 
     Pure builder — no ``self``, no I/O, no DB connection.  Returns a BARE
@@ -644,7 +653,7 @@ def _encode_watermark(value) -> dict:
     )
 
 
-def _decode_watermark(envelope: dict):
+def _decode_watermark(envelope: dict[str, Any]) -> datetime | int | str:
     """Decode a typed JSONB envelope back to the original watermark scalar.
 
     Pure function — no ``self``, no I/O.  Mirrors the dict→typed
@@ -702,13 +711,13 @@ def _step_label(fn: object) -> str:
         ``fn.__name__`` when it is a non-empty string other than
         ``"<lambda>"``; ``repr(fn)`` otherwise.
     """
-    name = getattr(fn, "__name__", None)
+    name: str | None = getattr(fn, "__name__", None)
     if name and name != "<lambda>":
         return name
     return repr(fn)
 
 
-def _row_to_result(row: dict) -> RunResult:
+def _row_to_result(row: dict[str, Any]) -> RunResult:
     """Map a ``dict_row`` from ``pipeline_runs`` to a :class:`RunResult`.
 
     Pure function — no I/O, no ``self``.  Maps ``error_message -> error``
@@ -823,7 +832,10 @@ class ETLAccessor:
                     queries.ETL_INSERT_RUN,
                     [name, "running", datetime.now(UTC)],
                 )
-                return cur.fetchone()["run_id"]
+                row = cur.fetchone()
+                # INSERT ... RETURNING always yields exactly one row.
+                assert row is not None
+                return int(row["run_id"])
 
     def _end_run(
         self,
@@ -833,7 +845,7 @@ class ETLAccessor:
         rows_loaded: int,
         error_message: str | None = None,
         error_traceback: str | None = None,
-        watermark: dict | None = None,
+        watermark: dict[str, Any] | None = None,
     ) -> None:
         """Update a ``pipeline_runs`` row with final status and metrics.
 
@@ -933,6 +945,8 @@ class ETLAccessor:
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(queries.ETL_GET_RUN, [run_id])
                 row = cur.fetchone()
+        # The row was just written by _start_run/_end_run under this run_id.
+        assert row is not None
         return _row_to_result(row)
 
     def history(self, name: str, *, limit: int = 100) -> list[RunResult]:
@@ -1033,7 +1047,7 @@ class ETLAccessor:
     def _do_extract(
         self,
         pipeline: Pipeline,
-        watermark,
+        watermark: datetime | int | str | None,
     ) -> pd.DataFrame:
         """Run the watermark-filtered extract step for *pipeline*.
 
@@ -1080,7 +1094,7 @@ class ETLAccessor:
             if _params:
                 # Replace the single positional %s with a named :wm bind
                 sql = sql.replace("%s", ":wm", 1)
-                params: dict = {"wm": _params[0]}
+                params: dict[str, Any] = {"wm": _params[0]}
             else:
                 params = {}
             if pipeline.extract_limit is not None:
@@ -1210,7 +1224,7 @@ class ETLAccessor:
                 rows_extracted = len(df)
 
                 # Capture would-be watermark from RAW filtered batch (D-A2)
-                dry_raw_watermark = None
+                dry_raw_watermark: datetime | int | str | None = None
                 dry_col = pipeline.incremental_column
                 if dry_col is not None:
                     if dry_col not in df.columns:
@@ -1237,8 +1251,9 @@ class ETLAccessor:
 
                 # Transform chain (same as normal path)
                 transform = pipeline.transform
+                steps: list[Any]
                 if transform is None:
-                    steps: list = []
+                    steps = []
                 elif callable(transform):
                     steps = [transform]
                 else:
@@ -1297,7 +1312,7 @@ class ETLAccessor:
                 # satisfied (D-07 resolved by call-site coercion — do NOT reopen
                 # _encode_watermark).
                 # ------------------------------------------------------------------
-                raw_watermark = None
+                raw_watermark: datetime | int | str | None = None
                 col = pipeline.incremental_column
                 if col is not None:
                     if col not in df.columns:
@@ -1336,7 +1351,7 @@ class ETLAccessor:
                 # ------------------------------------------------------------------
                 transform = pipeline.transform
                 if transform is None:
-                    steps: list = []
+                    steps = []
                 elif callable(transform):
                     steps = [transform]
                 else:
@@ -1368,12 +1383,17 @@ class ETLAccessor:
                 # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
                 # append/replace stream directly via COPY — no full-frame astype(object)
                 # materialization needed (D-02 / D-02c / PERF-02).
+                rows: list[dict[str, Any]]
                 if pipeline.load_mode == "upsert":
-                    rows = (
+                    # pandas types to_dict(orient="records") keys as Hashable;
+                    # DataFrame columns are always str here (extracted via
+                    # to_dataframe/SQL), so the runtime shape is dict[str, Any].
+                    records = (
                         df.astype(object)
                         .where(pd.notnull(df), None)
                         .to_dict(orient="records")
                     )
+                    rows = cast("list[dict[str, Any]]", records)
                 else:
                     rows = []  # unused for append/replace COPY path
 
@@ -1537,7 +1557,10 @@ class AsyncETLAccessor:
                     queries.ETL_INSERT_RUN,
                     [name, "running", datetime.now(UTC)],
                 )
-                return (await cur.fetchone())["run_id"]
+                row = await cur.fetchone()
+                # INSERT ... RETURNING always yields exactly one row.
+                assert row is not None
+                return int(row["run_id"])
 
     async def _end_run(
         self,
@@ -1547,7 +1570,7 @@ class AsyncETLAccessor:
         rows_loaded: int,
         error_message: str | None = None,
         error_traceback: str | None = None,
-        watermark: dict | None = None,
+        watermark: dict[str, Any] | None = None,
     ) -> None:
         """Update a ``pipeline_runs`` row with final status and metrics.
 
@@ -1640,6 +1663,8 @@ class AsyncETLAccessor:
             async with conn.cursor(row_factory=dict_row) as cur:
                 await cur.execute(queries.ETL_GET_RUN, [run_id])
                 row = await cur.fetchone()
+        # The row was just written by _start_run/_end_run under this run_id.
+        assert row is not None
         return _row_to_result(row)
 
     async def history(self, name: str, *, limit: int = 100) -> list[RunResult]:
@@ -1733,7 +1758,7 @@ class AsyncETLAccessor:
     async def _do_extract(
         self,
         pipeline: Pipeline,
-        watermark,
+        watermark: datetime | int | str | None,
     ) -> pd.DataFrame:
         """Run the watermark-filtered async extract step for *pipeline*.
 
@@ -1780,7 +1805,7 @@ class AsyncETLAccessor:
             if _params:
                 # Replace the single positional %s with a named :wm bind
                 sql = sql.replace("%s", ":wm", 1)
-                params: dict = {"wm": _params[0]}
+                params: dict[str, Any] = {"wm": _params[0]}
             else:
                 params = {}
             if pipeline.extract_limit is not None:
@@ -1895,7 +1920,7 @@ class AsyncETLAccessor:
                 rows_extracted = len(df)
 
                 # Capture would-be watermark from RAW filtered batch (D-A2)
-                dry_raw_watermark = None
+                dry_raw_watermark: datetime | int | str | None = None
                 dry_col = pipeline.incremental_column
                 if dry_col is not None:
                     if dry_col not in df.columns:
@@ -1922,8 +1947,9 @@ class AsyncETLAccessor:
 
                 # Transform chain (same as normal path, but dispatched via to_thread — SC-2)
                 transform = pipeline.transform
+                steps: list[Any]
                 if transform is None:
-                    steps: list = []
+                    steps = []
                 elif callable(transform):
                     steps = [transform]
                 else:
@@ -1982,7 +2008,7 @@ class AsyncETLAccessor:
                 # satisfied (D-07 resolved by call-site coercion — do NOT reopen
                 # _encode_watermark).
                 # ------------------------------------------------------------------
-                raw_watermark = None
+                raw_watermark: datetime | int | str | None = None
                 col = pipeline.incremental_column
                 if col is not None:
                     if col not in df.columns:
@@ -2022,7 +2048,7 @@ class AsyncETLAccessor:
                 # ------------------------------------------------------------------
                 transform = pipeline.transform
                 if transform is None:
-                    steps: list = []
+                    steps = []
                 elif callable(transform):
                     steps = [transform]
                 else:
@@ -2054,12 +2080,17 @@ class AsyncETLAccessor:
                 # Materialize rows as list[dict] only for upsert (INSERT … ON CONFLICT).
                 # append/replace stream directly via COPY — no full-frame astype(object)
                 # materialization needed (D-02 / D-02c / PERF-02).
+                rows: list[dict[str, Any]]
                 if pipeline.load_mode == "upsert":
-                    rows = (
+                    # pandas types to_dict(orient="records") keys as Hashable;
+                    # DataFrame columns are always str here (extracted via
+                    # to_dataframe/SQL), so the runtime shape is dict[str, Any].
+                    records = (
                         df.astype(object)
                         .where(pd.notnull(df), None)
                         .to_dict(orient="records")
                     )
+                    rows = cast("list[dict[str, Any]]", records)
                 else:
                     rows = []  # unused for append/replace COPY path
 
