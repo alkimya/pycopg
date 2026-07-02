@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 46 COMPLETE (verified PASSED 6/6, FREEZE-05 done) — Phase 47 (Release v1.0.0) next; Spatial v2 (42–44) + API gaps/logging (45) + mypy-strict freeze (46) all shipped
+**Current focus:** Phase 47 (Release v1.0.0) PLANNED (3 plans, ready to execute) — the milestone-closing phase; Spatial v2 (42–44) + API gaps/logging (45) + mypy-strict freeze (46) all shipped + secured
 
 ## Current Position
 
 Phase: 47
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-07-02 — Phase 46 mypy-strict + py.typed gate complete (7/7 plans, CI mypy now blocking)
+Last activity: 2026-07-02 — Phase 47 (Release v1.0.0) planned: 3 sequential plans (47-01 debt triage / 47-02 version+CHANGELOG+MIGRATION / 47-03 gates+tag+human-gated publish); plan-checker VERIFICATION PASSED
 
 ## Performance Metrics
 
@@ -50,7 +50,7 @@ Last activity: 2026-07-02 — Phase 46 mypy-strict + py.typed gate complete (7/7
 | 44. Spatial v2 — Serialization + MVT | 3 | 3 | Complete (verified PASSED 19/19; as_geojson/as_text/as_mvt) |
 | 45. API Completeness Gaps + Structured Logging | 4 | 4 | Complete (verified PASSED 6/6; code-review 5 warn → WR-01..04 fixed, WR-05+IN-* deferred) |
 | 46. mypy Strict + py.typed Gate | 7 | 7 | Complete (46-01 strict config live, 46-02 foundation tier 356->303, 46-03 spatial.py 303->187 via 96 @overload stubs, 46-04 timescale.py+schema.py 187->144 via 12 @overload stubs, 46-05 etl.py+pool.py 144->76 + steps no-redef/resize unused-coroutine bugs fixed, 46-06 database.py+async_database.py 76->0, 46-07 terminal verification + CI blocking flip; FREEZE-05 complete) |
-| 47. Release v1.0.0 | ? | 0 | Not started |
+| 47. Release v1.0.0 | 3 | 0 | Planned (3 plans, ready to execute; sequential 47-01→02→03, publish human-gated) |
 
 **v0.10.0 phases (all complete, shipped 2026-06-26):**
 
@@ -138,7 +138,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ### Pending Todos
 
-- None — roadmap created. Next: `/gsd-plan-phase 41`.
+- None — Phase 47 planned (3 plans). Next: `/gsd-execute-phase 47`.
 
 ### Blockers/Concerns
 
@@ -167,12 +167,12 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T10:58:00.480Z
-Stopped at: Completed 46-07-PLAN.md (mypy strict + py.typed gate terminal verification + CI blocking flip; FREEZE-05 complete, Phase 46 done 7/7)
+Last session: 2026-07-02
+Stopped at: Completed Phase 47 planning — 3 PLAN.md files written + committed (78de96e); plan-checker VERIFICATION PASSED, all coverage gates green
 Resume file: None
-Next action: Run `/gsd-verify-phase 46` to verify the completed mypy-strict-py-typed-gate phase, then proceed to `/gsd-plan-phase 47` (Release v1.0.0)
+Next action: Run `/gsd-execute-phase 47` to execute the release (47-01 debt triage → 47-02 version+CHANGELOG+MIGRATION → 47-03 gates+tag+human-gated OIDC publish+smoke)
 
 ## Operator Next Steps
 
-- Run `/gsd-verify-phase 46` (Phase 46 complete, 7/7 plans, FREEZE-05 satisfied)
-- Then `/gsd-plan-phase 47` (Release v1.0.0 — the milestone-closing phase)
+- Run `/gsd-execute-phase 47` (Release v1.0.0 — 3 plans; the milestone-closing phase)
+- 47-03 pauses at the human-gated publish: push the annotated `v1.0.0` tag + publish the GitHub Release (triggers OIDC PyPI publish), then run the clean-venv smoke
