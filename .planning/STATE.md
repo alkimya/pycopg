@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: verifying
-stopped_at: Completed 46-07-PLAN.md (mypy strict + py.typed gate terminal verification + CI blocking flip; FREEZE-05 complete, Phase 46 done 7/7)
+status: executing
+stopped_at: Phase 46 (mypy Strict + py.typed Gate) COMPLETE + verified PASSED 6/6 — FREEZE-05 done, 7/7 plans; Phase 47 (Release v1.0.0) next
 last_updated: "2026-07-02T11:07:56.269Z"
-last_activity: 2026-07-02
+last_activity: "2026-07-02 — Phase 46 (mypy Strict + py.typed Gate) COMPLETE + verified PASSED 6/6: FREEZE-05 done. strict=true package-wide (356→0 errors/18 files), 108 @overload into= stubs (KIND-parity, both classes), 3 dev stubs, py.typed truthful, CI mypy flipped to BLOCKING gate. Real latent async bug fixed: AsyncPooledDatabase.resize() never awaited. Full suite 1736 passed @96.42% on pycopg_test3. Code-review clean (0 blocker/warn). Next: Phase 47 (Release v1.0.0)"
 progress:
   total_phases: 7
   completed_phases: 6
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 46 — mypy-strict-py-typed-gate
+**Current focus:** Phase 46 COMPLETE (verified PASSED 6/6, FREEZE-05 done) — Phase 47 (Release v1.0.0) next; Spatial v2 (42–44) + API gaps/logging (45) + mypy-strict freeze (46) all shipped
 
 ## Current Position
 
 Phase: 47
 Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-07-02
+Status: Phase 46 complete + verified PASSED — Phase 47 (Release v1.0.0) not yet started
+Last activity: 2026-07-02 — Phase 46 mypy-strict + py.typed gate complete (7/7 plans, CI mypy now blocking)
 
 ## Performance Metrics
 
