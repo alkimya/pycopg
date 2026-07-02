@@ -109,3 +109,10 @@ Tasks 1 (`@overload` on both classes) and 2 (D-03 annotate remaining errors to z
 ---
 *Phase: 46-mypy-strict-py-typed-gate*
 *Completed: 2026-07-02*
+
+## Self-Check: PASSED
+
+- FOUND: pycopg/spatial.py
+- FOUND: .planning/phases/46-mypy-strict-py-typed-gate/46-03-SUMMARY.md
+- FOUND: 2edf7da (Task 1+2 combined commit)
+- FOUND: a807390 (SUMMARY.md commit)
