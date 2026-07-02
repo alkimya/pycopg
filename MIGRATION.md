@@ -257,6 +257,23 @@ The `filter=` parameter accepts a **raw SQL fragment** (same semantics as the sp
 
 ---
 
+### 5. `mypy --strict` now blocking in CI (not a runtime break)
+
+pycopg's own CI now fails the build if `mypy --strict` reports any error against the
+`pycopg` package (previously advisory via `continue-on-error: true`). This does not change
+any runtime behavior or public signature — it is listed here only for completeness against
+the `[1.0.0]` CHANGELOG entry. No action is required unless you vendor pycopg's CI config.
+
+---
+
+## A note for type-checking consumers
+
+pycopg 1.0 ships a complete [`py.typed`](https://peps.python.org/pep-0561/) marker and the
+whole package passes `mypy --strict` with zero errors. If your own project runs `mypy` (or
+another type checker that honors inline package types) against code that calls pycopg, you
+no longer need `ignore_missing_imports` for the `pycopg` module — inline types, including
+`@overload` variants for every polymorphic `into=` method, are picked up automatically.
+
 ## Upgrade Checklist
 
 - [ ] Update `db.spatial.*` calls: replace `where=` with `filter=`
@@ -268,6 +285,8 @@ The `filter=` parameter accepts a **raw SQL fragment** (same semantics as the sp
 - [ ] Verify that `db.execute(sql, params)`, `db.fetch_all(sql, params)`, `db.stream(sql, params)` — these stay positional, no change needed
 - [ ] Run test suite with `-W error::DeprecationWarning` to catch remaining deprecated usage:
   `uv run pytest -W error::DeprecationWarning`
+- [ ] Optional: if you type-check your own code with `mypy`, drop any `ignore_missing_imports`
+  override for `pycopg` — it now ships complete inline types (`py.typed`)
 
 ## Getting Help
 
