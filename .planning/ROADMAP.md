@@ -11,9 +11,24 @@
 - ✅ **v0.8.0 TimescaleDB avancé** — Phases 30-33 (shipped 2026-06-23)
 - ✅ **v0.9.0 CRUD ergonomique + introspection enrichie** — Phases 34-36 (shipped 2026-06-25)
 - ✅ **v0.10.0 Durcissement & Performance** — Phases 37-40 (shipped 2026-06-26)
-- 🔄 **v1.0.0 Spatial v2 + gel API** — Phases 41-47 (in progress)
+- ✅ **v1.0.0 Spatial v2 + gel API** — Phases 41-47 (shipped 2026-07-02)
 
 ## Phases
+
+<details>
+<summary>✅ v1.0.0 Spatial v2 + gel API (Phases 41-47) — SHIPPED 2026-07-02</summary>
+
+- [x] Phase 41: API Homogenization (5/5 plans) — spatial `where=`→`filter=` + deprecation shim on 22 methods, 4 N818 exception renames (`*Error`) with PEP 562 aliases, kw-only `*` freeze across 7 accessors + flat core, `docs/stability.md` + MIGRATION v0.10.x→1.0.0 — completed 2026-06-28
+- [x] Phase 42: Spatial v2 — Processing Helpers (3/3 plans) — `union`/`difference`/`intersection` + `simplify`/`convex_hull`/`make_valid` on both accessors, `validate_identifiers`-first + injection tests — completed 2026-06-29
+- [x] Phase 43: Spatial v2 — Spatial Aggregates (3/3 plans) — `collect_geometries`/`union_aggregate`/`extent` GROUP-BY aggregates, dual `into=` extent branch (box2d/geometry), NULL-propagation documented — completed 2026-06-29
+- [x] Phase 44: Spatial v2 — Serialization + MVT (3/3 plans) — `as_geojson`/`as_text` + `as_mvt`→`bytes` (enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT); `db.spatial.*` 13→25; SPAT2-13 parity finalized — completed 2026-06-30
+- [x] Phase 45: API Completeness Gaps + Structured Logging (4/4 plans) — transaction `isolation_level=`/`savepoint()`, named dict `Params`, never-raises `health()` ×4 classes, `pycopg/logging.py` — completed 2026-06-30
+- [x] Phase 46: mypy Strict + py.typed Gate (7/7 plans) — package 356→0 strict errors, ~108 `@overload` stubs, truthful `py.typed`, CI mypy flipped blocking; fixed 2 latent bugs (`AsyncPooledDatabase.resize()` await) — completed 2026-07-02
+- [x] Phase 47: Release v1.0.0 (3/3 plans) — version bump (3 sources), CHANGELOG `[1.0.0]` Breaking+Added, 5 gates green, tag `v1.0.0` + human-gated OIDC PyPI publish + clean-venv smoke — completed 2026-07-02
+
+Full details: [milestones/v1.0.0-ROADMAP.md](milestones/v1.0.0-ROADMAP.md) · Requirements: [milestones/v1.0.0-REQUIREMENTS.md](milestones/v1.0.0-REQUIREMENTS.md) · Audit: [milestones/v1.0.0-MILESTONE-AUDIT.md](milestones/v1.0.0-MILESTONE-AUDIT.md)
+
+</details>
 
 <details>
 <summary>✅ v0.10.0 Durcissement & Performance (Phases 37-40) — SHIPPED 2026-06-26</summary>
@@ -117,260 +132,6 @@ Full details: [milestones/v0.4.0-ROADMAP.md](milestones/v0.4.0-ROADMAP.md) · Re
 Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 
 </details>
-
-### ▶ v1.0.0 Spatial v2 + gel API (Phases 41-47) — in progress
-
-- [x] **Phase 41: API Homogenization** — `where=`→`filter=` rename on all 11 existing spatial methods + DeprecationWarning aliases; 4 N818 exception renames with deprecated aliases; public API consistency pass + Stable API Contract; SemVer + deprecation policy doc (`docs/stability.md`); MIGRATION guide sections for all renamed names (completed 2026-06-28)
-- [x] **Phase 42: Spatial v2 — Processing Helpers** — `union`, `simplify`, `convex_hull`, `make_valid`, `difference`, `intersection` on `SpatialAccessor` + `AsyncSpatialAccessor`; all builders use `filter=`; `validate_identifiers` first + injection tests; sync/async parity enforced by `test_accessor_parity` (completed 2026-06-29)
-- [x] **Phase 43: Spatial v2 — Spatial Aggregates** — `collect_geometries`, `union_aggregate`, `extent` (GROUP BY aggregate builder shape); NULL-propagation documented and tested; `into="gdf"` box2d→geometry for `extent`; parity + injection tests (completed 2026-06-29)
-- [x] **Phase 44: Spatial v2 — Serialization + MVT** — `as_geojson`, `as_text` in `_SCALAR_HELPERS`; `as_mvt` returning `bytes` (ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline enforced); full sync/async parity + injection tests; SPAT2-13 parity acceptance finalized across spatial phases (completed 2026-06-30)
-- [x] **Phase 45: API Completeness Gaps + Structured Logging** — `db.transaction(isolation_level=, savepoint_name=)` + `db.session(isolation_level=)` + `db.savepoint()` context manager; `%(name)s` named params documented and type-annotated; `db.health()` (latency + server_version + pool_stats); `pycopg/logging.py` + `log_operation` context manager (completed 2026-06-30)
-- [x] **Phase 46: mypy Strict + py.typed Gate** — `strict=true` blocking in CI; 3 dev-group stubs (pandas-stubs, types-geopandas, types-shapely); `@overload` on all `into=` methods; measure error count first, fix bottom-up; zero strict errors over `pycopg/`; coverage ratchet held ≥95% (completed 2026-07-02)
-- [x] **Phase 47: Release v1.0.0** — version bump (all sources), CHANGELOG `[1.0.0]` Breaking + Added, MIGRATION guide complete, all 5 gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` exit 0), tag `v1.0.0` + human-gated OIDC PyPI publish + clean-venv smoke (completed 2026-07-02)
-
-## Phase Details
-
-### Phase 41: API Homogenization
-
-**Goal**: The public surface is consistent and homogeneous — `where=` means dict-equality everywhere, `filter=` means raw SQL fragment in spatial, exception names follow N818, and the SemVer stability contract is published
-
-**Depends on**: Phase 40 (v0.10.0 baseline)
-
-**Requirements**: FREEZE-01, FREEZE-02, FREEZE-03, FREEZE-04
-
-**Success Criteria** (what must be TRUE):
-
-1. Calling an existing spatial method with `where=` raises `DeprecationWarning` pointing to the caller's file (not `pycopg/`), and the result is identical to calling with `filter=`
-2. The old exception names (`ExtensionNotAvailable`, `TableNotFound`, `InvalidIdentifier`, `DatabaseExists`) raise `DeprecationWarning` when imported or caught; new `*Error` names are importable and functional at every former raise site
-3. `docs/stability.md` exists, is linked from README, and documents the SemVer contract, deprecation timeline, and supported versions
-4. Every public method on every accessor and the flat core has a documented positional-vs-keyword-only parameter contract (Stable API Contract)
-5. MIGRATION guide has a complete section listing every renamed name (spatial `where=`→`filter=`, 4 exception renames) with before/after examples
-
-**Plans**: 5 plans in 5 waves
-Plans:
-**Wave 1**
-
-- [x] 41-01-PLAN.md — Wave-0 `-W error::DeprecationWarning` gate (post third-party discovery) + `tests/test_deprecations.py` scaffold
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 41-02-PLAN.md — FREEZE-02: 4 `*Error` renames + PEP 562 `__getattr__` aliases (atomic w/ `__init__.py`) + all internal raise sites + N818 suppression removed
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 41-03-PLAN.md — FREEZE-01: spatial `where=`→`filter=` clean builder rename + per-accessor shim (22 methods, sync/async parity, stacklevel D-09)
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 41-04-PLAN.md — FREEZE-03: consistency audit table + USER REVIEW GATE (D-05) + kw-only `*` enforcement across 7 accessors + flat core
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 41-05-PLAN.md — FREEZE-04: `docs/stability.md` (SemVer + support matrix + Stable API Contract) + toctree/README links + MIGRATION `v0.10.x → 1.0.0` section
-
----
-
-### Phase 42: Spatial v2 — Processing Helpers
-
-**Goal**: Users can perform the 6 core pairwise and unary geometry processing operations on PostGIS tables without writing raw SQL
-
-**Depends on**: Phase 41 (homogenization — `filter=` available from day one)
-
-**Requirements**: SPAT2-01, SPAT2-02, SPAT2-03, SPAT2-04, SPAT2-05, SPAT2-06
-
-**Success Criteria** (what must be TRUE):
-
-1. User can call `db.spatial.union(table, geom, other_geom)`, `db.spatial.difference(...)`, and `db.spatial.intersection(...)` to get pairwise geometry results without raw SQL; both sync and async variants return identical shape
-2. User can call `db.spatial.simplify(table, geom, tolerance)` (ST_SimplifyPreserveTopology default — no NULL collapse) and `db.spatial.convex_hull(table, geom)` to get derived geometry columns
-3. User can repair invalid geometries via `db.spatial.make_valid(table, geom, method=None)` with a whitelist-enforced `method` parameter; `method="structure"` is documented as requiring PostGIS ≥ 3.2
-4. Passing a malicious identifier (e.g., `table="users; DROP TABLE users"`) to any new builder raises `InvalidIdentifierError` before any SQL is sent to the server (dedicated injection test per builder)
-5. Every new method has a working `AsyncSpatialAccessor` equivalent with identical signature, confirmed by `test_accessor_parity`
-
-**Plans**: 3 plans in 3 waves
-
-Plans:
-
-**Wave 1**
-
-- [x] 42-01-PLAN.md — Binary trio: `union`/`difference`/`intersection` (shared `_build_binary_geom_sql` + 3 builders + 6 accessor methods + SQL-shape/injection/mixed-SRID/live tests) — SPAT2-01/05/06
-
-**Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
-
-- [x] 42-02-PLAN.md — Unary trio: `simplify`/`convex_hull`/`make_valid` (3 builders w/ method whitelist + ValueError guards + `%s` params string + 6 accessor methods + SQL-shape/ValueError/injection/bowtie/tiny-polygon/structure live tests) — SPAT2-02/03/04
-
-**Wave 3** *(blocked on Wave 2; docs + surface gate)*
-
-- [x] 42-03-PLAN.md — `test_spatial_v1_processing_surface` parity-surface test + docs (stability.md 6 rows + structure>=3.2 note, api-reference.md filter= rows, README count) + full-suite/coverage gate — SPAT2-01..06
-
-**UI hint**: no
-
----
-
-### Phase 43: Spatial v2 — Spatial Aggregates
-
-**Goal**: Users can aggregate geometry columns by group using PostGIS aggregate functions without writing raw SQL
-
-**Depends on**: Phase 42 (processing builder pattern established)
-
-**Requirements**: SPAT2-07, SPAT2-08, SPAT2-09
-
-**Success Criteria** (what must be TRUE):
-
-1. User can call `db.spatial.collect_geometries(table, geom, group_by=None)` and `db.spatial.union_aggregate(table, geom, group_by=None)` to get geometry collections and dissolved boundaries; optional `group_by` returns one row per group
-2. User can call `db.spatial.extent(table, geom, group_by=None)` to get the bounding box; `into="rows"` returns box2d text, `into="gdf"` returns geometry; behavior with optional `group_by` is consistent
-3. NULL geometry rows propagate predictably (documented NULL-propagation behavior; fixture with intentional NULL geometry rows is tested)
-4. Passing a malicious identifier to any aggregate builder raises `InvalidIdentifierError` before any SQL is sent (dedicated injection test per builder)
-5. Every new aggregate method has a working `AsyncSpatialAccessor` equivalent confirmed by `test_accessor_parity`
-
-**Plans**: 3 plans in 3 waves
-
-Plans:
-
-**Wave 1**
-
-- [x] 43-01-PLAN.md — `_append_tail` GROUP-BY extension + shared `_build_agg_geom_sql` + `collect_geometries`/`union_aggregate` (2 builders + 4 accessor methods, sync+async) + SQL-shape/injection/routing tests in `TestAggregateBuilders` — SPAT2-07/08
-
-**Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
-
-- [x] 43-02-PLAN.md — `extent` dual-branch builder (box2d `::text` for rows, `ST_SetSRID(...::geometry, int(srid))` for gdf, D-04) + `srid=4326` kw-only + sync+async `extent` + branch/srid/group_by/injection tests — SPAT2-09
-
-**Wave 3** *(blocked on Waves 1-2; live integration + docs + surface gate)*
-
-- [x] 43-03-PLAN.md — live PostGIS integration (whole-table + grouped + intentional-NULL D-07 fixture, extent box2d/gdf) + `test_spatial_aggregates_surface` + docs (stability.md 3 rows + extent srid note, api-reference.md filter= rows, README 19→22) + full-suite/coverage gate — SPAT2-07/08/09
-
-**UI hint**: no
-
----
-
-### Phase 44: Spatial v2 — Serialization + MVT
-
-**Goal**: Users can serialize PostGIS geometry columns to GeoJSON, WKT, and Mapbox Vector Tile formats directly from `db.spatial.*`
-
-**Depends on**: Phase 43 (spatial builder surface established; SPAT2-13 parity acceptance finalizes here)
-
-**Requirements**: SPAT2-10, SPAT2-11, SPAT2-12, SPAT2-13
-
-**Success Criteria** (what must be TRUE):
-
-1. User can call `db.spatial.as_geojson(table, geom, max_decimal_digits=6)` and `db.spatial.as_text(table, geom)` to get text-column results without raw SQL; both are in `_SCALAR_HELPERS`
-2. User can call `db.spatial.as_mvt(table, geom, tile_z, tile_x, tile_y)` and receive `bytes`; the generated SQL always contains the ST_Transform→ST_AsMVTGeom→ST_AsMVT pipeline (no raw-geometry shortcut); the returned bytes decode to a valid MVT with the expected feature count
-3. Passing a malicious identifier to `as_geojson`, `as_text`, or `as_mvt` raises `InvalidIdentifierError` before any SQL is sent (dedicated injection test per builder)
-4. Every serialization method has a working `AsyncSpatialAccessor` equivalent with identical signature confirmed by `test_accessor_parity`; `test_accessor_parity` covers the full spatial v2 surface (SPAT2-13 parity acceptance criterion satisfied)
-
-**Plans**: 3 plans in 3 waves
-
-Plans:
-
-**Wave 1**
-
-- [x] 44-01-PLAN.md — Scalar serializers: `build_geojson_sql` (options bitmask D-06) + `build_text_sql` (one/two-arg precision D-07) + `as_geojson`/`as_text` on both accessors (D-08 `_SCALAR_HELPERS`, D-09 born-clean `filter=`, D-10 parity) + SQL-shape/injection/`into="gdf"`/live tests — SPAT2-10/11
-
-**Wave 2** *(blocked on Wave 1; shared spatial.py/test_spatial.py)*
-
-- [x] 44-02-PLAN.md — `as_mvt`: dedicated `build_mvt_sql` (D-01 full surface, D-02 `tile_z/x/y` required kw-only, D-03 enforced ST_Transform→ST_AsMVTGeom→ST_AsMVT + `q.geom_mvt IS NOT NULL`, D-04 `srid` ST_SetSRID branch) + `_run_mvt`/`_arun_mvt` runners (D-05 always `bytes`, `None`→`b""`) + `as_mvt` on both accessors + SQL-shape/multi-arg-injection/bytes-routing tests + dependency-free MVT decoder + live decode-to-feature-count + empty-tile `b""` — SPAT2-12
-
-**Wave 3** *(blocked on Waves 1-2; parity acceptance + docs + surface gate)*
-
-- [x] 44-03-PLAN.md — `test_spatial_serialization_surface` + full P42+P43+P44 parity/KIND-parity acceptance (SPAT2-13) + docs (api-reference.md 3 `filter=` rows, stability.md 3 rows + PostGIS-3.0 ST_AsMVT note + empty-tile/SRID-0 notes, spatial guide MVT example, README 22→25) + full-suite/coverage gate — SPAT2-13
-
-**UI hint**: no
-
----
-
-### Phase 45: API Completeness Gaps + Structured Logging
-
-**Goal**: Users can control transaction isolation and savepoints, pass named query parameters, probe connection health, and enable structured logging — all without new runtime dependencies
-
-**Depends on**: Phase 44 (spatial v2 complete; this is purely additive to the flat core)
-
-**Requirements**: TXN-01, TXN-02, PARAM-01, HEALTH-01, LOG-01
-
-**Success Criteria** (what must be TRUE):
-
-1. User can call `db.transaction(isolation_level=IsolationLevel.SERIALIZABLE)` and `db.session(isolation_level=...)` to set the isolation level; both sync and async variants accept the psycopg3 `IsolationLevel` enum
-2. User can use `db.savepoint(name=None)` as a context manager to create a named savepoint and selectively rollback to it without rolling back the outer transaction
-3. User can pass a `dict` of named parameters (e.g., `{"id": 1}`) using `%(name)s` placeholders to `db.execute`, `db.fetch_one`, `db.fetch_val`, `db.fetch_all`, and `db.to_dataframe`; the type annotations and docstring examples document this usage
-4. User can call `db.health()` (sync) or `await db.health()` (async) and receive a dict with `connected`, `latency_ms`, and `server_version`; pooled instances include pool stats
-5. User can enable pycopg structured logging by configuring stdlib `logging`; calling `get_logger()` from `pycopg.logging` returns the library logger; `log_operation` context manager records operation name and duration via `extra={}` fields; zero new runtime dependencies
-
-**Plans**: TBD
-
----
-
-### Phase 46: mypy Strict + py.typed Gate
-
-**Goal**: `mypy --strict` over `pycopg/` exits 0 and is a blocking CI gate — the type surface is frozen and complete
-
-**Depends on**: Phase 45 (all method signatures and renamed types are final)
-
-**Requirements**: FREEZE-05
-
-**Success Criteria** (what must be TRUE):
-
-1. `uv run mypy --strict pycopg/` exits with code 0 (zero errors); CI runs it as a blocking check (no `continue-on-error`); measure error count first before fixing bottom-up (utils.py → exceptions.py → base.py → spatial.py)
-2. `@overload` stubs are present on all `into="rows"/"gdf"` accessor methods so that callers can infer the return type from the literal argument
-3. The 3 dev-group stubs (`pandas-stubs`, `types-geopandas`, `types-shapely`) are added to `[dependency-groups]` in `pyproject.toml` and used only by mypy (zero runtime installation)
-4. `py.typed` marker is present and complete — the package is a valid PEP 561 typed package with no `ignore_missing_imports` gaps from pycopg's own code (only external stubs may require overrides)
-5. Coverage ratchet remains at ≥95% (no regression from annotation work)
-
-**Plans**: 7 plans
-Plans:
-**Wave 1**
-
-- [x] 46-01-PLAN.md — Toolchain: strict=true + warn_unreachable, 3 dev stubs, prune overrides, overload-safe interrogate/coverage config (wave 0)
-- [x] 46-02-PLAN.md — Foundation modules annotate + `--no-implicit-reexport`/`__all__` audit (wave 1)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 46-03-PLAN.md — spatial.py: @overload into= surface (both classes) + annotate to zero (wave 2)
-- [x] 46-04-PLAN.md — timescale.py @overload df/rows + schema.py annotate to zero (wave 2)
-- [x] 46-05-PLAN.md — etl.py (fix redef + unused-coroutine latent bugs) + pool.py annotate to zero (wave 2)
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 46-06-PLAN.md — database.py + async_database.py annotate to zero (wave 3)
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 46-07-PLAN.md — whole-package strict exit 0 verify + coverage/py.typed confirm + CI blocking-gate flip (wave 4)
-
-**Cross-cutting constraints:**
-
-- Any narrow `# type: ignore[code]` sits at a genuinely-unstubbed edge with a one-line justification (D-01)
-
----
-
-### Phase 47: Release v1.0.0
-
-**Goal**: pycopg 1.0.0 is live on PyPI — a complete, stable, frozen public API for PostgreSQL/PostGIS/TimescaleDB
-
-**Depends on**: Phase 46 (all gates including mypy strict must be green)
-
-**Requirements**: REL-11
-
-**Success Criteria** (what must be TRUE):
-
-1. `pip install pycopg==1.0.0` in a clean venv imports successfully and `pycopg.__version__ == "1.0.0"`
-2. All 5 gates pass: coverage ≥95%, interrogate 100%, Sphinx `-W` clean, `-W error::DeprecationWarning` clean, `mypy --strict` exit 0
-3. CHANGELOG `[1.0.0]` has a Breaking section (homogenization renames) and an Added section (spatial v2 methods + API gap methods)
-4. MIGRATION guide is complete with before/after code for every breaking rename introduced in Phase 41
-5. Tag `v1.0.0` exists on the correct commit; GitHub Release is published; annotated tag is pushed to origin
-
-**Plans**: 3 plans in 3 waves (sequential-on-main)
-
-Plans:
-
-**Wave 1**
-
-- [x] 47-01-PLAN.md — Debt triage (D-47-03): fix 22 `InvalidIdentifierErrorError` docstring typos in spatial.py, audit `where=`→`filter=` in api-reference.md (spatial + timescale rows; CRUD left intact), correct `as_text` PostGIS ≥ 3.1 note; re-verify Sphinx `-W` + interrogate
-
-**Wave 2** *(blocked on Wave 1)*
-
-- [x] 47-02-PLAN.md — Version bump to 1.0.0 (pyproject.toml + uv.lock + docs/conf.py), CHANGELOG `[1.0.0]` assembled from the 6 per-phase SUMMARYs with code-exact signatures (D-47-01), MIGRATION final-review + type-checking note (D-47-02)
-
-**Wave 3** *(blocked on Waves 1-2)*
-
-- [x] 47-03-PLAN.md — 5 release gates green (coverage ≥95% on pycopg_test3, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy` exit 0), annotated tag `v1.0.0`, HUMAN-GATED OIDC PyPI publish, clean-venv smoke
 
 ## Progress
 

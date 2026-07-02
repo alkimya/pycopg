@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: executing
-stopped_at: v1.0.0 SHIPPED — Phase 47 complete (3/3): docs debt closed, version 1.0.0 across 3 sources, CHANGELOG [1.0.0], 5 gates green (cov 96.45%), annotated tag v1.0.0 pushed, OIDC publish workflow green, clean-venv smoke ok. pycopg 1.0.0 LIVE on PyPI. Milestone "Spatial v2 + gel API" complete — next: /gsd-complete-milestone
-last_updated: "2026-07-02T14:36:53.540Z"
-last_activity: 2026-07-02
+status: Awaiting next milestone
+stopped_at: "Phase 47 COMPLETE (3/3) — v1.0.0 shipped. Gates green (cov 96.45%, interrogate 100%, Sphinx -W, -W error::DeprecationWarning, mypy 0/18), annotated tag v1.0.0 pushed to origin (SHA verified), OIDC publish workflow 28597685797 green, clean-venv smoke `smoke ok 1.0.0`. pycopg 1.0.0 LIVE on PyPI. Verified PASSED 9/9; code-review 0 crit/2 warn/1 info (non-blocking follow-ups)."
+last_updated: "2026-07-02T15:21:07.497Z"
+last_activity: 2026-07-02 — Milestone v1.0.0 completed and archived
 progress:
   total_phases: 7
   completed_phases: 7
@@ -18,18 +18,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
+See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** v1.0.0 SHIPPED — milestone "Spatial v2 + gel API" complete (all 7 phases 41–47 done). Next: `/gsd-complete-milestone`.
+**Current focus:** Planning next milestone. v1.0.0 "Spatial v2 + gel API" SHIPPED + CLOSED 2026-07-02 (all 7 phases 41–47 archived; public API frozen under SemVer 1.0). No active feature milestone — next work is additive 1.x point releases (ready 1.0.1 doc/metadata patch, then deferred TSDB-F/ETL-INC-F/CRUD-F/INTRO-F/SPAT-F/RASTER-F families). Next: `/gsd-new-milestone`.
 
 ## Current Position
 
-Phase: 47 — release-v1-0-0 (COMPLETE, milestone-closing)
-Plan: 3/3 complete (47-01 docs debt · 47-02 version+CHANGELOG+MIGRATION · 47-03 gates+tag+OIDC publish+smoke)
-Status: pycopg 1.0.0 published to PyPI — milestone complete, ready for `/gsd-complete-milestone`
-Last activity: 2026-07-02
+Phase: Milestone v1.0.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-02 — Milestone v1.0.0 completed and archived
 
 ## Performance Metrics
 
@@ -143,21 +143,21 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ### Pending Todos
 
-- None blocking — Phase 47 complete, pycopg 1.0.0 shipped. Next: `/gsd-complete-milestone`.
-- Post-1.0 follow-ups from 47-REVIEW (all non-blocking, baked into published 1.0.0 → address in a 1.0.1/next patch): WR-01 `docs/api-reference.md` still shows deprecated exception names (`ExtensionNotAvailable`/`TableNotFound`/`InvalidIdentifier`) as the import surface (breaks under `error::DeprecationWarning`); WR-02 `pyproject.toml:25` classifier `Development Status :: 4 - Beta` should be `5 - Production/Stable` for 1.0.0; IN-01 `CLAUDE.md:13` Version line stale (reads v0.9.0).
+- **1.0.1 patch (ready now, non-blocking — baked into published 1.0.0):** WR-01 `docs/api-reference.md` still shows deprecated exception names (`ExtensionNotAvailable`/`TableNotFound`/`InvalidIdentifier`) as the import surface (trips `-W error::DeprecationWarning`); WR-02 `pyproject.toml:25` classifier `Development Status :: 4 - Beta` → `5 - Production/Stable`; IN-01 `CLAUDE.md:13` Version line stale (reads v0.9.0).
+- Optional: clear Nyquist VALIDATION.md artifact gaps via `/gsd-validate-phase 42|44|45` (draft) and `46|47` (missing) — functional VERIFICATION.md PASSED for all; discovery-only, see v1.0.0-MILESTONE-AUDIT.md.
+- Next milestone: `/gsd-new-milestone` (or ship the 1.0.1 patch directly first).
 
 ### Blockers/Concerns
 
-- Local `pycopg_test` DB unusable since 2026-06-24 (TSDB catalog mismatch) — run DB/parity tests with `PGDATABASE=pycopg_test2` (PostGIS now enabled on it). Carries into v1.0.0.
-- v0.10.0 non-blocking carry-forward: phases 38/39 Nyquist VALIDATION.md draft; `vulture` not wired into Makefile/CI; DEBT-03b + copy_insert session-bypass deferred to v1.0.0.
-- Phase 46 (mypy strict) baseline MEASURED (46-01, 2026-07-02): 356 errors / 15 files under the new strict config (up from context's 328 non-strict measurement — delta is warn_unreachable's 9 new errors minus 4 resolved pandas import-untyped errors). Multi-session plan confirmed (7 plans). Progress: 46-02 (foundation tier) 356->303; 46-03 (spatial.py, largest hotspot, 96 @overload stubs) 303->187; 46-04 (timescale.py + schema.py, 12 @overload stubs + D-03) 187->144; 46-05 (etl.py + pool.py) 144->76 -- steps [no-redef] root-caused as duplicate-annotation-only (never a runtime bug), [unused-coroutine] REAL bug found+fixed at pool.py:574 (AsyncPooledDatabase.resize() was sync calling an async psycopg_pool coroutine without await -- resize silently never took effect; plan's own pointer named etl.py, which had zero unused-coroutine errors); 46-06 (database.py + async_database.py) 76->0 package-wide. **FREEZE-05 COMPLETE (46-07, 2026-07-02):** whole-package `uv run mypy pycopg/` verified 0 errors/18 files, coverage held 96.45% (pycopg_test3), interrogate 100%, py.typed truthful (only geoalchemy2/tenacity overrides remain), CI mypy step flipped from continue-on-error to a blocking gate (D-04). Phase 46 fully done 7/7 — ready for `/gsd-verify-phase 46`.
-- Phase 44 (as_mvt) MVT decode strategy in CI must be decided at plan time (structural byte check vs. mapbox-vector-tile parser).
-- pycopg_test/pycopg_test2 both broken: TimescaleDB .so version drift (server expects 2.28.0/2.28.1, only 2.28.2 installed) -- even bare SELECT 1 fails; verified via scratch DB pycopg_test3 for 46-02, will likely recur for 46-03..46-07
+- **Local test DB env (carries forward):** default `pycopg_test`/`pycopg_test2` both broken since 2026-06-24 (TimescaleDB `.so` version drift — server expects 2.28.0/2.28.1, only 2.28.2 installed; even bare `SELECT 1` fails). Run all DB/parity tests with `PGDATABASE=pycopg_test3` (the working scratch DB). Environmental, not a code issue.
+- Non-blocking carry-forward (tracked in Deferred Items below): `vulture` not wired into Makefile/CI (AUDIT-02); phases 38/39 + 42/44/45/46/47 Nyquist VALIDATION.md draft/missing; DEBT-03b + `copy_insert` session-bypass (recorded in `37-DECISIONS.md`).
 
 ## Deferred Items
 
 | Category | Item | Status |
 | -------- | ---- | ------ |
+| docs (1.0.1) | WR-01 api-reference deprecated exception names; WR-02 pyproject classifier `4 - Beta`→`5`; IN-01 CLAUDE.md stale Version | NEW (v1.0.0 audit) — non-blocking, baked into published 1.0.0; ship in a 1.0.1 patch |
+| nyquist | Phases 42/44/45 VALIDATION.md draft (`nyquist_compliant: false`) + 46/47 missing | NEW (v1.0.0 audit) — functional VERIFICATION.md PASSED with live evidence for all; clear via `/gsd-validate-phase 42\|44\|45\|46\|47` |
 | nyquist | Phases 38/39 VALIDATION.md draft (`nyquist_compliant: false` for 38) | NEW (v0.10.0 audit) — functional VERIFICATION.md PASSED with live evidence; clear retroactively via `/gsd-validate-phase 38` (and `39`) |
 | toolchain | AUDIT-02: `vulture` not wired into Makefile/CI target | NEW (v0.10.0 audit) — `vulture_whitelist.py` + dev-dep exist but must be run manually; dead-code scan can't drift-detect |
 | tech_debt | DEBT-03b + 37-REVIEW WR-03 `copy_insert` session bypass | **CLOSED-with-justification, deferred to v1.0.0** — WR-03 INTERVAL-literal, %/structural-SQL UX, IN-03 `chunk_seq`, copy_insert session semantics; recorded in `37-DECISIONS.md` §1/§2 |
@@ -173,13 +173,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T14:14:47.981Z
-Stopped at: Phase 47 COMPLETE (3/3) — v1.0.0 shipped. Gates green (cov 96.45%, interrogate 100%, Sphinx -W, -W error::DeprecationWarning, mypy 0/18), annotated tag v1.0.0 pushed to origin (SHA verified), OIDC publish workflow 28597685797 green, clean-venv smoke `smoke ok 1.0.0`. pycopg 1.0.0 LIVE on PyPI. Verified PASSED 9/9; code-review 0 crit/2 warn/1 info (non-blocking follow-ups).
+Last session: 2026-07-02 — milestone v1.0.0 CLOSED via `/gsd-complete-milestone`.
+Stopped at: Milestone v1.0.0 "Spatial v2 + gel API" archived. Audit PASSED (24/24 requirements, 7/7 phases, integration WIRED, 0 blockers). ROADMAP/REQUIREMENTS/AUDIT archived to `milestones/v1.0.0-*`, ROADMAP collapsed, PROJECT.md fully evolved (24 reqs → Validated, Active emptied, 9 Key Decisions added, "What This Is"/Current State → v1.0.0), REQUIREMENTS.md removed (fresh for next milestone). Tag `v1.0.0` live on PyPI (from Phase 47). pycopg 1.0.0 is the frozen SemVer 1.0 surface.
 Resume file: None
-Next action: Run `/gsd-complete-milestone` to archive the v1.0.0 milestone (all 7 phases 41–47 done).
+Next action: `/gsd-new-milestone` to start the next cycle (additive 1.x) — or ship the ready 1.0.1 doc/metadata patch first.
 
 ## Operator Next Steps
 
-- Run `/gsd-complete-milestone` (archive "Spatial v2 + gel API" v1.0.0 — the milestone is fully shipped and verified).
-- pycopg 1.0.0 is live: `pip install pycopg==1.0.0` (<https://pypi.org/project/pycopg/1.0.0/>).
-- Optional post-1.0 patch (1.0.1): apply the 47-REVIEW follow-ups — WR-02 flip pyproject classifier to `5 - Production/Stable`, WR-01 update api-reference to the `*Error` names, IN-01 bump CLAUDE.md Version line.
+- Start the next milestone with /gsd-new-milestone

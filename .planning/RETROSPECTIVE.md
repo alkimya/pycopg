@@ -350,6 +350,55 @@
 
 ---
 
+## Milestone: v1.0.0 — Spatial v2 + gel API
+
+**Shipped:** 2026-07-02
+**Phases:** 7 (41–47) | **Plans:** 28 | **Tasks:** 52
+
+### What Was Built
+
+- **API Homogenization (Phase 41):** the last aggressive consistency pass before the freeze — spatial `where=`→`filter=` (so `where=` means dict-equality everywhere) with a one-cycle `DeprecationWarning` shim on 22 accessor methods + 11 born-clean `filter=`-only builders; 4 N818 exception renames (`ExtensionNotAvailableError`/`TableNotFoundError`/`InvalidIdentifierError`/`DatabaseExistsError`) with PEP 562 same-object aliases (D-08: warn on import/access, not at catch time); kw-only `*` enforced across all 7 accessors + flat core (100+ methods) with a raw-SQL carve-out; `docs/stability.md` SemVer/deprecation contract + MIGRATION v0.10.x→1.0.0.
+- **Spatial v2 (Phases 42–44):** `db.spatial.*` grew 13→25 methods across three families on both sync/async accessors — processing (`union`/`difference`/`intersection` via shared `_build_binary_geom_sql` + `simplify`/`convex_hull`/`make_valid`), GROUP-BY aggregates (`collect_geometries`/`union_aggregate`/`extent` via `_build_agg_geom_sql`, dual `into=` extent branch box2d/geometry, documented NULL-propagation), and serialization (`as_geojson`/`as_text` scalar + `as_mvt`→`bytes` via an enforced `ST_Transform→ST_AsMVTGeom→ST_AsMVT` pipeline, never `None`/`memoryview`). Every builder `validate_identifiers`-first with a dedicated injection test; SPAT2-13 parity finalized.
+- **API Gaps + Structured Logging (Phase 45):** transaction `isolation_level=` + `savepoint()` partial rollback, named dict `Params` on `execute`/`fetch_*`/`to_dataframe`, never-raises `health()` on all 4 DB/pool classes, and a stdlib `pycopg/logging.py` (`get_logger`/`log_operation`, `NullHandler` default) at 21 coarse sites — zero new runtime deps.
+- **mypy Strict + py.typed (Phase 46):** drove the whole package 356→0 strict errors across 18 modules via ~108 symmetric `@overload` KIND-parity stubs + pragmatic-`Any`, flipped the CI mypy step advisory→**blocking**, shipped a truthful `py.typed` — and surfaced+fixed 2 real latent bugs (`AsyncPooledDatabase.resize()` was sync-calling an async coroutine without `await` → resize silently never took effect; etl `steps` `[no-redef]`).
+- **Release (Phase 47):** version 1.0.0 across `pyproject.toml`/`docs/conf.py`/`uv.lock`, CHANGELOG `[1.0.0]` (Breaking + Added), MIGRATION final-review, all 5 gates green (cov 96.45%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), annotated tag `v1.0.0`, human-gated OIDC PyPI publish (run 28597685797), clean-venv smoke `smoke ok 1.0.0`.
+
+### What Worked
+
+- **Build-order discipline paid off exactly as designed.** Homogenization FIRST meant every Spatial v2 builder was born clean with `filter=` (no double deprecation cycle), and the exception renames landed before the strict-typing gate so mypy annotated the final names. Zero rework across 7 phases.
+- **The code-review gate caught a KIND-parity BLOCKER the name-only parity test missed (Phase 41).** The kw-only `*` freeze moved the boundary on sync accessor methods but left the async classes positional in `schema.py`/`maint.py`/`etl.py`/`backup.py` — `test_accessor_parity` (name-only) stayed green. Review found it; the fix added a structural `test_accessor_parameter_kind_parity` that now prevents any future sync/async kind drift, and it held through all three spatial phases.
+- **mypy --strict is a genuine bug-finder, not just annotation hygiene.** It caught the missing-`await` class directly: `AsyncPooledDatabase.resize()` silently never resized the pool. That's a whole category of async bug that tests routinely miss and the type gate catches for free — the strongest argument for making the freeze milestone's strict gate blocking.
+- **`validate_identifiers`-first-with-injection-test as an explicit acceptance criterion held.** Carried forward from the v0.10.0 COPY-rewrite lesson, it was applied to every new spatial builder from day one — no builder shipped without a line-1 guard and a dedicated injection test.
+- **The milestone audit's integration checker confirmed the whole frozen surface wires end-to-end** — 25 spatial methods reachable on both accessors, zero stale exception call sites, `health()` on all 4 classes, `mypy pycopg/` clean, full suite 1736@96.45%.
+
+### What Was Inefficient
+
+- **Ran sequential-on-main yet again (now the de-facto default for 6 milestones).** Phase 45's strict `depends_on` chain over shared `database.py`/`async_database.py` made it *mandatory* (worktrees fork the same base, so dependents wouldn't see prerequisites) — the plan-index even mis-grouped all 4 plans into one "wave" with warnings. Executor parallelism stays unused; local `main` ran well ahead of `origin`.
+- **The recurring tooling taxes recurred, exactly as predicted (12th+ milestone).** `milestone.complete` again warned it could not write STATE.md's "Last Activity Description"; the REQUIREMENTS checkbox-vs-traceability-table drift hit SPAT2-13 and REL-11 (both `[x]` inline but "Pending" in the table — hand-fixed); MILESTONES `Delivered`/`Stats` needed hand-enrichment, and the auto-dumped accomplishments included two malformed lines (45-01/45-02 captured code-review `[Rule 1 - Bug]` headers instead of one-liners). These are certainties to budget for.
+- **Nyquist sign-off slipped again — the same pattern v0.10.0 flagged.** VALIDATION.md shipped `nyquist_compliant: false` (draft) for phases 42/44/45 and is absent for 46/47, even though every functional VERIFICATION.md PASSED with live evidence. Ironic that the milestone which made the *type* gate blocking left its own *validation* artifact gate half-open.
+- **A false alarm from `gsd-code-fixer` cost a verification detour.** It reported "17 failed" during Phase 45 because it ran without `PGDATABASE=pycopg_test3` (the broken-default-DB condition) — a reminder that executor/fixer test claims must always be re-verified against the correct scratch DB before being believed.
+
+### Patterns Established
+
+- **Homogenize-before-you-grow.** When a milestone both reshapes and extends a surface, do the breaking consistency pass first so every new method is born in the final shape — no method ever needs its own deprecation cycle. This is the generalizable form of the fixed build order.
+- **Structural parity guards beat name-only ones.** `test_accessor_parity` (do both classes expose the method?) cannot catch positional-vs-keyword-only drift; `test_accessor_parameter_kind_parity` (do the signatures match by *kind*?) can. Edit both sync and async classes in the same change and assert kind parity.
+- **Make `mypy --strict` blocking on the freeze milestone specifically.** The one-time annotation cost buys a standing guard against the missing-await / redefinition bug classes that the test suite structurally can't see — highest leverage right before an API freeze.
+
+### Key Lessons
+
+1. **Freeze the shape before you grow the surface.** Landing homogenization (renames, kw-only, exception convention) before Spatial v2 and mypy-strict meant zero rework and zero new deprecation cycles — the single most important sequencing decision of the milestone.
+2. **Name-level parity tests give false confidence; KIND-level drift is invisible to them.** A sync/async signature can diverge on positional-vs-kw-only while both sides still "have the method." Only a structural signature-kind assertion catches it — and it caught a real BLOCKER here.
+3. **`mypy --strict` is a latent-bug finder, and the missing-`await` bug is its headline catch.** For any async-heavy library, a blocking strict gate pays for itself on the bugs tests don't reach.
+4. **The recurring GSD tooling taxes are now 12+ milestones deep — the CLI fix is long overdue.** STATE.md "Last Activity Description", REQUIREMENTS checkbox-vs-table drift, MILESTONES enrichment, and now malformed auto-dumped accomplishments are all certainties, not surprises. Budget the hand-fixes or fix the tool.
+
+### Cost Observations
+
+- Model mix: Opus for orchestration/planning/review/audit, Sonnet for researchers/executors/verifier/integration-checker.
+- Sessions: 2026-06-27 (milestone launch) → 2026-06-28..30 (Phases 41–45) → 2026-07-02 (Phase 46 mypy-strict multi-session + Phase 47 ship + close).
+- Notable: 7 phases, 28 plans, 52 tasks in ~5 days — the largest milestone since v0.4.0. Phase 46 (mypy-strict, 7 plans) was the heavyweight, driven bottom-up 356→0 over one long session; the two material bug findings (resize await, etl redef) both came from the type gate, not tests.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -364,6 +413,7 @@
 | v0.8.0 | 4 (30–33) | 11 | Advanced TimescaleDB surface (`db.timescale.*` 6→15) on the v0.5.0 autocommit seam; mock-authoritative + license-tolerant testing for Apache/TSL split; plan-time live verification reversed a wrong license assumption (D-08) |
 | v0.9.0 | 3 (34–36) | 7 | Ergonomic CRUD + enriched introspection (12 methods, full parity) via one shared `_build_where_dict` builder + `describe` pure-composition; near-zero design churn from mature patterns; resolved the v0.6.0 `db.meta.*` carve question (decided against) |
 | v0.10.0 | 4 (37–40) | 12 | First hardening/perf (non-additive) milestone: tooled audit found+fixed 5 real injection/CLI BLOCKERS in mature code; volume inserts routed via COPY (no API change, parity held); coverage ratchet 94→95 with first `# pragma: no cover` use; stdlib `benchmarks/` guard; code-review gate caught a `validate_identifiers` regression in the COPY rewrite |
+| v1.0.0 | 7 (41–47) | 28 | The freeze: homogenize-first (where→filter, N818 renames, kw-only) → Spatial v2 (`db.spatial.*` 13→25) → API gaps (txn/savepoint/health/logging) → **mypy-strict LAST, blocking CI** (356→0, ~108 @overload, found 2 latent bugs incl. missing-await); public API frozen under SemVer 1.0; structural KIND-parity guard added after review caught a name-only-test-invisible BLOCKER |
 
 ### Cumulative Quality
 
@@ -377,6 +427,7 @@
 | v0.8.0 | 31+ (~1288 tests) | 95.11% | Ratchet held at 94; new `test_timescale.py` two-layer (mock SQL-shape + Apache-tolerant live) for 9 methods + 9-name surface parity assertion; `-W error::DeprecationWarning` green; interrogate 100% |
 | v0.9.0 | 31+ (~1331 tests) | 94.11% | Ratchet held at 94; +CRUD unit/integration (`_build_where_dict` + 7 helpers × sync/async) + schema-introspection mock+live + `TestAsyncSchemaIntrospection` to clear the ratchet + `test_schema_v090_surface`; `-W error::DeprecationWarning` green; interrogate 100% |
 | v0.10.0 | 33+ (~1426 tests) | 96.32% | **Ratchet lifted 94→95**; +`TestAsyncInsertBatch` live-DB + 11 ETL `dry_run` + COPY-path tests (`TestFromDataframeCopy`/`TestETLCopyPath`/validation) + `insert_batch` hoist non-regression + 53 AUDIT-01 regression tests; first `# pragma: no cover` use (6 em-dash-justified); `-W error::DeprecationWarning` green; interrogate 100% |
+| v1.0.0 | 35+ (1736 tests) | 96.45% | Ratchet held at 95; +52 `where=`→`filter=` deprecation-shim tests + per-builder spatial injection/SQL-shape tests (12 new methods) + `test_accessor_parameter_kind_parity` structural guard + txn/savepoint/health/named-param/logging suites; **`mypy --strict` 0/18 now a blocking gate**; `py.typed` truthful; `-W error::DeprecationWarning` green; interrogate 100% |
 
 ### Top Lessons (Verified Across Milestones)
 

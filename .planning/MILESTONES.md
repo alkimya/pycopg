@@ -1,5 +1,30 @@
 # Milestones
 
+## v1.0.0 Spatial v2 + gel API (Shipped: 2026-07-02)
+
+**Phases completed:** 7 phases (41–47), 28 plans, 52 tasks
+
+**Delivered:** The last big milestone — froze the public API under SemVer 1.0 as a complete, stable, homogeneous high-level surface (maximum capability without raw SQL). Homogenization landed first (spatial `where=`→`filter=`, 4 N818 exception renames, kw-only `*` on 100+ public methods, `docs/stability.md`), then three Spatial v2 families grew `db.spatial.*` from 13 to 25 methods (processing → aggregates → serialization/MVT), four flat-core API gaps closed (transaction isolation + savepoints, named dict params, never-raises `health()`, structured logging), and `mypy --strict` became a blocking CI gate over a zero-error package with a truthful `py.typed`. Shipped to PyPI via OIDC with all 5 release gates green, zero new runtime dependencies. Milestone audit PASSED (24/24 requirements), integration WIRED.
+
+**Key accomplishments:**
+
+- **Phase 41 — API Homogenization (FREEZE-01..04):** spatial `where=`→`filter=` rename with a `stacklevel=2` deprecation shim on 22 accessor methods (11 born-clean `filter=` builders), 4 N818 exception renames (`*Error`) with PEP 562 `__getattr__` same-object aliases, kw-only `*` enforced across all 7 accessors + flat core, and `docs/stability.md` SemVer/deprecation contract + complete MIGRATION v0.10.x→1.0.0.
+- **Phase 42 — Spatial v2 Processing (SPAT2-01..06):** 6 geometry ops — `union`/`difference`/`intersection` (shared `_build_binary_geom_sql`) + `simplify`/`convex_hull`/`make_valid` (method whitelist, PostGIS ≥3.2 note) — sync+async, `validate_identifiers`-first with per-builder injection tests.
+- **Phase 43 — Spatial v2 Aggregates (SPAT2-07..09):** `collect_geometries`/`union_aggregate`/`extent` GROUP-BY aggregates via shared `_build_agg_geom_sql`, GROUP-BY-aware tail clause, and `extent`'s dual `into=` branch (box2d text for rows, geometry for gdf).
+- **Phase 44 — Spatial v2 Serialization + MVT (SPAT2-10..13):** `as_geojson`/`as_text` scalar serializers + `as_mvt` returning `bytes` via an enforced `ST_Transform→ST_AsMVTGeom→ST_AsMVT` pipeline (never `None`/`memoryview`); `db.spatial.*` reaches 25 methods; SPAT2-13 parity finalized.
+- **Phase 45 — API Gaps + Structured Logging (TXN-01/02, PARAM-01, HEALTH-01, LOG-01):** transaction `isolation_level=` + `savepoint()` partial rollback, `Params`-widened named dict params on 5 methods, never-raises `health()` on all 4 DB/pool classes, and a stdlib `pycopg/logging.py` (`get_logger`/`log_operation`, NullHandler default) wired at 21 coarse sites — zero new runtime deps.
+- **Phase 46 — mypy Strict + py.typed Gate (FREEZE-05):** drove the whole package 356→0 strict errors across 18 modules via ~108 symmetric `@overload` stubs (KIND-parity) + pragmatic-`Any`, made the CI mypy step blocking, and shipped a truthful `py.typed` — surfacing and fixing 2 real latent bugs (`AsyncPooledDatabase.resize()` missing `await`; etl `steps` redef).
+- **Phase 47 — Release (REL-11):** all 5 gates green (coverage 96.45%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), annotated tag `v1.0.0`, human-gated OIDC publish, clean-venv smoke `smoke ok 1.0.0` — **pycopg 1.0.0 live on PyPI**.
+
+**Stats:**
+
+- Timeline: 2026-06-27 → 2026-07-02 (~5 days); git range v0.10.1..v1.0.0 (205 commits)
+- Codebase: ~22,800 LOC lib (`pycopg/`), ~24,100 LOC tests; suite 1736 passed/2 skipped @ 96.45% coverage
+- Spatial surface 13→25 methods; API frozen under SemVer 1.0; zero new runtime dependencies
+- Tag `v1.0.0` (created at Phase 47), PyPI publish run 28597685797, GitHub Release published 2026-07-02
+
+**Known deferred items at close:** 3 non-blocking 1.0.1 doc/metadata candidates (pyproject classifier `4 - Beta`→`5 - Production/Stable`; api-reference deprecated exception names; CLAUDE.md stale Version line) + Nyquist VALIDATION.md artifact gaps (phases 42/44/45 draft, 46/47 absent) — see STATE.md Deferred Items and v1.0.0-MILESTONE-AUDIT.md.
+
 ## v0.10.0 Durcissement & Performance (Shipped: 2026-06-27)
 
 **Phases completed:** 4 phases, 12 plans, 30 tasks
