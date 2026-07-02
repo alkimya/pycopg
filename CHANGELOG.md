@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-02
+
+Spatial v2 + gel API. First stable major release: `db.spatial.*` grows from
+13 to 25 methods (processing, aggregates, serialization/MVT), transaction
+control gains isolation levels and savepoints, native dict-style bind
+parameters are now typed, `health()` ships on all four database classes,
+structured logging is available, and the whole package type-checks clean
+under `mypy --strict` with a shipped `py.typed` marker. See `MIGRATION.md`
+for the full upgrade guide covering the breaking changes below.
+
+### Added
+
+- **Spatial v2 — processing helpers** (`pycopg/spatial.py`, sync and async,
+  all `filter=`-only, valid for `into="gdf"`):
+  - `union(table, *, geom="geometry", schema="public", other_geom, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — pairwise `ST_Union(t.{geom}, t.{other_geom})`, adds `union_geom`.
+  - `difference(table, *, geom="geometry", schema="public", other_geom, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — pairwise `ST_Difference(t.{geom}, t.{other_geom})` (A minus B), adds `difference`.
+  - `intersection(table, *, geom="geometry", schema="public", other_geom, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — pairwise `ST_Intersection(t.{geom}, t.{other_geom})`, adds `intersection`.
+  - `simplify(table, *, geom="geometry", schema="public", tolerance, preserve_topology=True, preserve_collapsed=False, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — `ST_SimplifyPreserveTopology`/`ST_Simplify`, adds `simplified`.
+  - `convex_hull(table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — `ST_ConvexHull`, adds `convex_hull`.
+  - `make_valid(table, *, geom="geometry", schema="public", method=None, keep_collapsed=None, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — `ST_MakeValid`, adds `made_valid`.
+- **Spatial v2 — spatial aggregates** (`pycopg/spatial.py`, sync and async,
+  `group_by` keyword-only, valid for `into="gdf"`):
+  - `collect_geometries(table, *, geom="geometry", schema="public", group_by=None, into="rows", filter=None, order_by=None, limit=None)`
+    — `ST_Collect` per group, adds `collected`.
+  - `union_aggregate(table, *, geom="geometry", schema="public", group_by=None, into="rows", filter=None, order_by=None, limit=None)`
+    — `ST_Union` dissolve per group, adds `dissolved`.
+  - `extent(table, *, geom="geometry", schema="public", group_by=None, srid=4326, into="rows", filter=None, order_by=None, limit=None)`
+    — `ST_Extent`; `into="rows"` returns a `BOX(...)` text `extent` column, `into="gdf"` returns an SRID-tagged polygon geometry.
+- **Spatial v2 — serialization + MVT** (`pycopg/spatial.py`, sync and async,
+  born-clean `filter=` only, no `where=` shim):
+  - `as_geojson(table, *, geom="geometry", schema="public", max_decimal_digits=6, include_bbox=False, include_crs=False, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — `ST_AsGeoJSON`, adds a `geojson` JSON-string column; `into="gdf"` raises `ValueError`.
+  - `as_text(table, *, geom="geometry", schema="public", max_decimal_digits=None, into="rows", columns=None, filter=None, order_by=None, limit=None)`
+    — `ST_AsText`, adds a `wkt` column; two-arg form (`max_decimal_digits` set) requires PostGIS >= 3.1; `into="gdf"` raises `ValueError`.
+  - `as_mvt(table, *, geom="geometry", schema="public", tile_z, tile_x, tile_y, layer_name="default", extent=4096, columns=None, feature_id_column=None, srid=None, filter=None)`
+    — `ST_Transform` -> `ST_AsMVTGeom` -> `ST_AsMVT` pipeline, returns `bytes` (never `None`/`memoryview`; empty tile is `b""`); no `into=` parameter.
+- **Transaction control** (`pycopg/database.py` / `pycopg/async_database.py`,
+  sync and async, TXN-01/TXN-02):
+  - `transaction(*, isolation_level=None, savepoint_name=None)` — set a
+    connection isolation level or open a named savepoint; raises
+    `RuntimeError` if `isolation_level` is set inside an active `session()`.
+  - `session(autocommit=False, *, isolation_level=None)` — set the session
+    connection's isolation level up front.
+  - `savepoint(*, name=None)` — standalone nested savepoint inside an active
+    `session()`; raises `RuntimeError` outside a session.
+- **Native dict-style bind parameters** (PARAM-01): the `Params` type alias
+  (`Sequence[Any] | Mapping[str, Any] | None`) is now used on `execute`,
+  `fetch_one`, `fetch_val`, `fetch_all`, and `to_dataframe` (sync and async,
+  flat core and pooled classes) — `%(name)s`-style dict params work natively
+  via psycopg with no new translator.
+- **`health()`** (HEALTH-01): a never-raises health-check method
+  (`def health(self) -> dict[str, Any]`) on `Database`, `AsyncDatabase`,
+  `PooledDatabase`, and `AsyncPooledDatabase` — opens a fresh connection,
+  runs `SELECT 1`, measures round-trip latency, and returns
+  `{"connected": False, "error": ...}` on any failure instead of raising;
+  the pooled variants also report `pool_stats`.
+- **Structured logging** (LOG-01): new `pycopg/logging.py` module —
+  `get_logger() -> logging.Logger` returns the `"pycopg"` logger (a
+  `NullHandler` is attached by default, so the library stays silent unless
+  the application configures its own handler), and
+  `log_operation(operation, *, rows=None)` is a context manager that emits a
+  single DEBUG record with elapsed time and an optional row count; wired
+  into 13 internal call sites.
+- Complete `py.typed` marker — the package type-checks clean under
+  `mypy --strict` (0 errors across 18 files) and ships accurate inline types
+  for all public methods, including `@overload` triplets on every
+  polymorphic `into=` method.
+
+### Changed
+
+- **Breaking:** Spatial helpers' filter keyword renamed `where=` -> `filter=`
+  across all pre-1.0 `db.spatial.*` methods (FREEZE-01). New Spatial v2
+  methods (above) are born clean with `filter=` only — no deprecated `where=`
+  alias.
+- **Breaking:** Four exception classes renamed for consistency (FREEZE-02;
+  old names remain as deprecated aliases — see Deprecated below):
+  - `ExtensionNotAvailable` -> `ExtensionNotAvailableError`
+  - `TableNotFound` -> `TableNotFoundError`
+  - `InvalidIdentifier` -> `InvalidIdentifierError`
+  - `DatabaseExists` -> `DatabaseExistsError`
+- **Breaking:** Keyword-only (`*`) enforcement on all 100+ public methods
+  across the 7 accessor families and the flat core (FREEZE-03) — positional
+  calls beyond the leading required argument(s) now raise `TypeError`.
+  `execute`, `fetch_one`, `fetch_val`, `fetch_all`, `stream`, and
+  `maint.explain` keep `params` positional as raw-SQL execution primitives
+  (documented carve-out).
+- **Breaking:** `time_bucket` / `time_bucket_gapfill` filter keyword renamed
+  `where=` -> `filter=` (D3), with a one-cycle `DeprecationWarning` shim
+  (`stacklevel=2`) on the old `where=` name.
+- **Breaking:** `mypy --strict` is now a blocking CI gate (`.github/workflows/tests.yml`)
+  — previously advisory (`continue-on-error: true`).
+
+### Deprecated
+
+- The `where=` keyword on pre-1.0 spatial accessor methods and on
+  `time_bucket` / `time_bucket_gapfill` — still accepted via a
+  `DeprecationWarning` shim, scheduled for removal in 2.0.
+- The four pre-rename exception names (`ExtensionNotAvailable`,
+  `TableNotFound`, `InvalidIdentifier`, `DatabaseExists`) — still importable
+  as aliases of their `*Error` replacements (warn at import/access via
+  `PEP 562 __getattr__`), scheduled for removal in 2.0.
+
 ## [0.10.1] - 2026-06-27
 
 ### Fixed
@@ -386,7 +494,8 @@ examples, watermark-column requirements, and backfill/reset instructions.
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/alkimya/pycopg/compare/v0.10.1...v1.0.0
 [0.10.0]: https://github.com/alkimya/pycopg/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/alkimya/pycopg/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/alkimya/pycopg/compare/v0.7.0...v0.8.0
