@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0.0
-milestone_name: Spatial v2 + gel API
-status: Awaiting next milestone
-stopped_at: "Phase 47 COMPLETE (3/3) — v1.0.0 shipped. Gates green (cov 96.45%, interrogate 100%, Sphinx -W, -W error::DeprecationWarning, mypy 0/18), annotated tag v1.0.0 pushed to origin (SHA verified), OIDC publish workflow 28597685797 green, clean-venv smoke `smoke ok 1.0.0`. pycopg 1.0.0 LIVE on PyPI. Verified PASSED 9/9; code-review 0 crit/2 warn/1 info (non-blocking follow-ups)."
-last_updated: "2026-07-02T15:21:07.497Z"
-last_activity: 2026-07-02 — Milestone v1.0.0 completed and archived
+milestone: v1.1.0
+milestone_name: Follow-ups additifs (TimescaleDB · ETL incrémental · CRUD/introspection)
+status: planning
+last_updated: "2026-07-02T17:49:06.216Z"
+last_activity: 2026-07-02
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 28
-  completed_plans: 28
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 ## Current Position
 
-Phase: Milestone v1.0.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-02 — Milestone v1.0.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-02 — Milestone v1.1.0 started
 
 ## Performance Metrics
 
