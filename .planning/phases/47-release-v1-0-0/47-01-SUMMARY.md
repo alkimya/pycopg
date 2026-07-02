@@ -105,3 +105,10 @@ None - no external service configuration required.
 ---
 *Phase: 47-release-v1-0-0*
 *Completed: 2026-07-02*
+
+## Self-Check: PASSED
+
+- FOUND: pycopg/spatial.py, docs/api-reference.md, docs/spatial.md, docs/stability.md
+- FOUND: commit 6e6f5a3 (Task 1)
+- FOUND: commit ddd0398 (Task 2)
+- FOUND: commit e079a8d (SUMMARY.md)

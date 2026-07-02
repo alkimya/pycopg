@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Completed 46-07-PLAN.md (mypy strict + py.typed gate terminal verification + CI blocking flip; FREEZE-05 complete, Phase 46 done 7/7)
-last_updated: "2026-07-02T13:34:40.085Z"
-last_activity: 2026-07-02 — Phase 46 mypy-strict + py.typed gate complete (7/7 plans, CI mypy now blocking)
+stopped_at: "Completed 47-01-PLAN.md (debt triage: InvalidIdentifierError typos, where=/filter= audit, as_text PostGIS 3.1 note); Sphinx -W + interrogate 100% re-verified green"
+last_updated: "2026-07-02T14:06:54.934Z"
+last_activity: 2026-07-02 -- Phase 47 execution started
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 25
-  completed_plans: 25
-  percent: 86
+  total_plans: 28
+  completed_plans: 26
+  percent: 93
 ---
 
 # Project State
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 47 (Release v1.0.0) PLANNED (3 plans, ready to execute) — the milestone-closing phase; Spatial v2 (42–44) + API gaps/logging (45) + mypy-strict freeze (46) all shipped + secured
+**Current focus:** Phase 47 — release-v1-0-0
 
 ## Current Position
 
-Phase: 47
-Plan: Not started
+Phase: 47 (release-v1-0-0) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-07-02 — Phase 47 (Release v1.0.0) planned: 3 sequential plans (47-01 debt triage / 47-02 version+CHANGELOG+MIGRATION / 47-03 gates+tag+human-gated publish); plan-checker VERIFICATION PASSED
+Last activity: 2026-07-02 -- Phase 47 execution started
 
 ## Performance Metrics
 
@@ -84,6 +84,7 @@ Last activity: 2026-07-02 — Phase 47 (Release v1.0.0) planned: 3 sequential pl
 | Phase 46 P05 | ~40min | 2 tasks | 3 files |
 | Phase 46 P06 | ~35min | 2 tasks | 4 files |
 | Phase 46 P07 | 12min | 3 tasks | 1 files |
+| Phase 47 P01 | 5min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -167,8 +168,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02
-Stopped at: Completed Phase 47 planning — 3 PLAN.md files written + committed (78de96e); plan-checker VERIFICATION PASSED, all coverage gates green
+Last session: 2026-07-02T14:06:29.115Z
+Stopped at: Completed 47-01-PLAN.md (debt triage: InvalidIdentifierError typos, where=/filter= audit, as_text PostGIS 3.1 note); Sphinx -W + interrogate 100% re-verified green
 Resume file: None
 Next action: Run `/gsd-execute-phase 47` to execute the release (47-01 debt triage → 47-02 version+CHANGELOG+MIGRATION → 47-03 gates+tag+human-gated OIDC publish+smoke)
 

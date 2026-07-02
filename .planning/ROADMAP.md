@@ -362,7 +362,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 47-01-PLAN.md — Debt triage (D-47-03): fix 22 `InvalidIdentifierErrorError` docstring typos in spatial.py, audit `where=`→`filter=` in api-reference.md (spatial + timescale rows; CRUD left intact), correct `as_text` PostGIS ≥ 3.1 note; re-verify Sphinx `-W` + interrogate
+- [x] 47-01-PLAN.md — Debt triage (D-47-03): fix 22 `InvalidIdentifierErrorError` docstring typos in spatial.py, audit `where=`→`filter=` in api-reference.md (spatial + timescale rows; CRUD left intact), correct `as_text` PostGIS ≥ 3.1 note; re-verify Sphinx `-W` + interrogate
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -422,4 +422,4 @@ Plans:
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 7/7 | Complete    | 2026-07-02 |
-| 47. Release v1.0.0 | v1.0.0 | 0/3 | Planned | - |
+| 47. Release v1.0.0 | v1.0.0 | 1/3 | In Progress|  |
