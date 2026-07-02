@@ -328,7 +328,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 46-06-PLAN.md — database.py + async_database.py annotate to zero (wave 3)
+- [x] 46-06-PLAN.md — database.py + async_database.py annotate to zero (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -407,5 +407,5 @@ Plans:
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
-| 46. mypy Strict + py.typed Gate | v1.0.0 | 5/7 | In Progress|  |
+| 46. mypy Strict + py.typed Gate | v1.0.0 | 6/7 | In Progress|  |
 | 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |

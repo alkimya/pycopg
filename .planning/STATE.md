@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Completed 46-05-PLAN.md (etl.py + pool.py mypy strict; package-wide 144 -> 76; steps no-redef + resize unused-coroutine bugs fixed)
-last_updated: "2026-07-02T09:52:24.090Z"
+stopped_at: Completed 46-06-PLAN.md (database.py + async_database.py mypy strict; package-wide 76 -> 0; __init__.py gap-closure; FREEZE-05 complete)
+last_updated: "2026-07-02T10:11:45.421Z"
 last_activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy strict; package-wide 144 -> 76; steps no-redef + resize unused-coroutine bugs fixed)
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 25
-  completed_plans: 23
-  percent: 92
+  completed_plans: 24
+  percent: 71
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 46 (mypy-strict-py-typed-gate) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy strict; package-wide 144 -> 76; steps no-redef + resize unused-coroutine bugs fixed)
 
@@ -82,6 +82,7 @@ Last activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy stri
 | Phase 46 P03 | ~50min | 2 tasks | 1 files |
 | Phase 46 P04 | ~25min | 2 tasks | 2 files |
 | Phase 46 P05 | ~40min | 2 tasks | 3 files |
+| Phase 46 P06 | ~35min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -131,6 +132,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 46-03: @overload triplet pattern (Literal[rows]/Literal[gdf]/str fallback) on all 16 polymorphic into= methods x 2 classes (96 stubs, symmetric); scalar helpers narrowed via cast() not overloaded; zero # type: ignore needed in spatial.py
 - [Phase ?]: [Phase 46-04]: assert-for-exclusivity-narrowing reused for add_dimension's number_partitions/chunk_interval Optional narrowing (sync+async); @overload triplet pattern (Literal[df]/Literal[rows]/str fallback) applied to timescale time_bucket/time_bucket_gapfill x2 classes (12 stubs, symmetric); schema.py pure D-03 (no into= polymorphism)
 - [Phase 46]: [Phase 46-05]: steps [no-redef] fixed as duplicate-annotation-only (dry_run branch always returns before the second assignment is reachable, never a runtime shadow); [unused-coroutine] real bug found+fixed at pool.py:574 (not etl.py as plan pointer suggested) -- AsyncPooledDatabase.resize() was sync calling an async psycopg_pool coroutine without await, silently never resizing
+- [Phase 46]: Phase 46-06: database.py + async_database.py annotated to zero mypy strict errors (76 -> 0 package-wide); assert-for-exclusivity-narrowing extended to to_dataframe/to_geodataframe sql XOR guard; cast() at pandas to_sql()/geopandas read_postgis() unstubbed edges; __init__.py:56 gap-closure (__getattr__ -> type via cast); backup.py stale unused-ignore removed as Rule-1 side effect of cursor() typing. FREEZE-05 satisfied.
 
 ### Pending Todos
 
@@ -163,8 +165,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T09:52:24.081Z
-Stopped at: Completed 46-05-PLAN.md (etl.py + pool.py mypy strict; package-wide 144 -> 76; steps no-redef + resize unused-coroutine bugs fixed)
+Last session: 2026-07-02T10:11:33.359Z
+Stopped at: Completed 46-06-PLAN.md (database.py + async_database.py mypy strict; package-wide 76 -> 0; __init__.py gap-closure; FREEZE-05 complete)
 Resume file: None
 Next action: Execute Phase 46 Plan 06 (mypy-strict-py-typed-gate, final hotspots — database.py / async_database.py / __init__.py)
 
