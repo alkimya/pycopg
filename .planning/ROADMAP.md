@@ -40,7 +40,11 @@
   2. User can align `time_bucket` output to a custom origin/offset via keyword-only `origin=`/`offset=` params, sync and async
   3. User can compress or decompress a single named chunk via `db.timescale.compress_chunk(chunk)` / `decompress_chunk(chunk)`, sync and async
   4. User can filter `show_chunks` results to a physical time window via keyword-only `newer_than=`/`older_than=` bounds, sync and async
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 48-01-PLAN.md — F01 continuous-aggregate teardown (drop_continuous_aggregate + remove_continuous_aggregate_policy, both accessors)
+- [ ] 48-02-PLAN.md — F02 time_bucket custom origin/offset (keyword-only params + @overload KIND-parity, both accessors)
+- [ ] 48-03-PLAN.md — F03 per-chunk compress/decompress + F04 show_chunks physical-time filter verify+doc
+
 
 ### Phase 49: Incremental ETL Follow-ups
 **Goal**: Users can precisely control the boundaries and concurrency safety of incremental `Pipeline` runs — bounding the first run, choosing inclusive/lookback semantics, tracking composite watermarks, and preventing overlapping runs of the same pipeline.
@@ -83,7 +87,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. TimescaleDB Follow-ups | v1.1.0 | 0/TBD | Not started | - |
+| 48. TimescaleDB Follow-ups | v1.1.0 | 0/3 | Planned | - |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
@@ -257,7 +261,7 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 7/7 | Complete    | 2026-07-02 |
 | 47. Release v1.0.0 | v1.0.0 | 3/3 | Complete    | 2026-07-02 |
-| 48. TimescaleDB Follow-ups | v1.1.0 | 0/TBD | Not started | - |
+| 48. TimescaleDB Follow-ups | v1.1.0 | 0/3 | Planned | - |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
