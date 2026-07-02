@@ -14,7 +14,7 @@ Both classes are exposed on the parent database via a lazy-cached
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 
@@ -185,7 +185,7 @@ class SchemaAccessor:
             f'DROP EXTENSION {if_clause}"{name}"{cascade_clause}', autocommit=True
         )
 
-    def list_extensions(self) -> list[dict]:
+    def list_extensions(self) -> list[dict[str, Any]]:
         """List installed extensions.
 
         Returns
@@ -409,7 +409,7 @@ class SchemaAccessor:
         cascade_clause = " CASCADE" if cascade else ""
         self._db.execute(f"TRUNCATE TABLE {schema}.{name}{cascade_clause}")
 
-    def table_info(self, name: str, *, schema: str = "public") -> list[dict]:
+    def table_info(self, name: str, *, schema: str = "public") -> list[dict[str, Any]]:
         """Get column information for a table.
 
         Parameters
@@ -653,7 +653,9 @@ class SchemaAccessor:
         if_clause = "IF EXISTS " if if_exists else ""
         self._db.execute(f"DROP INDEX {if_clause}{schema}.{name}")
 
-    def list_indexes(self, table: str, *, schema: str = "public") -> list[dict]:
+    def list_indexes(
+        self, table: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
         """List indexes on a table.
 
         Parameters
@@ -670,7 +672,9 @@ class SchemaAccessor:
         """
         return self._db.execute(queries.LIST_INDEXES, [schema, table])
 
-    def list_constraints(self, table: str, *, schema: str = "public") -> list[dict]:
+    def list_constraints(
+        self, table: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
         """List constraints on a table.
 
         Parameters
@@ -687,7 +691,9 @@ class SchemaAccessor:
         """
         return self._db.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
-    def primary_key(self, table: str, *, schema: str = "public") -> dict | None:
+    def primary_key(
+        self, table: str, *, schema: str = "public"
+    ) -> dict[str, Any] | None:
         """Return the primary key constraint for a table, or None if absent.
 
         Parameters
@@ -712,7 +718,9 @@ class SchemaAccessor:
             "columns": [r["column_name"] for r in rows],
         }
 
-    def foreign_keys(self, table: str, *, schema: str = "public") -> list[dict]:
+    def foreign_keys(
+        self, table: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
         """Return all foreign key constraints on a table.
 
         Parameters
@@ -735,12 +743,12 @@ class SchemaAccessor:
         if not rows:
             return []
         # Group flat rows by constraint_name preserving row order.
-        result: list[dict] = []
-        seen: dict[str, dict] = {}
+        result: list[dict[str, Any]] = []
+        seen: dict[str, dict[str, Any]] = {}
         for row in rows:
             name = row["constraint_name"]
             if name not in seen:
-                entry: dict = {
+                entry: dict[str, Any] = {
                     "constraint_name": name,
                     "columns": [],
                     "referenced_table": row["referenced_table"],
@@ -788,7 +796,7 @@ class SchemaAccessor:
         result = self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
 
-    def describe(self, table: str, *, schema: str = "public") -> dict:
+    def describe(self, table: str, *, schema: str = "public") -> dict[str, Any]:
         """Return a consolidated introspection snapshot for a table.
 
         Composes the four standalone helpers into one flat dict.  No new SQL
@@ -978,7 +986,7 @@ class AsyncSchemaAccessor:
             f'DROP EXTENSION {if_clause}"{name}"{cascade_clause}', autocommit=True
         )
 
-    async def list_extensions(self) -> list[dict]:
+    async def list_extensions(self) -> list[dict[str, Any]]:
         """List installed extensions.
 
         Returns
@@ -1151,7 +1159,9 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.GET_COLUMNS, [schema, table])
         return [(row["column_name"], row["data_type"]) for row in result]
 
-    async def table_info(self, name: str, *, schema: str = "public") -> list[dict]:
+    async def table_info(
+        self, name: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
         """Get column information for a table.
 
         Parameters
@@ -1446,7 +1456,9 @@ class AsyncSchemaAccessor:
         if_clause = "IF EXISTS " if if_exists else ""
         await self._db.execute(f"DROP INDEX {if_clause}{schema}.{name}")
 
-    async def list_indexes(self, table: str, *, schema: str = "public") -> list[dict]:
+    async def list_indexes(
+        self, table: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
         """List indexes on a table.
 
         Parameters
@@ -1465,7 +1477,7 @@ class AsyncSchemaAccessor:
 
     async def list_constraints(
         self, table: str, *, schema: str = "public"
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """List constraints on a table.
 
         Parameters
@@ -1482,7 +1494,9 @@ class AsyncSchemaAccessor:
         """
         return await self._db.execute(queries.LIST_CONSTRAINTS, [schema, table])
 
-    async def primary_key(self, table: str, *, schema: str = "public") -> dict | None:
+    async def primary_key(
+        self, table: str, *, schema: str = "public"
+    ) -> dict[str, Any] | None:
         """Return the primary key constraint for a table, or None if absent.
 
         Parameters
@@ -1507,7 +1521,9 @@ class AsyncSchemaAccessor:
             "columns": [r["column_name"] for r in rows],
         }
 
-    async def foreign_keys(self, table: str, *, schema: str = "public") -> list[dict]:
+    async def foreign_keys(
+        self, table: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
         """Return all foreign key constraints on a table.
 
         Parameters
@@ -1530,12 +1546,12 @@ class AsyncSchemaAccessor:
         if not rows:
             return []
         # Group flat rows by constraint_name preserving row order.
-        result: list[dict] = []
-        seen: dict[str, dict] = {}
+        result: list[dict[str, Any]] = []
+        seen: dict[str, dict[str, Any]] = {}
         for row in rows:
             name = row["constraint_name"]
             if name not in seen:
-                entry: dict = {
+                entry: dict[str, Any] = {
                     "constraint_name": name,
                     "columns": [],
                     "referenced_table": row["referenced_table"],
@@ -1583,7 +1599,7 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
 
-    async def describe(self, table: str, *, schema: str = "public") -> dict:
+    async def describe(self, table: str, *, schema: str = "public") -> dict[str, Any]:
         """Return a consolidated introspection snapshot for a table.
 
         Composes the four standalone helpers into one flat dict.  No new SQL
