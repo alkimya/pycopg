@@ -366,7 +366,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 47-02-PLAN.md — Version bump to 1.0.0 (pyproject.toml + uv.lock + docs/conf.py), CHANGELOG `[1.0.0]` assembled from the 6 per-phase SUMMARYs with code-exact signatures (D-47-01), MIGRATION final-review + type-checking note (D-47-02)
+- [x] 47-02-PLAN.md — Version bump to 1.0.0 (pyproject.toml + uv.lock + docs/conf.py), CHANGELOG `[1.0.0]` assembled from the 6 per-phase SUMMARYs with code-exact signatures (D-47-01), MIGRATION final-review + type-checking note (D-47-02)
 
 **Wave 3** *(blocked on Waves 1-2)*
 
@@ -422,4 +422,4 @@ Plans:
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 7/7 | Complete    | 2026-07-02 |
-| 47. Release v1.0.0 | v1.0.0 | 1/3 | In Progress|  |
+| 47. Release v1.0.0 | v1.0.0 | 2/3 | In Progress|  |

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: "Completed 47-01-PLAN.md (debt triage: InvalidIdentifierError typos, where=/filter= audit, as_text PostGIS 3.1 note); Sphinx -W + interrogate 100% re-verified green"
-last_updated: "2026-07-02T14:06:54.934Z"
+stopped_at: Completed 47-02-PLAN.md (version 1.0.0 bump + CHANGELOG [1.0.0] assembly + MIGRATION.md final review); ready for 47-03 (gates + tag + human-gated OIDC publish + smoke)
+last_updated: "2026-07-02T14:15:30.447Z"
 last_activity: 2026-07-02 -- Phase 47 execution started
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 28
-  completed_plans: 26
-  percent: 93
+  completed_plans: 27
+  percent: 96
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 47 (release-v1-0-0) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-02 -- Phase 47 execution started
 
@@ -85,6 +85,7 @@ Last activity: 2026-07-02 -- Phase 47 execution started
 | Phase 46 P06 | ~35min | 2 tasks | 4 files |
 | Phase 46 P07 | 12min | 3 tasks | 1 files |
 | Phase 47 P01 | 5min | 3 tasks | 4 files |
+| Phase 47 P02 | 15min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -136,6 +137,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 46]: [Phase 46-05]: steps [no-redef] fixed as duplicate-annotation-only (dry_run branch always returns before the second assignment is reachable, never a runtime shadow); [unused-coroutine] real bug found+fixed at pool.py:574 (not etl.py as plan pointer suggested) -- AsyncPooledDatabase.resize() was sync calling an async psycopg_pool coroutine without await, silently never resizing
 - [Phase 46]: Phase 46-06: database.py + async_database.py annotated to zero mypy strict errors (76 -> 0 package-wide); assert-for-exclusivity-narrowing extended to to_dataframe/to_geodataframe sql XOR guard; cast() at pandas to_sql()/geopandas read_postgis() unstubbed edges; __init__.py:56 gap-closure (__getattr__ -> type via cast); backup.py stale unused-ignore removed as Rule-1 side effect of cursor() typing. FREEZE-05 satisfied.
 - [Phase 46]: Phase 46-07: whole-package mypy --strict verified 0 errors/18 files, coverage held 96.45% on pycopg_test3, interrogate 100%, py.typed truthful (only geoalchemy2/tenacity overrides remain); CI mypy step flipped from continue-on-error to a blocking gate (D-04) -- FREEZE-05 complete, Phase 46 fully done 7/7
+- [Phase ?]: Phase 47 Plan 02: version bumped to 1.0.0 (pyproject.toml/docs/conf.py/uv.lock); pycopg/__init__.py stays dynamic via importlib.metadata
+- [Phase ?]: Phase 47 Plan 02: CHANGELOG [1.0.0] assembled code-exact (D-36-03 guard) from Phases 41-46; MIGRATION.md final-reviewed with a 5th breaking-change item (mypy-strict-blocking, non-runtime) added for CHANGELOG-breaking-set symmetry + type-checking consumer note
 
 ### Pending Todos
 
@@ -168,8 +171,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T14:06:29.115Z
-Stopped at: Completed 47-01-PLAN.md (debt triage: InvalidIdentifierError typos, where=/filter= audit, as_text PostGIS 3.1 note); Sphinx -W + interrogate 100% re-verified green
+Last session: 2026-07-02T14:14:47.981Z
+Stopped at: Completed 47-02-PLAN.md (version 1.0.0 bump + CHANGELOG [1.0.0] assembly + MIGRATION.md final review); ready for 47-03 (gates + tag + human-gated OIDC publish + smoke)
 Resume file: None
 Next action: Run `/gsd-execute-phase 47` to execute the release (47-01 debt triage → 47-02 version+CHANGELOG+MIGRATION → 47-03 gates+tag+human-gated OIDC publish+smoke)
 
