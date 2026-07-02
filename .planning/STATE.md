@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Completed 46-03-PLAN.md (spatial.py mypy strict via @overload + D-03)
-last_updated: "2026-07-02T09:16:34.816Z"
-last_activity: 2026-07-02 -- Completed 46-03-PLAN.md (spatial.py mypy strict via @overload + D-03)
+stopped_at: Completed 46-04-PLAN.md (timescale.py + schema.py mypy strict via @overload + D-03; package-wide 187 -> 144)
+last_updated: "2026-07-02T09:30:43.519Z"
+last_activity: 2026-07-02 -- Completed 46-04-PLAN.md (timescale.py + schema.py mypy strict via @overload + D-03; package-wide 187 -> 144)
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 25
-  completed_plans: 21
-  percent: 71
+  completed_plans: 22
+  percent: 88
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 46 (mypy-strict-py-typed-gate) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
-Last activity: 2026-07-02 -- Completed 46-03-PLAN.md (spatial.py mypy strict via @overload + D-03)
+Last activity: 2026-07-02 -- Completed 46-04-PLAN.md (timescale.py + schema.py mypy strict via @overload + D-03; package-wide 187 -> 144)
 
 ## Performance Metrics
 
@@ -49,7 +49,7 @@ Last activity: 2026-07-02 -- Completed 46-03-PLAN.md (spatial.py mypy strict via
 | 43. Spatial v2 — Spatial Aggregates | 3 | 3 | Complete (verified PASSED; collect/union_aggregate + extent dual into=) |
 | 44. Spatial v2 — Serialization + MVT | 3 | 3 | Complete (verified PASSED 19/19; as_geojson/as_text/as_mvt) |
 | 45. API Completeness Gaps + Structured Logging | 4 | 4 | Complete (verified PASSED 6/6; code-review 5 warn → WR-01..04 fixed, WR-05+IN-* deferred) |
-| 46. mypy Strict + py.typed Gate | 7 | 3 | Executing (46-01 strict config live, 46-02 foundation tier 356->303, 46-03 spatial.py 303->187 via 96 @overload stubs) |
+| 46. mypy Strict + py.typed Gate | 7 | 4 | Executing (46-01 strict config live, 46-02 foundation tier 356->303, 46-03 spatial.py 303->187 via 96 @overload stubs, 46-04 timescale.py+schema.py 187->144 via 12 @overload stubs) |
 | 47. Release v1.0.0 | ? | 0 | Not started |
 
 **v0.10.0 phases (all complete, shipped 2026-06-26):**
@@ -80,6 +80,7 @@ Last activity: 2026-07-02 -- Completed 46-03-PLAN.md (spatial.py mypy strict via
 | Phase 46 P01 | 6min | 2 tasks | 2 files |
 | Phase 46 P02 | 35min | 2 tasks | 9 files |
 | Phase 46 P03 | ~50min | 2 tasks | 1 files |
+| Phase 46 P04 | ~25min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 46]: no-implicit-reexport audit: zero existing transitive re-export chains found across all 18 pycopg modules; __all__ added to all 10 foundation modules per plan requirement + future-proofing
 - [Phase 46]: D-01 narrow ignores: backup.py isinstance(data,str) branches kept as defensive runtime guards against psycopg Copy.__iter__ Iterator[Buffer]-only stub; config.py load_dotenv no-op fallback signature intentionally narrower than python-dotenv real stub
 - [Phase ?]: Phase 46-03: @overload triplet pattern (Literal[rows]/Literal[gdf]/str fallback) on all 16 polymorphic into= methods x 2 classes (96 stubs, symmetric); scalar helpers narrowed via cast() not overloaded; zero # type: ignore needed in spatial.py
+- [Phase ?]: [Phase 46-04]: assert-for-exclusivity-narrowing reused for add_dimension's number_partitions/chunk_interval Optional narrowing (sync+async); @overload triplet pattern (Literal[df]/Literal[rows]/str fallback) applied to timescale time_bucket/time_bucket_gapfill x2 classes (12 stubs, symmetric); schema.py pure D-03 (no into= polymorphism)
 
 ### Pending Todos
 
@@ -136,7 +138,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 - Local `pycopg_test` DB unusable since 2026-06-24 (TSDB catalog mismatch) — run DB/parity tests with `PGDATABASE=pycopg_test2` (PostGIS now enabled on it). Carries into v1.0.0.
 - v0.10.0 non-blocking carry-forward: phases 38/39 Nyquist VALIDATION.md draft; `vulture` not wired into Makefile/CI; DEBT-03b + copy_insert session-bypass deferred to v1.0.0.
-- Phase 46 (mypy strict) baseline MEASURED (46-01, 2026-07-02): 356 errors / 15 files under the new strict config (up from context's 328 non-strict measurement — delta is warn_unreachable's 9 new errors minus 4 resolved pandas import-untyped errors). Multi-session plan confirmed (7 plans). Progress: 46-02 (foundation tier) 356->303; 46-03 (spatial.py, largest hotspot, 96 @overload stubs) 303->187. Remaining hotspots: etl.py (~46, incl. 1 likely-real no-redef/assignment bug at etl.py:2017/2025 flagged for its plan), database.py/async_database.py (~42/41), timescale.py (~23), pool.py (~23), schema.py (~20), pycopg/__init__.py (1 stray no-untyped-def).
+- Phase 46 (mypy strict) baseline MEASURED (46-01, 2026-07-02): 356 errors / 15 files under the new strict config (up from context's 328 non-strict measurement — delta is warn_unreachable's 9 new errors minus 4 resolved pandas import-untyped errors). Multi-session plan confirmed (7 plans). Progress: 46-02 (foundation tier) 356->303; 46-03 (spatial.py, largest hotspot, 96 @overload stubs) 303->187; 46-04 (timescale.py + schema.py, 12 @overload stubs + D-03) 187->144. Remaining hotspots: etl.py (~46, incl. 1 likely-real no-redef/assignment bug at etl.py:2017/2025 flagged for its plan), database.py/async_database.py (~42/41), pool.py (~23), pycopg/__init__.py (1 stray no-untyped-def). FREEZE-05 NOT yet complete — 5 of 7 plans done, 144 errors remain across 5 files.
 - Phase 44 (as_mvt) MVT decode strategy in CI must be decided at plan time (structural byte check vs. mapbox-vector-tile parser).
 - pycopg_test/pycopg_test2 both broken: TimescaleDB .so version drift (server expects 2.28.0/2.28.1, only 2.28.2 installed) -- even bare SELECT 1 fails; verified via scratch DB pycopg_test3 for 46-02, will likely recur for 46-03..46-07
 
@@ -159,11 +161,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T09:16:34.807Z
-Stopped at: Completed 46-03-PLAN.md (spatial.py mypy strict via @overload + D-03)
+Last session: 2026-07-02T09:29:45.227Z
+Stopped at: Completed 46-04-PLAN.md (timescale.py + schema.py mypy strict via @overload + D-03; package-wide 187 -> 144)
 Resume file: None
-Next action: Execute Phase 46 Plan 02 (fix bottom-up: base.py/config.py/exceptions.py first)
+Next action: Execute Phase 46 Plan 05 (mypy-strict-py-typed-gate, next hotspot per bottom-up ordering — etl.py / pool.py / database.py / async_database.py / __init__.py)
 
 ## Operator Next Steps
 
-- Execute Phase 46 Plan 04 (mypy-strict-py-typed-gate, next hotspot per bottom-up ordering)
+- Execute Phase 46 Plan 05 (mypy-strict-py-typed-gate, next hotspot per bottom-up ordering)
