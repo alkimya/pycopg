@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from pycopg import queries
 from pycopg.exceptions import ExtensionNotAvailableError
@@ -69,10 +69,10 @@ def _validate_unit(unit: str) -> None:
 def _resolve_geometry(
     point: tuple[float, float] | None = None,
     wkt: str | None = None,
-    geojson: dict | None = None,
+    geojson: dict[str, Any] | None = None,
     ref: tuple[str, str] | None = None,
     srid: int = 4326,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Resolve one of the four geometry input forms to a SQL fragment.
 
     Exactly one of ``point=``, ``wkt=``, ``geojson=``, ``ref=`` must be
@@ -125,6 +125,10 @@ def _resolve_geometry(
     if geojson is not None:
         return f"ST_SetSRID(ST_GeomFromGeoJSON(%s), {int(srid)})", [json.dumps(geojson)]
 
+    # Unreachable at runtime: `given == 1` (checked above) and point/wkt/
+    # geojson were all ruled out above, so `ref` is the one non-None form.
+    # mypy cannot narrow this through the `sum(...)` exclusivity check.
+    assert ref is not None
     ref_table, ref_col = ref
     validate_identifiers(ref_table, ref_col)
     return _REF_SENTINEL, [ref_table, ref_col]
@@ -207,14 +211,14 @@ def build_contains_sql(
     *,
     point: tuple[float, float] | None = None,
     wkt: str | None = None,
-    geojson: dict | None = None,
+    geojson: dict[str, Any] | None = None,
     ref: tuple[str, str] | None = None,
     srid: int = 4326,
     columns: list[str] | None = None,
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows whose geometry contains the input geometry.
 
     Generates ``ST_Contains(t.{geom}, <geom_in>)``. The ``ref=`` form uses
@@ -265,7 +269,7 @@ def build_contains_sql(
     fragment, frag_params = _resolve_geometry(
         point=point, wkt=wkt, geojson=geojson, ref=ref, srid=srid
     )
-    params: list = []
+    params: list[Any] = []
     if fragment == _REF_SENTINEL:
         ref_table, ref_col = frag_params
         cond = (
@@ -287,14 +291,14 @@ def build_intersects_sql(
     *,
     point: tuple[float, float] | None = None,
     wkt: str | None = None,
-    geojson: dict | None = None,
+    geojson: dict[str, Any] | None = None,
     ref: tuple[str, str] | None = None,
     srid: int = 4326,
     columns: list[str] | None = None,
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows whose geometry intersects the input geometry.
 
     Generates ``ST_Intersects(t.{geom}, <geom_in>)``. The ``ref=`` form
@@ -345,7 +349,7 @@ def build_intersects_sql(
     fragment, frag_params = _resolve_geometry(
         point=point, wkt=wkt, geojson=geojson, ref=ref, srid=srid
     )
-    params: list = []
+    params: list[Any] = []
     if fragment == _REF_SENTINEL:
         ref_table, ref_col = frag_params
         cond = (
@@ -370,7 +374,7 @@ def build_within_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL joining two tables on a within relationship.
 
     Generates the two-table JOIN form ``ST_Within(a.{left_geom},
@@ -427,7 +431,7 @@ def build_dwithin_sql(
     *,
     point: tuple[float, float] | None = None,
     wkt: str | None = None,
-    geojson: dict | None = None,
+    geojson: dict[str, Any] | None = None,
     ref: tuple[str, str] | None = None,
     srid: int = 4326,
     distance: float,
@@ -436,7 +440,7 @@ def build_dwithin_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows within a distance of the input geometry.
 
     With ``unit="m"`` (default), both sides are cast to ``::geography`` so
@@ -494,7 +498,7 @@ def build_dwithin_sql(
         point=point, wkt=wkt, geojson=geojson, ref=ref, srid=srid
     )
     cast = "::geography" if unit == "m" else ""
-    params: list = []
+    params: list[Any] = []
     if fragment == _REF_SENTINEL:
         ref_table, ref_col = frag_params
         cond = (
@@ -517,14 +521,14 @@ def build_distance_sql(
     *,
     point: tuple[float, float] | None = None,
     wkt: str | None = None,
-    geojson: dict | None = None,
+    geojson: dict[str, Any] | None = None,
     srid: int = 4326,
     unit: str = "m",
     columns: list[str] | None = None,
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their distance to the input geometry.
 
     Adds a scalar ``ST_Distance(...) AS distance`` column. With
@@ -596,12 +600,12 @@ def build_nearest_sql(
     *,
     point: tuple[float, float] | None = None,
     wkt: str | None = None,
-    geojson: dict | None = None,
+    geojson: dict[str, Any] | None = None,
     srid: int = 4326,
     k: int = 5,
     columns: list[str] | None = None,
     filter: str | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting the k rows nearest to the input geometry.
 
     Uses KNN ordering ``t.{geom}::geography <-> <geom_in>::geography``
@@ -669,7 +673,7 @@ def build_area_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with the area of their geometry.
 
     Adds a scalar ``ST_Area(...) AS area`` column computed on the table's
@@ -731,7 +735,7 @@ def build_perimeter_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with the perimeter of their geometry.
 
     Adds a scalar ``ST_Perimeter(...) AS perimeter`` column computed on
@@ -796,7 +800,7 @@ def build_geojson_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their geometry as a GeoJSON string.
 
     Adds a scalar ``ST_AsGeoJSON(...) AS geojson`` column containing the
@@ -869,7 +873,7 @@ def build_text_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their geometry as a WKT string.
 
     Adds a scalar ``ST_AsText(...) AS wkt`` column. The result key is the
@@ -917,7 +921,7 @@ def build_text_sql(
         validate_identifiers(*columns)
     if max_decimal_digits is not None:
         st_call = f"ST_AsText(t.{geom}, %s) AS wkt"
-        params: list = [max_decimal_digits]
+        params: list[Any] = [max_decimal_digits]
     else:
         st_call = f"ST_AsText(t.{geom}) AS wkt"
         params = []
@@ -940,7 +944,7 @@ def build_mvt_sql(
     feature_id_column: str | None = None,
     srid: int | None = None,
     filter: str | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL that generates a Mapbox Vector Tile (MVT) via ST_AsMVT.
 
     Always emits the enforced ``ST_Transform → ST_AsMVTGeom →
@@ -1095,7 +1099,7 @@ def build_centroid_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their geometry centroid coordinates.
 
     Adds scalar ``ST_X(ST_Centroid(...)) AS centroid_x`` and
@@ -1154,7 +1158,7 @@ def build_buffer_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with a buffer around their geometry.
 
     Adds a ``buffer`` geometry column. With ``unit="m"`` (default) the
@@ -1221,7 +1225,7 @@ def build_transform_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their geometry transformed to a SRID.
 
     Adds a ``geometry_transformed`` geometry column via
@@ -1282,7 +1286,7 @@ def _build_binary_geom_sql(
     filter: str | None,
     order_by: str | None,
     limit: int | None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL for a pairwise (binary, 2-column) geometry operation."""
     validate_identifiers(table, schema, geom, other_geom)
     if columns:
@@ -1306,7 +1310,7 @@ def build_union_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting the pairwise union of two geometry columns.
 
     Adds a ``union_geom`` geometry column via
@@ -1372,7 +1376,7 @@ def build_difference_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting the pairwise difference of two geometry columns.
 
     Adds a ``difference`` geometry column via
@@ -1438,7 +1442,7 @@ def build_intersection_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting the pairwise intersection of two geometry columns.
 
     Adds an ``intersection`` geometry column via
@@ -1510,7 +1514,7 @@ def build_simplify_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their geometry simplified.
 
     By default uses ``ST_SimplifyPreserveTopology``, which guarantees a
@@ -1576,7 +1580,7 @@ def build_simplify_sql(
         )
     if preserve_topology:
         expr = f"ST_SimplifyPreserveTopology(t.{geom}, %s)"
-        params: list = [tolerance]
+        params: list[Any] = [tolerance]
     else:
         expr = f"ST_Simplify(t.{geom}, %s, %s)"
         params = [tolerance, preserve_collapsed]
@@ -1597,7 +1601,7 @@ def build_convex_hull_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with the convex hull of each geometry.
 
     Adds a ``convex_hull`` geometry column via ``ST_ConvexHull(t.{geom})``
@@ -1653,7 +1657,7 @@ def build_make_valid_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL selecting rows with their geometry repaired via ST_MakeValid.
 
     Adds a ``made_valid`` geometry column (D-01). Geometries that are
@@ -1732,7 +1736,7 @@ def build_make_valid_sql(
         )
     if method is None:
         expr = f"ST_MakeValid(t.{geom})"
-        params: list = []
+        params: list[Any] = []
     else:
         # Assemble params string from whitelisted literals — never f-string (D-02)
         if method == "linework":
@@ -1765,7 +1769,7 @@ def _build_agg_geom_sql(
     filter: str | None,
     order_by: str | None,
     limit: int | None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL for a single-column geometry aggregate (ST_Collect / ST_Union agg).
 
     Shared internal helper backing ``build_collect_geometries_sql`` and
@@ -1829,7 +1833,7 @@ def build_collect_geometries_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL that collects geometries into a collection via ST_Collect (SPAT2-07).
 
     Produces ``SELECT [group_cols,] ST_Collect(t.{geom}) AS collected
@@ -1906,7 +1910,7 @@ def build_union_aggregate_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL that dissolves geometries into a merged boundary via ST_Union (SPAT2-08).
 
     Produces ``SELECT [group_cols,] ST_Union(t.{geom}) AS dissolved
@@ -1985,7 +1989,7 @@ def build_extent_sql(
     filter: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
-) -> tuple[str, list]:
+) -> tuple[str, list[Any]]:
     """Build SQL that computes the bounding extent of a geometry column via ST_Extent (SPAT2-09).
 
     ``ST_Extent`` returns a PostgreSQL ``box2d`` type, **not** a PostGIS
@@ -2122,7 +2126,7 @@ def _check_into(into: str, helper: str) -> None:
         )
 
 
-def _to_named_binds(sql: str, params: list) -> tuple[str, dict]:
+def _to_named_binds(sql: str, params: list[Any]) -> tuple[str, dict[str, Any]]:
     """Convert ``%s`` placeholders to named binds for SQLAlchemy ``text()``.
 
     The pure builders emit psycopg-style ``%s`` placeholders with a
@@ -2144,7 +2148,7 @@ def _to_named_binds(sql: str, params: list) -> tuple[str, dict]:
     """
     parts = sql.split("%s")
     out = parts[0]
-    binds: dict = {}
+    binds: dict[str, Any] = {}
     for i, part in enumerate(parts[1:]):
         out += f":p{i}{part}"
         binds[f"p{i}"] = params[i]
@@ -2156,7 +2160,7 @@ class SpatialAccessor:
 
     Each method delegates SQL assembly to the module-level pure builders
     and routes the result per ``into=`` (D-01): ``"rows"`` returns
-    ``list[dict]`` via ``Database.execute``; ``"gdf"`` returns a
+    ``list[dict[str, Any]]`` via ``Database.execute``; ``"gdf"`` returns a
     GeoDataFrame via ``Database.to_geodataframe``. PostGIS availability is
     guarded at construction (SPA-04).
     """
@@ -2179,8 +2183,8 @@ class SpatialAccessor:
             raise ExtensionNotAvailableError(_POSTGIS_GUARD_MSG)
 
     def _run(
-        self, sql: str, params: list, into: str, geometry_column: str
-    ) -> list[dict] | gpd.GeoDataFrame:
+        self, sql: str, params: list[Any], into: str, geometry_column: str
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Execute built SQL, routing on ``into=``.
 
         Parameters
@@ -2206,7 +2210,7 @@ class SpatialAccessor:
             )
         return self._db.execute(sql, params)
 
-    def _run_mvt(self, sql: str, params: list) -> bytes:
+    def _run_mvt(self, sql: str, params: list[Any]) -> bytes:
         """Execute a build_mvt_sql query and return the MVT tile as bytes.
 
         Always returns ``bytes``: a ``memoryview`` value is coerced to
@@ -2231,6 +2235,7 @@ class SpatialAccessor:
             return bytes(val)
         return val if val is not None else b""
 
+    @overload
     def contains(
         self,
         table: str,
@@ -2239,7 +2244,63 @@ class SpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def contains(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def contains(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def contains(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         ref: tuple[str, str] | None = None,
         srid: int = 4326,
         into: str = "rows",
@@ -2248,7 +2309,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows whose geometry contains the input geometry.
 
         Parameters
@@ -2324,6 +2385,54 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, geom)
 
+    @overload
+    def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        *,
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        *,
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        *,
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def within(
         self,
         left_table: str,
@@ -2338,7 +2447,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select left-table rows whose geometry is within a right-table row.
 
         Two-table JOIN form per 08-DESIGN §3 (dedicated signature, D-08).
@@ -2406,6 +2515,7 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, left_geom)
 
+    @overload
     def intersects(
         self,
         table: str,
@@ -2414,7 +2524,63 @@ class SpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def intersects(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def intersects(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def intersects(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         ref: tuple[str, str] | None = None,
         srid: int = 4326,
         into: str = "rows",
@@ -2423,7 +2589,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows whose geometry intersects the input geometry.
 
         Parameters
@@ -2498,6 +2664,7 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, geom)
 
+    @overload
     def dwithin(
         self,
         table: str,
@@ -2506,7 +2673,69 @@ class SpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def dwithin(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def dwithin(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def dwithin(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         ref: tuple[str, str] | None = None,
         srid: int = 4326,
         distance: float,
@@ -2517,7 +2746,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows within a distance of the input geometry.
 
         Parameters
@@ -2607,7 +2836,7 @@ class SpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
         srid: int = 4326,
         unit: str = "m",
         into: str = "rows",
@@ -2616,7 +2845,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their distance to the input geometry.
 
         Scalar result (``distance`` column); ``into="gdf"`` raises
@@ -2692,8 +2921,11 @@ class SpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
+    @overload
     def nearest(
         self,
         table: str,
@@ -2702,14 +2934,64 @@ class SpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def nearest(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def nearest(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def nearest(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         srid: int = 4326,
         k: int = 5,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
         where: str | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select the k rows nearest to the input geometry (KNN).
 
         Metric ordering via ``::geography`` casts; a GiST index on the
@@ -2794,7 +3076,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with the area of their geometry.
 
         Scalar result (``area`` column); ``into="gdf"`` raises
@@ -2858,7 +3140,9 @@ class SpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
     def perimeter(
         self,
@@ -2873,7 +3157,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with the perimeter of their geometry.
 
         Scalar result (``perimeter`` column); ``into="gdf"`` raises
@@ -2937,7 +3221,9 @@ class SpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
     def centroid(
         self,
@@ -2951,7 +3237,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their geometry centroid coordinates.
 
         Scalar result (``centroid_x``/``centroid_y`` columns);
@@ -3013,7 +3299,9 @@ class SpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
     def as_geojson(
         self,
@@ -3029,7 +3317,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their geometry serialized as a GeoJSON string.
 
         Scalar result (``geojson`` column containing a JSON string);
@@ -3091,7 +3379,9 @@ class SpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
     def as_text(
         self,
@@ -3105,7 +3395,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their geometry serialized as a WKT string.
 
         Scalar result (``wkt`` column); ``into="gdf"`` raises
@@ -3162,7 +3452,9 @@ class SpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
     def as_mvt(
         self,
@@ -3263,6 +3555,54 @@ class SpatialAccessor:
         )
         return self._run_mvt(sql, params)
 
+    @overload
+    def buffer(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        distance: float,
+        unit: str = "m",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def buffer(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        distance: float,
+        unit: str = "m",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def buffer(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        distance: float,
+        unit: str = "m",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def buffer(
         self,
         table: str,
@@ -3277,7 +3617,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with a buffer around their geometry.
 
         Returns a ``buffer`` geometry column — valid for ``into="gdf"``.
@@ -3345,6 +3685,51 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "buffer")
 
+    @overload
+    def transform(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        to_srid: int,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def transform(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        to_srid: int,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def transform(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        to_srid: int,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def transform(
         self,
         table: str,
@@ -3358,7 +3743,7 @@ class SpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with their geometry transformed to another SRID.
 
         Returns a ``geometry_transformed`` geometry column — valid for
@@ -3424,6 +3809,48 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "geometry_transformed")
 
+    @overload
+    def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def union(
         self,
         table: str,
@@ -3436,7 +3863,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the pairwise union of two geometry columns.
 
         Returns a ``union_geom`` geometry column via
@@ -3492,6 +3919,48 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "union_geom")
 
+    @overload
+    def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def difference(
         self,
         table: str,
@@ -3504,7 +3973,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the pairwise difference of two geometry columns.
 
         Returns a ``difference`` geometry column via
@@ -3560,6 +4029,48 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "difference")
 
+    @overload
+    def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def intersection(
         self,
         table: str,
@@ -3572,7 +4083,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the pairwise intersection of two geometry columns.
 
         Returns an ``intersection`` geometry column via
@@ -3629,6 +4140,54 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "intersection")
 
+    @overload
+    def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def simplify(
         self,
         table: str,
@@ -3643,7 +4202,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with their geometry simplified (ST_SimplifyPreserveTopology default).
 
         Adds a ``simplified`` geometry column (D-01). The default uses
@@ -3708,6 +4267,45 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "simplified")
 
+    @overload
+    def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def convex_hull(
         self,
         table: str,
@@ -3719,7 +4317,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the convex hull of each geometry (ST_ConvexHull).
 
         Adds a ``convex_hull`` geometry column (D-01). Returns ``NULL`` for
@@ -3769,6 +4367,51 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "convex_hull")
 
+    @overload
+    def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def make_valid(
         self,
         table: str,
@@ -3782,7 +4425,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with their geometry repaired via ST_MakeValid.
 
         Adds a ``made_valid`` geometry column (D-01). Invalid geometries
@@ -3847,6 +4490,45 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "made_valid")
 
+    @overload
+    def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["rows"] = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["gdf"],
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def collect_geometries(
         self,
         table: str,
@@ -3858,7 +4540,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Collect geometries into a geometry collection per group via ST_Collect (SPAT2-07).
 
         Adds a ``collected`` geometry column (D-06). The result is a
@@ -3933,6 +4615,45 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "collected")
 
+    @overload
+    def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["rows"] = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["gdf"],
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def union_aggregate(
         self,
         table: str,
@@ -3944,7 +4665,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Dissolve geometries into a merged boundary per group via ST_Union (SPAT2-08).
 
         Adds a ``dissolved`` geometry column (D-06). Unlike the pairwise
@@ -4020,6 +4741,48 @@ class SpatialAccessor:
         )
         return self._run(sql, params, into, "dissolved")
 
+    @overload
+    def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: str,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     def extent(
         self,
         table: str,
@@ -4032,7 +4795,7 @@ class SpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Compute the bounding extent of a geometry column via ST_Extent (SPAT2-09).
 
         ``ST_Extent`` returns a PostgreSQL ``box2d`` type. This method branches
@@ -4159,7 +4922,9 @@ class SpatialAccessor:
             ON {schema}.{table} USING GIST ({column})
         """)
 
-    def list_geometry_columns(self, *, schema: str | None = None) -> list[dict]:
+    def list_geometry_columns(
+        self, *, schema: str | None = None
+    ) -> list[dict[str, Any]]:
         """List geometry columns in the database.
 
         Parameters
@@ -4214,8 +4979,8 @@ class AsyncSpatialAccessor:
             self._postgis_ok = True
 
     async def _run(
-        self, sql: str, params: list, into: str, geometry_column: str
-    ) -> list[dict] | gpd.GeoDataFrame:
+        self, sql: str, params: list[Any], into: str, geometry_column: str
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Execute built SQL asynchronously, routing on ``into=``.
 
         Parameters
@@ -4241,7 +5006,7 @@ class AsyncSpatialAccessor:
             )
         return await self._db.execute(sql, params)
 
-    async def _arun_mvt(self, sql: str, params: list) -> bytes:
+    async def _arun_mvt(self, sql: str, params: list[Any]) -> bytes:
         """Execute a build_mvt_sql query asynchronously and return MVT bytes.
 
         Always returns ``bytes``: a ``memoryview`` value is coerced to
@@ -4266,6 +5031,7 @@ class AsyncSpatialAccessor:
             return bytes(val)
         return val if val is not None else b""
 
+    @overload
     async def contains(
         self,
         table: str,
@@ -4274,7 +5040,63 @@ class AsyncSpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def contains(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def contains(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def contains(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         ref: tuple[str, str] | None = None,
         srid: int = 4326,
         into: str = "rows",
@@ -4283,7 +5105,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows whose geometry contains the input geometry (async).
 
         Parameters
@@ -4361,6 +5183,54 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, geom)
 
+    @overload
+    async def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        *,
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        *,
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def within(
+        self,
+        left_table: str,
+        left_geom: str,
+        right_table: str,
+        right_geom: str,
+        *,
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def within(
         self,
         left_table: str,
@@ -4375,7 +5245,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select left rows whose geometry is within a right row (async).
 
         Two-table JOIN form per 08-DESIGN §3 (dedicated signature, D-08).
@@ -4446,6 +5316,7 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, left_geom)
 
+    @overload
     async def intersects(
         self,
         table: str,
@@ -4454,7 +5325,63 @@ class AsyncSpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def intersects(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def intersects(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def intersects(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         ref: tuple[str, str] | None = None,
         srid: int = 4326,
         into: str = "rows",
@@ -4463,7 +5390,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows whose geometry intersects the input geometry (async).
 
         Parameters
@@ -4541,6 +5468,7 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, geom)
 
+    @overload
     async def dwithin(
         self,
         table: str,
@@ -4549,7 +5477,69 @@ class AsyncSpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def dwithin(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def dwithin(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        distance: float,
+        unit: str = "m",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def dwithin(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         ref: tuple[str, str] | None = None,
         srid: int = 4326,
         distance: float,
@@ -4560,7 +5550,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows within a distance of the input geometry (async).
 
         Parameters
@@ -4653,7 +5643,7 @@ class AsyncSpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
         srid: int = 4326,
         unit: str = "m",
         into: str = "rows",
@@ -4662,7 +5652,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their distance to the input geometry (async).
 
         Scalar result (``distance`` column); ``into="gdf"`` raises
@@ -4741,8 +5731,11 @@ class AsyncSpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return await self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
 
+    @overload
     async def nearest(
         self,
         table: str,
@@ -4751,14 +5744,64 @@ class AsyncSpatialAccessor:
         schema: str = "public",
         point: tuple[float, float] | None = None,
         wkt: str | None = None,
-        geojson: dict | None = None,
+        geojson: dict[str, Any] | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def nearest(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def nearest(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        srid: int = 4326,
+        k: int = 5,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def nearest(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
         srid: int = 4326,
         k: int = 5,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
         where: str | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select the k rows nearest to the input geometry (async KNN).
 
         Metric ordering via ``::geography`` casts; a GiST index on the
@@ -4846,7 +5889,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with the area of their geometry (async).
 
         Scalar result (``area`` column); ``into="gdf"`` raises
@@ -4913,7 +5956,9 @@ class AsyncSpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return await self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
 
     async def perimeter(
         self,
@@ -4928,7 +5973,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with the perimeter of their geometry (async).
 
         Scalar result (``perimeter`` column); ``into="gdf"`` raises
@@ -4995,7 +6040,9 @@ class AsyncSpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return await self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
 
     async def centroid(
         self,
@@ -5009,7 +6056,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their geometry centroid coordinates (async).
 
         Scalar result (``centroid_x``/``centroid_y`` columns);
@@ -5074,7 +6121,9 @@ class AsyncSpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return await self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
 
     async def as_geojson(
         self,
@@ -5090,7 +6139,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their geometry serialized as a GeoJSON string (async).
 
         Scalar result (``geojson`` column containing a JSON string);
@@ -5155,7 +6204,9 @@ class AsyncSpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return await self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
 
     async def as_text(
         self,
@@ -5169,7 +6220,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Select rows with their geometry serialized as a WKT string (async).
 
         Scalar result (``wkt`` column); ``into="gdf"`` raises
@@ -5229,7 +6280,9 @@ class AsyncSpatialAccessor:
             order_by=order_by,
             limit=limit,
         )
-        return await self._run(sql, params, into, geom)
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
 
     async def as_mvt(
         self,
@@ -5321,6 +6374,54 @@ class AsyncSpatialAccessor:
         )
         return await self._arun_mvt(sql, params)
 
+    @overload
+    async def buffer(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        distance: float,
+        unit: str = "m",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def buffer(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        distance: float,
+        unit: str = "m",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def buffer(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        distance: float,
+        unit: str = "m",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def buffer(
         self,
         table: str,
@@ -5335,7 +6436,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with a buffer around their geometry (async).
 
         Returns a ``buffer`` geometry column — valid for ``into="gdf"``.
@@ -5406,6 +6507,51 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "buffer")
 
+    @overload
+    async def transform(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        to_srid: int,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def transform(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        to_srid: int,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def transform(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        to_srid: int,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def transform(
         self,
         table: str,
@@ -5419,7 +6565,7 @@ class AsyncSpatialAccessor:
         where: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with their geometry transformed to a SRID (async).
 
         Returns a ``geometry_transformed`` geometry column — valid for
@@ -5488,6 +6634,48 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "geometry_transformed")
 
+    @overload
+    async def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def union(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def union(
         self,
         table: str,
@@ -5500,7 +6688,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the pairwise union of two geometry columns (async).
 
         Returns a ``union_geom`` geometry column via
@@ -5559,6 +6747,48 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "union_geom")
 
+    @overload
+    async def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def difference(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def difference(
         self,
         table: str,
@@ -5571,7 +6801,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the pairwise difference of two geometry columns (async).
 
         Returns a ``difference`` geometry column via
@@ -5630,6 +6860,48 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "difference")
 
+    @overload
+    async def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def intersection(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        other_geom: str,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def intersection(
         self,
         table: str,
@@ -5642,7 +6914,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the pairwise intersection of two geometry columns (async).
 
         Returns an ``intersection`` geometry column via
@@ -5702,6 +6974,54 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "intersection")
 
+    @overload
+    async def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def simplify(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        tolerance: float,
+        preserve_topology: bool = True,
+        preserve_collapsed: bool = False,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def simplify(
         self,
         table: str,
@@ -5716,7 +7036,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with their geometry simplified — async (ST_SimplifyPreserveTopology default).
 
         Async mirror of :meth:`SpatialAccessor.simplify`. Adds a
@@ -5784,6 +7104,45 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "simplified")
 
+    @overload
+    async def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def convex_hull(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def convex_hull(
         self,
         table: str,
@@ -5795,7 +7154,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with the convex hull of each geometry — async (ST_ConvexHull).
 
         Async mirror of :meth:`SpatialAccessor.convex_hull`. Adds a
@@ -5848,6 +7207,51 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "convex_hull")
 
+    @overload
+    async def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def make_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        method: str | None = None,
+        keep_collapsed: bool | None = None,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def make_valid(
         self,
         table: str,
@@ -5861,7 +7265,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Select rows with their geometry repaired via ST_MakeValid — async.
 
         Async mirror of :meth:`SpatialAccessor.make_valid`. Adds a
@@ -5923,6 +7327,45 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "made_valid")
 
+    @overload
+    async def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["rows"] = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["gdf"],
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def collect_geometries(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def collect_geometries(
         self,
         table: str,
@@ -5934,7 +7377,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Collect geometries into a geometry collection per group — async (ST_Collect).
 
         Async mirror of :meth:`SpatialAccessor.collect_geometries`. Adds a
@@ -5995,6 +7438,45 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "collected")
 
+    @overload
+    async def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["rows"] = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: Literal["gdf"],
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def union_aggregate(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        into: str,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def union_aggregate(
         self,
         table: str,
@@ -6006,7 +7488,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Dissolve geometries into a merged boundary per group — async (ST_Union).
 
         Async mirror of :meth:`SpatialAccessor.union_aggregate`. Adds a
@@ -6067,6 +7549,48 @@ class AsyncSpatialAccessor:
         )
         return await self._run(sql, params, into, "dissolved")
 
+    @overload
+    async def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def extent(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        group_by: str | list[str] | None = None,
+        srid: int = 4326,
+        into: str,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
     async def extent(
         self,
         table: str,
@@ -6079,7 +7603,7 @@ class AsyncSpatialAccessor:
         filter: str | None = None,
         order_by: str | None = None,
         limit: int | None = None,
-    ) -> list[dict] | gpd.GeoDataFrame:
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
         """Compute the bounding extent of a geometry column — async (ST_Extent).
 
         Async mirror of :meth:`SpatialAccessor.extent`. Adds an ``extent``
@@ -6177,7 +7701,9 @@ class AsyncSpatialAccessor:
             ON {schema}.{table} USING GIST ({column})
         """)
 
-    async def list_geometry_columns(self, *, schema: str | None = None) -> list[dict]:
+    async def list_geometry_columns(
+        self, *, schema: str | None = None
+    ) -> list[dict[str, Any]]:
         """List geometry columns in the database.
 
         Parameters
