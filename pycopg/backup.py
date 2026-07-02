@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
 
+__all__ = ["BackupAccessor", "AsyncBackupAccessor"]
+
 
 class BackupAccessor:
     """Backup helper namespace exposed as ``db.backup``.
@@ -297,16 +299,21 @@ class BackupAccessor:
                     f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
                 ) as copy:
                     for data in copy:
-                        # psycopg yields memoryview chunks; bytes(...) handles
-                        # both memoryview and bytes before decoding to text.
-                        if isinstance(data, str):
-                            f.write(data)
+                        # psycopg's Copy.__iter__ is typed Iterator[Buffer] (bytes-like
+                        # only), but the str branch is kept as a defensive runtime guard
+                        # since psycopg internals are not fully stubbed (D-01) — mypy
+                        # proves it unreachable against the declared stub, not against
+                        # actual runtime behavior.
+                        if isinstance(data, str):  # type: ignore[unreachable]
+                            f.write(data)  # type: ignore[unreachable]
                         else:
                             f.write(bytes(data).decode(encoding))
 
             # Get row count
             cur.execute(f"SELECT COUNT(*) AS count FROM {schema}.{table}")
-            return cur.fetchone()["count"]
+            row = cur.fetchone()
+            assert row is not None  # COUNT(*) always returns exactly one row
+            return int(row["count"])  # type: ignore[call-overload]  # cur.fetchone() row type is Any-typed tuple by default cursor factory; dict_row is configured at connection level, not statically visible here (D-01)
 
     def copy_from_csv(
         self,
@@ -658,11 +665,14 @@ class AsyncBackupAccessor:
                     f"COPY {schema}.{table}{cols} TO STDOUT WITH ({', '.join(options)})"
                 ) as copy:
                     async for data in copy:
-                        # psycopg yields memoryview chunks; bytes(...) handles
-                        # both memoryview and bytes before decoding to text.
+                        # psycopg's Copy.__iter__ is typed Iterator[Buffer] (bytes-like
+                        # only), but the str branch is kept as a defensive runtime guard
+                        # since psycopg internals are not fully stubbed (D-01) — mypy
+                        # proves it unreachable against the declared stub, not against
+                        # actual runtime behavior.
                         decoded = (
                             data
-                            if isinstance(data, str)
+                            if isinstance(data, str)  # type: ignore[unreachable]
                             else bytes(data).decode(encoding)
                         )
                         await asyncio.to_thread(file_handle.write, decoded)
@@ -673,7 +683,7 @@ class AsyncBackupAccessor:
             result = await self._db.execute(
                 f"SELECT COUNT(*) AS count FROM {schema}.{table}"
             )
-            return result[0]["count"]
+            return int(result[0]["count"])
 
     async def copy_from_csv(
         self,

@@ -17,6 +17,21 @@ from pycopg.utils import validate_identifiers, validate_timestamp
 # Public type alias for query parameters — single source of truth exported via pycopg.__all__
 Params = Sequence[Any] | Mapping[str, Any] | None
 
+# Public surface consumed across module boundaries — DatabaseBase/QueryMixin by
+# database.py+async_database.py, Params by __init__.py+maint.py+database.py+
+# async_database.py, the build_* helpers by admin.py/backup.py,
+# _decode_server_version by pool.py+database.py+async_database.py.
+__all__ = [
+    "Params",
+    "DatabaseBase",
+    "QueryMixin",
+    "SessionMixin",
+    "build_pg_dump_cmd",
+    "build_pg_restore_cmd",
+    "build_role_options",
+    "_decode_server_version",
+]
+
 
 def _decode_server_version(v: int) -> str:
     """Convert a psycopg server_version integer to a dotted version string.
@@ -188,10 +203,10 @@ class QueryMixin:
     def _build_batch_insert_sql(
         table: str,
         columns: list[str],
-        rows: list[dict],
+        rows: list[dict[str, Any]],
         schema: str = "public",
         on_conflict: str | None = None,
-    ) -> tuple[str, list]:
+    ) -> tuple[str, list[Any]]:
         """Build batch INSERT SQL with multiple VALUES.
 
         Parameters
@@ -218,7 +233,7 @@ class QueryMixin:
         conflict_clause = f" ON CONFLICT {on_conflict}" if on_conflict else ""
 
         placeholders = []
-        params = []
+        params: list[Any] = []
         for row in rows:
             row_placeholders = ", ".join(["%s"] * len(columns))
             placeholders.append(f"({row_placeholders})")
@@ -282,7 +297,7 @@ class QueryMixin:
         return sql
 
     @staticmethod
-    def _build_where_dict(where: dict) -> tuple[str, list]:
+    def _build_where_dict(where: dict[str, Any]) -> tuple[str, list[Any]]:
         """Build WHERE fragment from a dict of equality conditions.
 
         Parameters
@@ -321,7 +336,7 @@ class SessionMixin:
     _session_connection: Any = None
     _in_session: bool = False
 
-    def _get_session_connection(self):
+    def _get_session_connection(self) -> Any:
         """Get the current session connection if in session mode."""
         if self._in_session and self._session_connection is not None:
             return self._session_connection
@@ -337,16 +352,16 @@ def build_pg_dump_cmd(
     port: int,
     user: str,
     database: str,
-    output_file,
+    output_file: str | Path,
     format: str = "custom",
     schema_only: bool = False,
     data_only: bool = False,
-    tables: list | None = None,
-    exclude_tables: list | None = None,
-    schemas: list | None = None,
+    tables: list[str] | None = None,
+    exclude_tables: list[str] | None = None,
+    schemas: list[str] | None = None,
     compress: int = 6,
     jobs: int = 1,
-) -> list:
+) -> list[str]:
     """Build a pg_dump command argv list.
 
     Constructs the argument list for invoking pg_dump. Pure function: no
@@ -435,18 +450,18 @@ def build_pg_restore_cmd(
     port: int,
     user: str,
     database: str,
-    input_file,
+    input_file: str | Path,
     clean: bool = False,
     if_exists: bool = True,
     create: bool = False,
     data_only: bool = False,
     schema_only: bool = False,
-    tables: list | None = None,
-    schemas: list | None = None,
+    tables: list[str] | None = None,
+    schemas: list[str] | None = None,
     jobs: int = 1,
     no_owner: bool = False,
     no_privileges: bool = False,
-) -> list:
+) -> list[str]:
     """Build a pg_restore command argv list.
 
     Constructs the argument list for invoking pg_restore. Pure function: no
@@ -544,9 +559,9 @@ def build_role_options(
     inherit: bool = True,
     replication: bool = False,
     connection_limit: int = -1,
-    password=None,
+    password: Any = None,
     valid_until: str | None = None,
-) -> list:
+) -> list[str]:
     """Build the options list for a CREATE ROLE statement.
 
     Constructs the SQL option tokens for CREATE ROLE … WITH <options>.

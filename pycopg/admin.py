@@ -13,7 +13,7 @@ v0.7.0.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pycopg import queries
 from pycopg.base import build_role_options
@@ -28,6 +28,8 @@ from pycopg.utils import (
 if TYPE_CHECKING:
     from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
+
+__all__ = ["AdminAccessor", "AsyncAdminAccessor"]
 
 
 class AdminAccessor:
@@ -153,7 +155,7 @@ class AdminAccessor:
         result = self._db.execute(queries.ROLE_EXISTS, [name])
         return len(result) > 0
 
-    def list_roles(self, *, include_system: bool = False) -> list[dict]:
+    def list_roles(self, *, include_system: bool = False) -> list[dict[str, Any]]:
         """List all roles.
 
         Parameters
@@ -409,7 +411,7 @@ class AdminAccessor:
         result = self._db.execute(queries.LIST_ROLE_MEMBERS, [role])
         return [r["member"] for r in result]
 
-    def list_role_grants(self, role: str) -> list[dict]:
+    def list_role_grants(self, role: str) -> list[dict[str, Any]]:
         """List privileges granted to a role.
 
         Parameters
@@ -549,7 +551,7 @@ class AsyncAdminAccessor:
         result = await self._db.execute(queries.ROLE_EXISTS, [name])
         return len(result) > 0
 
-    async def list_roles(self, *, include_system: bool = False) -> list[dict]:
+    async def list_roles(self, *, include_system: bool = False) -> list[dict[str, Any]]:
         """List all roles.
 
         Parameters
@@ -811,7 +813,7 @@ class AsyncAdminAccessor:
         result = await self._db.execute(queries.LIST_ROLE_MEMBERS, [role])
         return [r["member"] for r in result]
 
-    async def list_role_grants(self, role: str) -> list[dict]:
+    async def list_role_grants(self, role: str) -> list[dict[str, Any]]:
         """List privileges granted to a role.
 
         Parameters

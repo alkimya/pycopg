@@ -3,6 +3,7 @@ Custom exceptions for pycopg.
 """
 
 import warnings as _warnings
+from typing import cast
 
 
 class PycopgError(Exception):
@@ -84,6 +85,26 @@ _DEPRECATED_NAMES: dict[str, str] = {
     "DatabaseExists": "DatabaseExistsError",
 }
 
+# Public surface — every *Error class consumed across module boundaries
+# (database.py, async_database.py, config.py, migrations.py, utils.py,
+# schema.py, spatial.py, timescale.py, etl.py, __init__.py) plus the
+# _DEPRECATED_NAMES mapping __init__.py re-exports under an alias.
+__all__ = [
+    "PycopgError",
+    "ConnectionError",
+    "ConfigurationError",
+    "ExtensionNotAvailableError",
+    "TableNotFoundError",
+    "InvalidIdentifierError",
+    "MigrationError",
+    "DatabaseExistsError",
+    "TimescaleError",
+    "ETLError",
+    "ETLTransformError",
+    "ETLTargetNotFoundError",
+    "_DEPRECATED_NAMES",
+]
+
 
 def __getattr__(name: str) -> type:
     """Resolve deprecated exception names with a DeprecationWarning (PEP 562).
@@ -111,5 +132,5 @@ def __getattr__(name: str) -> type:
             DeprecationWarning,
             stacklevel=2,  # points to caller's import line, not exceptions.py
         )
-        return globals()[new]
+        return cast(type, globals()[new])
     raise AttributeError(f"module 'pycopg.exceptions' has no attribute {name!r}")

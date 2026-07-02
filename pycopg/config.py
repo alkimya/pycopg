@@ -7,10 +7,14 @@ Loads database credentials from environment variables or .env file.
 import os
 import re
 from dataclasses import dataclass, field
+from os import PathLike
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from pycopg.exceptions import ConfigurationError
+
+__all__ = ["Config"]
 
 # python-dotenv is optional
 try:
@@ -22,9 +26,14 @@ except (
 ):  # pragma: no cover — python-dotenv ImportError only fires when package absent; --all-extras always installs it
     HAS_DOTENV = False
 
-    def load_dotenv(dotenv_path=None, *, override: bool = False, **kwargs):
+    def load_dotenv(  # type: ignore[misc]  # fallback shape need not mirror python-dotenv's full stub (stream/verbose/interpolate/encoding) — genuinely unstubbed optional-dependency edge (D-01)
+        dotenv_path: str | PathLike[str] | None = None,
+        *,
+        override: bool = False,
+        **kwargs: Any,
+    ) -> bool:
         """No-op when python-dotenv is not installed."""
-        pass
+        return False
 
 
 # Safe GUC option key: must be a valid identifier-like name (WR-04)
@@ -79,7 +88,7 @@ class Config:
     user: str = "postgres"
     password: str = ""
     sslmode: str | None = None
-    options: dict = field(default_factory=dict)
+    options: dict[str, str] = field(default_factory=dict)
     statement_timeout: int | None = None
     default_batch_size: int = 1000
 
@@ -253,7 +262,7 @@ class Config:
             base += f"?sslmode={self.sslmode}"
         return base
 
-    def connect_params(self) -> dict:
+    def connect_params(self) -> dict[str, Any]:
         """Get connection parameters as dict for psycopg.connect().
 
         Returns
@@ -261,7 +270,7 @@ class Config:
         dict
             Dict with host, port, dbname, user, password.
         """
-        params = {
+        params: dict[str, Any] = {
             "host": self.host,
             "port": self.port,
             "dbname": self.database,

@@ -17,6 +17,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
+__all__ = ["get_logger", "log_operation"]
+
 _logger = logging.getLogger("pycopg")
 _logger.addHandler(logging.NullHandler())
 

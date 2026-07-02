@@ -8,6 +8,19 @@ import re
 
 from pycopg.exceptions import InvalidIdentifierError
 
+__all__ = [
+    "validate_identifier",
+    "validate_identifiers",
+    "validate_interval",
+    "validate_extension_name",
+    "validate_timestamp",
+    "validate_privileges",
+    "validate_object_type",
+    "validate_csv_option",
+    "validate_index_method",
+    "quote_literal",
+]
+
 # Valid SQL identifier pattern: starts with letter or underscore,
 # followed by letters, digits, or underscores
 _IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")

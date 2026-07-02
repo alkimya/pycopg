@@ -12,14 +12,17 @@ v0.7.0.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pycopg import queries
+from pycopg.base import Params
 from pycopg.utils import validate_identifiers
 
 if TYPE_CHECKING:
     from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
+
+__all__ = ["MaintAccessor", "AsyncMaintAccessor"]
 
 # Whitelist of valid PostgreSQL EXPLAIN output formats (CR-01)
 _VALID_EXPLAIN_FORMATS = {"text", "json", "xml", "yaml"}
@@ -62,10 +65,10 @@ class MaintAccessor:
                 queries.DATABASE_SIZE_PRETTY,
                 [self._db.config.database],
             )
-            return result[0]["size"]
+            return str(result[0]["size"])
         else:
             result = self._db.execute(queries.DATABASE_SIZE, [self._db.config.database])
-            return result[0]["size"]
+            return int(result[0]["size"])
 
     def table_size(
         self, table: str, *, schema: str = "public", pretty: bool = True
@@ -89,12 +92,14 @@ class MaintAccessor:
         full_name = f"{schema}.{table}"
         if pretty:
             result = self._db.execute(queries.TABLE_SIZE_PRETTY, [full_name])
-            return result[0]["size"]
+            return str(result[0]["size"])
         else:
             result = self._db.execute(queries.TABLE_SIZE, [full_name])
-            return result[0]["size"]
+            return int(result[0]["size"])
 
-    def table_sizes(self, *, schema: str = "public", limit: int = 20) -> list[dict]:
+    def table_sizes(
+        self, *, schema: str = "public", limit: int = 20
+    ) -> list[dict[str, Any]]:
         """Get sizes of all tables in schema, sorted by size.
 
         Parameters
@@ -165,7 +170,7 @@ class MaintAccessor:
     def explain(
         self,
         sql: str,
-        params=None,
+        params: Params = None,
         *,
         analyze: bool = False,
         format: str = "text",
@@ -237,12 +242,12 @@ class AsyncMaintAccessor:
                 queries.DATABASE_SIZE_PRETTY,
                 [self._db.config.database],
             )
-            return result[0]["size"]
+            return str(result[0]["size"])
         else:
             result = await self._db.execute(
                 queries.DATABASE_SIZE, [self._db.config.database]
             )
-            return result[0]["size"]
+            return int(result[0]["size"])
 
     async def table_size(
         self, table: str, *, schema: str = "public", pretty: bool = True
@@ -266,14 +271,14 @@ class AsyncMaintAccessor:
         full_name = f"{schema}.{table}"
         if pretty:
             result = await self._db.execute(queries.TABLE_SIZE_PRETTY, [full_name])
-            return result[0]["size"]
+            return str(result[0]["size"])
         else:
             result = await self._db.execute(queries.TABLE_SIZE, [full_name])
-            return result[0]["size"]
+            return int(result[0]["size"])
 
     async def table_sizes(
         self, *, schema: str = "public", limit: int = 20
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get sizes of all tables in schema, sorted by size.
 
         Parameters
@@ -346,7 +351,7 @@ class AsyncMaintAccessor:
     async def explain(
         self,
         sql: str,
-        params=None,
+        params: Params = None,
         *,
         analyze: bool = False,
         format: str = "text",

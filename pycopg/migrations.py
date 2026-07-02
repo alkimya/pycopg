@@ -10,11 +10,13 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pycopg.exceptions import MigrationError
 from pycopg.logging import log_operation
 from pycopg.utils import validate_identifier
+
+__all__ = ["Migration", "Migrator"]
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +151,7 @@ class Migrator:
         applied = self._get_applied()
         return [m for m in self._get_migrations() if m.version not in applied]
 
-    def applied(self) -> list[dict]:
+    def applied(self) -> list[dict[str, Any]]:
         """Get list of applied migrations from database.
 
         Returns
@@ -225,7 +227,7 @@ class Migrator:
                     [migration.version, migration.name],
                 )
 
-    def rollback(self, steps: int = 1) -> list[dict]:
+    def rollback(self, steps: int = 1) -> list[dict[str, Any]]:
         """Rollback the last N migrations.
 
         Only works if migrations contain a -- DOWN section.
@@ -322,7 +324,7 @@ class Migrator:
             return match.group(1).strip()
         return None
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Get migration status.
 
         Returns
