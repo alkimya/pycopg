@@ -356,7 +356,21 @@ Plans:
 4. MIGRATION guide is complete with before/after code for every breaking rename introduced in Phase 41
 5. Tag `v1.0.0` exists on the correct commit; GitHub Release is published; annotated tag is pushed to origin
 
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves (sequential-on-main)
+
+Plans:
+
+**Wave 1**
+
+- [ ] 47-01-PLAN.md — Debt triage (D-47-03): fix 22 `InvalidIdentifierErrorError` docstring typos in spatial.py, audit `where=`→`filter=` in api-reference.md (spatial + timescale rows; CRUD left intact), correct `as_text` PostGIS ≥ 3.1 note; re-verify Sphinx `-W` + interrogate
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 47-02-PLAN.md — Version bump to 1.0.0 (pyproject.toml + uv.lock + docs/conf.py), CHANGELOG `[1.0.0]` assembled from the 6 per-phase SUMMARYs with code-exact signatures (D-47-01), MIGRATION final-review + type-checking note (D-47-02)
+
+**Wave 3** *(blocked on Waves 1-2)*
+
+- [ ] 47-03-PLAN.md — 5 release gates green (coverage ≥95% on pycopg_test3, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy` exit 0), annotated tag `v1.0.0`, HUMAN-GATED OIDC PyPI publish, clean-venv smoke
 
 ## Progress
 
@@ -408,4 +422,4 @@ Plans:
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 7/7 | Complete    | 2026-07-02 |
-| 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |
+| 47. Release v1.0.0 | v1.0.0 | 0/3 | Planned | - |
