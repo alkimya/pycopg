@@ -117,6 +117,8 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise AssertionError",
     "raise NotImplementedError",
+    "@overload",
+    "@typing.overload",
 ]
 
 [tool.interrogate]
@@ -127,6 +129,7 @@ ignore-semiprivate = false
 ignore-private = false
 ignore-module = false
 ignore-property-decorators = false
+ignore-overloaded-functions = true
 fail-under = 95
 exclude = ["tests", "docs", "setup.py"]
 verbose = 0
