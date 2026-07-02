@@ -2353,7 +2353,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -2486,7 +2486,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -2632,7 +2632,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -2794,7 +2794,7 @@ class SpatialAccessor:
         ValueError
             If ``into``/``unit`` is invalid or geometry forms are not
             exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -2891,7 +2891,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or inputs are invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -3033,7 +3033,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -3114,7 +3114,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -3195,7 +3195,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -3274,7 +3274,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper).
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -3656,7 +3656,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into``/``unit`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -3781,7 +3781,7 @@ class SpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         """
         if where is not None:
@@ -5148,7 +5148,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -5284,7 +5284,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -5433,7 +5433,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -5598,7 +5598,7 @@ class AsyncSpatialAccessor:
         ValueError
             If ``into``/``unit`` is invalid or geometry forms are not
             exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -5698,7 +5698,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or inputs are invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -5843,7 +5843,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid or geometry forms are not exclusive.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -5927,7 +5927,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -6011,7 +6011,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -6093,7 +6093,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into="gdf"`` (scalar helper).
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -6475,7 +6475,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into``/``unit`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
@@ -6603,7 +6603,7 @@ class AsyncSpatialAccessor:
         ------
         ValueError
             If ``into`` is invalid.
-        InvalidIdentifierErrorError
+        InvalidIdentifierError
             If any identifier is invalid.
         ExtensionNotAvailableError
             If PostGIS is not installed (first-call guard).
