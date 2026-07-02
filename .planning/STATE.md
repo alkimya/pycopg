@@ -4,13 +4,13 @@ milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
 stopped_at: Phase 46 context gathered
-last_updated: "2026-07-02T08:33:37.438Z"
+last_updated: "2026-07-02T08:40:25.939Z"
 last_activity: 2026-07-02 -- Phase 46 execution started
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 25
-  completed_plans: 18
+  completed_plans: 19
   percent: 71
 ---
 
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 ## Current Position
 
 Phase: 46 (mypy-strict-py-typed-gate) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 46
-Last activity: 2026-07-02 -- Phase 46 execution started
+Plan: 2 of 7
+Status: Ready to execute
+Last activity: 2026-07-02 -- Completed 46-01-PLAN.md (mypy strict config foundation)
 
 ## Performance Metrics
 
@@ -49,7 +49,7 @@ Last activity: 2026-07-02 -- Phase 46 execution started
 | 43. Spatial v2 — Spatial Aggregates | 3 | 3 | Complete (verified PASSED; collect/union_aggregate + extent dual into=) |
 | 44. Spatial v2 — Serialization + MVT | 3 | 3 | Complete (verified PASSED 19/19; as_geojson/as_text/as_mvt) |
 | 45. API Completeness Gaps + Structured Logging | 4 | 4 | Complete (verified PASSED 6/6; code-review 5 warn → WR-01..04 fixed, WR-05+IN-* deferred) |
-| 46. mypy Strict + py.typed Gate | ? | 0 | Not started |
+| 46. mypy Strict + py.typed Gate | 7 | 1 | Executing (46-01 done: strict config live, 356-error baseline measured) |
 | 47. Release v1.0.0 | ? | 0 | Not started |
 
 **v0.10.0 phases (all complete, shipped 2026-06-26):**
@@ -77,6 +77,7 @@ Last activity: 2026-07-02 -- Phase 46 execution started
 | Phase 45 P02 | 46 | 2 tasks | 4 files |
 | Phase 45 P03 | 9min | 2 tasks | 5 files |
 | Phase 45 P04 | 12 | 2 tasks | 6 files |
+| Phase 46 P01 | 6min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: HEALTH-01 D-05/D-07: health() never-raises on all four classes; pooled adds pool_stats from self.stats @property; server_version via _decode_server_version; wrapped in log_operation
 - [Phase ?]: RESEARCH Q1 resolved: to_dataframe uses SQLAlchemy :name colon style; divergence documented in docstring + confirmed by test_to_dataframe_named_style
 - [Phase ?]: D-09 LOG-01 complete: 13 coarse instrumentation sites wrapped; rows=None fallback for etl.run and migrations.migrate; rows=len(df/gdf) for COPY paths
+- [Phase ?]: D-04 mypy strict config-as-source-of-truth: strict=true + warn_unreachable=true, no CLI --strict; sqlalchemy/psycopg/psycopg_pool overrides removed after live verify; geoalchemy2/tenacity kept (unstubbed, confirmed load-bearing)
+- [Phase ?]: interrogate ignore-overloaded-functions + coverage @overload exclude_lines pre-configured ahead of ~48 later @overload stubs (spatial/timescale); both fail-under=95 bars held
 
 ### Pending Todos
 
@@ -128,7 +131,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 - Local `pycopg_test` DB unusable since 2026-06-24 (TSDB catalog mismatch) — run DB/parity tests with `PGDATABASE=pycopg_test2` (PostGIS now enabled on it). Carries into v1.0.0.
 - v0.10.0 non-blocking carry-forward: phases 38/39 Nyquist VALIDATION.md draft; `vulture` not wired into Makefile/CI; DEBT-03b + copy_insert session-bypass deferred to v1.0.0.
-- Phase 46 (mypy strict) error count unknown until Phase 46 starts — measure first. If >100 errors, plan as multi-session.
+- Phase 46 (mypy strict) baseline MEASURED (46-01, 2026-07-02): 356 errors / 15 files under the new strict config (up from context's 328 non-strict measurement — delta is warn_unreachable's 9 new errors minus 4 resolved pandas import-untyped errors). Multi-session plan confirmed (7 plans).
 - Phase 44 (as_mvt) MVT decode strategy in CI must be decided at plan time (structural byte check vs. mapbox-vector-tile parser).
 
 ## Deferred Items
@@ -150,11 +153,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-01T11:48:16.363Z
-Stopped at: Phase 46 context gathered
-Resume file: .planning/phases/46-mypy-strict-py-typed-gate/46-CONTEXT.md
-Next action: Execute Phase 45 (API Completeness Gaps + Structured Logging)
+Last session: 2026-07-02T08:40:25.929Z
+Stopped at: Completed 46-01-PLAN.md (mypy strict config foundation)
+Resume file: .planning/phases/46-mypy-strict-py-typed-gate/46-02-PLAN.md
+Next action: Execute Phase 46 Plan 02 (fix bottom-up: base.py/config.py/exceptions.py first)
 
 ## Operator Next Steps
 
-- Execute Phase 45 (API Completeness Gaps + Structured Logging)
+- Execute Phase 46 Plan 02 (mypy-strict-py-typed-gate, fix bottom-up starting with leaf/foundation modules)

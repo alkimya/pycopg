@@ -317,7 +317,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 46-01-PLAN.md — Toolchain: strict=true + warn_unreachable, 3 dev stubs, prune overrides, overload-safe interrogate/coverage config (wave 0)
+- [x] 46-01-PLAN.md — Toolchain: strict=true + warn_unreachable, 3 dev stubs, prune overrides, overload-safe interrogate/coverage config (wave 0)
 - [ ] 46-02-PLAN.md — Foundation modules annotate + `--no-implicit-reexport`/`__all__` audit (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -407,5 +407,5 @@ Plans:
 | 43. Spatial v2 — Spatial Aggregates | v1.0.0 | 3/3 | Complete    | 2026-06-29 |
 | 44. Spatial v2 — Serialization + MVT | v1.0.0 | 3/3 | Complete    | 2026-06-30 |
 | 45. API Completeness Gaps + Structured Logging | v1.0.0 | 4/4 | Complete    | 2026-06-30 |
-| 46. mypy Strict + py.typed Gate | v1.0.0 | 0/7 | Planned | - |
+| 46. mypy Strict + py.typed Gate | v1.0.0 | 1/7 | In Progress|  |
 | 47. Release v1.0.0 | v1.0.0 | 0/? | Not started | - |
