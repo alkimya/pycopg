@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
 status: executing
-stopped_at: Phase 46 planned
-last_updated: "2026-07-01T12:42:10.143Z"
-last_activity: "2026-07-01 — Phase 46 (mypy Strict + py.typed Gate) planned: 7 plans in 4 waves, bottom-up (toolchain strict+warn_unreachable+3 dev stubs → foundations annotate + __all__/no-implicit-reexport audit → spatial/timescale/etl+pool accessors incl. @overload into= KIND-parity on both classes → database+async_database → whole-package mypy exit-0 verify + coverage≥95% + CI blocking-gate flip); D-01..D-04 locked; baseline 328 errors/15 files measured in CONTEXT; research skipped (STACK.md §3 covers it), Nyquist continue-anyway; plan-checker 0 blockers / 2 warnings fixed inline (46-03 depends_on 46-02; pool baseline 22)"
+stopped_at: Phase 46 context gathered
+last_updated: "2026-07-02T08:33:37.438Z"
+last_activity: 2026-07-02 -- Phase 46 execution started
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 18
+  total_plans: 25
   completed_plans: 18
   percent: 71
 ---
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 46 — mypy Strict + py.typed Gate (planned — 7 plans ready to execute); Phase 45 COMPLETE (verified PASSED 6/6)
+**Current focus:** Phase 46 — mypy-strict-py-typed-gate
 
 ## Current Position
 
-Phase: 46
-Plan: 7 plans ready (waves 0–4, bottom-up)
-Status: Ready to execute
-Last activity: 2026-07-01 — Phase 46 (mypy Strict + py.typed Gate) planned: 7 plans in 4 waves, bottom-up (toolchain strict+warn_unreachable+3 dev stubs → foundations annotate + __all__/no-implicit-reexport audit → spatial/timescale/etl+pool accessors incl. @overload into= KIND-parity on both classes → database+async_database → whole-package mypy exit-0 verify + coverage≥95% + CI blocking-gate flip); D-01..D-04 locked; baseline 328 errors/15 files measured in CONTEXT; research skipped (STACK.md §3 covers it), Nyquist continue-anyway; plan-checker 0 blockers / 2 warnings fixed inline (46-03 depends_on 46-02; pool baseline 22)
+Phase: 46 (mypy-strict-py-typed-gate) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 46
+Last activity: 2026-07-02 -- Phase 46 execution started
 
 ## Performance Metrics
 
