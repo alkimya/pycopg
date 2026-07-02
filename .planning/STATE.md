@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: Spatial v2 + gel API
-status: executing
-stopped_at: Completed 46-06-PLAN.md (database.py + async_database.py mypy strict; package-wide 76 -> 0; __init__.py gap-closure; FREEZE-05 complete)
-last_updated: "2026-07-02T10:11:45.421Z"
+status: verifying
+stopped_at: Completed 46-07-PLAN.md (mypy strict + py.typed gate terminal verification + CI blocking flip; FREEZE-05 complete, Phase 46 done 7/7)
+last_updated: "2026-07-02T10:58:00.490Z"
 last_activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy strict; package-wide 144 -> 76; steps no-redef + resize unused-coroutine bugs fixed)
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 25
-  completed_plans: 24
-  percent: 71
+  completed_plans: 25
+  percent: 86
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-06-27 after v0.10.0 milestone close)
 
 ## Current Position
 
-Phase: 46 (mypy-strict-py-typed-gate) — EXECUTING
+Phase: 46 (mypy-strict-py-typed-gate) — COMPLETE
 Plan: 7 of 7
-Status: Ready to execute
-Last activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy strict; package-wide 144 -> 76; steps no-redef + resize unused-coroutine bugs fixed)
+Status: Phase complete — ready for verification
+Last activity: 2026-07-02 -- Completed 46-07-PLAN.md (mypy strict + py.typed gate terminal verification + CI blocking flip; FREEZE-05 complete, Phase 46 done 7/7)
 
 ## Performance Metrics
 
@@ -49,7 +49,7 @@ Last activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy stri
 | 43. Spatial v2 — Spatial Aggregates | 3 | 3 | Complete (verified PASSED; collect/union_aggregate + extent dual into=) |
 | 44. Spatial v2 — Serialization + MVT | 3 | 3 | Complete (verified PASSED 19/19; as_geojson/as_text/as_mvt) |
 | 45. API Completeness Gaps + Structured Logging | 4 | 4 | Complete (verified PASSED 6/6; code-review 5 warn → WR-01..04 fixed, WR-05+IN-* deferred) |
-| 46. mypy Strict + py.typed Gate | 7 | 5 | Executing (46-01 strict config live, 46-02 foundation tier 356->303, 46-03 spatial.py 303->187 via 96 @overload stubs, 46-04 timescale.py+schema.py 187->144 via 12 @overload stubs, 46-05 etl.py+pool.py 144->76 + steps no-redef/resize unused-coroutine bugs fixed) |
+| 46. mypy Strict + py.typed Gate | 7 | 7 | Complete (46-01 strict config live, 46-02 foundation tier 356->303, 46-03 spatial.py 303->187 via 96 @overload stubs, 46-04 timescale.py+schema.py 187->144 via 12 @overload stubs, 46-05 etl.py+pool.py 144->76 + steps no-redef/resize unused-coroutine bugs fixed, 46-06 database.py+async_database.py 76->0, 46-07 terminal verification + CI blocking flip; FREEZE-05 complete) |
 | 47. Release v1.0.0 | ? | 0 | Not started |
 
 **v0.10.0 phases (all complete, shipped 2026-06-26):**
@@ -83,6 +83,7 @@ Last activity: 2026-07-02 -- Completed 46-05-PLAN.md (etl.py + pool.py mypy stri
 | Phase 46 P04 | ~25min | 2 tasks | 2 files |
 | Phase 46 P05 | ~40min | 2 tasks | 3 files |
 | Phase 46 P06 | ~35min | 2 tasks | 4 files |
+| Phase 46 P07 | 12min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: [Phase 46-04]: assert-for-exclusivity-narrowing reused for add_dimension's number_partitions/chunk_interval Optional narrowing (sync+async); @overload triplet pattern (Literal[df]/Literal[rows]/str fallback) applied to timescale time_bucket/time_bucket_gapfill x2 classes (12 stubs, symmetric); schema.py pure D-03 (no into= polymorphism)
 - [Phase 46]: [Phase 46-05]: steps [no-redef] fixed as duplicate-annotation-only (dry_run branch always returns before the second assignment is reachable, never a runtime shadow); [unused-coroutine] real bug found+fixed at pool.py:574 (not etl.py as plan pointer suggested) -- AsyncPooledDatabase.resize() was sync calling an async psycopg_pool coroutine without await, silently never resizing
 - [Phase 46]: Phase 46-06: database.py + async_database.py annotated to zero mypy strict errors (76 -> 0 package-wide); assert-for-exclusivity-narrowing extended to to_dataframe/to_geodataframe sql XOR guard; cast() at pandas to_sql()/geopandas read_postgis() unstubbed edges; __init__.py:56 gap-closure (__getattr__ -> type via cast); backup.py stale unused-ignore removed as Rule-1 side effect of cursor() typing. FREEZE-05 satisfied.
+- [Phase 46]: Phase 46-07: whole-package mypy --strict verified 0 errors/18 files, coverage held 96.45% on pycopg_test3, interrogate 100%, py.typed truthful (only geoalchemy2/tenacity overrides remain); CI mypy step flipped from continue-on-error to a blocking gate (D-04) -- FREEZE-05 complete, Phase 46 fully done 7/7
 
 ### Pending Todos
 
@@ -142,7 +144,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 - Local `pycopg_test` DB unusable since 2026-06-24 (TSDB catalog mismatch) — run DB/parity tests with `PGDATABASE=pycopg_test2` (PostGIS now enabled on it). Carries into v1.0.0.
 - v0.10.0 non-blocking carry-forward: phases 38/39 Nyquist VALIDATION.md draft; `vulture` not wired into Makefile/CI; DEBT-03b + copy_insert session-bypass deferred to v1.0.0.
-- Phase 46 (mypy strict) baseline MEASURED (46-01, 2026-07-02): 356 errors / 15 files under the new strict config (up from context's 328 non-strict measurement — delta is warn_unreachable's 9 new errors minus 4 resolved pandas import-untyped errors). Multi-session plan confirmed (7 plans). Progress: 46-02 (foundation tier) 356->303; 46-03 (spatial.py, largest hotspot, 96 @overload stubs) 303->187; 46-04 (timescale.py + schema.py, 12 @overload stubs + D-03) 187->144; 46-05 (etl.py + pool.py) 144->76 -- steps [no-redef] root-caused as duplicate-annotation-only (never a runtime bug), [unused-coroutine] REAL bug found+fixed at pool.py:574 (AsyncPooledDatabase.resize() was sync calling an async psycopg_pool coroutine without await -- resize silently never took effect; plan's own pointer named etl.py, which had zero unused-coroutine errors). Remaining hotspots: database.py (~37), async_database.py (~38), pycopg/__init__.py (1 stray no-untyped-def). FREEZE-05 NOT yet complete — 6 of 7 plans done, 76 errors remain across 3 files.
+- Phase 46 (mypy strict) baseline MEASURED (46-01, 2026-07-02): 356 errors / 15 files under the new strict config (up from context's 328 non-strict measurement — delta is warn_unreachable's 9 new errors minus 4 resolved pandas import-untyped errors). Multi-session plan confirmed (7 plans). Progress: 46-02 (foundation tier) 356->303; 46-03 (spatial.py, largest hotspot, 96 @overload stubs) 303->187; 46-04 (timescale.py + schema.py, 12 @overload stubs + D-03) 187->144; 46-05 (etl.py + pool.py) 144->76 -- steps [no-redef] root-caused as duplicate-annotation-only (never a runtime bug), [unused-coroutine] REAL bug found+fixed at pool.py:574 (AsyncPooledDatabase.resize() was sync calling an async psycopg_pool coroutine without await -- resize silently never took effect; plan's own pointer named etl.py, which had zero unused-coroutine errors); 46-06 (database.py + async_database.py) 76->0 package-wide. **FREEZE-05 COMPLETE (46-07, 2026-07-02):** whole-package `uv run mypy pycopg/` verified 0 errors/18 files, coverage held 96.45% (pycopg_test3), interrogate 100%, py.typed truthful (only geoalchemy2/tenacity overrides remain), CI mypy step flipped from continue-on-error to a blocking gate (D-04). Phase 46 fully done 7/7 — ready for `/gsd-verify-phase 46`.
 - Phase 44 (as_mvt) MVT decode strategy in CI must be decided at plan time (structural byte check vs. mapbox-vector-tile parser).
 - pycopg_test/pycopg_test2 both broken: TimescaleDB .so version drift (server expects 2.28.0/2.28.1, only 2.28.2 installed) -- even bare SELECT 1 fails; verified via scratch DB pycopg_test3 for 46-02, will likely recur for 46-03..46-07
 
@@ -165,11 +167,12 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T10:11:33.359Z
-Stopped at: Completed 46-06-PLAN.md (database.py + async_database.py mypy strict; package-wide 76 -> 0; __init__.py gap-closure; FREEZE-05 complete)
+Last session: 2026-07-02T10:58:00.480Z
+Stopped at: Completed 46-07-PLAN.md (mypy strict + py.typed gate terminal verification + CI blocking flip; FREEZE-05 complete, Phase 46 done 7/7)
 Resume file: None
-Next action: Execute Phase 46 Plan 06 (mypy-strict-py-typed-gate, final hotspots — database.py / async_database.py / __init__.py)
+Next action: Run `/gsd-verify-phase 46` to verify the completed mypy-strict-py-typed-gate phase, then proceed to `/gsd-plan-phase 47` (Release v1.0.0)
 
 ## Operator Next Steps
 
-- Execute Phase 46 Plan 06 (mypy-strict-py-typed-gate, final hotspots per bottom-up ordering)
+- Run `/gsd-verify-phase 46` (Phase 46 complete, 7/7 plans, FREEZE-05 satisfied)
+- Then `/gsd-plan-phase 47` (Release v1.0.0 — the milestone-closing phase)

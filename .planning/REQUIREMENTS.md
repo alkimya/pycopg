@@ -60,7 +60,7 @@ Breaking changes allowed; every break served via `@deprecated_alias`/`Deprecatio
 - [x] **FREEZE-02**: Domain exceptions adopt the `*Error` (N818) convention — `ExtensionNotAvailable`→`ExtensionNotAvailableError`, `TableNotFound`→`TableNotFoundError`, `InvalidIdentifier`→`InvalidIdentifierError`, `DatabaseExists`→`DatabaseExistsError` — with old names as deprecated aliases + MIGRATION; internal call sites use the new names
 - [x] **FREEZE-03**: Public API consistency pass — homogenize return-shape and `into=` conventions, parameter naming/order across the 7 accessors + flat core; documented Stable API Contract (positional vs keyword-only parameters) for every public method
 - [x] **FREEZE-04**: SemVer + deprecation policy published (`docs/stability.md`) — the 1.0 stability contract (what's stable, deprecation timeline, supported versions)
-- [ ] **FREEZE-05**: `mypy --strict` made blocking in CI (remove `continue-on-error`) with 3 dev-group stubs (`pandas-stubs`, `types-geopandas`, `types-shapely`) and `@overload` on all `into="rows"/"gdf"` methods; complete `py.typed` (zero strict errors over `pycopg/`)
+- [x] **FREEZE-05**: `mypy --strict` made blocking in CI (remove `continue-on-error`) with 3 dev-group stubs (`pandas-stubs`, `types-geopandas`, `types-shapely`) and `@overload` on all `into="rows"/"gdf"` methods; complete `py.typed` (zero strict errors over `pycopg/`)
 
 ### Release
 
@@ -143,7 +143,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | FREEZE-02 | Phase 41 | Complete |
 | FREEZE-03 | Phase 41 | Complete |
 | FREEZE-04 | Phase 41 | Complete |
-| FREEZE-05 | Phase 46 | Pending |
+| FREEZE-05 | Phase 46 | Complete |
 | REL-11 | Phase 47 | Pending |
 
 **Coverage:**
