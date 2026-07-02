@@ -5,7 +5,7 @@ milestone_name: Follow-ups additifs
 status: Roadmap ready
 stopped_at: Phase 48 context gathered
 last_updated: "2026-07-02T20:33:03.126Z"
-last_activity: 2026-07-02 — v1.1.0 ROADMAP.md created (Phases 48-51, 15/15 reqs mapped)
+last_activity: 2026-07-02 — Phase 48 context gathered (48-CONTEXT.md; F01/F02/F03 decided, F04 already-shipped → verify+doc)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 ## Current Position
 
-Phase: 48 of 51 (TimescaleDB Follow-ups) — not yet planned
+Phase: 48 of 51 (TimescaleDB Follow-ups) — context gathered, not yet planned
 Plan: — (awaiting /gsd-plan-phase 48)
-Status: Roadmap ready
-Last activity: 2026-07-02 — v1.1.0 ROADMAP.md created (Phases 48-51, 15/15 reqs mapped)
+Status: Context ready
+Last activity: 2026-07-02 — Phase 48 context gathered (48-CONTEXT.md; F01/F02/F03 decided, F04 already-shipped → verify+doc)
 
 Progress: [░░░░░░░░░░] 0%
 
