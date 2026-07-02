@@ -1,10 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1.0
-milestone_name: Follow-ups additifs (TimescaleDB · ETL incrémental · CRUD/introspection)
-status: roadmap_ready
-last_updated: "2026-07-02T18:05:00.000Z"
-last_activity: 2026-07-02
+milestone_name: Follow-ups additifs
+status: Roadmap ready
+stopped_at: Phase 48 context gathered
+last_updated: "2026-07-02T20:33:03.126Z"
+last_activity: 2026-07-02 — v1.1.0 ROADMAP.md created (Phases 48-51, 15/15 reqs mapped)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -172,9 +173,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02 — v1.1.0 roadmap created via `/gsd-new-project` roadmapper.
-Stopped at: `.planning/ROADMAP.md` written with 4 phases (48-51) for milestone v1.1.0 "Follow-ups additifs" — Phase 48 TimescaleDB Follow-ups (TSDB-F01..04), Phase 49 Incremental ETL Follow-ups (ETL-INC-F01..04), Phase 50 CRUD + Introspection Follow-ups (CRUD-F01..03, INTRO-F01..02), Phase 51 Release v1.1.0 (DOC-13, REL-12). `.planning/REQUIREMENTS.md` Traceability table filled (15/15 mapped, 0 unmapped). STATE.md position updated to Phase 48 ready-to-plan.
-Resume file: None
+Last session: 2026-07-02T20:33:03.106Z
+Stopped at: Phase 48 context gathered
+Resume file: .planning/phases/48-timescaledb-follow-ups/48-CONTEXT.md
 Next action: `/gsd-plan-phase 48` to plan the first phase (TimescaleDB Follow-ups).
 
 ## Operator Next Steps
