@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: Roadmap ready
+status: Context ready
 stopped_at: Phase 48 context gathered
-last_updated: "2026-07-02T20:33:03.126Z"
+last_updated: "2026-07-02T21:15:53.742Z"
 last_activity: 2026-07-02 — Phase 48 context gathered (48-CONTEXT.md; F01/F02/F03 decided, F04 already-shipped → verify+doc)
 progress:
   total_phases: 4

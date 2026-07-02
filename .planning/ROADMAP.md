@@ -17,6 +17,7 @@
 ## Phases
 
 **Phase Numbering:**
+
 - Integer phases (48, 49, 50, 51): Planned milestone work
 - Decimal phases (e.g. 48.1): Urgent insertions (marked with INSERTED)
 
@@ -32,52 +33,70 @@
 ## Phase Details
 
 ### Phase 48: TimescaleDB Follow-ups
+
 **Goal**: Users can fully manage a continuous aggregate's lifecycle, align time buckets to a custom origin, control compression at the individual-chunk level, and filter `show_chunks` by physical time — completing the `db.timescale.*` surface opened in v0.8.0.
 **Depends on**: Nothing (first phase of v1.1.0; builds on shipped v0.8.0 `db.timescale.*`)
 **Requirements**: TSDB-F01, TSDB-F02, TSDB-F03, TSDB-F04
 **Success Criteria** (what must be TRUE):
+
   1. User can drop a continuous aggregate and separately remove its refresh policy via `db.timescale.drop_continuous_aggregate(name)` / `remove_continuous_aggregate_policy(name)`, sync and async
   2. User can align `time_bucket` output to a custom origin/offset via keyword-only `origin=`/`offset=` params, sync and async
   3. User can compress or decompress a single named chunk via `db.timescale.compress_chunk(chunk)` / `decompress_chunk(chunk)`, sync and async
-  4. User can filter `show_chunks` results to a physical time window via keyword-only `newer_than=`/`older_than=` bounds, sync and async
-**Plans**: 3 plans
+  4. User can filter `show_chunks` results to a physical time window via keyword-only `newer_than=`/`older_than=` bounds, sync and async**Plans**: 3 plans
+
+**Wave 1**
+
 - [ ] 48-01-PLAN.md — F01 continuous-aggregate teardown (drop_continuous_aggregate + remove_continuous_aggregate_policy, both accessors)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 48-02-PLAN.md — F02 time_bucket custom origin/offset (keyword-only params + @overload KIND-parity, both accessors)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 48-03-PLAN.md — F03 per-chunk compress/decompress + F04 show_chunks physical-time filter verify+doc
 
-
 ### Phase 49: Incremental ETL Follow-ups
+
 **Goal**: Users can precisely control the boundaries and concurrency safety of incremental `Pipeline` runs — bounding the first run, choosing inclusive/lookback semantics, tracking composite watermarks, and preventing overlapping runs of the same pipeline.
 **Depends on**: Nothing (independent surface from Phase 48; builds on shipped v0.7.0 `Pipeline.incremental_column`)
 **Requirements**: ETL-INC-F01, ETL-INC-F02, ETL-INC-F03, ETL-INC-F04
 **Success Criteria** (what must be TRUE):
+
   1. User can set `Pipeline.initial_watermark` so the first incremental run is bounded/seeded instead of doing a full initial load
   2. User can configure the incremental boundary as inclusive `>=` and/or apply a lookback overlap, instead of only the fixed exclusive `>`
   3. User can define a `Pipeline` with a composite (multi-column) incremental watermark key
   4. User can run the same pipeline concurrently from two processes and have the second run safely serialize (or refuse to overlap) via a PostgreSQL advisory lock, sync and async
+
 **Plans**: TBD
 
 ### Phase 50: CRUD + Introspection Follow-ups
+
 **Goal**: Users get richer, more production-ready query ergonomics on the flat transactional core and deeper structural visibility via `db.schema.*` — an escape hatch for conditions the dict-WHERE form can't express, stable deep pagination, and materialized-view introspection.
 **Depends on**: Nothing (independent surface from Phases 48-49; builds on shipped v0.9.0 CRUD helpers + `db.schema.*`)
 **Requirements**: CRUD-F01, CRUD-F02, CRUD-F03, INTRO-F01, INTRO-F02
 **Success Criteria** (what must be TRUE):
+
   1. User can pass a raw-SQL WHERE fragment with bound params as an escape hatch to `delete_where`/`update_where`/`count`/`exists`/`paginate` for conditions the dict form can't express, sync and async
   2. User can paginate by keyset/cursor (seek method) for stable, index-friendly deep pagination, sync and async
   3. User can retrieve a page envelope carrying `total` count and `has_next` alongside the rows
   4. User can get `db.schema.describe()` output as a structured dataclass and/or DataFrame, not only a plain dict
   5. User can introspect materialized views and their columns via `db.schema.materialized_views()` plus per-view column introspection, sync and async
+
 **Plans**: TBD
 
 ### Phase 51: Release v1.1.0
+
 **Goal**: pycopg v1.1.0 is published to PyPI with correct, stable-1.x package metadata and documentation, all quality gates green.
 **Depends on**: Phase 48, Phase 49, Phase 50 (release packages all prior phases' work; DOC-13's api-reference `*Error` fix must land before the `-W error::DeprecationWarning` release gate runs)
 **Requirements**: DOC-13, REL-12
 **Success Criteria** (what must be TRUE):
+
   1. `pyproject.toml` classifier reads `Development Status :: 5 - Production/Stable` and `docs/api-reference.md` uses only the `*Error` exception names (no deprecated-name imports), and `CLAUDE.md` Version line reflects v1.1.0
   2. `pip install pycopg==1.1.0` installs the new surface from PyPI with `__version__ == "1.1.0"` confirmed via clean-venv smoke
   3. CHANGELOG `[1.1.0]` is Added-only and code-exact against Phases 48-50
   4. All 5 release gates are green: coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0 errors
+
 **Plans**: TBD
 
 ## Progress
