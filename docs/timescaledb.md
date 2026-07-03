@@ -119,6 +119,36 @@ db.timescale.add_compression_policy("events", compress_after="7 days")
 db.timescale.add_compression_policy("events", compress_after="30 days")
 ```
 
+### Per-Chunk Compression
+
+Compress or decompress a single chunk directly — useful alongside the automatic
+compression *policy* above when you need fine-grained, one-off control (e.g. compress a
+specific backfilled chunk immediately instead of waiting for the policy to run). The
+`chunk` name comes from `show_chunks()` output — the two features compose.
+
+```python
+# List chunks, then compress one directly
+chunks = db.timescale.show_chunks("events")
+db.timescale.compress_chunk(chunks[0])
+
+# Idempotent by default: if_not_compressed=True silently skips an
+# already-compressed chunk instead of raising
+db.timescale.compress_chunk(chunks[0], if_not_compressed=True)
+
+# Decompress the same chunk (e.g. before an in-place update)
+db.timescale.decompress_chunk(chunks[0], if_compressed=True)
+```
+
+```python
+# Async mirror
+chunks = await async_db.timescale.show_chunks("events")
+await async_db.timescale.compress_chunk(chunks[0])
+await async_db.timescale.decompress_chunk(chunks[0])
+```
+
+Both methods return `None`. `compress_chunk`/`decompress_chunk` are **Community/TSL-licensed**
+(see the license note below) — on Apache-licensed builds they raise `FeatureNotSupported`.
+
 ## Data Retention
 
 Automatically drop old data chunks.
@@ -286,16 +316,35 @@ db.timescale.add_continuous_aggregate_policy(
     end_offset="1 hour",
     schedule_interval="1 hour",
 )
+
+# Remove the refresh policy (idempotent by default: if_exists=True)
+db.timescale.remove_continuous_aggregate_policy("hourly_metrics")
+
+# Drop the continuous aggregate itself (DESTRUCTIVE — also drops its policies)
+db.timescale.drop_continuous_aggregate(
+    "hourly_metrics",
+    if_exists=True,   # no-op instead of raising if it doesn't exist
+    cascade=False,    # set True to also drop dependent objects
+)
 ```
+
+`drop_continuous_aggregate` and `remove_continuous_aggregate_policy` complete the
+create → refresh → policy → teardown lifecycle. Both use a plain transaction-safe
+`execute` (not the autocommit seam reserved for `create_continuous_aggregate` /
+`refresh_continuous_aggregate`) and are available sync and async.
 
 ## Advanced Chunk & Dimension Management
 
-> **Note:** `time_bucket_gapfill` (and its `locf`/`interpolate` gap-fill functions) and the
-> continuous-aggregate methods (`create_continuous_aggregate`, `refresh_continuous_aggregate`,
-> `add_continuous_aggregate_policy`) require a **Community/TSL-licensed** TimescaleDB build.
+> **Note:** `time_bucket_gapfill` (and its `locf`/`interpolate` gap-fill functions), the
+> continuous-aggregate creation/refresh methods (`create_continuous_aggregate`,
+> `refresh_continuous_aggregate`, `add_continuous_aggregate_policy`), and
+> `compress_chunk`/`decompress_chunk` require a **Community/TSL-licensed** TimescaleDB build.
 > On Apache-licensed builds (including most self-hosted open-source installations) these raise
-> `FeatureNotSupported`. `time_bucket`, `show_chunks`, `drop_chunks`, `add_dimension`, and
-> `add_reorder_policy` are available on all TimescaleDB builds.
+> `FeatureNotSupported`. `time_bucket`, `show_chunks`, `drop_chunks`, `add_dimension`,
+> `add_reorder_policy`, `drop_continuous_aggregate`, and `remove_continuous_aggregate_policy`
+> are ordinary transaction-safe DDL/function calls and are available on all TimescaleDB builds
+> — dropping a continuous aggregate or its policy is not itself a licensed operation, even
+> though *creating* one is.
 
 ### Inspecting Chunks
 
@@ -307,11 +356,22 @@ chunks = db.timescale.show_chunks("events")
 # List only chunks older than 30 days (interval string)
 old_chunks = db.timescale.show_chunks("events", older_than="30 days")
 
-# Or use a datetime cutoff
+# Or use a datetime cutoff (physical time, not a relative interval)
 from datetime import datetime, timedelta
 cutoff = datetime.utcnow() - timedelta(days=30)
 old_chunks = db.timescale.show_chunks("events", older_than=cutoff)
+
+# newer_than accepts the same two forms, symmetrically — an interval string...
+recent_chunks = db.timescale.show_chunks("events", newer_than="7 days")
+
+# ...or an absolute datetime cutoff (physical-time filter)
+since = datetime(2024, 1, 1)
+recent_chunks = db.timescale.show_chunks("events", newer_than=since)
 ```
+
+`older_than`/`newer_than` each accept either an interval `str` (e.g. `"30 days"`, bound as
+`%s::interval`) or an absolute `datetime` (physical time, bound as a bare `%s`) — both bounds
+can be combined in a single call to select a window between two cutoffs.
 
 Returns `list[str]` of fully-qualified chunk names, sorted oldest-first by `range_start`.
 
