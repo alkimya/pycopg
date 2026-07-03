@@ -68,7 +68,27 @@
   3. User can define a `Pipeline` with a composite (multi-column) incremental watermark key
   4. User can run the same pipeline concurrently from two processes and have the second run safely serialize (or refuse to overlap) via a PostgreSQL advisory lock, sync and async
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+**Wave 1**
+
+- [ ] 49-01-PLAN.md — F01 initial_watermark seed floor (Pipeline field + construction guard + seed-floor fallback wired at all 4 run() call sites, both accessors)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 49-02-PLAN.md — F02 boundary knobs (incremental_inclusive >= + incremental_lookback Python-subtract floor; builder inclusive op; recorded wm stays true max; str+lookback ETLError)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 49-03-PLAN.md — F03 composite watermark, pure layer (widen incremental_column str|Sequence[str], tuple-compare builder, "composite" envelope tag, D-04 composite initial_watermark guard)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 49-04-PLAN.md — F03 composite run() wiring (sorted max-ROW capture + per-element NaN guard, _do_extract multi-placeholder named binds, live-DB correctness, both accessors)
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 49-05-PLAN.md — F04 advisory-lock concurrency (ETL_ADVISORY_* constants, concurrency field, session-scoped lock acquire/finally-release, 'skip'->'skipped' transient RunResult, live two-connection integration)
 
 ### Phase 50: CRUD + Introspection Follow-ups
 
@@ -107,7 +127,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
-| 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
+| 49. Incremental ETL Follow-ups | v1.1.0 | 0/5 | Planned | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
@@ -281,6 +301,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 46. mypy Strict + py.typed Gate | v1.0.0 | 7/7 | Complete    | 2026-07-02 |
 | 47. Release v1.0.0 | v1.0.0 | 3/3 | Complete    | 2026-07-02 |
 | 48. TimescaleDB Follow-ups | v1.1.0 | 0/3 | Planned | - |
-| 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
+| 49. Incremental ETL Follow-ups | v1.1.0 | 0/5 | Planned | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
