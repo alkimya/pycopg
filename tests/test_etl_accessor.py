@@ -3648,3 +3648,187 @@ class TestAsyncInitialWatermarkSeedFloor:
 
         assert r2.watermark_used == 10  # stored max from run 1, not the seed
         assert r2.watermark_recorded == 12
+
+
+# ---------------------------------------------------------------------------
+# ETL-INC-F02 — configurable boundary (inclusive >= + lookback overlap)
+# live-DB floor/record-divergence tests (49-02 Task 2). Builder-shape +
+# construction guards live DB-free in tests/test_etl.py.
+# ---------------------------------------------------------------------------
+
+
+class TestIncrementalBoundaryLive:
+    """Live-DB inclusive/lookback tests: read window widens, record stays true max."""
+
+    def test_lookback_widens_read_but_not_record(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """floor 100 + lookback 10 reads col > 90; recorded stays true max 137 (D-07)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES "
+            "(90, 'a'), (95, 'b'), (100, 'c'), (137, 'd')",
+            autocommit=True,
+        )
+        tbl = f"etl_lb1_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="lookback_widen",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=100,
+                incremental_lookback=10,
+            )
+            result = db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # read floor = 100 - 10 = 90 → col > 90 re-reads the overlap window.
+        assert [r["id"] for r in rows] == [95, 100, 137]
+        assert result.watermark_used == 90  # the lookback-adjusted read floor
+        assert result.watermark_recorded == 137  # true max — never regressed (D-07)
+
+    def test_lookback_none_is_baseline(self, db, cleanup_pipeline_runs, etl_src):
+        """lookback=None → read floor == seed floor (byte-identical, no arithmetic)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES "
+            "(90, 'a'), (95, 'b'), (100, 'c'), (137, 'd')",
+            autocommit=True,
+        )
+        tbl = f"etl_lb2_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="lookback_none",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=100,
+            )
+            result = db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        assert [r["id"] for r in rows] == [137]  # col > 100 only
+        assert result.watermark_used == 100
+        assert result.watermark_recorded == 137
+
+    def test_inclusive_reincludes_boundary_row(
+        self, db, cleanup_pipeline_runs, etl_src
+    ):
+        """inclusive=True re-reads the boundary row (col == floor) via >= (D-05)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (100, 'c'), (105, 'e')",
+            autocommit=True,
+        )
+        tbl = f"etl_inc1_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="inclusive_boundary",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=100,
+                incremental_inclusive=True,
+            )
+            db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # >= 100 re-includes the boundary row 100 (exclusive > would drop it).
+        assert [r["id"] for r in rows] == [100, 105]
+
+    def test_str_watermark_with_lookback_raises_at_run(
+        self, db, cleanup_pipeline_runs
+    ):
+        """A str-typed watermark + incremental_lookback raises ETLError at run (D-06)."""
+        src = f"etl_strsrc_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{src}" (tag TEXT, val TEXT)',
+            autocommit=True,
+        )
+        db.execute(
+            f"INSERT INTO public.\"{src}\" (tag, val) VALUES ('a', 'x'), ('z', 'y')",
+            autocommit=True,
+        )
+        tbl = f"etl_strtgt_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (tag TEXT PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="str_lookback",
+                source=f'SELECT * FROM public."{src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["tag"],
+                incremental_column="tag",
+                initial_watermark="b",  # str seed → str read floor
+                incremental_lookback=10,
+            )
+            with pytest.raises(ETLError, match="str-typed watermark"):
+                db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+
+class TestAsyncIncrementalBoundaryLive:
+    """Async mirror of the F02 floor/record divergence — sync/async parity (C-04)."""
+
+    async def test_lookback_widens_read_but_not_record(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """Async: floor 100 + lookback 10 reads col > 90; recorded stays true max 137."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES "
+            "(90, 'a'), (95, 'b'), (100, 'c'), (137, 'd')",
+            autocommit=True,
+        )
+        tbl = f"etl_alb1_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="alookback_widen",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=100,
+                incremental_lookback=10,
+            )
+            result = await async_db.etl.run(p)
+            rows = await async_db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert [r["id"] for r in rows] == [95, 100, 137]
+        assert result.watermark_used == 90
+        assert result.watermark_recorded == 137

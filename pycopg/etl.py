@@ -700,6 +700,60 @@ def _build_incremental_extract_sql(
     return f"SELECT * FROM {schema}.{source} WHERE {column} {op} %s", [watermark]
 
 
+def _apply_lookback(
+    watermark: datetime | int | str,
+    lookback: timedelta | int,
+) -> datetime | int:
+    """Subtract a lookback overlap from a READ floor (ETL-INC-F02, D-06).
+
+    Pure — no I/O. Widens the read window only; the caller must NOT feed the
+    result into the recorded watermark, which always stays the true
+    ``max(col)`` (D-07). The subtraction happens in Python before the value is
+    bound as a parameter.
+
+    A ``datetime`` floor requires a ``timedelta`` lookback; an ``int`` floor
+    requires an ``int`` lookback. A ``str``-typed floor cannot be adjusted —
+    the watermark type is only known at run time, so this is a runtime
+    :class:`ETLError` (D-06), not a construction guard.
+
+    Parameters
+    ----------
+    watermark : datetime or int or str
+        The resolved read floor (post-seed, 49-01).
+    lookback : timedelta or int
+        The overlap window from ``Pipeline.incremental_lookback``.
+
+    Returns
+    -------
+    datetime or int
+        The widened read floor (``watermark - lookback``).
+
+    Raises
+    ------
+    ETLError
+        If ``watermark`` is a ``str``, or the lookback type does not match the
+        watermark type (D-06).
+    """
+    if isinstance(watermark, datetime):
+        if not isinstance(lookback, timedelta):
+            raise ETLError(
+                "incremental_lookback for a datetime watermark must be a "
+                f"timedelta, got {lookback!r} (D-06)"
+            )
+        return watermark - lookback
+    if isinstance(watermark, int):  # bool excluded upstream; plain int floor
+        if isinstance(lookback, timedelta):
+            raise ETLError(
+                "incremental_lookback for an int watermark must be an int, "
+                f"got a timedelta {lookback!r} (D-06)"
+            )
+        return watermark - lookback
+    raise ETLError(
+        "incremental_lookback cannot be applied to a str-typed watermark "
+        f"({watermark!r}); lookback requires a datetime or int watermark (D-06)"
+    )
+
+
 #: Watermark types that can be stored in the typed JSONB envelope (D-04).
 _WATERMARK_SUPPORTED = "{datetime, int, str}"
 
@@ -1325,8 +1379,15 @@ class ETLAccessor:
                         "datetime | int | str | None", pipeline.initial_watermark
                     )
 
-                # Shared filtered extract (D-A2a) — same path as real run
-                df = self._do_extract(pipeline, dry_wm)
+                # Shared filtered extract (D-A2a) — same path as real run.
+                # Lookback widens the READ floor here too so the dry-run
+                # previews the same overlap window (D-06/D-07).
+                dry_read_floor: datetime | int | str | None = dry_wm
+                if pipeline.incremental_lookback is not None and dry_wm is not None:
+                    dry_read_floor = _apply_lookback(
+                        dry_wm, pipeline.incremental_lookback
+                    )
+                df = self._do_extract(pipeline, dry_read_floor)
                 rows_extracted = len(df)
 
                 # Capture would-be watermark from RAW filtered batch (D-A2)
@@ -1385,7 +1446,7 @@ class ETLAccessor:
                     started_at=started_at,
                     finished_at=finished_at,
                     error=None,
-                    watermark_used=dry_wm,
+                    watermark_used=dry_read_floor,
                     watermark_recorded=dry_raw_watermark,
                 )
 
@@ -1412,8 +1473,16 @@ class ETLAccessor:
             try:
                 # ------------------------------------------------------------------
                 # 1. EXTRACT (shared filtered path — D-A2a)
+                # Lookback (D-06/D-07): widen the READ floor only — the recorded
+                # watermark below stays the true max(col). A str-typed floor
+                # cannot be adjusted → _apply_lookback raises ETLError at run
+                # time. Overlap replay is a safe idempotent upsert no-op (D-08,
+                # C-01): incremental requires upsert, so re-read rows ON CONFLICT.
                 # ------------------------------------------------------------------
-                df = self._do_extract(pipeline, wm)
+                read_floor: datetime | int | str | None = wm
+                if pipeline.incremental_lookback is not None and wm is not None:
+                    read_floor = _apply_lookback(wm, pipeline.incremental_lookback)
+                df = self._do_extract(pipeline, read_floor)
 
                 rows_extracted = len(df)
 
@@ -1591,7 +1660,7 @@ class ETLAccessor:
             # then inject watermark_used (per-run input, never stored — D-A1).
             result = self._fetch_run_result(run_id)
             if wm is not None or pipeline.incremental_column is not None:
-                result = dc_replace(result, watermark_used=wm)
+                result = dc_replace(result, watermark_used=read_floor)
             return result
 
 
@@ -2035,8 +2104,15 @@ class AsyncETLAccessor:
                         "datetime | int | str | None", pipeline.initial_watermark
                     )
 
-                # Shared filtered extract (D-A2a) — same path as real run
-                df = await self._do_extract(pipeline, dry_wm)
+                # Shared filtered extract (D-A2a) — same path as real run.
+                # Lookback widens the READ floor here too so the dry-run
+                # previews the same overlap window (D-06/D-07).
+                dry_read_floor: datetime | int | str | None = dry_wm
+                if pipeline.incremental_lookback is not None and dry_wm is not None:
+                    dry_read_floor = _apply_lookback(
+                        dry_wm, pipeline.incremental_lookback
+                    )
+                df = await self._do_extract(pipeline, dry_read_floor)
                 rows_extracted = len(df)
 
                 # Capture would-be watermark from RAW filtered batch (D-A2)
@@ -2095,7 +2171,7 @@ class AsyncETLAccessor:
                     started_at=started_at,
                     finished_at=finished_at,
                     error=None,
-                    watermark_used=dry_wm,
+                    watermark_used=dry_read_floor,
                     watermark_recorded=dry_raw_watermark,
                 )
 
@@ -2122,8 +2198,16 @@ class AsyncETLAccessor:
             try:
                 # ------------------------------------------------------------------
                 # 1. EXTRACT (shared filtered path — D-A2a)
+                # Lookback (D-06/D-07): widen the READ floor only — the recorded
+                # watermark below stays the true max(col). A str-typed floor
+                # cannot be adjusted → _apply_lookback raises ETLError at run
+                # time. Overlap replay is a safe idempotent upsert no-op (D-08,
+                # C-01): incremental requires upsert, so re-read rows ON CONFLICT.
                 # ------------------------------------------------------------------
-                df = await self._do_extract(pipeline, wm)
+                read_floor: datetime | int | str | None = wm
+                if pipeline.incremental_lookback is not None and wm is not None:
+                    read_floor = _apply_lookback(wm, pipeline.incremental_lookback)
+                df = await self._do_extract(pipeline, read_floor)
 
                 rows_extracted = len(df)
 
@@ -2302,5 +2386,5 @@ class AsyncETLAccessor:
             # then inject watermark_used (per-run input, never stored — D-A1).
             result = await self._fetch_run_result(run_id)
             if wm is not None or pipeline.incremental_column is not None:
-                result = dc_replace(result, watermark_used=wm)
+                result = dc_replace(result, watermark_used=read_floor)
             return result
