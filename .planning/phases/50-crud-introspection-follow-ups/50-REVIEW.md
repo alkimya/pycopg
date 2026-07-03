@@ -164,6 +164,28 @@ while True:
 
 ---
 
+## Resolution
+
+All five findings are fixed as a follow-up hardening pass on `paginate_page`/
+`paginate_keyset` (sync `Database` and async `AsyncDatabase`, kept at parity),
+plus the `_build_keyset_where` docstring and the `docs/api-reference.md`
+keyset example:
+
+| Finding | Fix | Commit |
+|---------|-----|--------|
+| WR-01 | Reject an empty `order_by` list explicitly (`ValueError`) before any DB round-trip, in both `paginate_page` and `paginate_keyset`, both classes. | `685b81f` |
+| WR-02 | Normalize `limit = int(limit)` once at the top of each method and reuse it for the SQL `LIMIT` and the Python-side `has_next`/`rows[:limit]` trim, so a non-int `limit` can no longer disagree between the SQL cast and the slice. | `685b81f` |
+| IN-01 | Added a caveat to the `paginate_keyset`/`_build_keyset_where` docstrings: `order_by` columns should be `NOT NULL`, otherwise rows with a `NULL` key are silently skipped by the row-value seek predicate. | `685b81f` (paginate_keyset docstrings), `a29eed0` (`_build_keyset_where` docstring) |
+| IN-02 | Guard `limit <= 0` up front (raise `ValueError`) in both methods, both classes, to remove the `has_next=True`/`next_cursor=None` infinite-loop footgun. | `685b81f` |
+| IN-03 | Fixed the `docs/api-reference.md` keyset pagination example to process each page's rows before advancing the cursor (`while True: process; if not has_next: break; page = ...`). | `a29eed0` |
+
+Regression tests (mock-level, sync + async) were added for all three
+correctness guards (empty `order_by`, `limit <= 0`/negative, non-int
+`limit` normalization) in `tests/test_database.py` and
+`tests/test_async_database.py`. Full quality bar re-verified green after
+the fix: suite 2019 passed / 2 skipped, coverage 96.67%, mypy 0 errors,
+ruff clean, interrogate 100%, Sphinx `-W` clean.
+
 _Reviewed: 2026-07-04T00:00:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
