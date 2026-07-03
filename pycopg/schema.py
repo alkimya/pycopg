@@ -14,8 +14,10 @@ Both classes are exposed on the parent database via a lazy-cached
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal, overload
 
+import pandas as pd
 import psycopg
 
 from pycopg import queries
@@ -30,6 +32,35 @@ from pycopg.utils import (
 if TYPE_CHECKING:
     from pycopg.async_database import AsyncDatabase
     from pycopg.database import Database
+
+
+@dataclass(frozen=True)
+class TableDescription:
+    """Typed wrapper around :meth:`SchemaAccessor.describe`'s flat dict (D-12).
+
+    Returned when ``describe(into="dataclass")`` is requested. Fields mirror
+    the four ``describe`` dict keys 1:1 — each sub-value is the exact,
+    unreshaped output of its standalone helper (:meth:`SchemaAccessor.table_info`,
+    :meth:`SchemaAccessor.primary_key`, :meth:`SchemaAccessor.foreign_keys`,
+    :meth:`SchemaAccessor.list_indexes`), preserving the D-04 "shapes can
+    never drift" invariant — this is a typed wrapper only, never a reshape.
+
+    Parameters
+    ----------
+    columns : list of dict
+        Exact output of :meth:`SchemaAccessor.table_info`.
+    primary_key : dict or None
+        Exact output of :meth:`SchemaAccessor.primary_key`.
+    foreign_keys : list of dict
+        Exact output of :meth:`SchemaAccessor.foreign_keys`.
+    indexes : list of dict
+        Exact output of :meth:`SchemaAccessor.list_indexes`.
+    """
+
+    columns: list[dict[str, Any]]
+    primary_key: dict[str, Any] | None
+    foreign_keys: list[dict[str, Any]]
+    indexes: list[dict[str, Any]]
 
 
 class SchemaAccessor:

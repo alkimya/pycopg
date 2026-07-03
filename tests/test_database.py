@@ -702,6 +702,46 @@ class TestPageDataclass:
             page.total = 1
 
 
+class TestTableDescriptionDataclass:
+    """INTRO-F01 (D-12): TableDescription frozen dataclass fields + export precedent."""
+
+    def test_table_description_fields(self):
+        """TableDescription carries the 4 describe-dict keys as declared fields (D-12)."""
+        from pycopg import TableDescription
+
+        describe_dict = {
+            "columns": [{"column_name": "id", "data_type": "integer"}],
+            "primary_key": {"constraint_name": "t_pkey", "columns": ["id"]},
+            "foreign_keys": [],
+            "indexes": [{"index_name": "t_pkey", "index_type": "btree"}],
+        }
+        assert set(describe_dict) == {
+            "columns",
+            "primary_key",
+            "foreign_keys",
+            "indexes",
+        }
+
+        # Round-trips from the describe dict without reshaping (D-12).
+        td = TableDescription(**describe_dict)
+        assert td.columns == describe_dict["columns"]
+        assert td.primary_key == describe_dict["primary_key"]
+        assert td.foreign_keys == describe_dict["foreign_keys"]
+        assert td.indexes == describe_dict["indexes"]
+
+    def test_table_description_is_frozen(self):
+        """TableDescription is immutable — attribute assignment raises."""
+        import dataclasses
+
+        from pycopg import TableDescription
+
+        td = TableDescription(
+            columns=[], primary_key=None, foreign_keys=[], indexes=[]
+        )
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            td.columns = []
+
+
 class TestBuildKeysetWhere:
     """CRUD-F02 (D-06/D-07): QueryMixin._build_keyset_where row-value builder."""
 
