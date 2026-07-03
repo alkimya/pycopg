@@ -1032,8 +1032,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     async def exists(
         self,
         table: str,
-        where: dict[str, Any],
+        where: dict[str, Any] | None = None,
         *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
         schema: str = "public",
     ) -> bool:
         """Check whether any row matching the given equality conditions exists.
@@ -1042,9 +1044,21 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         ----------
         table : str
             Table name.
-        where : dict
-            Equality conditions as column-name to value mapping. Must be
-            non-empty — an existence check with no predicate is meaningless.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. Mutually
+            exclusive with ``where_sql`` (D-02). Exactly one of ``where`` /
+            ``where_sql`` must resolve to a non-empty predicate — an
+            existence check with no predicate is meaningless.
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express. This is a
+            documented escape hatch: the fragment is passed through
+            **verbatim** and is **not** run through identifier validation —
+            the caller owns the SQL text. Only ``where_params`` are treated
+            as untrusted values and bound as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
         schema : str, optional
             Schema name, by default "public".
 
@@ -1056,26 +1070,32 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Raises
         ------
         ValueError
-            If ``where`` is empty or falsy (guard fires before any SQL or
-            cursor is opened).
+            If neither ``where`` nor ``where_sql`` resolves to a non-empty
+            predicate (guard fires before any SQL or cursor is opened); if
+            both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
         InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
-        if not where:
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        if not frag:
             raise ValueError(
-                "exists requires a non-empty `where` dict — "
-                "an existence check with no predicate is meaningless."
+                "exists requires a non-empty `where` dict or `where_sql` "
+                "fragment — an existence check with no predicate is "
+                "meaningless."
             )
         validate_identifiers(table, schema)
-        fragment, params = self._build_where_dict(where)
-        sql = f"SELECT EXISTS(SELECT 1 FROM {schema}.{table} WHERE {fragment})"
-        return bool(await self.fetch_val(sql, params))
+        sql = f"SELECT EXISTS(SELECT 1 FROM {schema}.{table} WHERE {frag})"
+        return bool(await self.fetch_val(sql, pred_params))
 
     async def count(
         self,
         table: str,
         *,
         where: dict[str, Any] | None = None,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
         schema: str = "public",
     ) -> int:
         """Count rows in a table, optionally filtered by equality conditions.
@@ -1085,8 +1105,21 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         table : str
             Table name.
         where : dict, optional
-            Equality conditions as column-name to value mapping. When ``None``
-            (default), all rows are counted without a WHERE clause.
+            Equality conditions as column-name to value mapping. When neither
+            ``where`` nor ``where_sql`` is given, all rows are counted
+            without a WHERE clause. Mutually exclusive with ``where_sql``
+            (D-02).
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express (e.g.
+            ``"age > %s AND status = ANY(%s)"``). This is a documented escape
+            hatch: the fragment is passed through **verbatim** and is **not**
+            run through identifier validation — the caller owns the SQL text.
+            Only ``where_params`` are treated as untrusted values and bound
+            as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
         schema : str, optional
             Schema name, by default "public".
 
@@ -1097,17 +1130,21 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         Raises
         ------
+        ValueError
+            If both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
         InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
         validate_identifiers(table, schema)
-        if where:
-            fragment, params = self._build_where_dict(where)
-            sql = f"SELECT COUNT(*) FROM {schema}.{table} WHERE {fragment}"
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        if frag:
+            sql = f"SELECT COUNT(*) FROM {schema}.{table} WHERE {frag}"
         else:
-            params = []
+            pred_params = []
             sql = f"SELECT COUNT(*) FROM {schema}.{table}"
-        return int(await self.fetch_val(sql, params))
+        return int(await self.fetch_val(sql, pred_params))
 
     async def paginate(
         self,
@@ -1117,6 +1154,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         offset: int = 0,
         order_by: str | list[str] | None = None,
         where: dict[str, Any] | None = None,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
         descending: bool = False,
         schema: str = "public",
     ) -> list[dict[str, Any]]:
@@ -1135,8 +1174,20 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             ``validate_identifiers`` before interpolation. Whole-clause
             direction is controlled by ``descending``.
         where : dict, optional
-            Equality conditions as column-name to value mapping. ``None``
-            (default) returns all rows without a WHERE clause.
+            Equality conditions as column-name to value mapping. When neither
+            ``where`` nor ``where_sql`` is given, all rows are returned
+            without a WHERE clause. Mutually exclusive with ``where_sql``
+            (D-02).
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express. This is a
+            documented escape hatch: the fragment is passed through
+            **verbatim** and is **not** run through identifier validation —
+            the caller owns the SQL text. Only ``where_params`` are treated
+            as untrusted values and bound as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
         descending : bool, optional
             When ``True``, append ``DESC`` to the ORDER BY clause (applies to
             all listed columns). Per-column direction is deferred.
@@ -1151,6 +1202,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
 
         Raises
         ------
+        ValueError
+            If both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
         InvalidIdentifierError
             If any column name in ``order_by`` or the table/schema identifier
             is invalid.
@@ -1158,11 +1213,9 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         validate_identifiers(table, schema)
 
         params: list[Any] = []
-        where_clause = ""
-        if where:
-            fragment, where_params = self._build_where_dict(where)
-            where_clause = f" WHERE {fragment}"
-            params.extend(where_params)
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        where_clause = f" WHERE {frag}" if frag else ""
+        params.extend(pred_params)
 
         order_clause = ""
         if order_by is not None:
@@ -1637,8 +1690,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
     async def delete_where(
         self,
         table: str,
-        where: dict[str, Any],
+        where: dict[str, Any] | None = None,
         *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
         schema: str = "public",
     ) -> int:
         """Delete rows matching the given equality conditions.
@@ -1647,9 +1702,22 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         ----------
         table : str
             Table name.
-        where : dict
-            Equality conditions as column-name to value mapping. Must be
-            non-empty — use db.schema.truncate_table to affect all rows.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. Mutually
+            exclusive with ``where_sql`` (D-02). Exactly one of ``where`` /
+            ``where_sql`` must resolve to a non-empty predicate — use
+            db.schema.truncate_table to affect all rows.
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express (e.g.
+            ``"created_at < now() - %s::interval"``). This is a documented
+            escape hatch: the fragment is passed through **verbatim** and is
+            **not** run through identifier validation — the caller owns the
+            SQL text. Only ``where_params`` are treated as untrusted values
+            and bound as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
         schema : str, optional
             Schema name, by default "public".
 
@@ -1661,26 +1729,32 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Raises
         ------
         ValueError
-            If where is empty or None (destructive guard D-04).
+            If neither ``where`` nor ``where_sql`` resolves to a non-empty
+            predicate (destructive guard); if both ``where`` and
+            ``where_sql`` are supplied (D-02); if ``where_params`` is
+            supplied without ``where_sql`` (D-04); or if ``where_sql`` is
+            empty/whitespace-only (D-03).
         """
-        if not where:
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        if not frag:
             raise ValueError(
-                "delete_where requires a non-empty 'where' dict. "
-                "To delete all rows use db.schema.truncate_table."
+                "delete_where requires a non-empty 'where' dict or 'where_sql' "
+                "fragment. To delete all rows use db.schema.truncate_table."
             )
         validate_identifiers(table, schema)
-        fragment, where_params = self._build_where_dict(where)
-        sql = f"DELETE FROM {schema}.{table} WHERE {fragment}"
+        sql = f"DELETE FROM {schema}.{table} WHERE {frag}"
         async with self.cursor() as cur:
-            await cur.execute(sql, where_params)
+            await cur.execute(sql, pred_params)
             return cur.rowcount
 
     async def update_where(
         self,
         table: str,
         values: dict[str, Any],
-        where: dict[str, Any],
+        where: dict[str, Any] | None = None,
         *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
         schema: str = "public",
     ) -> int:
         """Update rows matching the given equality conditions.
@@ -1692,10 +1766,21 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         values : dict
             Column-name to new-value mapping for the SET clause. Must be
             non-empty.
-        where : dict
-            Equality conditions as column-name to value mapping. Must be
-            non-empty — use execute with an explicit UPDATE statement to
-            affect all rows.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. Mutually
+            exclusive with ``where_sql`` (D-02). Exactly one of ``where`` /
+            ``where_sql`` must resolve to a non-empty predicate — use execute
+            with an explicit UPDATE statement to affect all rows.
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express. This is a
+            documented escape hatch: the fragment is passed through
+            **verbatim** and is **not** run through identifier validation —
+            the caller owns the SQL text. Only ``where_params`` are treated
+            as untrusted values and bound as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
         schema : str, optional
             Schema name, by default "public".
 
@@ -1707,21 +1792,26 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Raises
         ------
         ValueError
-            If where or values is empty or None (destructive guard D-04).
+            If ``values`` is empty; if neither ``where`` nor ``where_sql``
+            resolves to a non-empty predicate (destructive guard); if both
+            ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
         """
         if not values:
             raise ValueError("update_where requires a non-empty 'values' dict.")
-        if not where:
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        if not frag:
             raise ValueError(
-                "update_where requires a non-empty 'where' dict. "
-                "To update all rows use execute with an explicit SQL statement."
+                "update_where requires a non-empty 'where' dict or 'where_sql' "
+                "fragment. To update all rows use execute with an explicit "
+                "SQL statement."
             )
         validate_identifiers(table, schema)
         validate_identifiers(*values.keys())
         set_clause = ", ".join(f"{col} = %s" for col in values)
-        fragment, where_params = self._build_where_dict(where)
-        sql = f"UPDATE {schema}.{table} SET {set_clause} WHERE {fragment}"
-        params = list(values.values()) + where_params
+        sql = f"UPDATE {schema}.{table} SET {set_clause} WHERE {frag}"
+        params = list(values.values()) + pred_params
         async with self.cursor() as cur:
             await cur.execute(sql, params)
             return cur.rowcount

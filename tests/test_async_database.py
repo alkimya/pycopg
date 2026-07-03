@@ -265,6 +265,182 @@ class TestAsyncDatabaseExecute:
 
 
 @pytest.mark.asyncio
+class TestAsyncWhereSqlShape:
+    """CRUD-F01: async mirror mock SQL-shape tests for where_sql/where_params
+    on the five predicate helpers (delete_where/update_where/exists/count/paginate)."""
+
+    async def test_where_sql_shape_delete_where(self, config):
+        """delete_where with where_sql builds a WHERE clause from the raw
+        fragment, verbatim, with where_params bound %s."""
+        cursor_mock = create_async_cursor_mock(rowcount=2)
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.delete_where(
+                "logs",
+                where_sql="created_at < now() - %s::interval",
+                where_params=["1 day"],
+            )
+
+            assert result == 2
+            sql, params = cursor_mock.execute.call_args[0]
+            assert (
+                sql
+                == "DELETE FROM public.logs WHERE created_at < now() - %s::interval"
+            )
+            assert params == ["1 day"]
+
+    async def test_where_sql_shape_update_where(self, config):
+        """update_where with where_sql builds SET + raw WHERE fragment."""
+        cursor_mock = create_async_cursor_mock(rowcount=3)
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.update_where(
+                "t", {"status": "done"}, where_sql="age > %s", where_params=[30]
+            )
+
+            assert result == 3
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "UPDATE public.t SET status = %s WHERE age > %s"
+            assert params == ["done", 30]
+
+    async def test_where_sql_shape_exists(self, config):
+        """exists with where_sql builds an EXISTS() query from the raw fragment."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"exists": True})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.exists("t", where_sql="name = %s", where_params=["Alice"])
+
+            assert result is True
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT EXISTS(SELECT 1 FROM public.t WHERE name = %s)"
+            assert params == ["Alice"]
+
+    async def test_where_sql_shape_count(self, config):
+        """count with where_sql builds a COUNT(*) query from the raw fragment."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"count": 5})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.count(
+                "users",
+                where_sql="age > %s AND status = ANY(%s)",
+                where_params=[30, ["a", "b"]],
+            )
+
+            assert result == 5
+            sql, params = cursor_mock.execute.call_args[0]
+            assert (
+                sql
+                == "SELECT COUNT(*) FROM public.users WHERE age > %s AND status = ANY(%s)"
+            )
+            assert params == [30, ["a", "b"]]
+
+    async def test_where_sql_shape_paginate(self, config):
+        """paginate with where_sql builds a WHERE clause from the raw fragment,
+        composed with the existing ORDER BY/LIMIT/OFFSET clauses."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.paginate(
+                "events",
+                10,
+                order_by="id",
+                where_sql="created_at > %s",
+                where_params=["2026-01-01"],
+            )
+
+            assert result == [{"id": 1}]
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT * FROM public.events WHERE created_at > %s"
+                " ORDER BY id LIMIT 10 OFFSET 0"
+            )
+            assert params == ["2026-01-01"]
+
+
+@pytest.mark.asyncio
+class TestAsyncWhereSqlGuards:
+    """CRUD-F01: async mirror guard tests for where_sql/where_params on the
+    five predicate helpers — mutual-exclusion, empty fragment, param-desync,
+    destructive-still-raises (all fire before any DB round-trip)."""
+
+    async def test_where_sql_guard_mutual_exclusion(self, config):
+        """count(where=..., where_sql=...) raises ValueError (D-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="not both"):
+            await db.count("t", where_sql="a > %s", where_params=[1], where={"a": 1})
+
+    async def test_where_sql_guard_empty_fragment(self, config):
+        """count(where_sql="") raises ValueError (D-03)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="non-empty SQL fragment"):
+            await db.count("t", where_sql="   ")
+
+    async def test_where_sql_guard_param_desync(self, config):
+        """count(where_params=[1]) without where_sql raises ValueError (D-04)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="where_params requires where_sql"):
+            await db.count("t", where_params=[1])
+
+    async def test_where_sql_guard_destructive_still_raises_delete_where(self, config):
+        """delete_where("t") with neither where nor where_sql still raises."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="non-empty 'where' dict or 'where_sql'"):
+            await db.delete_where("t")
+
+    async def test_where_sql_guard_destructive_satisfied_by_where_sql_delete_where(
+        self, config
+    ):
+        """delete_where("t", where_sql="1=1") is allowed (explicit escape hatch)."""
+        cursor_mock = create_async_cursor_mock(rowcount=0)
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.delete_where("t", where_sql="1=1")
+
+            assert result == 0
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "DELETE FROM public.t WHERE 1=1"
+            assert params == []
+
+    async def test_where_sql_guard_destructive_still_raises_update_where(self, config):
+        """update_where("t", values) with neither where nor where_sql still raises."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="non-empty 'where' dict or 'where_sql'"):
+            await db.update_where("t", {"a": 1})
+
+    async def test_where_sql_guard_destructive_still_raises_exists(self, config):
+        """exists("t") with neither where nor where_sql still raises."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="non-empty `where` dict or `where_sql`"):
+            await db.exists("t")
+
+
+@pytest.mark.asyncio
 class TestAsyncDatabaseSchemas:
     """Async tests for schema methods."""
 

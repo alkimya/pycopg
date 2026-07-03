@@ -258,6 +258,57 @@ class TestAsyncValueInjection:
             await async_db.upsert_many("t", rows, conflict_columns=["id; DROP TABLE x"])
 
 
+class TestWhereSqlValueInjection:
+    """CRUD-F01 (T-50-02): where_sql fragment passthrough + where_params
+    binding. The raw ``where_sql`` fragment is a documented escape hatch
+    (C-02) and is never run through ``validate_identifiers`` — only
+    ``where_params`` are treated as untrusted values, bound ``%s`` and never
+    interpolated into the SQL string. These tests assert an
+    ``EVIL_IDENTIFIERS`` payload reaches the cursor/fetch_val call as a bound
+    parameter (not string-interpolated) while the fragment stays byte-exact.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_where_sql_params_bound_sync(self, config, evil):
+        """Sync: an EVIL_IDENTIFIERS payload via where_params binds as %s."""
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = None
+            mock_cursor.fetchone.return_value = {"count": 0}
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.count("t", where_sql="name = %s", where_params=[evil])
+
+            assert result == 0
+            sql, params = mock_cursor.execute.call_args[0]
+            # The fragment passes through verbatim — untouched by validation.
+            assert sql == "SELECT COUNT(*) FROM public.t WHERE name = %s"
+            # The evil payload reached the cursor as a bound param, never
+            # interpolated into the SQL text.
+            assert params == [evil]
+            assert evil not in sql
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_where_sql_params_bound_async(self, config, evil):
+        """Async mirror: an EVIL_IDENTIFIERS payload via where_params binds as %s."""
+        db = AsyncDatabase(config)
+        db.fetch_val = AsyncMock(return_value=0)
+
+        result = await db.count("t", where_sql="name = %s", where_params=[evil])
+
+        assert result == 0
+        sql, params = db.fetch_val.call_args[0]
+        assert sql == "SELECT COUNT(*) FROM public.t WHERE name = %s"
+        assert params == [evil]
+        assert evil not in sql
+
+
 class TestEtlIdentifierInjection:
     """ETL pure builders must reject every EVIL_IDENTIFIERS payload (ETL-16 / SC-6).
 

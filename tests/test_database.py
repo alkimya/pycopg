@@ -492,6 +492,184 @@ class TestResolvePredicate:
         assert params == ["1 day"]
 
 
+class TestWhereSqlShape:
+    """CRUD-F01: mock SQL-shape tests for where_sql/where_params on the five
+    predicate helpers (delete_where/update_where/exists/count/paginate)."""
+
+    def _cursor_db(self, mock_psycopg, config, *, description=None, fetchall=None):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = description
+        if fetchall is not None:
+            mock_cursor.fetchall.return_value = fetchall
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+        return Database(config), mock_cursor
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_shape_delete_where(self, mock_psycopg, config):
+        """delete_where with where_sql builds a WHERE clause from the raw
+        fragment, verbatim, with where_params bound %s."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config)
+        mock_cursor.rowcount = 2
+
+        result = db.delete_where(
+            "logs", where_sql="created_at < now() - %s::interval", where_params=["1 day"]
+        )
+
+        assert result == 2
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "DELETE FROM public.logs WHERE created_at < now() - %s::interval"
+        assert params == ["1 day"]
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_shape_update_where(self, mock_psycopg, config):
+        """update_where with where_sql builds SET + raw WHERE fragment."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config)
+        mock_cursor.rowcount = 3
+
+        result = db.update_where(
+            "t", {"status": "done"}, where_sql="age > %s", where_params=[30]
+        )
+
+        assert result == 3
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "UPDATE public.t SET status = %s WHERE age > %s"
+        assert params == ["done", 30]
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_shape_exists(self, mock_psycopg, config):
+        """exists with where_sql builds an EXISTS() query from the raw fragment."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("exists",)], fetchall=None
+        )
+        mock_cursor.fetchone.return_value = {"exists": True}
+
+        result = db.exists("t", where_sql="name = %s", where_params=["Alice"])
+
+        assert result is True
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT EXISTS(SELECT 1 FROM public.t WHERE name = %s)"
+        assert params == ["Alice"]
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_shape_count(self, mock_psycopg, config):
+        """count with where_sql builds a COUNT(*) query from the raw fragment."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config)
+        mock_cursor.fetchone.return_value = {"count": 5}
+
+        result = db.count(
+            "users", where_sql="age > %s AND status = ANY(%s)", where_params=[30, ["a", "b"]]
+        )
+
+        assert result == 5
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT COUNT(*) FROM public.users WHERE age > %s AND status = ANY(%s)"
+        assert params == [30, ["a", "b"]]
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_shape_paginate(self, mock_psycopg, config):
+        """paginate with where_sql builds a WHERE clause from the raw fragment,
+        composed with the existing ORDER BY/LIMIT/OFFSET clauses."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        result = db.paginate(
+            "events", 10, order_by="id", where_sql="created_at > %s", where_params=["2026-01-01"]
+        )
+
+        assert result == [{"id": 1}]
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "SELECT * FROM public.events WHERE created_at > %s"
+            " ORDER BY id LIMIT 10 OFFSET 0"
+        )
+        assert params == ["2026-01-01"]
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_shape_count_dict_where_unaffected(self, mock_psycopg, config):
+        """count(where=...) (dict path) is unaffected by the where_sql addition."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config)
+        mock_cursor.fetchone.return_value = {"count": 2}
+
+        result = db.count("users", where={"active": True})
+
+        assert result == 2
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT COUNT(*) FROM public.users WHERE active = %s"
+        assert params == [True]
+
+
+class TestWhereSqlGuards:
+    """CRUD-F01: guard tests for where_sql/where_params on the five predicate
+    helpers — mutual-exclusion, empty fragment, param-desync,
+    destructive-still-raises (all fire before any DB round-trip)."""
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_mutual_exclusion(self, mock_psycopg, config):
+        """count(where=..., where_sql=...) raises ValueError (D-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="not both"):
+            db.count("t", where_sql="a > %s", where_params=[1], where={"a": 1})
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_empty_fragment(self, mock_psycopg, config):
+        """count(where_sql="") raises ValueError (D-03)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="non-empty SQL fragment"):
+            db.count("t", where_sql="   ")
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_param_desync(self, mock_psycopg, config):
+        """count(where_params=[1]) without where_sql raises ValueError (D-04)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="where_params requires where_sql"):
+            db.count("t", where_params=[1])
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_destructive_still_raises_delete_where(
+        self, mock_psycopg, config
+    ):
+        """delete_where("t") with neither where nor where_sql still raises."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="non-empty 'where' dict or 'where_sql'"):
+            db.delete_where("t")
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_destructive_satisfied_by_where_sql_delete_where(
+        self, mock_psycopg, config
+    ):
+        """delete_where("t", where_sql="1=1") is allowed (explicit escape hatch)."""
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(mock_psycopg, config)
+        mock_cursor.rowcount = 0
+
+        result = db.delete_where("t", where_sql="1=1")
+
+        assert result == 0
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "DELETE FROM public.t WHERE 1=1"
+        assert params == []
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_destructive_still_raises_update_where(
+        self, mock_psycopg, config
+    ):
+        """update_where("t", values) with neither where nor where_sql still raises."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="non-empty 'where' dict or 'where_sql'"):
+            db.update_where("t", {"a": 1})
+
+    @patch("pycopg.database.psycopg")
+    def test_where_sql_guard_destructive_still_raises_exists(self, mock_psycopg, config):
+        """exists("t") with neither where nor where_sql still raises."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="non-empty `where` dict or `where_sql`"):
+            db.exists("t")
+
+
 class TestDatabaseContextManager:
     """Tests for Database context manager."""
 
