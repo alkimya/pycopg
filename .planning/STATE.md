@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: executing
-stopped_at: Phase 49 context gathered
-last_updated: "2026-07-03T13:20:58.036Z"
-last_activity: 2026-07-03 -- Phase 49 execution started
+stopped_at: Phase 49 complete (ETL-INC-F01..F04 shipped)
+last_updated: "2026-07-03T14:30:00.000Z"
+last_activity: 2026-07-03 -- Phase 49 complete (5/5 plans, F01..F04)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 3
-  percent: 25
+  completed_plans: 8
+  percent: 50
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 ## Current Position
 
-Phase: 49 (incremental-etl-follow-ups) — EXECUTING
-Plan: 4 of 5 complete (49-01 F01 ✓, 49-02 F02 ✓, 49-03+49-04 F03 ✓ end-to-end)
-Status: Executing Phase 49 (49-05 next — advisory-lock concurrency)
-Last activity: 2026-07-03 -- 49-04 composite run() wiring shipped (max-ROW capture, full suite 1828@96.30%)
+Phase: 49 (incremental-etl-follow-ups) — ALL PLANS COMPLETE (5/5), pending verification
+Plan: 5 of 5 complete (F01 ✓, F02 ✓, F03 ✓ end-to-end, F04 ✓)
+Status: Phase 49 execution complete — run /gsd-verify-work 49 (or already inline-verified)
+Last activity: 2026-07-03 -- 49-05 advisory-lock concurrency shipped; ETL-INC-F01..F04 done, full suite 1844@96.29%
 
 Progress: [██░░░░░░░░] 25% (1/4 phases)
 
@@ -153,6 +153,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 48-03]: if_not_compressed/if_compressed bound as %s params (not literal-boolean like the cagg family) — confirmed correct idiom for these plain function calls
 - [Phase 48-03]: TSDB-F04 required zero production change — verified + documented already-shipped newer_than/older_than symmetry
 - [Phase 49-01]: Pipeline.initial_watermark frozen field (default None = byte-identical pre-F01); D-01 seed-floor-only (consulted only when no stored watermark, ignored after first max(col) recorded); D-02 guard requires incremental_column + scalar {datetime,int,str} allowlist via _encode_watermark; fallback applied at all 4 run() call sites (sync+async real+dry) with explicit is-None (0 is a valid floor), _read_watermark signature unchanged; Sequence branch of guard deferred to 49-03, composite run() seed to 49-04 (scalar cast placeholder). C-04 both run() edited same commit. DEVIATION: live-DB seed tests in test_etl_accessor.py (fixtures live there), guards in test_etl.py
+- [Phase 49-05]: advisory-lock concurrency (F04, phase complete). 3 queries.py constants ETL_ADVISORY_LOCK/TRY_LOCK/UNLOCK derive key server-side via hashtextextended(%s,0), name BOUND (never Python hash() PYTHONHASHSEED-salted, never interpolated D-15). Pipeline.concurrency Literal[wait,skip]|None opt-in on ANY pipeline (D-12). run() renamed _run_impl + thin lock wrapper (both accessors C-04): concurrency=None/dry_run delegate byte-identical; else session-scoped lock on DEDICATED 3rd autocommit connection (Pitfall 1) spanning read→extract→load→record; skip+held→transient RunResult(status=skipped,run_id=None) NO pipeline_runs row (D-13, status CHECK unchanged); wait blocks; finally-unlock (try/except defensive) + `with` close auto-releases on crash (D-14). Live 2-connection: skip-when-held→skipped+no-row+runs-after-release, crash-releases, wait-blocks-until-peer-releases (run_done>=release), async mirror. Full suite 1844@96.29%, mypy 0, Sphinx -W clean, interrogate 100%. **PHASE 49 COMPLETE: ETL-INC-F01..F04 all shipped.**
 - [Phase 49-04]: composite watermark run() WIRING (F03 end-to-end). 4 pure helpers replace the 4 duplicated capture blocks + 49-03 fail-loud guards: _capture_watermark (scalar max / composite greatest-ROW via sort_values reading each element from its OWN sorted column sorted_df[c].iloc[-1] — NOT a row Series which promotes int→float, NOT per-column maxes D-10; per-element NaN void Pitfall 4), _coerce_watermark_scalar, _reconcile_watermark_binds (single %s→:wm byte-identical, composite→:wm{i}), _encode_watermark_value (scalar/composite persist). Wired all 4 forks C-04; _read_watermark + wm/read_floor widened to CompositeWatermark tuple; composite+lookback→ETLError (unsupported). Live proof: recorded (2,1) NOT (2,99), second-run (day,seq)>(recorded) filter, composite seed floor, async mirror. BUG FOUND+FIXED: .iloc[-1][c] row-Series int→float promotion false-tripped float-reject (caught by helper smoke test). Full suite 1828 passed @96.30%, etl.py 97%, mypy 0, Sphinx -W clean, interrogate 100%. docs/etl.md composite/boundary section corrected.
 - [Phase 49-03]: composite watermark PURE layer. incremental_column widened str|Sequence[str]|None (str stays scalar, sequence→tuple normalize in __post_init__, empty→ValueError, D-09); _validate_incremental splats validate_identifiers over elements (D-10); D-04 composite initial_watermark guard (same-length + per-element _encode_watermark allowlist + tuple-normalize; single-col now rejects sequence seed, closes 49-01 gap). Builder composite branch WHERE (c1,c2) op (%s,%s) row-value compare, 1 bound %s/element (pulled into Task-1 commit for mypy). New _encode_composite_watermark + 'composite' decode tag (dispatcher + _decode_scalar_watermark, per-element reuse, zero migration C-02); RunResult.watermark_used/recorded widened to tuple. DEVIATION: run() NOT untouched — 4 fail-loud composite-capture guards + _read_watermark cast are the 49-04 seam (no composite run() behavior yet). mypy strict green, 305 passed.
 - [Phase 49-02]: incremental_inclusive (bool, >= boundary) + incremental_lookback (timedelta|int, read-window overlap) frozen fields, defaults (False,None) byte-identical (D-05); _build_incremental_extract_sql gains kw-only inclusive (op literal from bool, validate_identifiers still line 1); new pure _apply_lookback helper (isinstance dispatch datetime→timedelta / int→int; str + type-mismatch → ETLError runtime, D-06). read_floor = wm - lookback at all 4 run() forks BEFORE _do_extract; recorded watermark stays true max(col) (D-07 — capture block untouched); RunResult.watermark_used = adjusted read floor. D-08 overlap replay = safe idempotent upsert no-op (C-01). C-04 both run()+both _do_extract same commit. Composite-watermark lookback semantics undefined → 49-04 to decide (likely reject). DEVIATION: live divergence tests in test_etl_accessor.py, builder+construction guards in test_etl.py

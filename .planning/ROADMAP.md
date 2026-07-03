@@ -88,7 +88,7 @@
 
 **Wave 5** *(blocked on Wave 4)*
 
-- [ ] 49-05-PLAN.md — F04 advisory-lock concurrency (ETL_ADVISORY_* constants, concurrency field, session-scoped lock acquire/finally-release, 'skip'->'skipped' transient RunResult, live two-connection integration)
+- [x] 49-05-PLAN.md — F04 advisory-lock concurrency (ETL_ADVISORY_* constants, concurrency field, session-scoped lock acquire/finally-release, 'skip'->'skipped' transient RunResult, live two-connection integration)
 
 ### Phase 50: CRUD + Introspection Follow-ups
 
@@ -127,7 +127,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
-| 49. Incremental ETL Follow-ups | v1.1.0 | 4/5 | In Progress|  |
+| 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
