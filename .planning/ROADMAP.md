@@ -50,7 +50,7 @@
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 48-02-PLAN.md — F02 time_bucket custom origin/offset (keyword-only params + @overload KIND-parity, both accessors)
+- [x] 48-02-PLAN.md — F02 time_bucket custom origin/offset (keyword-only params + @overload KIND-parity, both accessors)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -106,7 +106,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. TimescaleDB Follow-ups | v1.1.0 | 1/3 | In Progress | - |
+| 48. TimescaleDB Follow-ups | v1.1.0 | 2/3 | In Progress|  |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: executing
-stopped_at: Completed 48-01-PLAN.md
-last_updated: "2026-07-03T10:28:23.148Z"
-last_activity: 2026-07-03 -- Phase 48 Plan 01 (cagg teardown pair, TSDB-F01) executed
+stopped_at: Completed 48-02-PLAN.md
+last_updated: "2026-07-03T10:37:17.909Z"
+last_activity: 2026-07-03 -- Phase 48 Plan 02 (time_bucket origin/offset, TSDB-F02) executed
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 2
+  percent: 67
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 ## Current Position
 
 Phase: 48 (timescaledb-follow-ups) — EXECUTING
-Plan: 2 of 3
-Status: Plan 01 complete (TSDB-F01 done) — Plan 02 (F02 time_bucket origin/offset) next
-Last activity: 2026-07-03 -- Phase 48 Plan 01 (cagg teardown pair, TSDB-F01) executed
+Plan: 3 of 3
+Status: Plan 02 complete (TSDB-F02 done) — Plan 03 (F03 compress_chunk/decompress_chunk) next
+Last activity: 2026-07-03 -- Phase 48 Plan 02 (time_bucket origin/offset, TSDB-F02) executed
 
-Progress: [███░░░░░░░] 33%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -90,6 +90,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 47 P02 | 15min | 3 tasks | 5 files |
 | Phase 47 P03 | 12min | 4 tasks | 0 files (gates + tag + OIDC publish + smoke) |
 | Phase 48 P01 | 15min | 2 tasks | 3 files |
+| Phase 48 P02 | 20min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -145,6 +146,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 47 Plan 02: CHANGELOG [1.0.0] assembled code-exact (D-36-03 guard) from Phases 41-46; MIGRATION.md final-reviewed with a 5th breaking-change item (mypy-strict-blocking, non-runtime) added for CHANGELOG-breaking-set symmetry + type-checking consumer note
 - [Phase ?]: 48-01: drop_continuous_aggregate + remove_continuous_aggregate_policy use plain self._db.execute (RESEARCH D-05), not the autocommit seam reserved for create/refresh
 - [Phase ?]: 48-01: remove_continuous_aggregate_policy binds current if_exists param name (TSDB 2.8+), never deprecated if_not_exists (Pitfall 1)
+- [Phase ?]: 48-02: origin binds bare typed %s, offset binds %s::interval, mutual-exclusion ValueError guard fires client-side before SQL build (D-07)
+- [Phase ?]: 48-02: F02 is a param-only addition to existing time_bucket name -- no new entry in test_timescale_v110_surface, parity covered by test_accessor_parameter_kind_parity
 
 ### Pending Todos
 
@@ -176,11 +179,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T10:28:23.133Z
-Stopped at: Completed 48-01-PLAN.md
+Last session: 2026-07-03T10:37:17.900Z
+Stopped at: Completed 48-02-PLAN.md
 Resume file: None
-Next action: `/gsd-execute-phase 48` to continue with 48-02-PLAN.md (F02 time_bucket origin/offset).
+Next action: `/gsd-execute-phase 48` to continue with 48-03-PLAN.md (F03 compress_chunk/decompress_chunk).
 
 ## Operator Next Steps
 
-- Continue Phase 48 execution with 48-02-PLAN.md (F02 time_bucket origin/offset) via /gsd-execute-phase 48
+- Continue Phase 48 execution with 48-03-PLAN.md (F03 compress_chunk/decompress_chunk) via /gsd-execute-phase 48

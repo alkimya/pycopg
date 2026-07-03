@@ -20,7 +20,7 @@ Not separate requirements — the standing bar each feature REQ must meet at ver
 ### TimescaleDB Follow-ups (`db.timescale.*`)
 
 - [x] **TSDB-F01**: User can drop a continuous aggregate and remove its refresh policy — `db.timescale.drop_continuous_aggregate(name)` and `remove_continuous_aggregate_policy(name)`, completing the cagg lifecycle opened in v0.8.0.
-- [ ] **TSDB-F02**: User can align `time_bucket` boundaries to a custom origin/offset — keyword-only `origin=`/`offset=` params on `db.timescale.time_bucket`.
+- [x] **TSDB-F02**: User can align `time_bucket` boundaries to a custom origin/offset — keyword-only `origin=`/`offset=` params on `db.timescale.time_bucket`.
 - [ ] **TSDB-F03**: User can compress and decompress an individual chunk — `db.timescale.compress_chunk(chunk)` / `decompress_chunk(chunk)` per-chunk control.
 - [ ] **TSDB-F04**: User can filter `show_chunks` by physical time range — keyword-only `newer_than=`/`older_than=` bounds on `db.timescale.show_chunks`.
 
@@ -78,7 +78,7 @@ Which phases cover which requirements.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | TSDB-F01 | Phase 48 | Complete |
-| TSDB-F02 | Phase 48 | Pending |
+| TSDB-F02 | Phase 48 | Complete |
 | TSDB-F03 | Phase 48 | Pending |
 | TSDB-F04 | Phase 48 | Pending |
 | ETL-INC-F01 | Phase 49 | Pending |
