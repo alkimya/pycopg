@@ -13,6 +13,7 @@ from pycopg.etl import (
     _build_insert_sql,
     _build_upsert_sql,
     _decode_watermark,
+    _encode_composite_watermark,
     _encode_watermark,
     _is_sql_source,
     _row_to_result,
@@ -994,6 +995,54 @@ class TestEncodeDecodeWatermark:
         assert _decode_watermark(
             {"type": "datetime", "value": "2024-03-01T12:00:00+00:00"}
         ) == datetime(2024, 3, 1, 12, 0, 0, tzinfo=UTC)
+
+    # --- ETL-INC-F03: composite envelope tag (D-11) ---
+
+    def test_encode_composite_shape(self):
+        """Composite encode builds {type:composite, columns, values:[scalar-envelope...]}."""
+        env = _encode_composite_watermark(("day", "seq"), (5, 40))
+        assert env == {
+            "type": "composite",
+            "columns": ["day", "seq"],
+            "values": [{"type": "int", "value": 5}, {"type": "int", "value": 40}],
+        }
+
+    def test_decode_composite_returns_tuple(self):
+        """A composite envelope decodes element-wise back to a tuple of scalars."""
+        env = _encode_composite_watermark(("day", "seq"), (5, 40))
+        assert _decode_watermark(env) == (5, 40)
+
+    def test_composite_roundtrip_mixed_types(self):
+        """Composite round-trip preserves per-element types (datetime + int)."""
+        dt = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+        env = _encode_composite_watermark(("ts", "seq"), (dt, 7))
+        decoded = _decode_watermark(env)
+        assert decoded == (dt, 7)
+        assert isinstance(decoded[0], datetime)
+        assert isinstance(decoded[1], int)
+
+    def test_composite_encode_bool_element_raises(self):
+        """A bool element in a composite watermark is rejected per element (Pitfall 2)."""
+        with pytest.raises(ETLError):
+            _encode_composite_watermark(("a", "b"), (True, 40))
+
+    def test_composite_encode_float_element_raises(self):
+        """A float element is rejected per element (allowlist held element-wise)."""
+        with pytest.raises(ETLError):
+            _encode_composite_watermark(("a", "b"), (1.5, 40))
+
+    def test_scalar_envelope_unchanged_zero_migration(self):
+        """The three scalar tags decode exactly as before — old rows need no migration."""
+        assert _decode_watermark({"type": "int", "value": 137}) == 137
+        assert _decode_watermark({"type": "str", "value": "v1"}) == "v1"
+        assert _decode_watermark(
+            {"type": "datetime", "value": "2024-01-01T00:00:00+00:00"}
+        ) == datetime(2024, 1, 1, tzinfo=UTC)
+
+    def test_unknown_tag_still_raises(self):
+        """An unknown envelope tag still raises ETLError (corruption guard, C-02)."""
+        with pytest.raises(ETLError, match="Unknown watermark type tag"):
+            _decode_watermark({"type": "bogus", "value": 1})
 
 
 class TestRowToResult:

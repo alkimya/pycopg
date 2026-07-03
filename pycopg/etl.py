@@ -444,17 +444,19 @@ class RunResult:
     error : str or None
         Short error message from ``pipeline_runs.error_message``; ``None``
         on success or dry run (D-03).
-    watermark_used : datetime or int or str or None
+    watermark_used : datetime, int, str, tuple, or None
         The filter floor applied to this run — the watermark value read
-        before extract, used as the ``WHERE col > wm`` bound (D-A1).
-        ``None`` for non-incremental pipelines and for stored rows
-        surfaced by ``history()`` / ``last_run()`` (where the per-run
-        input is never persisted).
-    watermark_recorded : datetime or int or str or None
+        before extract, used as the ``WHERE col > wm`` bound (D-A1). A
+        tuple for a composite watermark key (ETL-INC-F03). ``None`` for
+        non-incremental pipelines and for stored rows surfaced by
+        ``history()`` / ``last_run()`` (where the per-run input is never
+        persisted).
+    watermark_recorded : datetime, int, str, tuple, or None
         The new high-water mark persisted for this run — decoded from
-        ``pipeline_runs.watermark`` (D-A1).  ``None`` for
-        non-incremental pipelines and when no watermark was stored
-        (e.g. empty batch, failed run, or NULL in ``pipeline_runs``).
+        ``pipeline_runs.watermark`` (D-A1); a tuple for a composite
+        watermark key (ETL-INC-F03).  ``None`` for non-incremental
+        pipelines and when no watermark was stored (e.g. empty batch,
+        failed run, or NULL in ``pipeline_runs``).
     """
 
     run_id: int | None
@@ -465,8 +467,12 @@ class RunResult:
     started_at: datetime
     finished_at: datetime
     error: str | None
-    watermark_used: datetime | int | str | None = None
-    watermark_recorded: datetime | int | str | None = None
+    watermark_used: datetime | int | str | tuple[datetime | int | str, ...] | None = (
+        None
+    )
+    watermark_recorded: (
+        datetime | int | str | tuple[datetime | int | str, ...] | None
+    ) = None
 
 
 def _is_sql_source(source: str) -> bool:
@@ -898,26 +904,78 @@ def _encode_watermark(value: datetime | int | str) -> dict[str, Any]:
     )
 
 
-def _decode_watermark(envelope: dict[str, Any]) -> datetime | int | str:
-    """Decode a typed JSONB envelope back to the original watermark scalar.
+def _encode_composite_watermark(
+    columns: Sequence[str], values: Sequence[Any]
+) -> dict[str, Any]:
+    """Encode a composite (multi-column) watermark into a typed envelope (D-11).
+
+    Pure — no I/O. Reuses the frozen per-scalar :func:`_encode_watermark`
+    element-wise so the bool-before-int / float-reject allowlist holds PER
+    ELEMENT (never a bulk ``isinstance`` — RESEARCH Pitfall 2, C-02). The shape
+    is ``{"type": "composite", "columns": [...], "values": [<scalar-envelope>...]}``,
+    additive to the three frozen scalar tags so single-column rows are
+    untouched (zero migration, C-02).
+
+    Parameters
+    ----------
+    columns : sequence of str
+        The composite watermark column names (order-significant).
+    values : sequence
+        The per-column watermark scalars, aligned with ``columns``.
+
+    Returns
+    -------
+    dict
+        The composite envelope.
+
+    Raises
+    ------
+    ETLError
+        If any element is not an allowlisted scalar (per-element, D-11).
+    """
+    return {
+        "type": "composite",
+        "columns": list(columns),
+        "values": [_encode_watermark(v) for v in values],
+    }
+
+
+def _decode_watermark(
+    envelope: dict[str, Any],
+) -> datetime | int | str | tuple[datetime | int | str, ...]:
+    """Decode a typed JSONB envelope back to the original watermark value.
 
     Pure function — no ``self``, no I/O.  Mirrors the dict→typed
     reconstruction of :func:`_row_to_result`.  Reads the ``type`` tag and
     rebuilds the exact Python type written by :func:`_encode_watermark`;
     ``datetime`` is rebuilt via :meth:`datetime.fromisoformat`, preserving
-    the offset and microseconds (D-02).
+    the offset and microseconds (D-02).  A ``"composite"`` envelope
+    (ETL-INC-F03, D-11) is decoded element-wise back to a tuple of scalars,
+    reusing this same decoder per element; the three scalar tags are
+    unchanged so single-column rows decode exactly as before (zero
+    migration, C-02).
 
     Parameters
     ----------
     envelope : dict
-        Typed envelope as returned by :func:`_encode_watermark` (the plain
-        ``dict`` psycopg yields when reading a JSONB column).
+        Typed envelope as returned by :func:`_encode_watermark` /
+        :func:`_encode_composite_watermark` (the plain ``dict`` psycopg
+        yields when reading a JSONB column).
 
     Returns
     -------
-    datetime or int or str
-        The reconstructed watermark scalar.
+    datetime or int or str or tuple
+        The reconstructed watermark scalar, or a tuple of scalars for a
+        composite envelope.
     """
+    tag = envelope["type"]
+    if tag == "composite":
+        return tuple(_decode_scalar_watermark(v) for v in envelope["values"])
+    return _decode_scalar_watermark(envelope)
+
+
+def _decode_scalar_watermark(envelope: dict[str, Any]) -> datetime | int | str:
+    """Decode a single scalar watermark envelope (the three frozen tags)."""
     tag = envelope["type"]
     value = envelope["value"]
     if tag == "datetime":
@@ -929,7 +987,7 @@ def _decode_watermark(envelope: dict[str, Any]) -> datetime | int | str:
     raise ETLError(
         f"Unknown watermark type tag {tag!r} in envelope {envelope!r}. "
         "Watermark envelope may be corrupted; supported tags are: "
-        "'datetime', 'int', 'str'."
+        "'datetime', 'int', 'str', 'composite'."
     )
 
 
@@ -1287,7 +1345,11 @@ class ETLAccessor:
                 row = cur.fetchone()
         if row is None or row["watermark"] is None:
             return None
-        return _decode_watermark(row["watermark"])
+        # 49-03 pure layer: a composite watermark is never STORED yet (run()
+        # capture is guarded off until 49-04), so a read here is always a
+        # scalar. 49-04 widens this return and wires the composite read
+        # end-to-end; the cast documents the current scalar-only contract.
+        return cast("datetime | int | str", _decode_watermark(row["watermark"]))
 
     def _do_extract(
         self,
@@ -2045,7 +2107,11 @@ class AsyncETLAccessor:
                 row = await cur.fetchone()
         if row is None or row["watermark"] is None:
             return None
-        return _decode_watermark(row["watermark"])
+        # 49-03 pure layer: a composite watermark is never STORED yet (run()
+        # capture is guarded off until 49-04), so a read here is always a
+        # scalar. 49-04 widens this return and wires the composite read
+        # end-to-end; the cast documents the current scalar-only contract.
+        return cast("datetime | int | str", _decode_watermark(row["watermark"]))
 
     async def _do_extract(
         self,
