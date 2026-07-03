@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: executing
-stopped_at: Phase 49 complete (ETL-INC-F01..F04 shipped)
-last_updated: "2026-07-03T14:30:00.000Z"
-last_activity: 2026-07-03 -- Phase 49 complete (5/5 plans, F01..F04)
+status: verifying
+stopped_at: Phase 50 context gathered
+last_updated: "2026-07-03T15:51:40.965Z"
+last_activity: 2026-07-03 -- 49-05 advisory-lock concurrency shipped; ETL-INC-F01..F04 done, full suite 1844@96.29%
 progress:
   total_phases: 4
   completed_phases: 2
@@ -188,9 +188,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T14:35:00.000Z
-Stopped at: Phase 49 complete + verified + code-reviewed + secured
-Resume file: .planning/phases/49-incremental-etl-follow-ups/49-VERIFICATION.md
+Last session: 2026-07-03T15:51:40.931Z
+Stopped at: Phase 50 context gathered
+Resume file: .planning/phases/50-crud-introspection-follow-ups/50-CONTEXT.md
 Next action: Phase 49 (ETL-INC-F01..F04) fully closed out — proceed to `/gsd-discuss-phase 50` (CRUD-F01..03 + INTRO-F01..02).
 
 ## Operator Next Steps
