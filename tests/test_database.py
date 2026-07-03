@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pycopg import Config, Database
+from pycopg.base import QueryMixin
 from pycopg.exceptions import InvalidIdentifierError
 from pycopg.utils import validate_identifier
 
@@ -429,6 +430,66 @@ class TestDatabaseValidation:
 
         with pytest.raises(InvalidIdentifierError):
             validate_identifier("users;DELETE")
+
+
+class TestResolvePredicate:
+    """CRUD-F01: QueryMixin._resolve_predicate guard/resolver matrix (D-01..D-04).
+
+    Collectively this class is ``test_resolve_predicate_guard_matrix`` per the
+    plan action — split into one method per behavior row for clearer failures,
+    each named to keep ``-k resolve_predicate`` selecting the whole matrix.
+    """
+
+    def test_resolve_predicate_no_source_returns_empty(self):
+        """No where/where_sql/where_params -> ('', [])."""
+        assert QueryMixin._resolve_predicate(None, None, None) == ("", [])
+
+    def test_resolve_predicate_dict_only_delegates_to_build_where_dict(self):
+        """dict-only path returns the same result as _build_where_dict."""
+        where = {"a": 1, "b": "x"}
+        expected = QueryMixin._build_where_dict(where)
+        assert QueryMixin._resolve_predicate(where, None, None) == expected
+
+    def test_resolve_predicate_where_sql_only_returns_fragment_verbatim(self):
+        """where_sql-only path returns the fragment verbatim + bound params."""
+        frag, params = QueryMixin._resolve_predicate(
+            None, "age > %s AND status = ANY(%s)", [30, ["a", "b"]]
+        )
+        assert frag == "age > %s AND status = ANY(%s)"
+        assert params == [30, ["a", "b"]]
+
+    def test_resolve_predicate_where_sql_no_placeholders_legal(self):
+        """where_sql with no placeholders and where_params=None is legal."""
+        frag, params = QueryMixin._resolve_predicate(None, "1=1", None)
+        assert frag == "1=1"
+        assert params == []
+
+    def test_resolve_predicate_both_where_and_where_sql_raises(self):
+        """Passing both where (dict) and where_sql raises ValueError (D-02)."""
+        with pytest.raises(ValueError, match="not both"):
+            QueryMixin._resolve_predicate({"a": 1}, "a > %s", [1])
+
+    def test_resolve_predicate_where_params_without_where_sql_raises(self):
+        """where_params without where_sql raises ValueError (D-04)."""
+        with pytest.raises(ValueError, match="where_params requires where_sql"):
+            QueryMixin._resolve_predicate(None, None, [1])
+
+    def test_resolve_predicate_empty_where_sql_raises(self):
+        """Empty/whitespace-only where_sql raises ValueError (D-03)."""
+        with pytest.raises(ValueError, match="non-empty SQL fragment"):
+            QueryMixin._resolve_predicate(None, "", None)
+        with pytest.raises(ValueError, match="non-empty SQL fragment"):
+            QueryMixin._resolve_predicate(None, "   ", None)
+
+    def test_resolve_predicate_where_sql_not_run_through_validate_identifiers(self):
+        """The raw fragment must never be validated as an identifier (C-02)."""
+        # An identifier-illegal fragment (spaces, punctuation, keywords) must
+        # pass through untouched since it is arbitrary SQL, not an identifier.
+        frag, params = QueryMixin._resolve_predicate(
+            None, "created_at < now() - %s::interval", ["1 day"]
+        )
+        assert frag == "created_at < now() - %s::interval"
+        assert params == ["1 day"]
 
 
 class TestDatabaseContextManager:

@@ -325,6 +325,68 @@ class QueryMixin:
         params = list(where.values())
         return fragment, params
 
+    @staticmethod
+    def _resolve_predicate(
+        where: dict[str, Any] | None,
+        where_sql: str | None,
+        where_params: Sequence[Any] | None,
+    ) -> tuple[str, list[Any]]:
+        """Resolve a predicate fragment from exactly one source (D-01..D-04).
+
+        Two predicate sources are supported: the equality ``where`` dict
+        (delegated to :meth:`_build_where_dict`) and a raw, caller-authored
+        ``where_sql`` fragment. The raw fragment is a **documented, intentional
+        escape hatch** (C-02) for conditions the dict form cannot express
+        (e.g. ``"age > %s AND status = ANY(%s)"``) — it is passed through
+        **verbatim** and is **never** run through ``validate_identifiers``.
+        Only its bound ``where_params`` are treated as untrusted values
+        (positional ``%s`` parameters). Callers own the SQL text they pass as
+        ``where_sql``; this method only enforces that the two sources are
+        never mixed or desynced.
+
+        Parameters
+        ----------
+        where : dict, optional
+            Equality conditions as column-name to value mapping. Mutually
+            exclusive with ``where_sql``.
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), passed
+            through verbatim. Mutually exclusive with ``where``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``. Requires
+            ``where_sql`` to be present; a placeholder-free ``where_sql`` with
+            ``where_params=None`` is legal.
+
+        Returns
+        -------
+        tuple of (str, list)
+            Tuple of ``(fragment, params)``. An empty string fragment means no
+            predicate source was supplied (legal for read helpers with an
+            optional predicate; destructive helpers must reject an empty
+            fragment themselves).
+
+        Raises
+        ------
+        ValueError
+            If ``where_params`` is supplied without ``where_sql`` (D-04); if
+            both ``where`` and ``where_sql`` are supplied (D-02); or if
+            ``where_sql`` is present but empty/whitespace-only (D-03).
+        InvalidIdentifierError
+            If ``where`` is supplied and any of its keys fail identifier
+            validation (delegated to :meth:`_build_where_dict`).
+        """
+        if where_params is not None and where_sql is None:
+            raise ValueError("where_params requires where_sql.")
+        if where and where_sql is not None:
+            raise ValueError("Pass either 'where' (dict) or 'where_sql', not both.")
+        if where_sql is not None:
+            if not where_sql.strip():
+                raise ValueError("where_sql must be a non-empty SQL fragment.")
+            return where_sql, list(where_params or [])
+        if where:
+            return QueryMixin._build_where_dict(where)
+        return "", []
+
 
 class SessionMixin:
     """Mixin providing session/connection reuse capabilities.
