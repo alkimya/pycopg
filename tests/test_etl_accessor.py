@@ -3405,3 +3405,246 @@ class TestETLCopyPath:
         assert len(rows) == 1
         assert rows[0]["id"] == 1
         assert rows[0]["val"] == "new"  # upsert updated the existing row
+
+
+# ---------------------------------------------------------------------------
+# ETL-INC-F01 — Pipeline.initial_watermark seed-floor live-DB sequence tests
+# (49-01 Task 2). Construction guards live DB-free in
+# tests/test_etl.py::TestInitialWatermark; the seed-then-ignore (D-01) and
+# empty-batch re-seed (D-03) sequences require a real DB + the run() call-site
+# fallback, so they live here beside the other incremental live-DB tests and
+# their fixtures.
+# ---------------------------------------------------------------------------
+
+
+class TestInitialWatermarkSeedFloor:
+    """Live-DB seed-floor sequence tests for Pipeline.initial_watermark (D-01/D-03)."""
+
+    def test_seed_bounds_first_run(self, db, cleanup_pipeline_runs, etl_src):
+        """First run with a seed loads only rows > initial_watermark (D-01), not a full load."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES "
+            "(1, 'a'), (5, 'b'), (10, 'c'), (15, 'd')",
+            autocommit=True,
+        )
+        tbl = f"etl_seed1_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="seed_bounds_first",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=5,
+            )
+            result = db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # Only rows strictly greater than the seed are loaded — not a full load.
+        assert [r["id"] for r in rows] == [10, 15]
+        assert result.watermark_used == 5  # the seed was the floor
+        assert result.watermark_recorded == 15  # max(col) of the bounded batch
+
+    def test_seed_ignored_after_first_run(self, db, cleanup_pipeline_runs, etl_src):
+        """Once a run records max(col), initial_watermark is never consulted again (D-01)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (5, 'b'), (10, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_seed2_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="seed_ignored_after",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=3,
+            )
+            r1 = db.etl.run(p)
+            assert r1.watermark_used == 3  # seed on the first run
+            assert r1.watermark_recorded == 10
+
+            # New rows arrive; the second run must use the STORED watermark (10),
+            # ignoring the seed entirely (seed 3 would have re-loaded id=5).
+            db.execute(
+                f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (12, 'd')",
+                autocommit=True,
+            )
+            r2 = db.etl.run(p)
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        assert r2.watermark_used == 10  # stored max from run 1, NOT the seed (3)
+        assert r2.watermark_recorded == 12
+
+    def test_seed_zero_is_honored_as_floor(self, db, cleanup_pipeline_runs, etl_src):
+        """initial_watermark=0 is used as the floor (regression vs the falsy-check trap)."""
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES "
+            "(-1, 'a'), (0, 'b'), (3, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_seed0_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="seed_zero_floor",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=0,
+            )
+            result = db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        # id > 0 → only row 3; the seed 0 was honored, not skipped as falsy.
+        assert [r["id"] for r in rows] == [3]
+        assert result.watermark_used == 0
+
+    def test_empty_seeded_batch_reseeds(self, db, cleanup_pipeline_runs, etl_src):
+        """An empty (0-row) seeded first batch records no watermark and re-seeds (D-03).
+
+        The re-seed is proven observably: run 2 loads ONLY rows above the seed
+        (the below-seed rows stay excluded). Had the empty run 1 been treated as
+        "watermark set" or a full load, run 2 would differ. Note: a 0-row run
+        returns via the empty-batch early-exit, which does not inject
+        ``watermark_used`` — so it stays ``None`` regardless of the seed; the
+        seed's effect is observed through the extract filter, not that field.
+        """
+        db.execute(
+            f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (1, 'a'), (2, 'b')",
+            autocommit=True,
+        )
+        tbl = f"etl_seed3_{uuid.uuid4().hex[:8]}"
+        db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            # Seed above every source row → first run extracts 0 rows.
+            p = Pipeline(
+                name="seed_reseed",
+                source=f'SELECT * FROM public."{etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=100,
+            )
+            r1 = db.etl.run(p)
+            assert r1.rows_extracted == 0  # seed floor excluded rows 1, 2
+            assert r1.watermark_recorded is None  # empty batch → no watermark
+            # No stored watermark persisted → the next run must re-seed (D-03).
+            assert db.etl._read_watermark("seed_reseed") is None
+
+            # A row above the seed arrives; run 2 re-seeds from initial_watermark
+            # and loads ONLY id > 100 — proving the seed floor was re-applied.
+            db.execute(
+                f"INSERT INTO public.\"{etl_src}\" (id, val) VALUES (150, 'z')",
+                autocommit=True,
+            )
+            r2 = db.etl.run(p)
+            rows = db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True)
+
+        assert [r["id"] for r in rows] == [150]  # re-seeded: below-seed rows excluded
+        assert r2.watermark_used == 100  # seed consulted again (non-empty run injects it)
+        assert r2.watermark_recorded == 150
+
+
+class TestAsyncInitialWatermarkSeedFloor:
+    """Async mirror of the seed-floor sequence — sync/async parity (D-01, C-04)."""
+
+    async def test_seed_bounds_first_run(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """Async first run with a seed loads only rows > initial_watermark (D-01)."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES "
+            "(1, 'a'), (5, 'b'), (10, 'c'), (15, 'd')",
+            autocommit=True,
+        )
+        tbl = f"etl_aseed1_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="aseed_bounds_first",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=5,
+            )
+            result = await async_db.etl.run(p)
+            rows = await async_db.execute(f'SELECT id FROM public."{tbl}" ORDER BY id')
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert [r["id"] for r in rows] == [10, 15]
+        assert result.watermark_used == 5
+        assert result.watermark_recorded == 15
+
+    async def test_seed_ignored_after_first_run(
+        self, async_db, cleanup_async_pipeline_runs, async_etl_src
+    ):
+        """Async: stored watermark wins on the second run — identical to sync (C-04)."""
+        await async_db.execute(
+            f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (5, 'b'), (10, 'c')",
+            autocommit=True,
+        )
+        tbl = f"etl_aseed2_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{tbl}" (id INTEGER PRIMARY KEY, val TEXT)',
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="aseed_ignored_after",
+                source=f'SELECT * FROM public."{async_etl_src}"',
+                target=tbl,
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="id",
+                initial_watermark=3,
+            )
+            r1 = await async_db.etl.run(p)
+            assert r1.watermark_used == 3
+            await async_db.execute(
+                f"INSERT INTO public.\"{async_etl_src}\" (id, val) VALUES (12, 'd')",
+                autocommit=True,
+            )
+            r2 = await async_db.etl.run(p)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tbl}" CASCADE', autocommit=True
+            )
+
+        assert r2.watermark_used == 10  # stored max from run 1, not the seed
+        assert r2.watermark_recorded == 12

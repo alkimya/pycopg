@@ -1265,6 +1265,11 @@ class ETLAccessor:
                     if pipeline.incremental_column is not None
                     else None
                 )
+                # Seed-floor fallback (D-01): first-run seed, explicit is-None.
+                if pipeline.incremental_column is not None and dry_wm is None:
+                    dry_wm = cast(
+                        "datetime | int | str | None", pipeline.initial_watermark
+                    )
 
                 # Shared filtered extract (D-A2a) — same path as real run
                 df = self._do_extract(pipeline, dry_wm)
@@ -1341,6 +1346,14 @@ class ETLAccessor:
                 if pipeline.incremental_column is not None
                 else None
             )
+            # Seed-floor fallback (D-01 / C-04): on the FIRST run (no stored
+            # watermark) fall back to Pipeline.initial_watermark. Explicit
+            # is-None — 0 is a valid floor (RESEARCH §F01), never a falsy check.
+            # Consulted ONLY here; once a run records max(col) it is ignored.
+            # Composite (Sequence) seeding is wired in 49-04 — F01 is scalar-only,
+            # so the cast documents the narrowed scalar contract.
+            if pipeline.incremental_column is not None and wm is None:
+                wm = cast("datetime | int | str | None", pipeline.initial_watermark)
 
             try:
                 # ------------------------------------------------------------------
@@ -1961,6 +1974,11 @@ class AsyncETLAccessor:
                     if pipeline.incremental_column is not None
                     else None
                 )
+                # Seed-floor fallback (D-01): first-run seed, explicit is-None.
+                if pipeline.incremental_column is not None and dry_wm is None:
+                    dry_wm = cast(
+                        "datetime | int | str | None", pipeline.initial_watermark
+                    )
 
                 # Shared filtered extract (D-A2a) — same path as real run
                 df = await self._do_extract(pipeline, dry_wm)
@@ -2037,6 +2055,14 @@ class AsyncETLAccessor:
                 if pipeline.incremental_column is not None
                 else None
             )
+            # Seed-floor fallback (D-01 / C-04): on the FIRST run (no stored
+            # watermark) fall back to Pipeline.initial_watermark. Explicit
+            # is-None — 0 is a valid floor (RESEARCH §F01), never a falsy check.
+            # Consulted ONLY here; once a run records max(col) it is ignored.
+            # Composite (Sequence) seeding is wired in 49-04 — F01 is scalar-only,
+            # so the cast documents the narrowed scalar contract.
+            if pipeline.incremental_column is not None and wm is None:
+                wm = cast("datetime | int | str | None", pipeline.initial_watermark)
 
             try:
                 # ------------------------------------------------------------------
