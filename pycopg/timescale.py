@@ -218,13 +218,16 @@ def _build_time_bucket_sql(
     aggregates: str,
     where: str | None = None,
     schema: str = "public",
+    origin: datetime | None = None,
+    offset: str | None = None,
 ) -> tuple[str, list[Any]]:
-    """Build a ``time_bucket`` bucketed-aggregation SELECT (D-01, D-05).
+    """Build a ``time_bucket`` bucketed-aggregation SELECT (D-01, D-05, TSDB-F02).
 
     Identifiers (``table``, ``time_column``, ``schema``) are validated and
-    interpolated; only ``bucket_width`` is bound as a ``%s`` parameter.  The
-    bucket expression always carries the fixed ``AS bucket`` alias so the
-    output column is deterministically named ``bucket`` (D-01).
+    interpolated; ``bucket_width``, ``origin``, and ``offset`` are bound as
+    ``%s`` parameters.  The bucket expression always carries the fixed
+    ``AS bucket`` alias so the output column is deterministically named
+    ``bucket`` (D-01).
 
     Parameters
     ----------
@@ -242,24 +245,52 @@ def _build_time_bucket_sql(
         keyword).  ``None`` (default) omits the clause.
     schema : str, optional
         Schema name, by default ``"public"``.
+    origin : datetime or None, optional
+        Absolute alignment anchor for the bucket boundaries, bound as a bare
+        typed ``%s`` (psycopg infers ``timestamptz``/``timestamp`` from the
+        Python ``datetime``). Mutually exclusive with ``offset`` (TSDB-F02).
+    offset : str or None, optional
+        Relative interval shift for the bucket boundaries (e.g.
+        ``"30 minutes"``), bound as ``%s::interval``. Mutually exclusive
+        with ``origin`` (TSDB-F02).
 
     Returns
     -------
     tuple of (str, list)
-        SQL string with ``%s`` placeholders and the positional params list
-        ``[bucket_width]``.
+        SQL string with ``%s`` placeholders and the positional params list.
+
+    Raises
+    ------
+    ValueError
+        If both ``origin`` and ``offset`` are non-``None`` — TimescaleDB has
+        no ``time_bucket`` overload accepting both, so this is raised before
+        any SQL is built (D-07).
     """
     validate_identifiers(table, schema, time_column)
 
-    sql = (
-        f"SELECT time_bucket(%s, {time_column}) AS bucket, {aggregates} "
-        f"FROM {schema}.{table}"
-    )
+    if origin is not None and offset is not None:
+        raise ValueError(
+            "time_bucket: 'origin' and 'offset' are mutually exclusive "
+            "(TimescaleDB has no time_bucket overload accepting both); "
+            "pass one or neither."
+        )
+
+    params: list[Any] = [bucket_width]
+    bucket_expr = f"time_bucket(%s, {time_column}"
+    if origin is not None:
+        bucket_expr += ", origin => %s"
+        params.append(origin)
+    elif offset is not None:
+        bucket_expr += ', "offset" => %s::interval'
+        params.append(offset)
+    bucket_expr += ")"
+
+    sql = f"SELECT {bucket_expr} AS bucket, {aggregates} FROM {schema}.{table}"
     if where is not None:
         sql += f" WHERE {where}"
     sql += " GROUP BY bucket ORDER BY bucket"
 
-    return sql, [bucket_width]
+    return sql, params
 
 
 def _build_time_bucket_gapfill_sql(
