@@ -401,3 +401,12 @@ ETL_UPDATE_RUN_WATERMARK = """
         watermark = %s
     WHERE run_id = %s
 """
+
+# Advisory-lock concurrency control (ETL-INC-F04). The lock key is derived
+# SERVER-SIDE via hashtextextended(name, 0) with the pipeline name BOUND as %s
+# — never a PYTHONHASHSEED-salted Python hash() (per-process → never serializes)
+# and never string-interpolated (D-15). Session-scoped: held on a dedicated
+# connection for the whole run span, auto-released on disconnect (D-14).
+ETL_ADVISORY_LOCK = "SELECT pg_advisory_lock(hashtextextended(%s, 0))"
+ETL_ADVISORY_TRY_LOCK = "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))"
+ETL_ADVISORY_UNLOCK = "SELECT pg_advisory_unlock(hashtextextended(%s, 0))"

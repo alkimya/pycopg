@@ -30,7 +30,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 import pandas as pd
 from psycopg.rows import dict_row
@@ -226,6 +226,17 @@ class Pipeline:
         idempotent upsert no-op (D-08, C-01). Must be a ``timedelta`` or a
         non-``bool`` ``int`` when set. Default ``None`` (no overlap,
         byte-identical to today).
+    concurrency : {"wait", "skip"} or None, optional
+        Serialize concurrent runs of this pipeline via a PostgreSQL advisory
+        lock keyed on the pipeline name (ETL-INC-F04, D-12). Available to ANY
+        pipeline. ``"wait"`` blocks (``pg_advisory_lock``) until a peer run
+        finishes, then proceeds; ``"skip"`` (``pg_try_advisory_lock``) returns
+        a transient ``RunResult(status="skipped", run_id=None)`` writing no
+        ``pipeline_runs`` row if the lock is already held. The lock is
+        session-scoped on a dedicated connection held for the entire run span
+        and released in a ``finally`` (auto-released on disconnect even on
+        crash). Default ``None`` (no lock, byte-identical to today — no extra
+        round-trip). ``dry_run`` bypasses the lock.
 
     Raises
     ------
@@ -249,6 +260,9 @@ class Pipeline:
     ValueError
         If ``incremental_lookback`` is set to something other than a
         ``timedelta`` or a non-``bool`` ``int`` (D-05).
+    ValueError
+        If ``concurrency`` is not one of ``"wait"``, ``"skip"``, or ``None``
+        (D-12, ETL-INC-F04).
 
     Examples
     --------
@@ -299,6 +313,7 @@ class Pipeline:
     initial_watermark: datetime | int | str | Sequence[Any] | None = None
     incremental_inclusive: bool = False
     incremental_lookback: timedelta | int | None = None
+    concurrency: Literal["wait", "skip"] | None = None
 
     def __post_init__(self) -> None:
         """Validate and normalize fields at construction time.
@@ -417,6 +432,13 @@ class Pipeline:
                     "incremental_lookback must be a timedelta, a non-bool int, "
                     f"or None, got {self.incremental_lookback!r} (D-05)"
                 )
+        # Validate concurrency membership (ETL-INC-F04, D-12): available to ANY
+        # pipeline; None = no lock. Modeled on _validate_load_mode.
+        if self.concurrency is not None and self.concurrency not in ("wait", "skip"):
+            raise ValueError(
+                "concurrency must be 'wait', 'skip', or None, got "
+                f"{self.concurrency!r} (D-12, ETL-INC-F04)"
+            )
         # Require conflict_columns when upsert is selected (D-07).
         if self.load_mode == "upsert" and not self.conflict_columns:
             raise ValueError(
@@ -451,8 +473,11 @@ class RunResult:
     pipeline_name : str
         Pipeline identifier, from ``Pipeline.name``.
     status : str
-        One of ``'success'``, ``'failed'`` (persisted runs), or
-        ``'dry_run'`` (transient, never stored, D-08).
+        One of ``'success'``, ``'failed'`` (persisted runs), or the transient
+        values ``'dry_run'`` (D-08) and ``'skipped'`` (ETL-INC-F04, D-13) —
+        both never stored: no ``pipeline_runs`` row is written and the
+        ``status`` CHECK constraint is unchanged. ``'skipped'`` is returned
+        when ``concurrency="skip"`` and the advisory lock is already held.
     rows_extracted : int
         Rows read from the source (after transform for dry runs).
     rows_loaded : int

@@ -469,6 +469,91 @@ class TestCompositeWatermark:
                 incremental_column=["day", "seq"],
             )
 
+
+class TestAdvisoryLock:
+    """ETL-INC-F04 advisory-lock concurrency — constant SQL-shape + field guard.
+
+    Live two-connection held-lock integration lands in tests/test_etl_accessor.py.
+    """
+
+    # --- ETL_ADVISORY_* constant shape (D-15) ---
+
+    def test_advisory_lock_constant(self):
+        """ETL_ADVISORY_LOCK derives the key server-side with the name bound %s."""
+        assert (
+            queries.ETL_ADVISORY_LOCK
+            == "SELECT pg_advisory_lock(hashtextextended(%s, 0))"
+        )
+
+    def test_advisory_try_lock_constant(self):
+        """ETL_ADVISORY_TRY_LOCK uses pg_try_advisory_lock (non-blocking)."""
+        assert (
+            queries.ETL_ADVISORY_TRY_LOCK
+            == "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))"
+        )
+
+    def test_advisory_unlock_constant(self):
+        """ETL_ADVISORY_UNLOCK releases the same server-side-derived key."""
+        assert (
+            queries.ETL_ADVISORY_UNLOCK
+            == "SELECT pg_advisory_unlock(hashtextextended(%s, 0))"
+        )
+
+    def test_each_advisory_constant_has_exactly_one_placeholder(self):
+        """Each constant binds the name via exactly one %s — never interpolated."""
+        for const in (
+            queries.ETL_ADVISORY_LOCK,
+            queries.ETL_ADVISORY_TRY_LOCK,
+            queries.ETL_ADVISORY_UNLOCK,
+        ):
+            assert const.count("%s") == 1
+
+    def test_status_check_constraint_unchanged(self):
+        """The pipeline_runs status CHECK does NOT include 'skipped' (D-13)."""
+        assert "CHECK (status IN ('running','success','failed'))" in (
+            queries.ETL_INIT_PIPELINE_RUNS
+        )
+        assert "skipped" not in queries.ETL_INIT_PIPELINE_RUNS
+
+    def test_advisory_constants_never_contain_name_text(self):
+        """A malicious pipeline name is never formatted into the constants (injection)."""
+        evil = "x'); DROP TABLE pipeline_runs; --"
+        for const in (
+            queries.ETL_ADVISORY_LOCK,
+            queries.ETL_ADVISORY_TRY_LOCK,
+            queries.ETL_ADVISORY_UNLOCK,
+        ):
+            assert evil not in const
+            assert "DROP TABLE" not in const
+
+    # --- Pipeline.concurrency field guard (D-12) ---
+
+    def test_concurrency_wait_constructs(self):
+        """concurrency='wait' is accepted on any pipeline."""
+        p = Pipeline(name="x", source="s", target="t", concurrency="wait")
+        assert p.concurrency == "wait"
+
+    def test_concurrency_skip_constructs(self):
+        """concurrency='skip' is accepted on any pipeline."""
+        assert (
+            Pipeline(name="x", source="s", target="t", concurrency="skip").concurrency
+            == "skip"
+        )
+
+    def test_concurrency_default_is_none(self):
+        """Default concurrency is None — byte-identical to today (no lock)."""
+        assert Pipeline(name="x", source="s", target="t").concurrency is None
+
+    def test_concurrency_available_on_non_incremental_pipeline(self):
+        """concurrency is available to ALL pipelines, not gated on incremental (D-12)."""
+        p = Pipeline(name="x", source="s", target="t", concurrency="wait")
+        assert p.incremental_column is None and p.concurrency == "wait"
+
+    def test_concurrency_invalid_raises(self):
+        """An unknown concurrency value raises ValueError (D-12)."""
+        with pytest.raises(ValueError, match="concurrency"):
+            Pipeline(name="x", source="s", target="t", concurrency="junk")
+
     # --- builder row-value compare SQL (D-10) ---
 
     def test_composite_builder_table_source(self):
