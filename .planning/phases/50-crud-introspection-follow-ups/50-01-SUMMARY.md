@@ -111,3 +111,7 @@ None - no external service configuration required.
 ---
 *Phase: 50-crud-introspection-follow-ups*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+All 7 modified source/test files and the summary file confirmed present on disk; all 4 commit hashes (3d0f4ac, d4d8f0c, 7d0b108, 3503e69) confirmed present in git log.
