@@ -1848,9 +1848,15 @@ class Database(DatabaseBase, QueryMixin):
             params.extend(pred_params)
         where_clause = f" WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
-        cols_str = ", ".join(order_cols)
-        direction = " DESC" if descending else ""
-        order_clause = f" ORDER BY {cols_str}{direction}"
+        # Every listed column must carry DESC when descending — the row-value
+        # comparison flips ALL columns together (Pitfall 3); a trailing-only
+        # "ORDER BY a, b DESC" would sort col a ascending and only b
+        # descending, disagreeing with the (a, b) < (%s, %s) fragment above.
+        if descending:
+            order_terms = ", ".join(f"{c} DESC" for c in order_cols)
+        else:
+            order_terms = ", ".join(order_cols)
+        order_clause = f" ORDER BY {order_terms}"
 
         sql = (
             f"SELECT * FROM {schema}.{table}"

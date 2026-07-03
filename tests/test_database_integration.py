@@ -1591,3 +1591,240 @@ class TestWhereSqlEscapeHatchIntegration:
             assert [r["id"] for r in rows] == [2, 3]
         finally:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+
+class TestPaginationV110Integration:
+    """CRUD-F02/F03: live-DB proof of keyset/offset pagination + Page envelope,
+    on both Database and AsyncDatabase.
+
+    ``order_by=["val", "id"]`` is used throughout — two rows share the same
+    ``val`` (10, 20) so the row-value tuple compare exercises the ``id``
+    tiebreak, not just a single-column sort.
+    """
+
+    def _make_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY, name TEXT, val INTEGER)'
+        )
+
+    def _seed(self, db, table):
+        db.insert_many(
+            table,
+            [
+                {"id": 1, "name": "a", "val": 10},
+                {"id": 2, "name": "b", "val": 10},
+                {"id": 3, "name": "c", "val": 20},
+                {"id": 4, "name": "d", "val": 20},
+                {"id": 5, "name": "e", "val": 30},
+            ],
+        )
+
+    def test_paginate_keyset_forward_monotonic_progress(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """Feeding next_cursor back as after= pages forward with no overlap,
+        has_next flips False on the last page."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        self._seed(db, temp_table_name)
+
+        seen_ids: list[int] = []
+        page = db.paginate_keyset(temp_table_name, 2, order_by=["val", "id"])
+        while True:
+            seen_ids.extend(r["id"] for r in page.rows)
+            if not page.has_next:
+                break
+            page = db.paginate_keyset(
+                temp_table_name, 2, order_by=["val", "id"], after=page.next_cursor
+            )
+
+        assert seen_ids == [1, 2, 3, 4, 5]
+        assert page.has_next is False
+        assert page.next_cursor == (30, 5)
+
+    def test_paginate_keyset_after_none_returns_first_page(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """after=None (the default) returns the same page as the initial call."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        self._seed(db, temp_table_name)
+
+        explicit_none = db.paginate_keyset(
+            temp_table_name, 2, order_by=["val", "id"], after=None
+        )
+        omitted = db.paginate_keyset(temp_table_name, 2, order_by=["val", "id"])
+
+        assert [r["id"] for r in explicit_none.rows] == [r["id"] for r in omitted.rows]
+        assert [r["id"] for r in omitted.rows] == [1, 2]
+
+    def test_paginate_keyset_descending_monotonic_progress(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """descending=True pages in reverse order, staying monotonic and
+        non-overlapping (Pitfall 3 — operator and ORDER BY direction agree)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        self._seed(db, temp_table_name)
+
+        seen_ids: list[int] = []
+        page = db.paginate_keyset(
+            temp_table_name, 2, order_by=["val", "id"], descending=True
+        )
+        while True:
+            seen_ids.extend(r["id"] for r in page.rows)
+            if not page.has_next:
+                break
+            page = db.paginate_keyset(
+                temp_table_name,
+                2,
+                order_by=["val", "id"],
+                after=page.next_cursor,
+                descending=True,
+            )
+
+        assert seen_ids == [5, 4, 3, 2, 1]
+        assert page.has_next is False
+
+    def test_paginate_page_with_total_matches_full_count(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """with_total=True equals the full filtered COUNT(*); with_total=False
+        (default) leaves total=None."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        self._seed(db, temp_table_name)
+
+        with_total_page = db.paginate_page(temp_table_name, 2, with_total=True)
+        assert with_total_page.total == 5
+        assert with_total_page.has_next is True
+
+        no_total_page = db.paginate_page(temp_table_name, 2)
+        assert no_total_page.total is None
+
+        filtered_page = db.paginate_page(
+            temp_table_name, 10, where={"val": 20}, with_total=True
+        )
+        assert filtered_page.total == 2
+        assert len(filtered_page.rows) == 2
+
+    def test_paginate_page_composes_where_sql(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """paginate_page(where_sql=...) filters via the raw fragment (D-01)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        self._seed(db, temp_table_name)
+
+        page = db.paginate_page(
+            temp_table_name,
+            10,
+            order_by="id",
+            where_sql="val >= %s",
+            where_params=[20],
+        )
+
+        assert [r["id"] for r in page.rows] == [3, 4, 5]
+        assert page.has_next is False
+
+    async def test_paginate_keyset_forward_monotonic_progress_async(self, db_config):
+        """Async mirror: forward keyset paging is monotonic and non-overlapping."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_page_v110_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, val INTEGER)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t,
+                [
+                    {"id": 1, "val": 10},
+                    {"id": 2, "val": 10},
+                    {"id": 3, "val": 20},
+                    {"id": 4, "val": 20},
+                    {"id": 5, "val": 30},
+                ],
+            )
+
+            seen_ids: list[int] = []
+            page = await adb.paginate_keyset(t, 2, order_by=["val", "id"])
+            while True:
+                seen_ids.extend(r["id"] for r in page.rows)
+                if not page.has_next:
+                    break
+                page = await adb.paginate_keyset(
+                    t, 2, order_by=["val", "id"], after=page.next_cursor
+                )
+
+            assert seen_ids == [1, 2, 3, 4, 5]
+            assert page.has_next is False
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_paginate_keyset_descending_async(self, db_config):
+        """Async mirror: descending=True pages in reverse, monotonic."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_page_v110_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, val INTEGER)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t,
+                [
+                    {"id": 1, "val": 10},
+                    {"id": 2, "val": 10},
+                    {"id": 3, "val": 20},
+                ],
+            )
+
+            page1 = await adb.paginate_keyset(
+                t, 2, order_by=["val", "id"], descending=True
+            )
+            assert [r["id"] for r in page1.rows] == [3, 2]
+            assert page1.has_next is True
+
+            page2 = await adb.paginate_keyset(
+                t,
+                2,
+                order_by=["val", "id"],
+                after=page1.next_cursor,
+                descending=True,
+            )
+            assert [r["id"] for r in page2.rows] == [1]
+            assert page2.has_next is False
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_paginate_page_with_total_async(self, db_config):
+        """Async mirror: with_total=True equals the full filtered COUNT(*)."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_page_v110_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, val INTEGER)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t,
+                [
+                    {"id": 1, "val": 10},
+                    {"id": 2, "val": 20},
+                    {"id": 3, "val": 20},
+                ],
+            )
+
+            with_total_page = await adb.paginate_page(t, 10, with_total=True)
+            assert with_total_page.total == 3
+
+            no_total_page = await adb.paginate_page(t, 10)
+            assert no_total_page.total is None
+
+            filtered_page = await adb.paginate_page(
+                t, 10, where={"val": 20}, with_total=True
+            )
+            assert filtered_page.total == 2
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)

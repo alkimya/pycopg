@@ -93,14 +93,57 @@ Database(config: Config)
 Flat helpers on `Database` for common single-table operations. All column names are validated;
 values are bound as `%s`. Full sync/async parity on `AsyncDatabase`.
 
+`delete_where`, `update_where`, `exists`, `count`, `paginate`, `paginate_page` (v1.1.0), and
+`paginate_keyset` (v1.1.0) additionally accept keyword-only `where_sql: str | None = None` +
+`where_params: Sequence | None = None` — a raw-SQL escape hatch for predicates the `where` dict
+cannot express (e.g. `where_sql="age > %s AND status = ANY(%s)"`). `where` and `where_sql` are
+mutually exclusive; the fragment is passed through **verbatim** (never identifier-validated —
+the caller owns the SQL text), only `where_params` are bound as `%s`.
+
 | Method | Parameters | Returns |
 |--------|------------|---------|
 | `upsert` | `table, row, conflict_columns, update_columns=None, schema="public"` | `dict \| None` |
-| `delete_where` | `table, where, schema="public"` | `int` |
-| `update_where` | `table, values, where, schema="public"` | `int` |
-| `exists` | `table, where, schema="public"` | `bool` |
-| `count` | `table, where=None, schema="public"` | `int` |
-| `paginate` | `table, limit, offset=0, order_by=None, where=None, descending=False, schema="public"` | `list[dict]` |
+| `delete_where` | `table, where=None, *, where_sql=None, where_params=None, schema="public"` | `int` |
+| `update_where` | `table, values, where=None, *, where_sql=None, where_params=None, schema="public"` | `int` |
+| `exists` | `table, where=None, *, where_sql=None, where_params=None, schema="public"` | `bool` |
+| `count` | `table, *, where=None, where_sql=None, where_params=None, schema="public"` | `int` |
+| `paginate` | `table, limit, *, offset=0, order_by=None, where=None, where_sql=None, where_params=None, descending=False, schema="public"` | `list[dict]` |
+
+### Pagination (v1.1.0)
+
+Two additional pagination methods return a typed `Page` envelope instead of a plain
+`list[dict]`. `paginate()` itself is unchanged (frozen `list[dict]`).
+
+| Method | Parameters | Returns |
+|--------|------------|---------|
+| `paginate_page` | `table, limit, *, offset=0, order_by=None, where=None, where_sql=None, where_params=None, with_total=False, descending=False, schema="public"` | `Page` |
+| `paginate_keyset` | `table, limit, *, order_by, after=None, where=None, where_sql=None, where_params=None, with_total=False, descending=False, schema="public"` | `Page` |
+
+`paginate_page` is the offset-pagination sibling of `paginate()`. `paginate_keyset` is stable,
+index-friendly *seek* pagination via a PostgreSQL row-value comparison
+(`(c1, c2) > (%s, %s)`) instead of `OFFSET` — `order_by` is mandatory (append a unique column
+such as the primary key as a tiebreaker), forward-only for this release. Feed
+`Page.next_cursor` back as the next call's `after=` to page forward:
+
+```python
+page = db.paginate_keyset("events", 50, order_by=["created_at", "id"])
+while page.has_next:
+    page = db.paginate_keyset(
+        "events", 50, order_by=["created_at", "id"], after=page.next_cursor
+    )
+```
+
+#### `Page` (frozen dataclass)
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `rows` | `list[dict]` | The page of rows, already trimmed to `limit`. |
+| `total` | `int \| None` | Full filtered `COUNT(*)`; populated only when `with_total=True`, else `None`. |
+| `has_next` | `bool` | Always computed cheaply via a `limit + 1` fetch-and-trim. |
+| `next_cursor` | `tuple \| None` | For `paginate_keyset`, the last row's `order_by`-keyed value tuple; always `None` for `paginate_page` (offset pagination has no cursor concept). |
+
+`Page` is exported from `pycopg` (`from pycopg import Page`), mirroring the `RunResult`
+dataclass (see [etl.md](etl.md)).
 
 ### Context Managers
 

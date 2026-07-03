@@ -614,7 +614,7 @@ class TestAsyncPaginateKeyset:
             sql, params = cursor_mock.execute.call_args[0]
             assert sql == (
                 "SELECT * FROM public.events WHERE (created_at, id) < (%s, %s) "
-                "ORDER BY created_at, id DESC LIMIT 11"
+                "ORDER BY created_at DESC, id DESC LIMIT 11"
             )
             assert params == ["2026-01-02", 2]
 
