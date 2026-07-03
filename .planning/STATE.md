@@ -188,11 +188,13 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T12:16:11.834Z
-Stopped at: Phase 49 context gathered
-Resume file: .planning/phases/49-incremental-etl-follow-ups/49-CONTEXT.md
-Next action: Phase 48 (TimescaleDB Follow-ups) complete (48-01/02/03 all shipped, TSDB-F01..F04 done) — run `/gsd-verify-work 48` or proceed to `/gsd-plan-phase 49` (ETL-INC-F01..04).
+Last session: 2026-07-03T14:35:00.000Z
+Stopped at: Phase 49 complete + verified + code-reviewed + secured
+Resume file: .planning/phases/49-incremental-etl-follow-ups/49-VERIFICATION.md
+Next action: Phase 49 (ETL-INC-F01..F04) fully closed out — proceed to `/gsd-discuss-phase 50` (CRUD-F01..03 + INTRO-F01..02).
 
 ## Operator Next Steps
 
-- Phase 48 fully complete (TSDB-F01..F04). Verify or continue to Phase 49 (ETL-INC-F01..04) via `/gsd-plan-phase 49`.
+- **Phase 49 fully complete (ETL-INC-F01..F04):** executed inline (executor rate-limited mid-plan), verified PASSED 4/4, code-review 0 crit/3 warn (all 3 fixed incl. real WR-01 `%s`-clobber bug), secured 19/19. Full suite 1844@96.29%, mypy 0, Sphinx -W + interrogate green.
+- Next: `/gsd-discuss-phase 50` (CRUD + introspection). Milestone v1.1.0 now 2/4 phases done.
+- Carry-forward for P51: P48 WR-01 (time_bucket origin/offset guard-hoist); optional 1.0.1-folded doc patches (DOC-13).
