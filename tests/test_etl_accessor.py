@@ -1,5 +1,7 @@
 """Tests for ETLAccessor — unit (param order / status string) + DB integration (SC-1..SC-4)."""
 
+import threading
+import time
 import traceback
 import uuid
 from datetime import datetime
@@ -4008,3 +4010,175 @@ class TestAsyncCompositeWatermarkLive:
             )
 
         assert result.watermark_recorded == (2, 1)
+
+
+# ---------------------------------------------------------------------------
+# ETL-INC-F04 — advisory-lock concurrency live two-connection integration
+# (49-05 run() wiring). Constant SQL-shape + field guards live DB-free in
+# tests/test_etl.py::TestAdvisoryLock.
+# ---------------------------------------------------------------------------
+
+_ADVISORY_LOCK_SQL = "SELECT pg_advisory_lock(hashtextextended(%s, 0))"
+_ADVISORY_UNLOCK_SQL = "SELECT pg_advisory_unlock(hashtextextended(%s, 0))"
+
+
+class TestAdvisoryLockLive:
+    """Live-DB advisory-lock: held-lock skip, release, crash-safety, wait-serialize."""
+
+    def test_skip_when_held_returns_skipped_and_writes_no_row(
+        self, db, db_config, cleanup_pipeline_runs, etl_table
+    ):
+        """concurrency='skip' against a lock held by another session → 'skipped', no row."""
+        name = f"lock_skip_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name=name,
+            source="SELECT 1 AS id, 'a' AS val",
+            target=etl_table,
+            concurrency="skip",
+        )
+        db.etl.init()  # ensure pipeline_runs exists for the COUNT query
+        # Hold the lock on a SEPARATE session (a distinct Database/connection).
+        holder = Database(db_config)
+        with holder.connect(autocommit=True) as hconn:
+            with hconn.cursor() as cur:
+                cur.execute(_ADVISORY_LOCK_SQL, [name])
+            result = db.etl.run(p)
+            assert result.status == "skipped"
+            assert result.run_id is None
+            assert result.rows_extracted == 0
+            assert result.rows_loaded == 0
+            # No pipeline_runs row was written for this pipeline (D-13).
+            held_rows = db.execute(
+                "SELECT COUNT(*) AS n FROM pipeline_runs WHERE pipeline_name = %s",
+                [name],
+            )
+            assert held_rows[0]["n"] == 0
+            with hconn.cursor() as cur:
+                cur.execute(_ADVISORY_UNLOCK_SQL, [name])
+
+        # After release, the same pipeline runs normally and writes one row.
+        result2 = db.etl.run(p)
+        assert result2.status == "success"
+        after_rows = db.execute(
+            "SELECT COUNT(*) AS n FROM pipeline_runs WHERE pipeline_name = %s",
+            [name],
+        )
+        assert after_rows[0]["n"] == 1
+
+    def test_skip_when_free_runs_normally(
+        self, db, cleanup_pipeline_runs, etl_table
+    ):
+        """concurrency='skip' with the lock free proceeds and releases (no leak)."""
+        name = f"lock_free_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name=name,
+            source="SELECT 2 AS id, 'b' AS val",
+            target=etl_table,
+            concurrency="skip",
+        )
+        result = db.etl.run(p)
+        assert result.status == "success"
+        assert result.run_id is not None
+
+    def test_crash_mid_run_releases_lock(
+        self, db, db_config, cleanup_pipeline_runs, etl_table
+    ):
+        """An exception mid-run still releases the lock (finally + connection close)."""
+        name = f"lock_crash_{uuid.uuid4().hex[:8]}"
+
+        def boom(_df):
+            raise ValueError("boom")
+
+        p = Pipeline(
+            name=name,
+            source="SELECT 3 AS id, 'c' AS val",
+            target=etl_table,
+            concurrency="skip",
+            transform=boom,
+        )
+        with pytest.raises(ETLTransformError):
+            db.etl.run(p)
+        # The lock must be free now — a fresh try_lock from another session wins.
+        checker = Database(db_config)
+        with checker.connect(autocommit=True) as cconn:
+            with cconn.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", [name]
+                )
+                got = cur.fetchone()[0]
+                assert got is True  # lock was released by the crashed run
+                cur.execute(_ADVISORY_UNLOCK_SQL, [name])
+
+    def test_wait_blocks_until_peer_releases(
+        self, db, db_config, cleanup_pipeline_runs, etl_table
+    ):
+        """concurrency='wait' blocks until a peer session releases, then completes."""
+        name = f"lock_wait_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name=name,
+            source="SELECT 4 AS id, 'd' AS val",
+            target=etl_table,
+            concurrency="wait",
+        )
+        db.etl.init()
+        lock_acquired = threading.Event()
+        released_at = []
+
+        def holder():
+            h = Database(db_config)
+            with h.connect(autocommit=True) as hconn:
+                with hconn.cursor() as cur:
+                    cur.execute(_ADVISORY_LOCK_SQL, [name])
+                lock_acquired.set()
+                time.sleep(0.4)  # hold the lock briefly
+                released_at.append(time.monotonic())
+                with hconn.cursor() as cur:
+                    cur.execute(_ADVISORY_UNLOCK_SQL, [name])
+
+        t = threading.Thread(target=holder)
+        t.start()
+        try:
+            assert lock_acquired.wait(timeout=5)  # holder owns the lock first
+            result = db.etl.run(p)  # must block until the holder releases
+            run_done = time.monotonic()
+        finally:
+            t.join(timeout=5)
+
+        assert result.status == "success"
+        # The wait-run could not finish before the peer released the lock.
+        assert released_at and run_done >= released_at[0]
+
+
+class TestAsyncAdvisoryLockLive:
+    """Async mirror — 'skip' against a held lock returns 'skipped' identically."""
+
+    async def test_skip_when_held_returns_skipped(
+        self, async_db, db_config, cleanup_async_pipeline_runs, async_etl_table
+    ):
+        """Async concurrency='skip' against a held lock → 'skipped', no row (C-04)."""
+        name = f"alock_skip_{uuid.uuid4().hex[:8]}"
+        p = Pipeline(
+            name=name,
+            source="SELECT 1 AS id, 'a' AS val",
+            target=async_etl_table,
+            concurrency="skip",
+        )
+        await async_db.etl.init()
+        # Hold the lock on a separate SYNC session (advisory locks are per-session).
+        holder = Database(db_config)
+        with holder.connect(autocommit=True) as hconn:
+            with hconn.cursor() as cur:
+                cur.execute(_ADVISORY_LOCK_SQL, [name])
+            result = await async_db.etl.run(p)
+            assert result.status == "skipped"
+            assert result.run_id is None
+            held_rows = await async_db.execute(
+                "SELECT COUNT(*) AS n FROM pipeline_runs WHERE pipeline_name = %s",
+                [name],
+            )
+            assert held_rows[0]["n"] == 0
+            with hconn.cursor() as cur:
+                cur.execute(_ADVISORY_UNLOCK_SQL, [name])
+
+        result2 = await async_db.etl.run(p)
+        assert result2.status == "success"

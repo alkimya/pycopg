@@ -1591,10 +1591,80 @@ class ETLAccessor:
             )
 
     def run(self, pipeline: Pipeline, *, dry_run: bool = False) -> RunResult:
-        """Execute a full extract → transform → load pipeline run.
+        """Execute a pipeline run, optionally under an advisory concurrency lock.
 
-        Auto-creates ``pipeline_runs`` if absent, inserts a ``'running'``
-        row, executes the pipeline, and records the final status.
+        Thin wrapper around :meth:`_run_impl` (the extract → transform → load
+        body). When ``pipeline.concurrency`` is ``None`` (default) or
+        ``dry_run`` is set, delegates directly — byte-identical to the
+        pre-F04 behavior with no extra round-trip.
+
+        Otherwise a session-scoped PostgreSQL advisory lock keyed on the
+        pipeline name (via ``hashtextextended``) is acquired on a DEDICATED
+        autocommit connection held for the entire run span (ETL-INC-F04,
+        D-14): ``"wait"`` blocks until a peer run releases the lock, then
+        proceeds; ``"skip"`` returns a transient
+        ``RunResult(status="skipped", run_id=None)`` writing no
+        ``pipeline_runs`` row when the lock is already held (D-13). The lock
+        is released in a ``finally`` and the connection is closed — closing
+        auto-releases the lock even on crash.
+
+        See :meth:`_run_impl` for the full extract/transform/load semantics.
+
+        Parameters
+        ----------
+        pipeline : Pipeline
+            Fully specified pipeline descriptor.
+        dry_run : bool, optional
+            When ``True``, run extract + transform only and bypass the lock.
+            By default ``False``.
+
+        Returns
+        -------
+        RunResult
+            Immutable snapshot of the completed, dry-run, or skipped run.
+        """
+        if pipeline.concurrency is None or dry_run:
+            return self._run_impl(pipeline, dry_run=dry_run)
+        # Session-scoped advisory lock on a DEDICATED connection (D-14) — a
+        # third connection, independent of the run-log and load-txn connections
+        # (Pitfall 1): it must span from before _read_watermark through _end_run.
+        with self._db.connect(autocommit=True) as lock_conn:
+            if pipeline.concurrency == "skip":
+                with lock_conn.cursor() as cur:
+                    cur.execute(queries.ETL_ADVISORY_TRY_LOCK, [pipeline.name])
+                    row = cur.fetchone()
+                if not (row and row[0]):  # lock already held → transient skip (D-13)
+                    now = datetime.now(UTC)
+                    return RunResult(
+                        run_id=None,
+                        pipeline_name=pipeline.name,
+                        status="skipped",
+                        rows_extracted=0,
+                        rows_loaded=0,
+                        started_at=now,
+                        finished_at=now,
+                        error=None,
+                    )
+            else:  # "wait" → block until the peer releases
+                with lock_conn.cursor() as cur:
+                    cur.execute(queries.ETL_ADVISORY_LOCK, [pipeline.name])
+            try:
+                return self._run_impl(pipeline, dry_run=dry_run)
+            finally:
+                # Explicit release for the normal path; the `with` close below
+                # auto-releases even if this fails (crash-safety, D-14).
+                try:
+                    with lock_conn.cursor() as cur:
+                        cur.execute(queries.ETL_ADVISORY_UNLOCK, [pipeline.name])
+                except Exception:  # pragma: no cover - defensive
+                    pass
+
+    def _run_impl(self, pipeline: Pipeline, *, dry_run: bool = False) -> RunResult:
+        """Execute a full extract → transform → load pipeline run (lock-unaware).
+
+        The run body behind :meth:`run`. Auto-creates ``pipeline_runs`` if
+        absent, inserts a ``'running'`` row, executes the pipeline, and
+        records the final status.
 
         When *dry_run* is ``True`` the extract and transform steps are
         executed but no load is performed and no ``pipeline_runs`` row is
@@ -2300,9 +2370,70 @@ class AsyncETLAccessor:
             )
 
     async def run(self, pipeline: Pipeline, *, dry_run: bool = False) -> RunResult:
-        """Execute a full async extract → transform → load pipeline run.
+        """Execute a pipeline run, optionally under an advisory concurrency lock.
 
-        Async mirror of :meth:`ETLAccessor.run`.  All DB calls use
+        Async mirror of :meth:`ETLAccessor.run`. Thin wrapper around
+        :meth:`_run_impl`: when ``pipeline.concurrency`` is ``None`` (default)
+        or ``dry_run`` is set, delegates directly (byte-identical, no extra
+        round-trip). Otherwise a session-scoped advisory lock keyed on the
+        pipeline name is acquired on a dedicated ``await``ed autocommit
+        connection held for the whole run span (ETL-INC-F04, D-14): ``"wait"``
+        blocks then proceeds; ``"skip"`` returns a transient
+        ``RunResult(status="skipped", run_id=None)`` writing no
+        ``pipeline_runs`` row when the lock is held (D-13). Released in a
+        ``finally``; the connection close auto-releases even on crash.
+
+        Parameters
+        ----------
+        pipeline : Pipeline
+            Fully specified pipeline descriptor.
+        dry_run : bool, optional
+            When ``True``, run extract + transform only and bypass the lock.
+
+        Returns
+        -------
+        RunResult
+            Immutable snapshot of the completed, dry-run, or skipped run.
+        """
+        if pipeline.concurrency is None or dry_run:
+            return await self._run_impl(pipeline, dry_run=dry_run)
+        async with self._db.connect(autocommit=True) as lock_conn:
+            if pipeline.concurrency == "skip":
+                async with lock_conn.cursor() as cur:
+                    await cur.execute(queries.ETL_ADVISORY_TRY_LOCK, [pipeline.name])
+                    row = await cur.fetchone()
+                if not (row and row[0]):  # lock already held → transient skip (D-13)
+                    now = datetime.now(UTC)
+                    return RunResult(
+                        run_id=None,
+                        pipeline_name=pipeline.name,
+                        status="skipped",
+                        rows_extracted=0,
+                        rows_loaded=0,
+                        started_at=now,
+                        finished_at=now,
+                        error=None,
+                    )
+            else:  # "wait" → block until the peer releases
+                async with lock_conn.cursor() as cur:
+                    await cur.execute(queries.ETL_ADVISORY_LOCK, [pipeline.name])
+            try:
+                return await self._run_impl(pipeline, dry_run=dry_run)
+            finally:
+                try:
+                    async with lock_conn.cursor() as cur:
+                        await cur.execute(
+                            queries.ETL_ADVISORY_UNLOCK, [pipeline.name]
+                        )
+                except Exception:  # pragma: no cover - defensive
+                    pass
+
+    async def _run_impl(
+        self, pipeline: Pipeline, *, dry_run: bool = False
+    ) -> RunResult:
+        """Execute a full async extract → transform → load run (lock-unaware).
+
+        Async mirror of :meth:`ETLAccessor._run_impl`.  All DB calls use
         ``await``; transform steps are dispatched via
         :func:`asyncio.to_thread` so slow sync callables do not block the
         event loop (SC-2).
