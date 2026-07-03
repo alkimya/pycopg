@@ -36,7 +36,7 @@ Not separate requirements — the standing bar each feature REQ must meet at ver
 - [x] **CRUD-F01**: User can pass a raw-SQL WHERE fragment (with bound params) as an escape hatch on the predicate helpers (`delete_where`/`update_where`/`count`/`exists`/`paginate`) for conditions the dict form can't express.
 - [x] **CRUD-F02**: User can paginate by keyset/cursor (seek method) for stable, index-friendly deep pagination.
 - [x] **CRUD-F03**: User can retrieve a page envelope carrying `total` count and `has_next` alongside the rows.
-- [ ] **INTRO-F01**: User can get `db.schema.describe()` output as a structured dataclass and/or DataFrame, not only a plain dict.
+- [x] **INTRO-F01**: User can get `db.schema.describe()` output as a structured dataclass and/or DataFrame, not only a plain dict.
 - [x] **INTRO-F02**: User can introspect materialized views — `db.schema.materialized_views()` plus per-view column introspection.
 
 ### Docs / Metadata + Release
@@ -88,7 +88,7 @@ Which phases cover which requirements.
 | CRUD-F01 | Phase 50 | Complete |
 | CRUD-F02 | Phase 50 | Complete |
 | CRUD-F03 | Phase 50 | Complete |
-| INTRO-F01 | Phase 50 | Pending |
+| INTRO-F01 | Phase 50 | Complete |
 | INTRO-F02 | Phase 50 | Complete |
 | DOC-13 | Phase 51 | Pending |
 | REL-12 | Phase 51 | Pending |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: executing
-stopped_at: Phase 50 plan 03 complete (INTRO-F02 materialized-view introspection); proceed to plan 04
-last_updated: "2026-07-04T00:15:00.000Z"
-last_activity: 2026-07-04 -- 50-03 INTRO-F02 materialized-view introspection shipped; full suite 1990@96.59%
+status: verifying
+stopped_at: Phase 50 plan 04 complete (INTRO-F01 structured describe()); Phase 50 fully complete, all 4 plans shipped
+last_updated: "2026-07-03T22:24:55.317Z"
+last_activity: 2026-07-04 -- 50-04 INTRO-F01 structured describe() shipped; full suite 2003@96.61%
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 12
-  completed_plans: 11
-  percent: 92
+  completed_plans: 12
+  percent: 75
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 ## Current Position
 
-Phase: 50 (crud-introspection-follow-ups) — EXECUTING
-Plan: 4 of 4 (50-01 CRUD-F01, 50-02 CRUD-F02/F03, 50-03 INTRO-F02 complete; 50-04 pending)
-Status: Ready to execute
-Last activity: 2026-07-04 -- 50-03 INTRO-F02 materialized-view introspection shipped; full suite 1990@96.59%
+Phase: 50 (crud-introspection-follow-ups) — COMPLETE (all 4 plans shipped)
+Plan: 4 of 4 (50-01 CRUD-F01, 50-02 CRUD-F02/F03, 50-03 INTRO-F02, 50-04 INTRO-F01 all complete)
+Status: Phase 50 complete — ready for verification
+Last activity: 2026-07-04 -- 50-04 INTRO-F01 structured describe() shipped; full suite 2003@96.61%
 
-Progress: [█████████░] 92% (2/4 phases; 11/12 plans)
+Progress: [████████░░] 75% (3/4 phases; 12/12 plans)
 
 ## Performance Metrics
 
@@ -95,6 +95,7 @@ Progress: [█████████░] 92% (2/4 phases; 11/12 plans)
 | Phase 50 P01 | 15min | 3 tasks | 7 files |
 | Phase 50 P02 | 18min | 3 tasks | 10 files |
 | Phase 50 P03 | 15min | 2 tasks | 8 files |
+| Phase 50 P04 | ~25min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 50]: 50-02: Page defined in database.py (RunResult precedent); paginate_page/paginate_keyset carry no @overload (Page is the unconditional return type)
 - [Phase 50-03]: D-13/D-14 confirmed as researched: dedicated pg_catalog queries required (pg_matviews for names, pg_attribute/pg_class relkind='m' for columns); views()/table_info() left unchanged
 - [Phase 50-03]: validate_identifiers kept as defense-in-depth on materialized_view_columns even though name/schema only ever reach the query as bound %s params (never interpolated)
+- [Phase 50-04]: D-11/D-12 confirmed as researched: describe(into=...) keyword param, default 'dict' byte-identical to v0.9.0 (C-03); TableDescription typed wrapper for 'dataclass', columns-section DataFrame for 'dataframe'
+- [Phase 50-04]: pandas imported top-level in schema.py (import pandas as pd), matching the etl.py precedent for a hard runtime dependency -- not the lazy per-function import used by to_dataframe/time_bucket, since describe's dataframe branch needs pd.DataFrame at every call
 
 ### Pending Todos
 
@@ -195,13 +198,13 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-04T00:15:00.000Z
-Stopped at: Phase 50 plan 03 complete (INTRO-F02 materialized-view introspection); proceed to plan 04
-Resume file: .planning/phases/50-crud-introspection-follow-ups/50-04-PLAN.md
-Next action: Execute 50-04 (INTRO-F01 — describe(into=dict|dataclass|dataframe)); last plan of Phase 50.
+Last session: 2026-07-03T22:24:55.317Z
+Stopped at: Phase 50 plan 04 complete (INTRO-F01 structured describe()); Phase 50 fully complete, all 4 plans shipped
+Resume file: None
+Next action: Run `/gsd-validate-phase 50` (all 4 plans shipped) then proceed to Phase 51 (DOC-13 + REL-12) to close v1.1.0.
 
 ## Operator Next Steps
 
-- **Phase 50 plans 01-03 complete (CRUD-F01, CRUD-F02/F03, INTRO-F02):** raw-SQL where_sql escape hatch, keyset pagination + Page envelope, materialized-view introspection — all shipped, full sync/async parity, injection-tested, live-DB-proven. Full suite 1990@96.59%, mypy 0/18, interrogate 100%, Sphinx -W clean.
-- Next: execute plan 50-04 (INTRO-F01 — `describe(into=...)` `@overload` quadruplet + `TableDescription`), the last plan of Phase 50. Milestone v1.1.0 will then be 3/4 phases done pending Phase 50's own verification/close.
+- **Phase 50 fully complete (CRUD-F01..F03, INTRO-F01..F02, all 4 plans):** raw-SQL where_sql escape hatch, keyset pagination + Page envelope, materialized-view introspection, structured describe(into=dict|dataclass|dataframe) + TableDescription — all shipped, full sync/async parity, injection-tested, live-DB-proven. Full suite 2003 passed/2 skipped@96.61%, mypy 0/18, interrogate 100%, Sphinx -W clean.
+- Next: `/gsd-validate-phase 50`, then Phase 51 (DOC-13 doc fixes folded from the 1.0.1 patch + REL-12 release) — the last phase of milestone v1.1.0.
 - Carry-forward for P51: P48 WR-01 (time_bucket origin/offset guard-hoist); optional 1.0.1-folded doc patches (DOC-13).
