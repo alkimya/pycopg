@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
-from pycopg import AsyncDatabase, Config
+from pycopg import AsyncDatabase, Config, queries
 from pycopg.exceptions import (
     DatabaseExistsError,
     ExtensionNotAvailableError,
@@ -3744,6 +3744,60 @@ class TestAsyncDatabaseReadHelpers:
 
 
 @pytest.mark.asyncio
+class TestAsyncMaterializedViewsMock:
+    """INTRO-F02: async mock SQL-shape mirror of the sync materialized_views /
+    materialized_view_columns unit tests (mock only, no DB connection)."""
+
+    async def test_materialized_views_sql(self, config):
+        """materialized_views issues MATERIALIZED_VIEWS with [schema] and
+        returns list[str] of names."""
+        rows = [{"table_name": "mv_daily"}, {"table_name": "mv_weekly"}]
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=rows)
+        result = await db.schema.materialized_views(schema="public")
+        assert result == ["mv_daily", "mv_weekly"]
+        db.execute.assert_called_once_with(queries.MATERIALIZED_VIEWS, ["public"])
+
+    async def test_materialized_views_empty(self, config):
+        """materialized_views returns [] for a schema with no materialized views."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[])
+        result = await db.schema.materialized_views(schema="public")
+        assert result == []
+
+    async def test_materialized_view_columns_sql(self, config):
+        """materialized_view_columns issues MATERIALIZED_VIEW_COLUMNS with
+        [schema, name] param order and returns the raw execute() rows."""
+        rows = [
+            {
+                "column_name": "id",
+                "data_type": "integer",
+                "is_nullable": "YES",
+                "column_default": None,
+                "ordinal_position": 1,
+                "character_maximum_length": None,
+                "numeric_precision": 32,
+                "numeric_scale": 0,
+            }
+        ]
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=rows)
+        result = await db.schema.materialized_view_columns("mv_daily", schema="public")
+        assert result == rows
+        db.execute.assert_called_once_with(
+            queries.MATERIALIZED_VIEW_COLUMNS, ["public", "mv_daily"]
+        )
+
+    async def test_materialized_view_columns_empty(self, config):
+        """materialized_view_columns returns [] for a nonexistent matview."""
+        db = AsyncDatabase(config)
+        db.execute = AsyncMock(return_value=[])
+        result = await db.schema.materialized_view_columns(
+            "no_such_mv", schema="public"
+        )
+        assert result == []
+
+
 class TestAsyncSchemaIntrospection:
     """35-01/35-02: async schema introspection — primary_key / foreign_keys / sequences / views / describe."""
 

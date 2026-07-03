@@ -190,6 +190,64 @@ VIEWS = """
     ORDER BY table_name
 """
 
+# information_schema.views/columns both exclude materialized views per the
+# SQL standard (live-confirmed against pycopg_test3 — see
+# .planning/phases/50-crud-introspection-follow-ups/50-RESEARCH.md § 1), so
+# matview introspection requires dedicated pg_catalog queries.
+MATERIALIZED_VIEWS = """
+    SELECT matviewname AS table_name
+    FROM pg_catalog.pg_matviews
+    WHERE schemaname = %s
+    ORDER BY matviewname
+"""
+
+# Byte-for-byte reproduction of TABLE_INFO's 8-column shape via
+# pg_catalog.pg_attribute + the information_schema._pg_* helper functions
+# (the same helpers information_schema.columns itself uses), filtered to
+# relkind = 'm' (materialized views only).
+MATERIALIZED_VIEW_COLUMNS = """
+    SELECT
+        a.attname AS column_name,
+        CASE
+            WHEN t.typtype = 'd' THEN
+                CASE
+                    WHEN bt.typelem <> 0 AND bt.typlen = -1 THEN 'ARRAY'
+                    WHEN nbt.nspname = 'pg_catalog' THEN format_type(t.typbasetype, NULL)
+                    ELSE 'USER-DEFINED'
+                END
+            ELSE
+                CASE
+                    WHEN t.typelem <> 0 AND t.typlen = -1 THEN 'ARRAY'
+                    WHEN nt.nspname = 'pg_catalog' THEN format_type(a.atttypid, NULL)
+                    ELSE 'USER-DEFINED'
+                END
+        END AS data_type,
+        CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,
+        CASE WHEN a.attgenerated = '' THEN pg_get_expr(ad.adbin, ad.adrelid) ELSE NULL END AS column_default,
+        a.attnum AS ordinal_position,
+        information_schema._pg_char_max_length(
+            information_schema._pg_truetypid(a.*, t.*),
+            information_schema._pg_truetypmod(a.*, t.*)) AS character_maximum_length,
+        information_schema._pg_numeric_precision(
+            information_schema._pg_truetypid(a.*, t.*),
+            information_schema._pg_truetypmod(a.*, t.*)) AS numeric_precision,
+        information_schema._pg_numeric_scale(
+            information_schema._pg_truetypid(a.*, t.*),
+            information_schema._pg_truetypmod(a.*, t.*)) AS numeric_scale
+    FROM pg_catalog.pg_attribute a
+    LEFT JOIN pg_catalog.pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
+    JOIN (pg_catalog.pg_class c JOIN pg_catalog.pg_namespace nc ON c.relnamespace = nc.oid)
+        ON a.attrelid = c.oid
+    JOIN (pg_catalog.pg_type t JOIN pg_catalog.pg_namespace nt ON t.typnamespace = nt.oid)
+        ON a.atttypid = t.oid
+    LEFT JOIN (pg_catalog.pg_type bt JOIN pg_catalog.pg_namespace nbt ON bt.typnamespace = nbt.oid)
+        ON t.typtype = 'd' AND t.typbasetype = bt.oid
+    WHERE nc.nspname = %s AND c.relname = %s
+      AND c.relkind = 'm'
+      AND a.attnum > 0 AND NOT a.attisdropped
+    ORDER BY a.attnum
+"""
+
 # =============================================================================
 # ROLE QUERIES
 # =============================================================================

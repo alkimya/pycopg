@@ -796,6 +796,60 @@ class SchemaAccessor:
         result = self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
 
+    def materialized_views(self, *, schema: str = "public") -> list[str]:
+        """Return the names of materialized views in a schema.
+
+        ``information_schema.views`` excludes materialized views per the SQL
+        standard, so :meth:`views` can never see them — this method queries
+        ``pg_catalog.pg_matviews`` directly (D-14).
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of str
+            Materialized view names in alphabetical order.  Returns ``[]``
+            when the schema has no materialized views.
+        """
+        validate_identifiers(schema)
+        result = self._db.execute(queries.MATERIALIZED_VIEWS, [schema])
+        return [r["table_name"] for r in result]
+
+    def materialized_view_columns(
+        self, name: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
+        """Get column information for a materialized view.
+
+        Returns the same 8-key shape as :meth:`table_info`
+        (``column_name``, ``data_type``, ``is_nullable``, ``column_default``,
+        ``ordinal_position``, ``character_maximum_length``,
+        ``numeric_precision``, ``numeric_scale``), sourced from
+        ``pg_catalog.pg_attribute`` since ``information_schema.columns``
+        excludes materialized views (D-14).
+
+        Parameters
+        ----------
+        name : str
+            Materialized view name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            List of column info dicts in the same shape as
+            :meth:`table_info`.  Materialized views never carry NOT NULL
+            constraints or column defaults, so ``is_nullable`` is always
+            ``'YES'`` and ``column_default`` is always ``None`` — this is
+            faithful to what a materialized view actually is, not a bug.
+            Returns ``[]`` when the materialized view does not exist.
+        """
+        validate_identifiers(name, schema)
+        return self._db.execute(queries.MATERIALIZED_VIEW_COLUMNS, [schema, name])
+
     def describe(self, table: str, *, schema: str = "public") -> dict[str, Any]:
         """Return a consolidated introspection snapshot for a table.
 
@@ -1598,6 +1652,62 @@ class AsyncSchemaAccessor:
         validate_identifiers(schema)
         result = await self._db.execute(queries.VIEWS, [schema])
         return [r["table_name"] for r in result]
+
+    async def materialized_views(self, *, schema: str = "public") -> list[str]:
+        """Return the names of materialized views in a schema.
+
+        ``information_schema.views`` excludes materialized views per the SQL
+        standard, so :meth:`views` can never see them — this method queries
+        ``pg_catalog.pg_matviews`` directly (D-14).
+
+        Parameters
+        ----------
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of str
+            Materialized view names in alphabetical order.  Returns ``[]``
+            when the schema has no materialized views.
+        """
+        validate_identifiers(schema)
+        result = await self._db.execute(queries.MATERIALIZED_VIEWS, [schema])
+        return [r["table_name"] for r in result]
+
+    async def materialized_view_columns(
+        self, name: str, *, schema: str = "public"
+    ) -> list[dict[str, Any]]:
+        """Get column information for a materialized view.
+
+        Returns the same 8-key shape as :meth:`table_info`
+        (``column_name``, ``data_type``, ``is_nullable``, ``column_default``,
+        ``ordinal_position``, ``character_maximum_length``,
+        ``numeric_precision``, ``numeric_scale``), sourced from
+        ``pg_catalog.pg_attribute`` since ``information_schema.columns``
+        excludes materialized views (D-14).
+
+        Parameters
+        ----------
+        name : str
+            Materialized view name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            List of column info dicts in the same shape as
+            :meth:`table_info`.  Materialized views never carry NOT NULL
+            constraints or column defaults, so ``is_nullable`` is always
+            ``'YES'`` and ``column_default`` is always ``None`` — this is
+            faithful to what a materialized view actually is, not a bug.
+            Returns ``[]`` when the materialized view does not exist.
+        """
+        validate_identifiers(name, schema)
+        return await self._db.execute(
+            queries.MATERIALIZED_VIEW_COLUMNS, [schema, name]
+        )
 
     async def describe(self, table: str, *, schema: str = "public") -> dict[str, Any]:
         """Return a consolidated introspection snapshot for a table.

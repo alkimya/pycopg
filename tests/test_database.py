@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pycopg import Config, Database
+from pycopg import Config, Database, queries
 from pycopg.base import QueryMixin
 from pycopg.exceptions import InvalidIdentifierError
 from pycopg.utils import validate_identifier
@@ -1784,6 +1784,55 @@ class TestDatabaseIntrospectionHelpers:
         """views returns [] for a schema with no regular views."""
         db = self._make_db(mock_psycopg, config, [])
         result = db.schema.views(schema="public")
+        assert result == []
+
+    @patch("pycopg.database.psycopg")
+    def test_materialized_views_sql(self, mock_psycopg, config):
+        """materialized_views issues MATERIALIZED_VIEWS with [schema] and
+        returns list[str] of names."""
+        rows = [{"table_name": "mv_daily"}, {"table_name": "mv_weekly"}]
+        db = self._make_db(mock_psycopg, config, rows)
+        with patch.object(db, "execute", return_value=rows) as m_execute:
+            result = db.schema.materialized_views(schema="public")
+        assert result == ["mv_daily", "mv_weekly"]
+        m_execute.assert_called_once_with(queries.MATERIALIZED_VIEWS, ["public"])
+
+    @patch("pycopg.database.psycopg")
+    def test_materialized_views_empty(self, mock_psycopg, config):
+        """materialized_views returns [] for a schema with no materialized views."""
+        db = self._make_db(mock_psycopg, config, [])
+        result = db.schema.materialized_views(schema="public")
+        assert result == []
+
+    @patch("pycopg.database.psycopg")
+    def test_materialized_view_columns_sql(self, mock_psycopg, config):
+        """materialized_view_columns issues MATERIALIZED_VIEW_COLUMNS with
+        [schema, name] param order and returns the raw execute() rows."""
+        rows = [
+            {
+                "column_name": "id",
+                "data_type": "integer",
+                "is_nullable": "YES",
+                "column_default": None,
+                "ordinal_position": 1,
+                "character_maximum_length": None,
+                "numeric_precision": 32,
+                "numeric_scale": 0,
+            }
+        ]
+        db = self._make_db(mock_psycopg, config, rows)
+        with patch.object(db, "execute", return_value=rows) as m_execute:
+            result = db.schema.materialized_view_columns("mv_daily", schema="public")
+        assert result == rows
+        m_execute.assert_called_once_with(
+            queries.MATERIALIZED_VIEW_COLUMNS, ["public", "mv_daily"]
+        )
+
+    @patch("pycopg.database.psycopg")
+    def test_materialized_view_columns_empty(self, mock_psycopg, config):
+        """materialized_view_columns returns [] for a nonexistent matview."""
+        db = self._make_db(mock_psycopg, config, [])
+        result = db.schema.materialized_view_columns("no_such_mv", schema="public")
         assert result == []
 
     @patch("pycopg.database.psycopg")

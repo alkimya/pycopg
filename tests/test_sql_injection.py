@@ -333,6 +333,48 @@ class TestKeysetInjection:
         assert evil not in frag
 
 
+class TestMaterializedViewIdentifierInjection:
+    """INTRO-F02 (T-50-06/T-50-07): materialized_view_columns/materialized_views
+    must reject a malicious ``name``/``schema`` via ``validate_identifiers``
+    (C-02 line 1) before any SQL executes — defense-in-depth, since name/schema
+    are also only ever bound ``%s`` params to the pg_catalog query, never
+    interpolated (T-50-07).
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_materialized_views_schema_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.schema.materialized_views(schema=evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_materialized_view_columns_name_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.schema.materialized_view_columns(evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_materialized_view_columns_schema_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.schema.materialized_view_columns("mv", schema=evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_materialized_views_schema_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.schema.materialized_views(schema=evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_materialized_view_columns_name_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.schema.materialized_view_columns(evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_materialized_view_columns_schema_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.schema.materialized_view_columns("mv", schema=evil)
+
+
 class TestEtlIdentifierInjection:
     """ETL pure builders must reject every EVIL_IDENTIFIERS payload (ETL-16 / SC-6).
 
