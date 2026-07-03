@@ -300,6 +300,35 @@ p = Pipeline(
 Inclusive/lookback overlaps are safe because incremental requires ``upsert`` —
 the replay is an idempotent ``ON CONFLICT`` no-op.
 
+### Serializing concurrent runs (v1.1.0)
+
+Set ``concurrency`` to serialize overlapping runs of the same pipeline via a
+PostgreSQL advisory lock keyed on the pipeline name (available to any pipeline,
+not just incremental):
+
+- **``"wait"``** — block until any peer run finishes, then proceed
+  (``pg_advisory_lock``).
+- **``"skip"``** — if a peer run already holds the lock, return immediately with
+  ``RunResult(status="skipped", run_id=None)`` and write no ``pipeline_runs``
+  row (``pg_try_advisory_lock``).
+
+The lock is session-scoped on a dedicated connection held for the entire
+read → extract → load → record span and released in a ``finally`` — closing the
+connection auto-releases it even on crash. The default ``None`` adds no lock and
+no extra round-trip.
+
+```python
+p = Pipeline(
+    name="sync_events",
+    source="raw_events",
+    target="events",
+    load_mode="upsert",
+    conflict_columns=["id"],
+    incremental_column="updated_at",
+    concurrency="skip",  # a second overlapping run returns status="skipped"
+)
+```
+
 ### Why ``upsert`` is required
 
 Specifying ``incremental_column`` with ``load_mode="append"`` or
