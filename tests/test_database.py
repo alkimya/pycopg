@@ -1910,6 +1910,79 @@ class TestDatabaseIntrospectionHelpers:
         m_fk.assert_called_once_with("some_table", schema="public")
         m_li.assert_called_once_with("some_table", schema="public")
 
+    def _patch_describe_helpers(self, db, columns, pk, fks, indexes):
+        """Helper: patch the four describe-composed helpers with fixed return values."""
+        return (
+            patch.object(db.schema, "table_info", return_value=columns),
+            patch.object(db.schema, "primary_key", return_value=pk),
+            patch.object(db.schema, "foreign_keys", return_value=fks),
+            patch.object(db.schema, "list_indexes", return_value=indexes),
+        )
+
+    @patch("pycopg.database.psycopg")
+    def test_describe_into_dict(self, mock_psycopg, config):
+        """describe(into='dict') is byte-identical to describe() (default, C-03)."""
+        db = self._make_db(mock_psycopg, config, [])
+        columns = [{"column_name": "id", "data_type": "integer"}]
+        pk = {"constraint_name": "t_pkey", "columns": ["id"]}
+        fks = []
+        indexes = [{"index_name": "t_pkey", "index_type": "btree"}]
+        p1, p2, p3, p4 = self._patch_describe_helpers(db, columns, pk, fks, indexes)
+        with p1, p2, p3, p4:
+            plain = db.schema.describe("t")
+            explicit = db.schema.describe("t", into="dict")
+        assert explicit == plain
+        assert explicit == {
+            "columns": columns,
+            "primary_key": pk,
+            "foreign_keys": fks,
+            "indexes": indexes,
+        }
+
+    @patch("pycopg.database.psycopg")
+    def test_describe_into_dataclass(self, mock_psycopg, config):
+        """describe(into='dataclass') wraps the same sub-values in TableDescription (D-12)."""
+        from pycopg import TableDescription
+
+        db = self._make_db(mock_psycopg, config, [])
+        columns = [{"column_name": "id", "data_type": "integer"}]
+        pk = {"constraint_name": "t_pkey", "columns": ["id"]}
+        fks = []
+        indexes = [{"index_name": "t_pkey", "index_type": "btree"}]
+        p1, p2, p3, p4 = self._patch_describe_helpers(db, columns, pk, fks, indexes)
+        with p1, p2, p3, p4:
+            result = db.schema.describe("t", into="dataclass")
+        assert isinstance(result, TableDescription)
+        assert result.columns == columns
+        assert result.primary_key == pk
+        assert result.foreign_keys == fks
+        assert result.indexes == indexes
+
+    @patch("pycopg.database.psycopg")
+    def test_describe_into_dataframe(self, mock_psycopg, config):
+        """describe(into='dataframe') returns the columns section, one row per column."""
+        import pandas as pd
+
+        db = self._make_db(mock_psycopg, config, [])
+        columns = [
+            {"column_name": "id", "data_type": "integer"},
+            {"column_name": "name", "data_type": "text"},
+        ]
+        p1, p2, p3, p4 = self._patch_describe_helpers(db, columns, None, [], [])
+        with p1, p2, p3, p4:
+            result = db.schema.describe("t", into="dataframe")
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 2
+        assert list(result["column_name"]) == ["id", "name"]
+
+    @patch("pycopg.database.psycopg")
+    def test_describe_into_invalid(self, mock_psycopg, config):
+        """describe(into='bogus') raises ValueError."""
+        db = self._make_db(mock_psycopg, config, [])
+        p1, p2, p3, p4 = self._patch_describe_helpers(db, [], None, [], [])
+        with p1, p2, p3, p4, pytest.raises(ValueError, match="into must be"):
+            db.schema.describe("t", into="bogus")
+
 
 class TestDatabaseDropTable:
     """Tests for drop_table method."""

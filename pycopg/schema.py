@@ -881,7 +881,25 @@ class SchemaAccessor:
         validate_identifiers(name, schema)
         return self._db.execute(queries.MATERIALIZED_VIEW_COLUMNS, [schema, name])
 
-    def describe(self, table: str, *, schema: str = "public") -> dict[str, Any]:
+    @overload
+    def describe(
+        self, table: str, *, schema: str = "public", into: Literal["dict"] = "dict"
+    ) -> dict[str, Any]: ...
+    @overload
+    def describe(
+        self, table: str, *, schema: str = "public", into: Literal["dataclass"]
+    ) -> TableDescription: ...
+    @overload
+    def describe(
+        self, table: str, *, schema: str = "public", into: Literal["dataframe"]
+    ) -> pd.DataFrame: ...
+    @overload
+    def describe(
+        self, table: str, *, schema: str = "public", into: str
+    ) -> dict[str, Any] | TableDescription | pd.DataFrame: ...
+    def describe(
+        self, table: str, *, schema: str = "public", into: str = "dict"
+    ) -> dict[str, Any] | TableDescription | pd.DataFrame:
         """Return a consolidated introspection snapshot for a table.
 
         Composes the four standalone helpers into one flat dict.  No new SQL
@@ -894,22 +912,50 @@ class SchemaAccessor:
             Table name.
         schema : str, optional
             Schema name, by default "public".
+        into : {"dict", "dataclass", "dataframe"}, optional
+            Output shape selector, by default "dict" (D-11). ``"dict"``
+            returns the frozen flat dict, byte-identical to the v0.9.0
+            default (C-03). ``"dataclass"`` wraps the same sub-values in a
+            :class:`TableDescription` (D-12, no reshape). ``"dataframe"``
+            returns the ``columns`` section as a one-row-per-column
+            :class:`pandas.DataFrame` (D-12) — nullable integer columns are
+            promoted to ``float64`` with ``NaN`` for ``None``, a pandas
+            dtype-inference artifact, not a data-loss bug.
 
         Returns
         -------
-        dict
-            Flat dict with exactly the keys ``columns``, ``primary_key``,
-            ``foreign_keys``, and ``indexes``.  Each value is the output of
-            the corresponding standalone helper.  For a nonexistent table all
-            sub-values are their empty/None defaults: ``columns=[]``,
-            ``primary_key=None``, ``foreign_keys=[]``, ``indexes=[]``.
+        dict or TableDescription or pandas.DataFrame
+            ``into="dict"`` (default): flat dict with exactly the keys
+            ``columns``, ``primary_key``, ``foreign_keys``, and ``indexes``.
+            Each value is the output of the corresponding standalone helper.
+            For a nonexistent table all sub-values are their empty/None
+            defaults: ``columns=[]``, ``primary_key=None``,
+            ``foreign_keys=[]``, ``indexes=[]``. ``into="dataclass"``: the
+            same four sub-values wrapped in a :class:`TableDescription`.
+            ``into="dataframe"``: the ``columns`` sub-value as a
+            :class:`pandas.DataFrame`.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is not one of ``"dict"``, ``"dataclass"``, or
+            ``"dataframe"``.
         """
-        return {
+        flat: dict[str, Any] = {
             "columns": self.table_info(table, schema=schema),
             "primary_key": self.primary_key(table, schema=schema),
             "foreign_keys": self.foreign_keys(table, schema=schema),
             "indexes": self.list_indexes(table, schema=schema),
         }
+        if into == "dict":
+            return flat
+        if into == "dataclass":
+            return TableDescription(**flat)
+        if into == "dataframe":
+            return pd.DataFrame(flat["columns"])
+        raise ValueError(
+            f"into must be 'dict', 'dataclass', or 'dataframe', got {into!r}"
+        )
 
 
 class AsyncSchemaAccessor:
@@ -1740,7 +1786,25 @@ class AsyncSchemaAccessor:
             queries.MATERIALIZED_VIEW_COLUMNS, [schema, name]
         )
 
-    async def describe(self, table: str, *, schema: str = "public") -> dict[str, Any]:
+    @overload
+    async def describe(
+        self, table: str, *, schema: str = "public", into: Literal["dict"] = "dict"
+    ) -> dict[str, Any]: ...
+    @overload
+    async def describe(
+        self, table: str, *, schema: str = "public", into: Literal["dataclass"]
+    ) -> TableDescription: ...
+    @overload
+    async def describe(
+        self, table: str, *, schema: str = "public", into: Literal["dataframe"]
+    ) -> pd.DataFrame: ...
+    @overload
+    async def describe(
+        self, table: str, *, schema: str = "public", into: str
+    ) -> dict[str, Any] | TableDescription | pd.DataFrame: ...
+    async def describe(
+        self, table: str, *, schema: str = "public", into: str = "dict"
+    ) -> dict[str, Any] | TableDescription | pd.DataFrame:
         """Return a consolidated introspection snapshot for a table.
 
         Composes the four standalone helpers into one flat dict.  No new SQL
@@ -1753,19 +1817,47 @@ class AsyncSchemaAccessor:
             Table name.
         schema : str, optional
             Schema name, by default "public".
+        into : {"dict", "dataclass", "dataframe"}, optional
+            Output shape selector, by default "dict" (D-11). ``"dict"``
+            returns the frozen flat dict, byte-identical to the v0.9.0
+            default (C-03). ``"dataclass"`` wraps the same sub-values in a
+            :class:`TableDescription` (D-12, no reshape). ``"dataframe"``
+            returns the ``columns`` section as a one-row-per-column
+            :class:`pandas.DataFrame` (D-12) — nullable integer columns are
+            promoted to ``float64`` with ``NaN`` for ``None``, a pandas
+            dtype-inference artifact, not a data-loss bug.
 
         Returns
         -------
-        dict
-            Flat dict with exactly the keys ``columns``, ``primary_key``,
-            ``foreign_keys``, and ``indexes``.  Each value is the output of
-            the corresponding standalone helper.  For a nonexistent table all
-            sub-values are their empty/None defaults: ``columns=[]``,
-            ``primary_key=None``, ``foreign_keys=[]``, ``indexes=[]``.
+        dict or TableDescription or pandas.DataFrame
+            ``into="dict"`` (default): flat dict with exactly the keys
+            ``columns``, ``primary_key``, ``foreign_keys``, and ``indexes``.
+            Each value is the output of the corresponding standalone helper.
+            For a nonexistent table all sub-values are their empty/None
+            defaults: ``columns=[]``, ``primary_key=None``,
+            ``foreign_keys=[]``, ``indexes=[]``. ``into="dataclass"``: the
+            same four sub-values wrapped in a :class:`TableDescription`.
+            ``into="dataframe"``: the ``columns`` sub-value as a
+            :class:`pandas.DataFrame`.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is not one of ``"dict"``, ``"dataclass"``, or
+            ``"dataframe"``.
         """
-        return {
+        flat: dict[str, Any] = {
             "columns": await self.table_info(table, schema=schema),
             "primary_key": await self.primary_key(table, schema=schema),
             "foreign_keys": await self.foreign_keys(table, schema=schema),
             "indexes": await self.list_indexes(table, schema=schema),
         }
+        if into == "dict":
+            return flat
+        if into == "dataclass":
+            return TableDescription(**flat)
+        if into == "dataframe":
+            return pd.DataFrame(flat["columns"])
+        raise ValueError(
+            f"into must be 'dict', 'dataclass', or 'dataframe', got {into!r}"
+        )

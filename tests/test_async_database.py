@@ -3798,6 +3798,76 @@ class TestAsyncMaterializedViewsMock:
         assert result == []
 
 
+class TestAsyncDescribeIntoMock:
+    """INTRO-F01: async mock SQL-shape mirror of the sync describe(into=...) tests
+    (mock only, no DB connection)."""
+
+    def _patch_describe_helpers(self, db, columns, pk, fks, indexes):
+        """Helper: patch the four async describe-composed helpers with fixed
+        AsyncMock return values."""
+        db.schema.table_info = AsyncMock(return_value=columns)
+        db.schema.primary_key = AsyncMock(return_value=pk)
+        db.schema.foreign_keys = AsyncMock(return_value=fks)
+        db.schema.list_indexes = AsyncMock(return_value=indexes)
+
+    async def test_describe_into_dict(self, config):
+        """describe(into='dict') is byte-identical to describe() (default, C-03)."""
+        db = AsyncDatabase(config)
+        columns = [{"column_name": "id", "data_type": "integer"}]
+        pk = {"constraint_name": "t_pkey", "columns": ["id"]}
+        fks = []
+        indexes = [{"index_name": "t_pkey", "index_type": "btree"}]
+        self._patch_describe_helpers(db, columns, pk, fks, indexes)
+        plain = await db.schema.describe("t")
+        explicit = await db.schema.describe("t", into="dict")
+        assert explicit == plain
+        assert explicit == {
+            "columns": columns,
+            "primary_key": pk,
+            "foreign_keys": fks,
+            "indexes": indexes,
+        }
+
+    async def test_describe_into_dataclass(self, config):
+        """describe(into='dataclass') wraps the same sub-values in TableDescription (D-12)."""
+        from pycopg import TableDescription
+
+        db = AsyncDatabase(config)
+        columns = [{"column_name": "id", "data_type": "integer"}]
+        pk = {"constraint_name": "t_pkey", "columns": ["id"]}
+        fks = []
+        indexes = [{"index_name": "t_pkey", "index_type": "btree"}]
+        self._patch_describe_helpers(db, columns, pk, fks, indexes)
+        result = await db.schema.describe("t", into="dataclass")
+        assert isinstance(result, TableDescription)
+        assert result.columns == columns
+        assert result.primary_key == pk
+        assert result.foreign_keys == fks
+        assert result.indexes == indexes
+
+    async def test_describe_into_dataframe(self, config):
+        """describe(into='dataframe') returns the columns section, one row per column."""
+        import pandas as pd
+
+        db = AsyncDatabase(config)
+        columns = [
+            {"column_name": "id", "data_type": "integer"},
+            {"column_name": "name", "data_type": "text"},
+        ]
+        self._patch_describe_helpers(db, columns, None, [], [])
+        result = await db.schema.describe("t", into="dataframe")
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 2
+        assert list(result["column_name"]) == ["id", "name"]
+
+    async def test_describe_into_invalid(self, config):
+        """describe(into='bogus') raises ValueError."""
+        db = AsyncDatabase(config)
+        self._patch_describe_helpers(db, [], None, [], [])
+        with pytest.raises(ValueError, match="into must be"):
+            await db.schema.describe("t", into="bogus")
+
+
 class TestAsyncSchemaIntrospection:
     """35-01/35-02: async schema introspection — primary_key / foreign_keys / sequences / views / describe."""
 
