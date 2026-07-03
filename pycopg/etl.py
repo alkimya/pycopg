@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
 from datetime import UTC, datetime
@@ -167,6 +167,29 @@ class Pipeline:
         is expected to hold a monotonic, non-decreasing watermark (an
         aware ``datetime`` if it is a timestamp); this contract is
         documented, not enforced, in this layer (D-03). Default ``None``.
+    initial_watermark : datetime, int, str, Sequence, or None, optional
+        Seed-floor value for the FIRST incremental run only (ETL-INC-F01,
+        D-01). When no stored watermark exists yet, this value is used as
+        the ``WHERE col > initial_watermark`` floor — turning the default
+        full initial load into a bounded/seeded load. Once the first
+        successful run records ``max(col)``, ``initial_watermark`` is
+        never consulted again (seed-floor-only semantics, D-01) — it is
+        NOT a persistent clamp and is never combined via
+        ``max(initial, stored)``. Requires ``incremental_column`` to be
+        set (D-02); the scalar form is checked against the same
+        ``{datetime, int, str}`` allowlist as a recorded watermark
+        (:func:`_encode_watermark`) — ``bool``/``float`` are rejected
+        loud at construction (D-02, C-02). Incremental still requires
+        ``load_mode="upsert"`` (C-01) — the idempotency that makes a
+        seeded bounded first-load safe. An empty (0-row) seeded first
+        batch records no watermark and re-seeds from
+        ``initial_watermark`` on the next run (D-03, C-03). The
+        composite (``Sequence``) form — for a future composite
+        ``incremental_column`` — is accepted by the type but its
+        per-element/length-match validation is NOT implemented here; it
+        lands in a later plan (D-04) once ``incremental_column`` is
+        widened to a tuple. Default ``None`` (byte-identical to today's
+        full-initial-load behavior).
 
     Raises
     ------
@@ -180,6 +203,13 @@ class Pipeline:
     ValueError
         If ``incremental_column`` is set and ``load_mode`` is not
         ``"upsert"`` (D-16, ETL-INC-01).
+    ValueError
+        If ``initial_watermark`` is set without ``incremental_column``
+        (D-02, ETL-INC-F01).
+    ETLError
+        If a scalar ``initial_watermark`` is not one of the supported
+        ``{datetime, int, str}`` types — e.g. ``bool`` or ``float``
+        (D-02, C-02).
 
     Examples
     --------
@@ -207,6 +237,7 @@ class Pipeline:
     transform: Callable[..., Any] | list[Callable[..., Any]] | None = None
     extract_limit: int | None = None
     incremental_column: str | None = None
+    initial_watermark: datetime | int | str | Sequence[Any] | None = None
 
     def __post_init__(self) -> None:
         """Validate and normalize fields at construction time.
@@ -247,6 +278,22 @@ class Pipeline:
         # Validate incremental_column / load_mode combo + identifier
         # (D-14/D-15/D-16/D-17) — after load_mode, before the upsert check.
         _validate_incremental(self.incremental_column, self.load_mode)
+        # Validate initial_watermark (ETL-INC-F01, D-02): requires
+        # incremental_column to be set; the scalar form is type-checked
+        # against the {datetime, int, str} allowlist by delegating to
+        # _encode_watermark (bool rejected before int, float rejected —
+        # same trap already guarded for extract_limit/C-02). The composite
+        # (Sequence, non-str) form is left unvalidated here — per-element
+        # and length-match validation lands in a later plan (D-04) once
+        # incremental_column is widened to a composite tuple.
+        if self.initial_watermark is not None:
+            if self.incremental_column is None:
+                raise ValueError(
+                    "initial_watermark requires incremental_column to be set "
+                    "(D-02, ETL-INC-F01)"
+                )
+            if not isinstance(self.initial_watermark, (list, tuple)):
+                _encode_watermark(self.initial_watermark)  # type: ignore[arg-type]
         # Require conflict_columns when upsert is selected (D-07).
         if self.load_mode == "upsert" and not self.conflict_columns:
             raise ValueError(
