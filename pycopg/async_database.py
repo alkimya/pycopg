@@ -34,6 +34,7 @@ from pycopg.base import (
     _decode_server_version,
 )
 from pycopg.config import Config
+from pycopg.database import Page
 from pycopg.exceptions import DatabaseExistsError, ExtensionNotAvailableError
 from pycopg.logging import log_operation
 from pycopg.utils import (

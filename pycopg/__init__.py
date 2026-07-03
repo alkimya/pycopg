@@ -14,7 +14,7 @@ from pycopg.async_database import AsyncDatabase
 from pycopg.backup import AsyncBackupAccessor, BackupAccessor
 from pycopg.base import Params
 from pycopg.config import Config
-from pycopg.database import Database
+from pycopg.database import Database, Page
 from pycopg.etl import AsyncETLAccessor, ETLAccessor, Pipeline, RunResult
 from pycopg.exceptions import (
     ConfigurationError,
@@ -95,6 +95,7 @@ __all__ = [
     "Database",
     "AsyncDatabase",
     "Config",
+    "Page",
     # Pooling
     "PooledDatabase",
     "AsyncPooledDatabase",

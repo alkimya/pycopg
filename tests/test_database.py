@@ -670,6 +670,69 @@ class TestWhereSqlGuards:
             db.exists("t")
 
 
+class TestPageDataclass:
+    """CRUD-F03 (D-08): Page frozen dataclass fields + export precedent."""
+
+    def test_page_dataclass_fields(self):
+        """Page carries rows/total/has_next/next_cursor as declared (D-08)."""
+        from pycopg import Page
+
+        page = Page(rows=[{"id": 1}], total=5, has_next=True, next_cursor=(1,))
+        assert page.rows == [{"id": 1}]
+        assert page.total == 5
+        assert page.has_next is True
+        assert page.next_cursor == (1,)
+
+    def test_page_dataclass_optional_fields_accept_none(self):
+        """total/next_cursor are None-able (with_total=False / offset page)."""
+        from pycopg import Page
+
+        page = Page(rows=[], total=None, has_next=False, next_cursor=None)
+        assert page.total is None
+        assert page.next_cursor is None
+
+    def test_page_dataclass_is_frozen(self):
+        """Page is immutable — attribute assignment raises (RunResult precedent)."""
+        import dataclasses
+
+        from pycopg import Page
+
+        page = Page(rows=[], total=None, has_next=False, next_cursor=None)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            page.total = 1
+
+
+class TestBuildKeysetWhere:
+    """CRUD-F02 (D-06/D-07): QueryMixin._build_keyset_where row-value builder."""
+
+    def test_build_keyset_where_shape(self):
+        """Two-column ascending keyset emits a row-value '>' comparison."""
+        frag, params = QueryMixin._build_keyset_where(
+            ["created_at", "id"], ("2026-01-01", 5), False
+        )
+        assert frag == "(created_at, id) > (%s, %s)"
+        assert params == ["2026-01-01", 5]
+
+    def test_build_keyset_where_descending_flips_operator(self):
+        """descending=True flips the comparison operator to '<' (D-07)."""
+        frag, params = QueryMixin._build_keyset_where(
+            ["created_at", "id"], ("2026-01-01", 5), True
+        )
+        assert frag == "(created_at, id) < (%s, %s)"
+        assert params == ["2026-01-01", 5]
+
+    def test_build_keyset_where_single_column(self):
+        """A single order_by column still produces a valid row-value tuple."""
+        frag, params = QueryMixin._build_keyset_where(["id"], (5,), False)
+        assert frag == "(id) > (%s)"
+        assert params == [5]
+
+    def test_build_keyset_where_validates_order_cols(self):
+        """An invalid order_by column identifier raises before any SQL build (C-02)."""
+        with pytest.raises(InvalidIdentifierError):
+            QueryMixin._build_keyset_where(["a; DROP TABLE x"], (1,), False)
+
+
 class TestDatabaseContextManager:
     """Tests for Database context manager."""
 

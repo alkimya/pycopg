@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from pycopg import AsyncDatabase, Database
+from pycopg.base import QueryMixin
 from pycopg.etl import _build_insert_sql, _build_upsert_sql
 from pycopg.exceptions import InvalidIdentifierError
 from pycopg.schema import AsyncSchemaAccessor, SchemaAccessor
@@ -307,6 +308,29 @@ class TestWhereSqlValueInjection:
         assert sql == "SELECT COUNT(*) FROM public.t WHERE name = %s"
         assert params == [evil]
         assert evil not in sql
+
+
+class TestKeysetInjection:
+    """CRUD-F02 (T-50-04/T-50-05): QueryMixin._build_keyset_where must reject
+    a malicious ``order_by`` identifier via ``validate_identifiers`` (C-02
+    line 1) and must bind every ``after`` cursor value as ``%s`` — never
+    interpolated into the returned fragment.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_keyset_order_by_validated(self, evil):
+        """An EVIL_IDENTIFIERS order_by column raises before any SQL build."""
+        with pytest.raises(InvalidIdentifierError):
+            QueryMixin._build_keyset_where([evil], (1,), False)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_keyset_after_values_bound_not_interpolated(self, evil):
+        """An EVIL_IDENTIFIERS after value is returned as a bound param, never
+        interpolated into the row-value fragment."""
+        frag, params = QueryMixin._build_keyset_where(["id"], (evil,), False)
+        assert frag == "(id) > (%s)"
+        assert params == [evil]
+        assert evil not in frag
 
 
 class TestEtlIdentifierInjection:

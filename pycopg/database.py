@@ -10,6 +10,7 @@ import logging
 import time
 from collections.abc import Hashable, Iterator, Sequence
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -129,6 +130,45 @@ def _stream_df_copy(
             copy.write_row([None if null_row[j] else row[j] for j in range(len(row))])
 
     return cur.rowcount
+
+
+@dataclass(frozen=True)
+class Page:
+    """Immutable envelope returned by :meth:`Database.paginate_page` and
+    :meth:`Database.paginate_keyset` (D-08).
+
+    Mirrors the :class:`pycopg.etl.RunResult` frozen-dataclass precedent —
+    a typed, mypy-friendly wrapper carrying the page rows alongside cheap
+    pagination metadata. The existing :meth:`Database.paginate` is left
+    untouched and keeps returning a plain ``list[dict]`` (C-03).
+
+    Parameters
+    ----------
+    rows : list of dict
+        The requested page of row dicts. Already trimmed to ``limit`` — the
+        ``limit + 1`` sentinel row used to compute ``has_next`` is never
+        included here (D-10).
+    total : int or None
+        Total number of rows matching the base predicate (dict ``where`` or
+        ``where_sql``), **not** the keyset ``after`` fragment. Populated
+        only when the caller passed ``with_total=True``; ``None`` otherwise
+        (D-10) — avoids a surprise ``COUNT(*)`` on deep/keyset pages.
+    has_next : bool
+        Whether at least one more row exists beyond this page. Always
+        computed cheaply via a ``limit + 1`` fetch-and-trim (D-10), never a
+        separate query.
+    next_cursor : tuple or None
+        For :meth:`Database.paginate_keyset`, the last returned row's
+        ``order_by``-keyed value tuple — feed it back as the next call's
+        ``after=`` to page forward (D-06). ``None`` when the page is empty
+        or when returned by :meth:`Database.paginate_page` (offset
+        pagination has no cursor concept).
+    """
+
+    rows: list[dict[str, Any]]
+    total: int | None
+    has_next: bool
+    next_cursor: tuple[Any, ...] | None
 
 
 class Database(DatabaseBase, QueryMixin):

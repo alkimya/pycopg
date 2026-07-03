@@ -387,6 +387,52 @@ class QueryMixin:
             return QueryMixin._build_where_dict(where)
         return "", []
 
+    @staticmethod
+    def _build_keyset_where(
+        order_cols: list[str], after: Sequence[Any], descending: bool
+    ) -> tuple[str, list[Any]]:
+        """Build a row-value keyset (seek) WHERE fragment (D-06/D-07).
+
+        Emits a PostgreSQL row-value comparison — ``(c1, c2) > (%s, %s)`` —
+        the same lexicographic tuple-compare shape shipped by the ETL
+        composite-watermark builder
+        (:func:`pycopg.etl._build_incremental_extract_sql`). Row-value
+        comparison is index-friendly: a btree index on ``(c1, c2)`` supports
+        it as a range scan.
+
+        Parameters
+        ----------
+        order_cols : list of str
+            Ordered column names the page is sorted by. Validated via
+            ``validate_identifiers`` (C-02) before interpolation — this is
+            the line-1 guard for this builder.
+        after : Sequence
+            Cursor values, positionally keyed to ``order_cols``. Bound as
+            ``%s`` parameters, never interpolated (T-50-05).
+        descending : bool
+            When ``True``, the comparison operator flips from ``>`` to
+            ``<`` (D-07) to match a ``DESC`` ordered page. The caller is
+            responsible for keeping the ``ORDER BY`` direction in sync with
+            this flip (Pitfall 3).
+
+        Returns
+        -------
+        tuple of (str, list)
+            Tuple of ``(fragment, params)`` where ``fragment`` is
+            ``"(c1, c2) > (%s, %s)"`` (or ``<`` when descending) suitable for
+            ``WHERE {fragment}``, and ``params`` is ``list(after)``.
+
+        Raises
+        ------
+        InvalidIdentifierError
+            If any column in ``order_cols`` fails identifier validation.
+        """
+        validate_identifiers(*order_cols)
+        op = "<" if descending else ">"
+        lhs = "(" + ", ".join(order_cols) + ")"
+        rhs = "(" + ", ".join(["%s"] * len(order_cols)) + ")"
+        return f"{lhs} {op} {rhs}", list(after)
+
 
 class SessionMixin:
     """Mixin providing session/connection reuse capabilities.
