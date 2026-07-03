@@ -521,6 +521,88 @@ class TimescaleAccessor:
             )
         """)
 
+    def compress_chunk(self, chunk: str, *, if_not_compressed: bool = True) -> None:
+        """Compress a single named chunk (Community license feature).
+
+        ``chunk`` is the fully-qualified chunk name as returned by
+        :meth:`show_chunks` (e.g. ``"_timescaledb_internal._hyper_1_2_chunk"``),
+        bound as ``%s::regclass`` (TSDB-F03, RESEARCH D-10/D-11) — it is a
+        value, not a SQL identifier, so ``validate_identifiers`` does not
+        apply here; injection safety comes from parameter binding alone.
+
+        Parameters
+        ----------
+        chunk : str
+            Fully-qualified chunk name (as returned by :meth:`show_chunks`).
+        if_not_compressed : bool, optional
+            If ``True`` (default), silently skip if the chunk is already
+            compressed instead of raising.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+        """
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        self._db.execute(
+            "SELECT compress_chunk(%s::regclass, if_not_compressed => %s)",
+            [chunk, if_not_compressed],
+        )
+
+    def decompress_chunk(self, chunk: str, *, if_compressed: bool = True) -> None:
+        """Decompress a single named chunk (Community license feature).
+
+        ``chunk`` is the fully-qualified chunk name as returned by
+        :meth:`show_chunks`, bound as ``%s::regclass`` (TSDB-F03, RESEARCH
+        D-10/D-11) — it is a value, not a SQL identifier, so
+        ``validate_identifiers`` does not apply here; injection safety comes
+        from parameter binding alone.
+
+        Parameters
+        ----------
+        chunk : str
+            Fully-qualified chunk name (as returned by :meth:`show_chunks`).
+        if_compressed : bool, optional
+            If ``True`` (default), silently skip if the chunk is already
+            decompressed instead of raising.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+        """
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        self._db.execute(
+            "SELECT decompress_chunk(%s::regclass, if_compressed => %s)",
+            [chunk, if_compressed],
+        )
+
     def add_retention_policy(
         self,
         table: str,
@@ -1794,6 +1876,92 @@ class AsyncTimescaleAccessor:
                 compress_after => INTERVAL '{compress_after}'
             )
         """)
+
+    async def compress_chunk(
+        self, chunk: str, *, if_not_compressed: bool = True
+    ) -> None:
+        """Compress a single named chunk (Community license feature).
+
+        ``chunk`` is the fully-qualified chunk name as returned by
+        :meth:`show_chunks` (e.g. ``"_timescaledb_internal._hyper_1_2_chunk"``),
+        bound as ``%s::regclass`` (TSDB-F03, RESEARCH D-10/D-11) — it is a
+        value, not a SQL identifier, so ``validate_identifiers`` does not
+        apply here; injection safety comes from parameter binding alone.
+
+        Parameters
+        ----------
+        chunk : str
+            Fully-qualified chunk name (as returned by :meth:`show_chunks`).
+        if_not_compressed : bool, optional
+            If ``True`` (default), silently skip if the chunk is already
+            compressed instead of raising.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+        """
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        await self._db.execute(
+            "SELECT compress_chunk(%s::regclass, if_not_compressed => %s)",
+            [chunk, if_not_compressed],
+        )
+
+    async def decompress_chunk(
+        self, chunk: str, *, if_compressed: bool = True
+    ) -> None:
+        """Decompress a single named chunk (Community license feature).
+
+        ``chunk`` is the fully-qualified chunk name as returned by
+        :meth:`show_chunks`, bound as ``%s::regclass`` (TSDB-F03, RESEARCH
+        D-10/D-11) — it is a value, not a SQL identifier, so
+        ``validate_identifiers`` does not apply here; injection safety comes
+        from parameter binding alone.
+
+        Parameters
+        ----------
+        chunk : str
+            Fully-qualified chunk name (as returned by :meth:`show_chunks`).
+        if_compressed : bool, optional
+            If ``True`` (default), silently skip if the chunk is already
+            decompressed instead of raising.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+        """
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        await self._db.execute(
+            "SELECT decompress_chunk(%s::regclass, if_compressed => %s)",
+            [chunk, if_compressed],
+        )
 
     async def add_retention_policy(
         self,
