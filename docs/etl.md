@@ -254,10 +254,51 @@ The ``incremental_column`` must satisfy:
 - **Type** — the column must be a timezone-aware datetime (offset is preserved
   as-is; it is NOT coerced to UTC), an integer, or a text value.  Float
   columns are rejected at runtime with an ``ETLError``.
-- **Single column** — composite watermarks are not supported in v0.7.0.
-- **Exclusive boundary** — the filter is ``col > last_watermark`` (strictly
-  greater than).  Rows exactly equal to the previous watermark are NOT
-  re-extracted.
+- **Single or composite** — a single column name, or a sequence of names for a
+  composite (multi-column) key (see below, v1.1.0).
+- **Exclusive boundary by default** — the filter is ``col > last_watermark``
+  (strictly greater than); rows exactly equal to the previous watermark are NOT
+  re-extracted unless ``incremental_inclusive=True`` is set (see below).
+
+### Boundary configuration and composite keys (v1.1.0)
+
+Three additive, opt-in knobs refine the incremental boundary; all default to
+today's exact behavior:
+
+- **``initial_watermark``** — a seed floor for the FIRST run only, turning the
+  default full initial load into a bounded/seeded load
+  (``WHERE col > initial_watermark``). It is consulted only when no stored
+  watermark exists; once a run records ``max(col)`` it is never used again.
+- **``incremental_inclusive=True``** — use ``>=`` instead of ``>`` so the
+  boundary row is re-read every run.
+- **``incremental_lookback``** (``timedelta`` or ``int``) — widen the READ
+  floor to re-scan late-arriving rows (e.g. floor ``100`` with lookback ``10``
+  reads ``col > 90``). The RECORDED watermark is always the true ``max(col)`` —
+  lookback widens the read window only, it never regresses the stored value. A
+  lookback on a ``str``-typed (or composite) watermark raises ``ETLError``.
+- **Composite key** — pass a sequence to ``incremental_column`` for a
+  multi-column watermark. The extract filters on the native Postgres row-value
+  compare ``WHERE (c1, c2) > (%s, %s)`` and the recorded watermark is the true
+  greatest ROW (sorted last row, never per-column maxes), persisted as a
+  ``"composite"`` typed envelope. A ``NaN`` in any element voids the watermark
+  for that run.
+
+```python
+# Composite watermark + inclusive re-read of the boundary row.
+p = Pipeline(
+    name="events_by_day_seq",
+    source="events",
+    target="events_rollup",
+    load_mode="upsert",
+    conflict_columns=["day", "seq"],
+    incremental_column=["day", "seq"],
+    initial_watermark=(20260101, 0),  # optional composite seed floor
+    incremental_inclusive=True,
+)
+```
+
+Inclusive/lookback overlaps are safe because incremental requires ``upsert`` —
+the replay is an idempotent ``ON CONFLICT`` no-op.
 
 ### Why ``upsert`` is required
 

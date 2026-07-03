@@ -3832,3 +3832,179 @@ class TestAsyncIncrementalBoundaryLive:
         assert [r["id"] for r in rows] == [95, 100, 137]
         assert result.watermark_used == 90
         assert result.watermark_recorded == 137
+
+
+# ---------------------------------------------------------------------------
+# ETL-INC-F03 — composite (multi-column) watermark live-DB correctness tests
+# (49-04 run() wiring). The definitive proof: recorded watermark is the true
+# greatest ROW (2, 1), never the fabricated per-column-max (2, 99).
+# ---------------------------------------------------------------------------
+
+
+def _make_composite_src_tgt(execute):
+    """Create a (day, seq, val) source + composite-PK target; return (src, tgt)."""
+    src = f"etl_csrc_{uuid.uuid4().hex[:8]}"
+    tgt = f"etl_ctgt_{uuid.uuid4().hex[:8]}"
+    execute(
+        f'CREATE TABLE public."{src}" (day INTEGER, seq INTEGER, val TEXT)',
+        autocommit=True,
+    )
+    execute(
+        f'CREATE TABLE public."{tgt}" '
+        f"(day INTEGER, seq INTEGER, val TEXT, PRIMARY KEY (day, seq))",
+        autocommit=True,
+    )
+    return src, tgt
+
+
+class TestCompositeWatermarkLive:
+    """Live-DB end-to-end composite watermark: max-ROW correctness + second-run filter."""
+
+    def test_records_true_max_row_not_per_column_max(
+        self, db, cleanup_pipeline_runs
+    ):
+        """Recorded composite watermark is the greatest ROW (2, 1), NOT (2, 99) (D-10)."""
+        src, tgt = _make_composite_src_tgt(db.execute)
+        # (1,99) and (2,1): per-column max would be the fabricated (2, 99);
+        # the true lexicographic max ROW is (2, 1).
+        db.execute(
+            f"INSERT INTO public.\"{src}\" (day, seq, val) VALUES "
+            "(1, 99, 'a'), (2, 1, 'b')",
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="composite_maxrow",
+                source=f'SELECT * FROM public."{src}"',
+                target=tgt,
+                load_mode="upsert",
+                conflict_columns=["day", "seq"],
+                incremental_column=["day", "seq"],
+            )
+            result = db.etl.run(p)
+            rows = db.execute(
+                f'SELECT day, seq FROM public."{tgt}" ORDER BY day, seq'
+            )
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{tgt}" CASCADE', autocommit=True)
+
+        assert [(r["day"], r["seq"]) for r in rows] == [(1, 99), (2, 1)]
+        assert result.watermark_recorded == (2, 1)  # NOT (2, 99)
+
+    def test_second_run_strict_greater_row_value_filter(
+        self, db, cleanup_pipeline_runs
+    ):
+        """Second run re-extracts only rows where (day, seq) > the recorded tuple."""
+        src, tgt = _make_composite_src_tgt(db.execute)
+        db.execute(
+            f"INSERT INTO public.\"{src}\" (day, seq, val) VALUES "
+            "(1, 99, 'a'), (2, 1, 'b')",
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="composite_second",
+                source=f'SELECT * FROM public."{src}"',
+                target=tgt,
+                load_mode="upsert",
+                conflict_columns=["day", "seq"],
+                incremental_column=["day", "seq"],
+            )
+            r1 = db.etl.run(p)
+            assert r1.watermark_recorded == (2, 1)
+            # (2, 2) is strictly greater; (0, 5) is not — only (2, 2) re-extracts.
+            db.execute(
+                f"INSERT INTO public.\"{src}\" (day, seq, val) VALUES "
+                "(2, 2, 'd'), (0, 5, 'e')",
+                autocommit=True,
+            )
+            r2 = db.etl.run(p)
+            assert r2.rows_extracted == 1  # only (2, 2) passed the row-value filter
+            assert r2.watermark_recorded == (2, 2)
+            rows = db.execute(
+                f'SELECT day, seq FROM public."{tgt}" ORDER BY day, seq'
+            )
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{tgt}" CASCADE', autocommit=True)
+
+        # (0, 5) was below the floor and never loaded.
+        assert [(r["day"], r["seq"]) for r in rows] == [(1, 99), (2, 1), (2, 2)]
+
+    def test_composite_seed_floor_bounds_first_run(
+        self, db, cleanup_pipeline_runs
+    ):
+        """A composite initial_watermark tuple bounds the first run (D-01 + D-10 compose)."""
+        src, tgt = _make_composite_src_tgt(db.execute)
+        db.execute(
+            f"INSERT INTO public.\"{src}\" (day, seq, val) VALUES "
+            "(1, 10, 'below'), (1, 99, 'a'), (2, 1, 'b')",
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="composite_seed",
+                source=f'SELECT * FROM public."{src}"',
+                target=tgt,
+                load_mode="upsert",
+                conflict_columns=["day", "seq"],
+                incremental_column=["day", "seq"],
+                initial_watermark=(1, 50),  # floor: (day, seq) > (1, 50)
+            )
+            result = db.etl.run(p)
+            rows = db.execute(
+                f'SELECT day, seq FROM public."{tgt}" ORDER BY day, seq'
+            )
+        finally:
+            db.execute(f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True)
+            db.execute(f'DROP TABLE IF EXISTS public."{tgt}" CASCADE', autocommit=True)
+
+        # (1, 10) is below the seed floor and excluded; (1, 99) and (2, 1) load.
+        assert [(r["day"], r["seq"]) for r in rows] == [(1, 99), (2, 1)]
+        assert result.watermark_used == (1, 50)  # the seed floor
+        assert result.watermark_recorded == (2, 1)
+
+
+class TestAsyncCompositeWatermarkLive:
+    """Async mirror — the recorded composite tuple must match sync (C-04)."""
+
+    async def test_records_true_max_row(
+        self, async_db, cleanup_async_pipeline_runs
+    ):
+        """Async composite run records the same true max ROW (2, 1) as sync."""
+        src = f"etl_acsrc_{uuid.uuid4().hex[:8]}"
+        tgt = f"etl_actgt_{uuid.uuid4().hex[:8]}"
+        await async_db.execute(
+            f'CREATE TABLE public."{src}" (day INTEGER, seq INTEGER, val TEXT)',
+            autocommit=True,
+        )
+        await async_db.execute(
+            f'CREATE TABLE public."{tgt}" '
+            f"(day INTEGER, seq INTEGER, val TEXT, PRIMARY KEY (day, seq))",
+            autocommit=True,
+        )
+        await async_db.execute(
+            f"INSERT INTO public.\"{src}\" (day, seq, val) VALUES "
+            "(1, 99, 'a'), (2, 1, 'b')",
+            autocommit=True,
+        )
+        try:
+            p = Pipeline(
+                name="acomposite_maxrow",
+                source=f'SELECT * FROM public."{src}"',
+                target=tgt,
+                load_mode="upsert",
+                conflict_columns=["day", "seq"],
+                incremental_column=["day", "seq"],
+            )
+            result = await async_db.etl.run(p)
+        finally:
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{src}" CASCADE', autocommit=True
+            )
+            await async_db.execute(
+                f'DROP TABLE IF EXISTS public."{tgt}" CASCADE', autocommit=True
+            )
+
+        assert result.watermark_recorded == (2, 1)

@@ -458,6 +458,17 @@ class TestCompositeWatermark:
         with pytest.raises(ValueError, match="scalar"):
             self._comp(incremental_column="ts", initial_watermark=[5, 40])
 
+    def test_composite_requires_upsert(self):
+        """A composite incremental_column still requires load_mode='upsert' (C-01)."""
+        with pytest.raises(ValueError, match="upsert"):
+            Pipeline(
+                name="x",
+                source="s",
+                target="t",
+                load_mode="append",
+                incremental_column=["day", "seq"],
+            )
+
     # --- builder row-value compare SQL (D-10) ---
 
     def test_composite_builder_table_source(self):

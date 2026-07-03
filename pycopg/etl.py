@@ -265,6 +265,26 @@ class Pipeline:
             load_mode="upsert",
             conflict_columns=["user_id"],
         )
+
+    Composite (multi-column) incremental watermark — the extract filters on the
+    native row-value compare ``WHERE (day, seq) > (%s, %s)`` and the recorded
+    watermark is the true greatest ROW, persisted as a ``"composite"`` envelope
+    ``{"type": "composite", "columns": [...], "values": [<scalar-envelope>...]}``
+    (ETL-INC-F03)::
+
+        p = Pipeline(
+            name="events_by_day_seq",
+            source="events",
+            target="events_rollup",
+            load_mode="upsert",
+            conflict_columns=["day", "seq"],
+            incremental_column=["day", "seq"],
+            initial_watermark=(20260101, 0),  # optional composite seed floor
+        )
+
+    The ``incremental_inclusive`` / ``incremental_lookback`` overlaps re-read
+    boundary/late rows every run; this is safe because incremental requires
+    ``upsert`` — the replay is an idempotent ``ON CONFLICT`` no-op (D-08).
     """
 
     name: str
