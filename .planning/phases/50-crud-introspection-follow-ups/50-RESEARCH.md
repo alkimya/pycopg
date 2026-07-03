@@ -509,10 +509,11 @@ No framework churn relevant. `pg_matviews` (Postgres 9.3+) and `information_sche
 
 ## Open Questions
 
-1. **`Page` location — `database.py` vs `base.py`?**
+1. **`Page` location — `database.py` vs `base.py`? (RESOLVED: `database.py`, per plan 50-02)**
    - What we know: `paginate*` are defined on `Database`/`AsyncDatabase`, not the shared `QueryMixin`. `RunResult` lives in `etl.py` (its owning module).
    - What's unclear: whether the team prefers all public dataclasses in one place.
-   - Recommendation: define `Page` in `database.py`, import into `async_database.py` + `__init__.py` (mirrors `RunResult`'s module-ownership). Planner decides.
+   - Recommendation: define `Page` in `database.py`, import into `async_database.py` + `__init__.py` (mirrors `RunResult`'s module-ownership).
+   - **Resolved:** plan 50-02 defines `Page` in `database.py` and imports it into `async_database.py` + `__init__.py`, matching this recommendation and the `RunResult` precedent.
 
 2. **`describe(into="dataframe")` — which section?**
    - What we know: D-12 says the **columns** section only (the naturally tabular part).

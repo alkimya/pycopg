@@ -4,7 +4,7 @@ milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: verifying
 stopped_at: Phase 50 context gathered
-last_updated: "2026-07-03T15:51:40.965Z"
+last_updated: "2026-07-03T20:56:15.571Z"
 last_activity: 2026-07-03 -- 49-05 advisory-lock concurrency shipped; ETL-INC-F01..F04 done, full suite 1844@96.29%
 progress:
   total_phases: 4
