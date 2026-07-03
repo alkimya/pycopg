@@ -163,3 +163,17 @@ None - no external service configuration required.
 ---
 *Phase: 50-crud-introspection-follow-ups*
 *Completed: 2026-07-04*
+
+## Self-Check: PASSED
+
+- FOUND: pycopg/schema.py
+- FOUND: pycopg/__init__.py
+- FOUND: tests/test_database.py
+- FOUND: tests/test_async_database.py
+- FOUND: tests/test_database_integration.py
+- FOUND: docs/api-reference.md
+- FOUND: .planning/phases/50-crud-introspection-follow-ups/50-04-SUMMARY.md
+- FOUND: f7c4b07 (Task 1 commit)
+- FOUND: f14a447 (Task 2 commit)
+- FOUND: d0270ad (Task 3 commit)
+- FOUND: a1ba9d8 (SUMMARY commit)
