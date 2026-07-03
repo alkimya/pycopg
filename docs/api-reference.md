@@ -186,6 +186,20 @@ Available on `db.schema.*` and `async_db.schema.*`.
 | `views` | `schema="public"` | `list[str]` |
 | `describe` | `table, schema="public"` | `dict` |
 
+### Introspection Methods (v1.1.0)
+
+Available on `db.schema.*` and `async_db.schema.*`. `information_schema.views`/`columns`
+exclude materialized views per the SQL standard, so these two methods use dedicated
+`pg_catalog` queries to close that gap (D-13/D-14). `materialized_view_columns` returns
+the same 8-key shape as `table_info`; matview columns never carry NOT NULL constraints or
+defaults, so `is_nullable` is always `'YES'` and `column_default` is always `None` —
+faithful to what a materialized view actually is, not a bug.
+
+| Method | Parameters | Returns |
+|--------|------------|---------|
+| `materialized_views` | `schema="public"` | `list[str]` |
+| `materialized_view_columns` | `name, schema="public"` | `list[dict]` |
+
 ### Extension Methods
 
 | Method | Parameters | Returns |

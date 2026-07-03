@@ -1404,6 +1404,122 @@ class TestIntrospectionHelpers:
             db.schema.truncate_table(missing)
 
 
+class TestMaterializedViewIntegration:
+    """INTRO-F02: live-DB proof that materialized_views/materialized_view_columns
+    close the information_schema gap for matviews (D-13/D-14), matching
+    table_info's 8-key shape byte-for-byte, on both Database and AsyncDatabase.
+    """
+
+    def _make_base_and_matview(self, db, base, mv):
+        db.execute(
+            f'CREATE TABLE "{base}" ('
+            "id SERIAL PRIMARY KEY, "
+            "name VARCHAR(50), "
+            "amount NUMERIC(10,2), "
+            "created_at TIMESTAMPTZ)",
+            autocommit=True,
+        )
+        db.execute(
+            f'CREATE MATERIALIZED VIEW "{mv}" AS '
+            f'SELECT id, name, amount, created_at FROM "{base}"',
+            autocommit=True,
+        )
+
+    def test_materialized_views_lists_name(self, db, temp_table_name, cleanup_table):
+        """materialized_views() lists the created matview name."""
+        base = temp_table_name + "_base"
+        mv = temp_table_name + "_mv"
+        cleanup_table(base)
+        self._make_base_and_matview(db, base, mv)
+        try:
+            names = db.schema.materialized_views(schema="public")
+            assert mv in names
+        finally:
+            db.execute(f'DROP MATERIALIZED VIEW IF EXISTS "{mv}"', autocommit=True)
+
+    def test_materialized_view_columns_matches_table_info_shape(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """materialized_view_columns returns the same 8 keys as table_info, with
+        matching data_type/character_maximum_length/numeric_precision/numeric_scale,
+        and faithfully reports is_nullable='YES' + column_default=None (Pitfall 1)."""
+        base = temp_table_name + "_base"
+        mv = temp_table_name + "_mv"
+        cleanup_table(base)
+        self._make_base_and_matview(db, base, mv)
+        try:
+            base_cols = {c["column_name"]: c for c in db.schema.table_info(base)}
+            mv_cols = db.schema.materialized_view_columns(mv, schema="public")
+
+            assert {c["column_name"] for c in mv_cols} == set(base_cols)
+            for col in mv_cols:
+                assert set(col.keys()) == {
+                    "column_name",
+                    "data_type",
+                    "is_nullable",
+                    "column_default",
+                    "ordinal_position",
+                    "character_maximum_length",
+                    "numeric_precision",
+                    "numeric_scale",
+                }
+                base_col = base_cols[col["column_name"]]
+                assert col["data_type"] == base_col["data_type"]
+                assert (
+                    col["character_maximum_length"]
+                    == base_col["character_maximum_length"]
+                )
+                assert col["numeric_precision"] == base_col["numeric_precision"]
+                assert col["numeric_scale"] == base_col["numeric_scale"]
+                # Pitfall 1: matviews never carry NOT NULL / defaults, faithfully
+                assert col["is_nullable"] == "YES"
+                assert col["column_default"] is None
+        finally:
+            db.execute(f'DROP MATERIALIZED VIEW IF EXISTS "{mv}"', autocommit=True)
+
+    def test_materialized_view_columns_nonexistent_returns_empty(self, db):
+        """materialized_view_columns returns [] for a nonexistent matview."""
+        result = db.schema.materialized_view_columns("no_such_mv_xyz_50_03")
+        assert result == []
+
+    async def test_materialized_views_async(self, db_config):
+        """Async mirror: materialized_views + materialized_view_columns match
+        the sync shape and faithfully report Pitfall 1 nullability/defaults."""
+        adb = AsyncDatabase(db_config)
+        base = f"test_mv_async_base_{uuid.uuid4().hex[:8]}"
+        mv = f"test_mv_async_mv_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{base}" ('
+                "id SERIAL PRIMARY KEY, "
+                "name VARCHAR(50), "
+                "amount NUMERIC(10,2), "
+                "created_at TIMESTAMPTZ)",
+                autocommit=True,
+            )
+            await adb.execute(
+                f'CREATE MATERIALIZED VIEW "{mv}" AS '
+                f'SELECT id, name, amount, created_at FROM "{base}"',
+                autocommit=True,
+            )
+            names = await adb.schema.materialized_views(schema="public")
+            assert mv in names
+
+            base_cols = {c["column_name"]: c for c in await adb.schema.table_info(base)}
+            mv_cols = await adb.schema.materialized_view_columns(mv, schema="public")
+            assert {c["column_name"] for c in mv_cols} == set(base_cols)
+            for col in mv_cols:
+                base_col = base_cols[col["column_name"]]
+                assert col["data_type"] == base_col["data_type"]
+                assert col["is_nullable"] == "YES"
+                assert col["column_default"] is None
+        finally:
+            await adb.execute(
+                f'DROP MATERIALIZED VIEW IF EXISTS "{mv}"', autocommit=True
+            )
+            await adb.execute(f'DROP TABLE IF EXISTS "{base}" CASCADE', autocommit=True)
+
+
 class TestWhereSqlEscapeHatchIntegration:
     """CRUD-F01: live-DB proof that the raw where_sql predicate executes and
     where_params bind server-side, on both Database and AsyncDatabase."""
