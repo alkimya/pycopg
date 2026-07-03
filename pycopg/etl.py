@@ -29,7 +29,7 @@ import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
@@ -190,6 +190,28 @@ class Pipeline:
         lands in a later plan (D-04) once ``incremental_column`` is
         widened to a tuple. Default ``None`` (byte-identical to today's
         full-initial-load behavior).
+    incremental_inclusive : bool, optional
+        When ``True`` the incremental extract filter uses ``>=`` instead of
+        the default exclusive ``>`` (ETL-INC-F02, D-05) — the boundary row
+        (``col == watermark``) is re-read every run. Safe because
+        incremental requires ``load_mode="upsert"``: the overlap replay is
+        an idempotent ``ON CONFLICT`` no-op (D-08, C-01). Orthogonal to
+        ``incremental_lookback``. Default ``False`` (byte-identical to the
+        current exclusive SQL).
+    incremental_lookback : timedelta, int, or None, optional
+        Overlap window subtracted from the READ floor to re-scan
+        late-arriving rows (ETL-INC-F02, D-06). The subtraction happens in
+        Python before binding — e.g. floor ``100`` with lookback ``10``
+        reads ``WHERE col > 90``; a ``datetime`` floor with
+        ``timedelta(hours=1)`` reads ``floor - 1h``. The RECORDED
+        high-water mark is always the true ``max(col)`` — lookback widens
+        the read window only, it never regresses the stored watermark
+        (D-07). Requires a ``datetime`` or ``int`` watermark: applying a
+        lookback to a ``str``-typed watermark raises :class:`ETLError` at
+        run time (D-06). Like inclusive, the overlap replay is a safe
+        idempotent upsert no-op (D-08, C-01). Must be a ``timedelta`` or a
+        non-``bool`` ``int`` when set. Default ``None`` (no overlap,
+        byte-identical to today).
 
     Raises
     ------
@@ -210,6 +232,9 @@ class Pipeline:
         If a scalar ``initial_watermark`` is not one of the supported
         ``{datetime, int, str}`` types — e.g. ``bool`` or ``float``
         (D-02, C-02).
+    ValueError
+        If ``incremental_lookback`` is set to something other than a
+        ``timedelta`` or a non-``bool`` ``int`` (D-05).
 
     Examples
     --------
@@ -238,6 +263,8 @@ class Pipeline:
     extract_limit: int | None = None
     incremental_column: str | None = None
     initial_watermark: datetime | int | str | Sequence[Any] | None = None
+    incremental_inclusive: bool = False
+    incremental_lookback: timedelta | int | None = None
 
     def __post_init__(self) -> None:
         """Validate and normalize fields at construction time.
@@ -294,6 +321,22 @@ class Pipeline:
                 )
             if not isinstance(self.initial_watermark, (list, tuple)):
                 _encode_watermark(self.initial_watermark)  # type: ignore[arg-type]
+        # Validate incremental_lookback (ETL-INC-F02, D-05): when set it must
+        # be a timedelta or a plain (non-bool) int. bool is an int subclass, so
+        # guard it explicitly — lookback=True would otherwise subtract 1 (the
+        # same subclass trap as extract_limit/C-02). The str-watermark+lookback
+        # incompatibility can only be checked once the watermark type is known,
+        # so it is a RUNTIME guard in run() (D-06), not here.
+        if self.incremental_lookback is not None and not isinstance(
+            self.incremental_lookback, timedelta
+        ):
+            if isinstance(self.incremental_lookback, bool) or not isinstance(
+                self.incremental_lookback, int
+            ):
+                raise ValueError(
+                    "incremental_lookback must be a timedelta, a non-bool int, "
+                    f"or None, got {self.incremental_lookback!r} (D-05)"
+                )
         # Require conflict_columns when upsert is selected (D-07).
         if self.load_mode == "upsert" and not self.conflict_columns:
             raise ValueError(
@@ -588,6 +631,8 @@ def _build_incremental_extract_sql(
     column: str,
     schema: str = "public",
     watermark: datetime | int | str | None = None,
+    *,
+    inclusive: bool = False,
 ) -> tuple[str, list[Any]]:
     """Build the watermark-filtered incremental extract SQL.
 
@@ -602,7 +647,8 @@ def _build_incremental_extract_sql(
 
     When ``watermark is None`` (first run or no prior watermark) a full,
     unfiltered SELECT is returned with an empty params list (D-12).  The
-    boundary is exclusive (``>``), matching the REQUIREMENTS contract.
+    boundary defaults to exclusive (``>``), matching the REQUIREMENTS
+    contract; ``inclusive=True`` emits ``>=`` instead (ETL-INC-F02, D-05).
 
     Parameters
     ----------
@@ -618,6 +664,11 @@ def _build_incremental_extract_sql(
     watermark : optional
         High-water mark value, or ``None`` for a full unfiltered extract
         (D-12). When set it is the single ``%s`` parameter.
+    inclusive : bool, keyword-only, optional
+        When ``True`` the comparison operator is ``>=`` (boundary row
+        re-read); default ``False`` uses the exclusive ``>`` (ETL-INC-F02,
+        D-05). The operator is a literal chosen from this bool, never
+        user text — the injection surface is unchanged.
 
     Returns
     -------
@@ -637,14 +688,16 @@ def _build_incremental_extract_sql(
             return source, []
         validate_identifiers(source, schema)
         return f"SELECT * FROM {schema}.{source}", []
+    # Operator is a literal chosen from the inclusive bool — never user text.
+    op = ">=" if inclusive else ">"
     if _is_sql_source(source):
         # Right-strip whitespace, a single trailing ';', then whitespace
         # again before wrapping (D-08 hygiene — no SQL parser).
         clean = source.rstrip().rstrip(";").rstrip()
-        sql = f"SELECT * FROM ({clean}) {_PYCOPG_INC_ALIAS} WHERE {column} > %s"
+        sql = f"SELECT * FROM ({clean}) {_PYCOPG_INC_ALIAS} WHERE {column} {op} %s"
         return sql, [watermark]
     validate_identifiers(source, schema)
-    return f"SELECT * FROM {schema}.{source} WHERE {column} > %s", [watermark]
+    return f"SELECT * FROM {schema}.{source} WHERE {column} {op} %s", [watermark]
 
 
 #: Watermark types that can be stored in the typed JSONB envelope (D-04).
@@ -1137,6 +1190,7 @@ class ETLAccessor:
                 pipeline.incremental_column,
                 pipeline.schema,
                 watermark=watermark,
+                inclusive=pipeline.incremental_inclusive,
             )
             if _params:
                 # Replace the single positional %s with a named :wm bind
@@ -1861,6 +1915,7 @@ class AsyncETLAccessor:
                 pipeline.incremental_column,
                 pipeline.schema,
                 watermark=watermark,
+                inclusive=pipeline.incremental_inclusive,
             )
             if _params:
                 # Replace the single positional %s with a named :wm bind

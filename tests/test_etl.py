@@ -338,6 +338,51 @@ class TestInitialWatermark:
         assert p.initial_watermark == 0
 
 
+class TestIncrementalBoundaryConstruction:
+    """DB-free construction tests for incremental_inclusive/incremental_lookback (F02, D-05)."""
+
+    def _incr(self, **kw):
+        return Pipeline(
+            name="b",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="ts",
+            **kw,
+        )
+
+    def test_boundary_defaults(self):
+        """Defaults reproduce today's exact behavior: exclusive, no lookback."""
+        p = self._incr()
+        assert p.incremental_inclusive is False
+        assert p.incremental_lookback is None
+
+    def test_inclusive_true_constructs(self):
+        """incremental_inclusive=True is accepted (bare bool, no cross-field guard)."""
+        assert self._incr(incremental_inclusive=True).incremental_inclusive is True
+
+    def test_lookback_int_constructs(self):
+        """A non-bool positive int lookback constructs."""
+        assert self._incr(incremental_lookback=10).incremental_lookback == 10
+
+    def test_lookback_timedelta_constructs(self):
+        """A timedelta lookback constructs (datetime-watermark overlap window)."""
+        assert self._incr(
+            incremental_lookback=timedelta(hours=1)
+        ).incremental_lookback == timedelta(hours=1)
+
+    def test_lookback_bool_raises(self):
+        """incremental_lookback=True raises — bool is an int subclass, rejected (D-05 trap)."""
+        with pytest.raises(ValueError, match="incremental_lookback"):
+            self._incr(incremental_lookback=True)
+
+    def test_lookback_str_raises(self):
+        """A str lookback raises (not a timedelta or int, D-05)."""
+        with pytest.raises(ValueError, match="incremental_lookback"):
+            self._incr(incremental_lookback="10")
+
+
 class TestBuilders:
     """Exact SQL string + params assertions for pure ETL builders."""
 
@@ -715,7 +760,7 @@ class TestBuildIncrementalExtractSql:
             _build_incremental_extract_sql("events", "ts", "bad-schema!", 1)
 
     def test_uses_exclusive_boundary(self):
-        """The filter uses '>' (exclusive), never '>=' (REQUIREMENTS Out-of-Scope)."""
+        """Default (inclusive omitted) uses '>' (exclusive), never '>=' (D-05 default)."""
         sql, _ = _build_incremental_extract_sql("events", "ts", "public", 1)
         assert ">=" not in sql
         assert "> %s" in sql
@@ -727,6 +772,43 @@ class TestBuildIncrementalExtractSql:
         assert len(result) == 2
         assert isinstance(result[0], str)
         assert isinstance(result[1], list)
+
+    # --- ETL-INC-F02: inclusive boundary operator (D-05) ---
+
+    def test_inclusive_false_default_is_exclusive_gt(self):
+        """inclusive=False (explicit) keeps '>' for both source kinds (regression)."""
+        tbl_sql, tbl_p = _build_incremental_extract_sql(
+            "t", "col", watermark=5, inclusive=False
+        )
+        src_sql, src_p = _build_incremental_extract_sql(
+            "SELECT 1 AS col", "col", watermark=5, inclusive=False
+        )
+        assert "col > %s" in tbl_sql and ">=" not in tbl_sql
+        assert "col > %s" in src_sql and ">=" not in src_sql
+        assert tbl_p == [5] and src_p == [5]  # watermark is the only bound param
+
+    def test_inclusive_true_table_source_uses_gte(self):
+        """inclusive=True emits '>=' on a table source; watermark still the only param."""
+        sql, params = _build_incremental_extract_sql(
+            "t", "col", watermark=5, inclusive=True
+        )
+        assert "col >= %s" in sql
+        assert params == [5]
+
+    def test_inclusive_true_sql_source_uses_gte(self):
+        """inclusive=True emits '>=' on a SQL-string source (subquery wrap)."""
+        sql, params = _build_incremental_extract_sql(
+            "SELECT 1 AS col", "col", watermark=5, inclusive=True
+        )
+        assert "col >= %s" in sql
+        assert params == [5]
+
+    def test_inclusive_path_validates_identifiers(self):
+        """validate_identifiers still fires before interpolation on the inclusive path."""
+        with pytest.raises(InvalidIdentifierError):
+            _build_incremental_extract_sql(
+                "events", "bad-col!", "public", 1, inclusive=True
+            )
 
 
 class TestEncodeDecodeWatermark:
