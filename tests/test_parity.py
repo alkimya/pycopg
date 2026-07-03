@@ -125,6 +125,36 @@ def test_timescale_v110_surface():
         ), f"{cls.__name__} is missing Phase 48 method(s): {sorted(missing)}"
 
 
+def test_crud_v110_surface():
+    """Assert both Database/AsyncDatabase expose the Phase 50-02 pagination additions.
+
+    A named frozenset of the Phase 50-02 (CRUD-F02/F03) method names —
+    ``paginate_page`` and ``paginate_keyset`` — must be a subset of the
+    public members of BOTH :class:`Database` and :class:`AsyncDatabase`, so a
+    silently dropped or renamed method fails loudly. These methods live on
+    the flat core (not an accessor), so this checks the classes directly
+    rather than an ``ACCESSOR_PAIRS`` entry.
+
+    Per-method signature parity is covered by
+    :func:`test_accessor_parameter_kind_parity`.
+    """
+    v110_crud_surface = frozenset(
+        {
+            "paginate_page",
+            "paginate_keyset",
+        }
+    )
+
+    for cls in (Database, AsyncDatabase):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v110_crud_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 50-02 method(s): {sorted(missing)}"
+
+
 def test_schema_v090_surface():
     """Assert both schema accessors expose the 5 new v0.9.0 introspection methods.
 

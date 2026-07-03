@@ -441,6 +441,257 @@ class TestAsyncWhereSqlGuards:
 
 
 @pytest.mark.asyncio
+class TestAsyncPaginatePage:
+    """CRUD-F03 (D-09/D-10): async mirror mock SQL-shape tests for
+    paginate_page / Page envelope."""
+
+    async def test_paginate_page_basic_shape(self, config):
+        """paginate_page fetches limit+1 rows, ORDER BY, returns a Page."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}, {"id": 2}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_page("events", 2, order_by="id")
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.events ORDER BY id LIMIT 3 OFFSET 0"
+            assert params == []
+            assert page.rows == [{"id": 1}, {"id": 2}]
+            assert page.has_next is False
+            assert page.total is None
+            assert page.next_cursor is None
+
+    async def test_paginate_page_has_next_true_trims_sentinel(self, config):
+        """limit+1 rows returned -> has_next=True, sentinel row trimmed (D-10)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}, {"id": 2}, {"id": 3}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_page("events", 2)
+
+            assert page.rows == [{"id": 1}, {"id": 2}]
+            assert page.has_next is True
+
+    async def test_paginate_page_with_total_runs_separate_count(self, config):
+        """with_total=True runs a separate COUNT(*) using the same predicate (D-10)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)],
+            fetchall_result=[{"id": 1}],
+            fetchone_result={"count": 42},
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_page(
+                "events", 10, where={"active": True}, with_total=True
+            )
+
+            assert page.total == 42
+            select_call, count_call = cursor_mock.execute.call_args_list
+            assert select_call[0][0] == (
+                "SELECT * FROM public.events WHERE active = %s LIMIT 11 OFFSET 0"
+            )
+            assert (
+                count_call[0][0]
+                == "SELECT COUNT(*) FROM public.events WHERE active = %s"
+            )
+            assert count_call[0][1] == [True]
+
+    async def test_paginate_page_where_sql_composes(self, config):
+        """paginate_page composes where_sql/where_params like paginate does (D-01)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_page(
+                "events", 10, where_sql="created_at > %s", where_params=["2026-01-01"]
+            )
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT * FROM public.events WHERE created_at > %s LIMIT 11 OFFSET 0"
+            )
+            assert params == ["2026-01-01"]
+            assert page.rows == [{"id": 1}]
+
+
+@pytest.mark.asyncio
+class TestAsyncPaginateKeyset:
+    """CRUD-F02 (D-05..D-07): async mirror mock SQL-shape + guard tests for
+    paginate_keyset."""
+
+    async def test_paginate_keyset_first_page_no_after(self, config):
+        """after=None (first page) omits the keyset fragment entirely."""
+        rows = [
+            {"created_at": "2026-01-01", "id": 1},
+            {"created_at": "2026-01-02", "id": 2},
+        ]
+        cursor_mock = create_async_cursor_mock(
+            description=[("created_at",), ("id",)], fetchall_result=rows
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_keyset(
+                "events", 2, order_by=["created_at", "id"]
+            )
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT * FROM public.events ORDER BY created_at, id LIMIT 3"
+            )
+            assert params == []
+            assert page.rows == rows
+            assert page.has_next is False
+            assert page.next_cursor == ("2026-01-02", 2)
+
+    async def test_paginate_keyset_with_after_builds_row_value_where(self, config):
+        """after= builds the row-value keyset WHERE fragment (D-06/D-07)."""
+        rows = [{"created_at": "2026-01-03", "id": 3}]
+        cursor_mock = create_async_cursor_mock(
+            description=[("created_at",), ("id",)], fetchall_result=rows
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_keyset(
+                "events", 50, order_by=["created_at", "id"], after=("2026-01-02", 2)
+            )
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT * FROM public.events WHERE (created_at, id) > (%s, %s) "
+                "ORDER BY created_at, id LIMIT 51"
+            )
+            assert params == ["2026-01-02", 2]
+            assert page.next_cursor == ("2026-01-03", 3)
+
+    async def test_paginate_keyset_descending_flips_operator_and_order(self, config):
+        """descending=True flips both the row-value operator AND ORDER BY DESC
+        (Pitfall 3 — both must agree)."""
+        rows = [{"created_at": "2026-01-01", "id": 1}]
+        cursor_mock = create_async_cursor_mock(
+            description=[("created_at",), ("id",)], fetchall_result=rows
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            await db.paginate_keyset(
+                "events",
+                10,
+                order_by=["created_at", "id"],
+                after=("2026-01-02", 2),
+                descending=True,
+            )
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT * FROM public.events WHERE (created_at, id) < (%s, %s) "
+                "ORDER BY created_at, id DESC LIMIT 11"
+            )
+            assert params == ["2026-01-02", 2]
+
+    async def test_paginate_keyset_composes_where_sql_with_keyset(self, config):
+        """The keyset fragment ANDs with the optional where_sql predicate."""
+        rows = [{"created_at": "2026-01-03", "id": 3}]
+        cursor_mock = create_async_cursor_mock(
+            description=[("created_at",), ("id",)], fetchall_result=rows
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            await db.paginate_keyset(
+                "events",
+                10,
+                order_by=["created_at", "id"],
+                after=("2026-01-02", 2),
+                where_sql="status = %s",
+                where_params=["active"],
+            )
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT * FROM public.events WHERE (created_at, id) > (%s, %s) "
+                "AND status = %s ORDER BY created_at, id LIMIT 11"
+            )
+            assert params == ["2026-01-02", 2, "active"]
+
+    async def test_paginate_keyset_with_total_uses_base_predicate_only(self, config):
+        """with_total's COUNT uses only the base predicate, not the keyset
+        after fragment (D-10 — total is the full filtered set)."""
+        rows = [{"created_at": "2026-01-03", "id": 3}]
+        cursor_mock = create_async_cursor_mock(
+            description=[("created_at",), ("id",)],
+            fetchall_result=rows,
+            fetchone_result={"count": 100},
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_keyset(
+                "events",
+                10,
+                order_by=["created_at", "id"],
+                after=("2026-01-02", 2),
+                where={"status": "active"},
+                with_total=True,
+            )
+
+            assert page.total == 100
+            _select_call, count_call = cursor_mock.execute.call_args_list
+            assert (
+                count_call[0][0]
+                == "SELECT COUNT(*) FROM public.events WHERE status = %s"
+            )
+            assert count_call[0][1] == ["active"]
+
+    async def test_paginate_keyset_order_by_required(self, config):
+        """order_by is mandatory (D-07) — omitting it raises ValueError."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="order_by"):
+            await db.paginate_keyset("t", 10)
+
+    async def test_paginate_keyset_after_arity_mismatch_raises(self, config):
+        """A mismatched after= arity raises before any DB round-trip (Pitfall 4)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="after must have exactly"):
+            await db.paginate_keyset("t", 10, order_by=["a", "b"], after=(1,))
+
+
+@pytest.mark.asyncio
 class TestAsyncDatabaseSchemas:
     """Async tests for schema methods."""
 

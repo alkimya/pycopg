@@ -733,6 +733,257 @@ class TestBuildKeysetWhere:
             QueryMixin._build_keyset_where(["a; DROP TABLE x"], (1,), False)
 
 
+class TestPaginatePage:
+    """CRUD-F03 (D-09/D-10): paginate_page mock SQL-shape + Page envelope tests."""
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_basic_shape(self, mock_psycopg, config):
+        """paginate_page fetches limit+1 rows, ORDER BY, returns a Page."""
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("id",)],
+            fetchall=[{"id": 1}, {"id": 2}],
+        )
+
+        page = db.paginate_page("events", 2, order_by="id")
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.events ORDER BY id LIMIT 3 OFFSET 0"
+        assert params == []
+        assert page.rows == [{"id": 1}, {"id": 2}]
+        assert page.has_next is False
+        assert page.total is None
+        assert page.next_cursor is None
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_has_next_true_trims_sentinel(self, mock_psycopg, config):
+        """When limit+1 rows are returned, has_next=True and the sentinel row
+        is trimmed off (D-10)."""
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("id",)],
+            fetchall=[{"id": 1}, {"id": 2}, {"id": 3}],
+        )
+
+        page = db.paginate_page("events", 2)
+
+        assert page.rows == [{"id": 1}, {"id": 2}]
+        assert page.has_next is True
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_with_total_runs_separate_count(self, mock_psycopg, config):
+        """with_total=True runs a separate COUNT(*) using the same predicate (D-10)."""
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("id",)],
+            fetchall=[{"id": 1}],
+        )
+        mock_cursor.fetchone.return_value = {"count": 42}
+
+        page = db.paginate_page(
+            "events", 10, where={"active": True}, with_total=True
+        )
+
+        assert page.total == 42
+        select_call, count_call = mock_cursor.execute.call_args_list
+        assert select_call[0][0] == (
+            "SELECT * FROM public.events WHERE active = %s LIMIT 11 OFFSET 0"
+        )
+        assert count_call[0][0] == "SELECT COUNT(*) FROM public.events WHERE active = %s"
+        assert count_call[0][1] == [True]
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_with_total_false_leaves_total_none(
+        self, mock_psycopg, config
+    ):
+        """with_total=False (the default) never runs a COUNT query (D-10)."""
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        page = db.paginate_page("events", 10)
+
+        assert page.total is None
+        assert mock_cursor.execute.call_count == 1
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_where_sql_composes(self, mock_psycopg, config):
+        """paginate_page composes where_sql/where_params like paginate does (D-01)."""
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        page = db.paginate_page(
+            "events", 10, where_sql="created_at > %s", where_params=["2026-01-01"]
+        )
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "SELECT * FROM public.events WHERE created_at > %s LIMIT 11 OFFSET 0"
+        )
+        assert params == ["2026-01-01"]
+        assert page.rows == [{"id": 1}]
+
+
+class TestPaginateKeyset:
+    """CRUD-F02 (D-05..D-07): paginate_keyset mock SQL-shape + guard tests."""
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_first_page_no_after(self, mock_psycopg, config):
+        """after=None (first page) omits the keyset fragment entirely."""
+        rows = [
+            {"created_at": "2026-01-01", "id": 1},
+            {"created_at": "2026-01-02", "id": 2},
+        ]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("created_at",), ("id",)],
+            fetchall=rows,
+        )
+
+        page = db.paginate_keyset("events", 2, order_by=["created_at", "id"])
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.events ORDER BY created_at, id LIMIT 3"
+        assert params == []
+        assert page.rows == rows
+        assert page.has_next is False
+        assert page.next_cursor == ("2026-01-02", 2)
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_with_after_builds_row_value_where(
+        self, mock_psycopg, config
+    ):
+        """after= builds the row-value keyset WHERE fragment (D-06/D-07)."""
+        rows = [{"created_at": "2026-01-03", "id": 3}]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("created_at",), ("id",)],
+            fetchall=rows,
+        )
+
+        page = db.paginate_keyset(
+            "events", 50, order_by=["created_at", "id"], after=("2026-01-02", 2)
+        )
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "SELECT * FROM public.events WHERE (created_at, id) > (%s, %s) "
+            "ORDER BY created_at, id LIMIT 51"
+        )
+        assert params == ["2026-01-02", 2]
+        assert page.next_cursor == ("2026-01-03", 3)
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_descending_flips_operator_and_order(
+        self, mock_psycopg, config
+    ):
+        """descending=True flips both the row-value operator AND ORDER BY DESC
+        (Pitfall 3 — both must agree)."""
+        rows = [{"created_at": "2026-01-01", "id": 1}]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("created_at",), ("id",)],
+            fetchall=rows,
+        )
+
+        db.paginate_keyset(
+            "events",
+            10,
+            order_by=["created_at", "id"],
+            after=("2026-01-02", 2),
+            descending=True,
+        )
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "SELECT * FROM public.events WHERE (created_at, id) < (%s, %s) "
+            "ORDER BY created_at, id DESC LIMIT 11"
+        )
+        assert params == ["2026-01-02", 2]
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_composes_where_sql_with_keyset(
+        self, mock_psycopg, config
+    ):
+        """The keyset fragment ANDs with the optional where_sql predicate."""
+        rows = [{"created_at": "2026-01-03", "id": 3}]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("created_at",), ("id",)],
+            fetchall=rows,
+        )
+
+        db.paginate_keyset(
+            "events",
+            10,
+            order_by=["created_at", "id"],
+            after=("2026-01-02", 2),
+            where_sql="status = %s",
+            where_params=["active"],
+        )
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "SELECT * FROM public.events WHERE (created_at, id) > (%s, %s) "
+            "AND status = %s ORDER BY created_at, id LIMIT 11"
+        )
+        assert params == ["2026-01-02", 2, "active"]
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_with_total_uses_base_predicate_only(
+        self, mock_psycopg, config
+    ):
+        """with_total's COUNT uses only the base predicate, not the keyset
+        after fragment (D-10 — total is the full filtered set)."""
+        rows = [{"created_at": "2026-01-03", "id": 3}]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg,
+            config,
+            description=[("created_at",), ("id",)],
+            fetchall=rows,
+        )
+        mock_cursor.fetchone.return_value = {"count": 100}
+
+        page = db.paginate_keyset(
+            "events",
+            10,
+            order_by=["created_at", "id"],
+            after=("2026-01-02", 2),
+            where={"status": "active"},
+            with_total=True,
+        )
+
+        assert page.total == 100
+        _select_call, count_call = mock_cursor.execute.call_args_list
+        assert (
+            count_call[0][0]
+            == "SELECT COUNT(*) FROM public.events WHERE status = %s"
+        )
+        assert count_call[0][1] == ["active"]
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_order_by_required(self, mock_psycopg, config):
+        """order_by is mandatory (D-07) — omitting it raises ValueError."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="order_by"):
+            db.paginate_keyset("t", 10)
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_after_arity_mismatch_raises(self, mock_psycopg, config):
+        """A mismatched after= arity raises before any DB round-trip (Pitfall 4)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="after must have exactly"):
+            db.paginate_keyset("t", 10, order_by=["a", "b"], after=(1,))
+
+
 class TestDatabaseContextManager:
     """Tests for Database context manager."""
 

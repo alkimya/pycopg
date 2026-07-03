@@ -1243,6 +1243,277 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                 return await cur.fetchall()
             return []
 
+    async def paginate_page(
+        self,
+        table: str,
+        limit: int,
+        *,
+        offset: int = 0,
+        order_by: str | list[str] | None = None,
+        where: dict[str, Any] | None = None,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
+        with_total: bool = False,
+        descending: bool = False,
+        schema: str = "public",
+    ) -> Page:
+        """Return an offset page wrapped in a :class:`Page` envelope (D-09).
+
+        Sibling of :meth:`paginate` returning a typed :class:`Page` instead
+        of a plain ``list[dict]``. :meth:`paginate` itself is left untouched
+        (frozen ``list[dict]``, C-03). ``has_next`` is always computed
+        cheaply via a ``limit + 1`` fetch-and-trim; ``total`` runs a
+        separate ``COUNT(*)`` only when ``with_total=True`` (D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        limit : int
+            Maximum number of rows to return in the page. Cast to ``int``
+            before use.
+        offset : int, optional
+            Number of rows to skip, by default 0. Cast to ``int`` before
+            use.
+        order_by : str or list of str, optional
+            Column name(s) to sort by. Each name is validated via
+            ``validate_identifiers`` before interpolation. Whole-clause
+            direction is controlled by ``descending``.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. Mutually
+            exclusive with ``where_sql`` (D-02).
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express. Documented escape
+            hatch: passed through **verbatim**, never run through identifier
+            validation — the caller owns the SQL text. Only
+            ``where_params`` are treated as untrusted values and bound as
+            ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
+        with_total : bool, optional
+            When ``True``, run a separate ``COUNT(*)`` (same predicate) and
+            populate ``Page.total``. By default ``False`` — avoids a
+            surprise ``COUNT`` on deep pages (D-10).
+        descending : bool, optional
+            When ``True``, append ``DESC`` to the ORDER BY clause.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        Page
+            ``rows`` (trimmed to ``limit``), ``total`` (``int`` when
+            ``with_total=True`` else ``None``), ``has_next``, and
+            ``next_cursor`` (always ``None`` — offset pagination has no
+            cursor concept).
+
+        Raises
+        ------
+        ValueError
+            If both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
+        InvalidIdentifierError
+            If any column name in ``order_by`` or the table/schema
+            identifier is invalid.
+        """
+        validate_identifiers(table, schema)
+
+        params: list[Any] = []
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        where_clause = f" WHERE {frag}" if frag else ""
+        params.extend(pred_params)
+
+        order_clause = ""
+        if order_by is not None:
+            if isinstance(order_by, str):
+                order_by_cols = [order_by]
+            else:
+                order_by_cols = list(order_by)
+            if any(not isinstance(c, str) or not c for c in order_by_cols):
+                raise ValueError("order_by columns must be non-empty strings")
+            validate_identifiers(*order_by_cols)
+            cols_str = ", ".join(order_by_cols)
+            direction = " DESC" if descending else ""
+            order_clause = f" ORDER BY {cols_str}{direction}"
+
+        sql = (
+            f"SELECT * FROM {schema}.{table}"
+            f"{where_clause}"
+            f"{order_clause}"
+            f" LIMIT {int(limit) + 1} OFFSET {int(offset)}"
+        )
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            rows: list[dict[str, Any]] = (
+                await cur.fetchall() if cur.description else []
+            )
+
+        has_next = len(rows) > limit
+        rows = rows[:limit]
+
+        total: int | None = None
+        if with_total:
+            count_sql = f"SELECT COUNT(*) FROM {schema}.{table}{where_clause}"
+            total = int(await self.fetch_val(count_sql, pred_params))
+
+        return Page(rows=rows, total=total, has_next=has_next, next_cursor=None)
+
+    async def paginate_keyset(
+        self,
+        table: str,
+        limit: int,
+        *,
+        order_by: str | list[str] | None = None,
+        after: Sequence[Any] | None = None,
+        where: dict[str, Any] | None = None,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
+        with_total: bool = False,
+        descending: bool = False,
+        schema: str = "public",
+    ) -> Page:
+        """Return a keyset (seek) page wrapped in a :class:`Page` envelope (D-05).
+
+        Stable, index-friendly deep pagination via a PostgreSQL row-value
+        comparison ``(c1, c2) > (%s, %s)`` (D-07,
+        :meth:`pycopg.base.QueryMixin._build_keyset_where`) instead of
+        ``OFFSET``. ``order_by`` is mandatory — the caller owns a
+        unique/total order (append a unique column such as the primary key
+        as a tiebreaker); no hidden PK-introspection round-trip is
+        performed. **Forward-only** for this release — ``before=``/backward
+        paging is deferred.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        limit : int
+            Maximum number of rows to return in the page. Cast to ``int``
+            before use.
+        order_by : str or list of str
+            Column name(s) defining the seek order. **Mandatory** (D-07) —
+            raises ``ValueError`` if omitted. Each name is validated via
+            ``validate_identifiers`` before interpolation.
+        after : Sequence, optional
+            Cursor values, positionally keyed to ``order_by`` (D-06). Omit
+            (or pass ``None``) to fetch the first page — the keyset
+            fragment is skipped entirely (``ORDER BY`` + ``LIMIT`` only).
+            Must have exactly ``len(order_by)`` values.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. Mutually
+            exclusive with ``where_sql`` (D-02). ANDed with the keyset
+            fragment when both are present.
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express. Documented escape
+            hatch: passed through **verbatim**, never run through identifier
+            validation — the caller owns the SQL text. Only
+            ``where_params`` are treated as untrusted values and bound as
+            ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
+        with_total : bool, optional
+            When ``True``, run a separate ``COUNT(*)`` using only the base
+            predicate (``where``/``where_sql``, **not** the keyset ``after``
+            fragment — the total is the full filtered set, not the
+            remaining-after-cursor set) and populate ``Page.total``. By
+            default ``False`` (D-10).
+        descending : bool, optional
+            When ``True``, flips the row-value comparison operator to ``<``
+            **and** appends ``DESC`` to ``ORDER BY`` — both must agree
+            (Pitfall 3). By default ``False``.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        Page
+            ``rows`` (trimmed to ``limit``), ``total`` (``int`` when
+            ``with_total=True`` else ``None``), ``has_next``, and
+            ``next_cursor`` — the last row's ``order_by``-keyed value tuple
+            (D-06), keyed to ``order_by`` columns (Pitfall 4), or ``None``
+            when the page is empty.
+
+        Raises
+        ------
+        ValueError
+            If ``order_by`` is omitted (D-07); if ``after`` is supplied and
+            ``len(after) != len(order_by)``; if both ``where`` and
+            ``where_sql`` are supplied (D-02); if ``where_params`` is
+            supplied without ``where_sql`` (D-04); or if ``where_sql`` is
+            empty/whitespace-only (D-03).
+        InvalidIdentifierError
+            If any column name in ``order_by`` or the table/schema
+            identifier is invalid.
+        """
+        validate_identifiers(table, schema)
+
+        if order_by is None:
+            raise ValueError(
+                "paginate_keyset requires order_by (D-07) — the row-value "
+                "keyset compare needs an explicit, ideally unique, sort order."
+            )
+        if isinstance(order_by, str):
+            order_cols = [order_by]
+        else:
+            order_cols = list(order_by)
+        if any(not isinstance(c, str) or not c for c in order_cols):
+            raise ValueError("order_by columns must be non-empty strings")
+        validate_identifiers(*order_cols)
+
+        if after is not None and len(after) != len(order_cols):
+            raise ValueError(
+                f"after must have exactly {len(order_cols)} value(s) matching "
+                f"order_by, got {len(after)}."
+            )
+
+        params: list[Any] = []
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+
+        where_parts: list[str] = []
+        if after is not None:
+            keyset_frag, keyset_params = self._build_keyset_where(
+                order_cols, after, descending
+            )
+            where_parts.append(keyset_frag)
+            params.extend(keyset_params)
+        if frag:
+            where_parts.append(frag)
+            params.extend(pred_params)
+        where_clause = f" WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+        cols_str = ", ".join(order_cols)
+        direction = " DESC" if descending else ""
+        order_clause = f" ORDER BY {cols_str}{direction}"
+
+        sql = (
+            f"SELECT * FROM {schema}.{table}"
+            f"{where_clause}"
+            f"{order_clause}"
+            f" LIMIT {int(limit) + 1}"
+        )
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            rows: list[dict[str, Any]] = (
+                await cur.fetchall() if cur.description else []
+            )
+
+        has_next = len(rows) > limit
+        rows = rows[:limit]
+        next_cursor = tuple(rows[-1][c] for c in order_cols) if rows else None
+
+        total: int | None = None
+        if with_total:
+            base_where_clause = f" WHERE {frag}" if frag else ""
+            count_sql = f"SELECT COUNT(*) FROM {schema}.{table}{base_where_clause}"
+            total = int(await self.fetch_val(count_sql, pred_params))
+
+        return Page(rows=rows, total=total, has_next=has_next, next_cursor=next_cursor)
+
     # =========================================================================
     # DATAFRAME OPERATIONS
     # =========================================================================
