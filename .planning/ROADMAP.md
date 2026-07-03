@@ -54,7 +54,7 @@
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 48-03-PLAN.md — F03 per-chunk compress/decompress + F04 show_chunks physical-time filter verify+doc
+- [x] 48-03-PLAN.md — F03 per-chunk compress/decompress + F04 show_chunks physical-time filter verify+doc
 
 ### Phase 49: Incremental ETL Follow-ups
 
@@ -106,7 +106,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. TimescaleDB Follow-ups | v1.1.0 | 2/3 | In Progress|  |
+| 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete   | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |

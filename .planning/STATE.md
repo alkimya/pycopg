@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: executing
-stopped_at: Completed 48-02-PLAN.md
-last_updated: "2026-07-03T10:37:17.909Z"
+status: completed
+stopped_at: Completed 48-03-PLAN.md
+last_updated: "2026-07-03T10:48:53.273Z"
 last_activity: 2026-07-03 -- Phase 48 Plan 02 (time_bucket origin/offset, TSDB-F02) executed
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -91,6 +91,7 @@ Progress: [███████░░░] 67%
 | Phase 47 P03 | 12min | 4 tasks | 0 files (gates + tag + OIDC publish + smoke) |
 | Phase 48 P01 | 15min | 2 tasks | 3 files |
 | Phase 48 P02 | 20min | 3 tasks | 2 files |
+| Phase 48 P03 | 25min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -148,6 +149,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: 48-01: remove_continuous_aggregate_policy binds current if_exists param name (TSDB 2.8+), never deprecated if_not_exists (Pitfall 1)
 - [Phase ?]: 48-02: origin binds bare typed %s, offset binds %s::interval, mutual-exclusion ValueError guard fires client-side before SQL build (D-07)
 - [Phase ?]: 48-02: F02 is a param-only addition to existing time_bucket name -- no new entry in test_timescale_v110_surface, parity covered by test_accessor_parameter_kind_parity
+- [Phase 48-03]: compress_chunk/decompress_chunk skip validate_identifiers — chunk is a bound %s::regclass value, not an identifier (RESEARCH D-10/D-11 carve-out)
+- [Phase 48-03]: if_not_compressed/if_compressed bound as %s params (not literal-boolean like the cagg family) — confirmed correct idiom for these plain function calls
+- [Phase 48-03]: TSDB-F04 required zero production change — verified + documented already-shipped newer_than/older_than symmetry
 
 ### Pending Todos
 
@@ -179,11 +183,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T10:37:17.900Z
-Stopped at: Completed 48-02-PLAN.md
+Last session: 2026-07-03T10:48:53.264Z
+Stopped at: Completed 48-03-PLAN.md
 Resume file: None
-Next action: `/gsd-execute-phase 48` to continue with 48-03-PLAN.md (F03 compress_chunk/decompress_chunk).
+Next action: Phase 48 (TimescaleDB Follow-ups) complete (48-01/02/03 all shipped, TSDB-F01..F04 done) — run `/gsd-verify-work 48` or proceed to `/gsd-plan-phase 49` (ETL-INC-F01..04).
 
 ## Operator Next Steps
 
-- Continue Phase 48 execution with 48-03-PLAN.md (F03 compress_chunk/decompress_chunk) via /gsd-execute-phase 48
+- Phase 48 fully complete (TSDB-F01..F04). Verify or continue to Phase 49 (ETL-INC-F01..04) via `/gsd-plan-phase 49`.
