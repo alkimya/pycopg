@@ -80,7 +80,7 @@
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 49-03-PLAN.md — F03 composite watermark, pure layer (widen incremental_column str|Sequence[str], tuple-compare builder, "composite" envelope tag, D-04 composite initial_watermark guard)
+- [x] 49-03-PLAN.md — F03 composite watermark, pure layer (widen incremental_column str|Sequence[str], tuple-compare builder, "composite" envelope tag, D-04 composite initial_watermark guard)
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -127,7 +127,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
-| 49. Incremental ETL Follow-ups | v1.1.0 | 2/5 | In Progress|  |
+| 49. Incremental ETL Follow-ups | v1.1.0 | 3/5 | In Progress|  |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
