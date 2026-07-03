@@ -650,6 +650,31 @@ class TestAdvisoryLock:
         assert sql == "SELECT * FROM t"
         assert params == {}
 
+    def test_reconcile_leaves_literal_percent_s_in_user_source(self):
+        """A literal %s inside the user source is NOT clobbered — only the tail (WR-01)."""
+        # The builder appends its watermark %s at the very end; a %s embedded in
+        # a user LIKE predicate must survive untouched.
+        built = "SELECT * FROM (SELECT * FROM t WHERE name LIKE '%s%') _pycopg_inc WHERE ts > %s"
+        sql, params = _reconcile_watermark_binds(built, [137])
+        assert sql == (
+            "SELECT * FROM (SELECT * FROM t WHERE name LIKE '%s%') "
+            "_pycopg_inc WHERE ts > :wm"
+        )
+        assert params == {"wm": 137}
+
+    def test_reconcile_composite_leaves_literal_percent_s_in_source(self):
+        """Composite: only the trailing two %s become :wm0/:wm1; user %s untouched."""
+        built = (
+            "SELECT * FROM (SELECT * FROM t WHERE tag LIKE '%s') _pycopg_inc "
+            "WHERE (day, seq) > (%s, %s)"
+        )
+        sql, params = _reconcile_watermark_binds(built, [5, 40])
+        assert sql == (
+            "SELECT * FROM (SELECT * FROM t WHERE tag LIKE '%s') _pycopg_inc "
+            "WHERE (day, seq) > (:wm0, :wm1)"
+        )
+        assert params == {"wm0": 5, "wm1": 40}
+
 
 class TestBuilders:
     """Exact SQL string + params assertions for pure ETL builders."""

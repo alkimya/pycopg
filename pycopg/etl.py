@@ -197,13 +197,11 @@ class Pipeline:
         ``load_mode="upsert"`` (C-01) — the idempotency that makes a
         seeded bounded first-load safe. An empty (0-row) seeded first
         batch records no watermark and re-seeds from
-        ``initial_watermark`` on the next run (D-03, C-03). The
-        composite (``Sequence``) form — for a future composite
-        ``incremental_column`` — is accepted by the type but its
-        per-element/length-match validation is NOT implemented here; it
-        lands in a later plan (D-04) once ``incremental_column`` is
-        widened to a tuple. Default ``None`` (byte-identical to today's
-        full-initial-load behavior).
+        ``initial_watermark`` on the next run (D-03, C-03). For a composite
+        ``incremental_column`` the seed must be a same-length ``Sequence``
+        of allowlisted scalars — validated per element and normalized to a
+        tuple at construction (D-04). Default ``None`` (byte-identical to
+        today's full-initial-load behavior).
     incremental_inclusive : bool, optional
         When ``True`` the incremental extract filter uses ``>=`` instead of
         the default exclusive ``>`` (ETL-INC-F02, D-05) — the boundary row
@@ -1140,14 +1138,37 @@ def _reconcile_watermark_binds(
     a composite extract maps each ``%s`` in order to a distinct ``:wm{i}``
     bind so the ``(c1, c2) > (:wm0, :wm1)`` row-value compare is fully
     parameterized (never interpolated).
+
+    :func:`_build_incremental_extract_sql` always APPENDS its placeholders at
+    the tail (the ``WHERE`` clause it adds), so only the LAST
+    ``len(params_list)`` ``%s`` are the watermark binds. Substituting those
+    from the right leaves any literal ``%s`` inside a user SQL source (e.g. a
+    ``LIKE '%s%'`` predicate) untouched (WR-01).
     """
-    if len(params_list) == 1:
-        return sql.replace("%s", ":wm", 1), {"wm": params_list[0]}
-    if params_list:
-        for i in range(len(params_list)):
-            sql = sql.replace("%s", f":wm{i}", 1)
-        return sql, {f"wm{i}": v for i, v in enumerate(params_list)}
-    return sql, {}
+    n = len(params_list)
+    if n == 0:
+        return sql, {}
+    # Locate the last n "%s" occurrences — the builder's trailing placeholders.
+    positions: list[int] = []
+    search_end = len(sql)
+    while len(positions) < n:
+        idx = sql.rfind("%s", 0, search_end)
+        if idx == -1:
+            break
+        positions.append(idx)
+        search_end = idx
+    if len(positions) < n:  # defensive — the builder guarantees n placeholders
+        raise ETLError(
+            f"expected {n} watermark placeholder(s) in the extract SQL, "
+            f"found {len(positions)}"
+        )
+    positions.reverse()  # left-to-right → placeholder i binds :wm{i}
+    names = ["wm"] if n == 1 else [f"wm{i}" for i in range(n)]
+    # Replace right-to-left so earlier positions stay valid as lengths change.
+    for i in range(n - 1, -1, -1):
+        pos = positions[i]
+        sql = sql[:pos] + ":" + names[i] + sql[pos + 2 :]
+    return sql, dict(zip(names, params_list))
 
 
 def _step_label(fn: object) -> str:

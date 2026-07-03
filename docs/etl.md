@@ -407,13 +407,9 @@ UPDATE pipeline_runs SET watermark = NULL WHERE pipeline_name = %s;
 ```
 
 After this, the next ``run()`` reads ``None`` → performs a full extract →
-records a fresh watermark.
-
-.. note::
-
-   An ``initial_watermark`` option to bound the first full-load scan is
-   planned for v0.8.0 (ETL-INC-F01).  Until then, the first incremental run
-   always reads the entire source table.
+records a fresh watermark (or a bounded/seeded extract when
+``initial_watermark`` is set — see "Boundary configuration and composite keys"
+above).
 
 ## Async Usage
 
