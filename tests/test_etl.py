@@ -383,6 +383,114 @@ class TestIncrementalBoundaryConstruction:
             self._incr(incremental_lookback="10")
 
 
+class TestCompositeWatermark:
+    """Composite (multi-column) incremental_column — pure layer (F03, D-09/D-10).
+
+    Construction/normalization + builder row-value SQL shape + injection. The
+    "composite" envelope codec round-trip is covered by
+    TestEncodeDecodeWatermark; run() end-to-end wiring lands in plan 49-04.
+    """
+
+    def _comp(self, **kw):
+        return Pipeline(
+            name="c",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            **kw,
+        )
+
+    # --- construction / normalization (D-09) ---
+
+    def test_str_column_stays_scalar(self):
+        """A bare str incremental_column is preserved (NOT exploded per-char)."""
+        p = self._comp(incremental_column="ts")
+        assert p.incremental_column == "ts"
+
+    def test_list_column_normalizes_to_tuple(self):
+        """A list incremental_column normalizes to a tuple on the frozen instance."""
+        p = self._comp(incremental_column=["day", "seq"])
+        assert p.incremental_column == ("day", "seq")
+
+    def test_tuple_column_preserved(self):
+        """A tuple incremental_column stays a tuple."""
+        p = self._comp(incremental_column=("day", "seq"))
+        assert p.incremental_column == ("day", "seq")
+
+    def test_empty_composite_raises(self):
+        """An empty composite sequence raises ValueError (D-09)."""
+        with pytest.raises(ValueError, match="non-empty"):
+            self._comp(incremental_column=[])
+
+    def test_bad_composite_element_raises(self):
+        """A bad column element raises InvalidIdentifierError at construction (D-10)."""
+        with pytest.raises(InvalidIdentifierError):
+            self._comp(incremental_column=["day", "se q"])
+
+    # --- composite initial_watermark guard (D-04) ---
+
+    def test_composite_seed_length_mismatch_raises(self):
+        """A composite seed of the wrong length raises ValueError (D-04)."""
+        with pytest.raises(ValueError, match="does not match|must be a sequence"):
+            self._comp(incremental_column=["day", "seq"], initial_watermark=[5])
+
+    def test_composite_seed_matching_length_normalizes_to_tuple(self):
+        """A matching-length composite seed constructs and normalizes to a tuple."""
+        p = self._comp(
+            incremental_column=["day", "seq"], initial_watermark=[5, 40]
+        )
+        assert p.initial_watermark == (5, 40)
+
+    def test_composite_seed_bool_element_raises(self):
+        """A bool element in a composite seed is rejected per element (D-04/C-02)."""
+        with pytest.raises(ETLError):
+            self._comp(
+                incremental_column=["day", "seq"], initial_watermark=[True, 40]
+            )
+
+    def test_scalar_column_rejects_sequence_seed(self):
+        """A single-column key rejects a sequence initial_watermark (D-04)."""
+        with pytest.raises(ValueError, match="scalar"):
+            self._comp(incremental_column="ts", initial_watermark=[5, 40])
+
+    # --- builder row-value compare SQL (D-10) ---
+
+    def test_composite_builder_table_source(self):
+        """Composite table source emits WHERE (day, seq) > (%s, %s), params [5, 40]."""
+        sql, params = _build_incremental_extract_sql(
+            "t", ("day", "seq"), watermark=(5, 40)
+        )
+        assert "WHERE (day, seq) > (%s, %s)" in sql
+        assert params == [5, 40]
+
+    def test_composite_builder_sql_source(self):
+        """Composite SQL-string source wraps and emits the row-value compare."""
+        sql, params = _build_incremental_extract_sql(
+            "SELECT 1 AS day, 2 AS seq", ("day", "seq"), watermark=(5, 40)
+        )
+        assert "WHERE (day, seq) > (%s, %s)" in sql
+        assert params == [5, 40]
+
+    def test_composite_builder_inclusive(self):
+        """inclusive=True composite emits >= on the row-value compare (D-05 orthogonal)."""
+        sql, _ = _build_incremental_extract_sql(
+            "t", ("day", "seq"), watermark=(5, 40), inclusive=True
+        )
+        assert "WHERE (day, seq) >= (%s, %s)" in sql
+
+    def test_scalar_builder_byte_identical_regression(self):
+        """The single-column builder output is unchanged by the composite branch."""
+        sql, params = _build_incremental_extract_sql("t", "col", watermark=5)
+        assert sql == "SELECT * FROM public.t WHERE col > %s"
+        assert params == [5]
+
+    def test_composite_builder_validates_every_element(self):
+        """A bad composite element raises InvalidIdentifierError before interpolation."""
+        with pytest.raises(InvalidIdentifierError):
+            _build_incremental_extract_sql("t", ("day", "se q"), watermark=(1, 2))
+
+
 class TestBuilders:
     """Exact SQL string + params assertions for pure ETL builders."""
 

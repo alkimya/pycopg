@@ -78,14 +78,17 @@ def _validate_load_mode(load_mode: str) -> None:
         )
 
 
-def _validate_incremental(incremental_column: str | None, load_mode: str) -> None:
+def _validate_incremental(
+    incremental_column: str | Sequence[str] | None, load_mode: str
+) -> None:
     """Validate the ``incremental_column`` / ``load_mode`` combination.
 
     Parameters
     ----------
-    incremental_column : str or None
-        Watermark column name, or ``None`` for a non-incremental pipeline.
-        ``None`` short-circuits — both checks are skipped (D-15).
+    incremental_column : str, sequence of str, or None
+        Watermark column name (single-column), or a sequence of names for a
+        composite key (ETL-INC-F03, D-09), or ``None`` for a non-incremental
+        pipeline. ``None`` short-circuits — both checks are skipped (D-15).
     load_mode : str
         Load strategy. Incremental loads require ``"upsert"``;
         ``"append"`` and ``"replace"`` are forbidden (D-16).
@@ -96,7 +99,8 @@ def _validate_incremental(incremental_column: str | None, load_mode: str) -> Non
         If ``incremental_column`` is set and ``load_mode`` is ``"append"``
         or ``"replace"`` (the forbidden-combo intent error, checked first).
     InvalidIdentifierError
-        If ``incremental_column`` is not a valid SQL identifier (D-15).
+        If any ``incremental_column`` element is not a valid SQL identifier
+        (D-15; every composite element is validated — D-10, C-04).
     """
     # Non-incremental pipelines skip both checks (D-15 short-circuit).
     if incremental_column is None:
@@ -109,7 +113,12 @@ def _validate_incremental(incremental_column: str | None, load_mode: str) -> Non
             "'append' and 'replace' are forbidden with incremental loads because "
             "upsert guarantees idempotency (ETL-INC-01)"
         )
-    validate_identifiers(incremental_column)
+    # A bare str stays single-column; any other sequence is a composite key —
+    # validate every element (D-10, C-04 injection safety).
+    if isinstance(incremental_column, str):
+        validate_identifiers(incremental_column)
+    else:
+        validate_identifiers(*incremental_column)
 
 
 @dataclass(frozen=True)
@@ -159,14 +168,19 @@ class Pipeline:
         materialization. Phase 18 wires this as ``LIMIT %s`` in the
         extract query. ``extract_batch_size`` streaming is deferred to
         v0.6.0. If provided, must be a positive integer (D-11).
-    incremental_column : str or None, optional
-        Watermark column for incremental extraction (ETL-INC-01). ``None``
-        (default) = full-load pipeline. When set it must be a valid SQL
-        identifier and ``load_mode`` must be ``"upsert"`` — ``"append"``
-        and ``"replace"`` are rejected at construction (D-16). The column
-        is expected to hold a monotonic, non-decreasing watermark (an
-        aware ``datetime`` if it is a timestamp); this contract is
-        documented, not enforced, in this layer (D-03). Default ``None``.
+    incremental_column : str, sequence of str, or None, optional
+        Watermark column(s) for incremental extraction (ETL-INC-01). ``None``
+        (default) = full-load pipeline. A single ``str`` is a single-column
+        watermark (byte-identical to prior behavior); a sequence of names
+        declares a **composite** (multi-column) watermark key, normalized to
+        a ``tuple[str, ...]`` at construction (ETL-INC-F03, D-09) and
+        compared via a native Postgres row-value ``WHERE (c1, c2) > (...)``.
+        Every element must be a valid SQL identifier and ``load_mode`` must
+        be ``"upsert"`` — ``"append"`` and ``"replace"`` are rejected at
+        construction (D-16). The column(s) are expected to hold a monotonic,
+        non-decreasing watermark (an aware ``datetime`` if a timestamp);
+        this contract is documented, not enforced, in this layer (D-03).
+        Default ``None``.
     initial_watermark : datetime, int, str, Sequence, or None, optional
         Seed-floor value for the FIRST incremental run only (ETL-INC-F01,
         D-01). When no stored watermark exists yet, this value is used as
@@ -261,7 +275,7 @@ class Pipeline:
     schema: str = "public"
     transform: Callable[..., Any] | list[Callable[..., Any]] | None = None
     extract_limit: int | None = None
-    incremental_column: str | None = None
+    incremental_column: str | Sequence[str] | None = None
     initial_watermark: datetime | int | str | Sequence[Any] | None = None
     incremental_inclusive: bool = False
     incremental_lookback: timedelta | int | None = None
@@ -302,24 +316,70 @@ class Pipeline:
             )
         # Validate load_mode first (D-06).
         _validate_load_mode(self.load_mode)
+        # Normalize a composite incremental_column to a tuple (ETL-INC-F03,
+        # D-09) BEFORE validation. A bare str is KEPT as a single-column
+        # scalar — the inverse of the conflict_columns str-reject above:
+        # tuple("ts") would explode into per-char columns. Any other sequence
+        # (list/tuple) becomes a tuple[str, ...] on the frozen instance.
+        if self.incremental_column is not None and not isinstance(
+            self.incremental_column, str
+        ):
+            object.__setattr__(
+                self, "incremental_column", tuple(self.incremental_column)
+            )
+            if not self.incremental_column:
+                raise ValueError(
+                    "incremental_column sequence must be non-empty "
+                    "(composite watermark, D-09)"
+                )
         # Validate incremental_column / load_mode combo + identifier
         # (D-14/D-15/D-16/D-17) — after load_mode, before the upsert check.
+        # validate_identifiers is splatted over every composite element (D-10).
         _validate_incremental(self.incremental_column, self.load_mode)
-        # Validate initial_watermark (ETL-INC-F01, D-02): requires
-        # incremental_column to be set; the scalar form is type-checked
-        # against the {datetime, int, str} allowlist by delegating to
-        # _encode_watermark (bool rejected before int, float rejected —
-        # same trap already guarded for extract_limit/C-02). The composite
-        # (Sequence, non-str) form is left unvalidated here — per-element
-        # and length-match validation lands in a later plan (D-04) once
-        # incremental_column is widened to a composite tuple.
+        # Validate initial_watermark (ETL-INC-F01/F03): requires
+        # incremental_column to be set (D-02). For a single-column key the seed
+        # must be a scalar checked against the {datetime, int, str} allowlist
+        # via _encode_watermark (bool-before-int, float rejected — C-02). For a
+        # composite key the seed must be a SAME-LENGTH sequence, each element
+        # allowlist-checked per element (never a bulk isinstance — the bool
+        # subclass trap, RESEARCH Pitfall 2), normalized to a tuple so the
+        # 49-04 seed fallback yields a tuple directly (D-04).
         if self.initial_watermark is not None:
             if self.incremental_column is None:
                 raise ValueError(
                     "initial_watermark requires incremental_column to be set "
                     "(D-02, ETL-INC-F01)"
                 )
-            if not isinstance(self.initial_watermark, (list, tuple)):
+            if isinstance(self.incremental_column, tuple):
+                # Composite key (D-04): matching-length sequence of scalars.
+                if isinstance(self.initial_watermark, str) or not isinstance(
+                    self.initial_watermark, (list, tuple)
+                ):
+                    raise ValueError(
+                        "initial_watermark for a composite incremental_column "
+                        f"must be a sequence of {len(self.incremental_column)} "
+                        f"values, got {self.initial_watermark!r} (D-04)"
+                    )
+                if len(self.initial_watermark) != len(self.incremental_column):
+                    raise ValueError(
+                        "initial_watermark length "
+                        f"{len(self.initial_watermark)} does not match composite "
+                        f"incremental_column length "
+                        f"{len(self.incremental_column)} (D-04)"
+                    )
+                for elem in self.initial_watermark:
+                    _encode_watermark(elem)  # per-element allowlist (Pitfall 2)
+                object.__setattr__(
+                    self, "initial_watermark", tuple(self.initial_watermark)
+                )
+            else:
+                # Single-column key: the seed must be a scalar, not a sequence.
+                if isinstance(self.initial_watermark, (list, tuple)):
+                    raise ValueError(
+                        "initial_watermark must be a scalar for a single-column "
+                        f"incremental_column, got {self.initial_watermark!r} "
+                        "(D-04)"
+                    )
                 _encode_watermark(self.initial_watermark)  # type: ignore[arg-type]
         # Validate incremental_lookback (ETL-INC-F02, D-05): when set it must
         # be a timedelta or a plain (non-bool) int. bool is an int subclass, so
@@ -628,9 +688,9 @@ _PYCOPG_INC_ALIAS = "_pycopg_inc"
 
 def _build_incremental_extract_sql(
     source: str,
-    column: str,
+    column: str | Sequence[str],
     schema: str = "public",
-    watermark: datetime | int | str | None = None,
+    watermark: datetime | int | str | Sequence[Any] | None = None,
     *,
     inclusive: bool = False,
 ) -> tuple[str, list[Any]]:
@@ -639,11 +699,17 @@ def _build_incremental_extract_sql(
     Pure builder — no ``self``, no I/O, no DB connection.  Dispatches on
     the source kind via :func:`_is_sql_source` (D-11): a SQL-string source
     is wrapped in a subquery aliased ``_pycopg_inc`` (D-06/D-07); a table
-    source gets a ``WHERE`` clause appended (D-09).  The watermark value is
-    ALWAYS emitted as a single ``%s`` placeholder appended to the params
-    list — never f-string interpolated (D-10, T-26-01).  Identifiers
-    (``column``, and ``source``/``schema`` for table sources) are validated
-    before any interpolation (T-26-02).
+    source gets a ``WHERE`` clause appended (D-09).  Watermark values are
+    ALWAYS emitted as ``%s`` placeholders appended to the params list —
+    never f-string interpolated (D-10, T-26-01).  Identifiers (every
+    ``column`` element, and ``source``/``schema`` for table sources) are
+    validated before any interpolation (T-26-02).
+
+    A single-``str`` ``column`` produces ``WHERE col {op} %s`` (single
+    watermark param).  A composite (sequence) ``column`` produces the native
+    Postgres row-value compare ``WHERE (c1, c2) {op} (%s, %s)`` with one
+    bound ``%s`` per element and ``params = list(watermark)`` (ETL-INC-F03,
+    D-10).
 
     When ``watermark is None`` (first run or no prior watermark) a full,
     unfiltered SELECT is returned with an empty params list (D-12).  The
@@ -655,15 +721,17 @@ def _build_incremental_extract_sql(
     source : str
         Source table name or a SQL SELECT/WITH statement string. Classified
         via :func:`_is_sql_source`.
-    column : str
-        Watermark column name. Must be a valid SQL identifier; emitted bare
-        after validation (D-10).
+    column : str or sequence of str
+        Watermark column name (single-column) or a sequence of names for a
+        composite key. Every element must be a valid SQL identifier; emitted
+        bare after validation (D-10).
     schema : str, optional
         Schema for a table source, by default ``"public"``. Ignored for a
         SQL-string source. Must be a valid SQL identifier.
     watermark : optional
-        High-water mark value, or ``None`` for a full unfiltered extract
-        (D-12). When set it is the single ``%s`` parameter.
+        High-water mark value(s), or ``None`` for a full unfiltered extract
+        (D-12). A scalar for a single-column key; an ordered sequence aligned
+        with ``column`` for a composite key.
     inclusive : bool, keyword-only, optional
         When ``True`` the comparison operator is ``>=`` (boundary row
         re-read); default ``False`` uses the exclusive ``>`` (ETL-INC-F02,
@@ -673,16 +741,25 @@ def _build_incremental_extract_sql(
     Returns
     -------
     tuple of (str, list)
-        The extract SQL string and a params list containing the watermark
-        as its only element (or ``[]`` when ``watermark is None``).
+        The extract SQL string and a params list of the watermark value(s)
+        (one per column element), or ``[]`` when ``watermark is None``.
 
     Raises
     ------
     InvalidIdentifierError
-        If ``column`` (always) or ``source``/``schema`` (table source) is
-        not a valid SQL identifier (T-26-02).
+        If any ``column`` element (always) or ``source``/``schema`` (table
+        source) is not a valid SQL identifier (T-26-02).
     """
-    validate_identifiers(column)
+    # A bare str is single-column; any other sequence is a composite key.
+    # validate_identifiers is splatted over every element as line 1 (D-10).
+    if isinstance(column, str):
+        validate_identifiers(column)
+        is_composite = False
+        cols: tuple[str, ...] = (column,)
+    else:
+        cols = tuple(column)
+        validate_identifiers(*cols)
+        is_composite = True
     if watermark is None:
         if _is_sql_source(source):
             return source, []
@@ -690,14 +767,28 @@ def _build_incremental_extract_sql(
         return f"SELECT * FROM {schema}.{source}", []
     # Operator is a literal chosen from the inclusive bool — never user text.
     op = ">=" if inclusive else ">"
+    if is_composite:
+        # Native row-value lexicographic compare (D-10): one bound %s per
+        # element; watermark is an ordered sequence aligned with cols.
+        wm_seq = cast("Sequence[Any]", watermark)
+        lhs = "(" + ", ".join(cols) + ")"
+        placeholders = "(" + ", ".join(["%s"] * len(cols)) + ")"
+        params: list[Any] = list(wm_seq)
+    else:
+        lhs = cols[0]
+        placeholders = "%s"
+        params = [watermark]
     if _is_sql_source(source):
         # Right-strip whitespace, a single trailing ';', then whitespace
         # again before wrapping (D-08 hygiene — no SQL parser).
         clean = source.rstrip().rstrip(";").rstrip()
-        sql = f"SELECT * FROM ({clean}) {_PYCOPG_INC_ALIAS} WHERE {column} {op} %s"
-        return sql, [watermark]
+        sql = f"SELECT * FROM ({clean}) {_PYCOPG_INC_ALIAS} WHERE {lhs} {op} {placeholders}"
+        return sql, params
     validate_identifiers(source, schema)
-    return f"SELECT * FROM {schema}.{source} WHERE {column} {op} %s", [watermark]
+    return (
+        f"SELECT * FROM {schema}.{source} WHERE {lhs} {op} {placeholders}",
+        params,
+    )
 
 
 def _apply_lookback(
@@ -1394,6 +1485,15 @@ class ETLAccessor:
                 dry_raw_watermark: datetime | int | str | None = None
                 dry_col = pipeline.incremental_column
                 if dry_col is not None:
+                    if not isinstance(dry_col, str):
+                        # Composite watermark CAPTURE from run() is wired in
+                        # 49-04; the pure layer (49-03) builds/validates the
+                        # composite extract SQL but does not yet record a
+                        # composite watermark. Fail loud, not silent (D-04).
+                        raise ETLError(
+                            "composite incremental_column is not yet recorded by "
+                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
+                        )
                     if dry_col not in df.columns:
                         raise ETLError(
                             f"incremental_column {dry_col!r} not found in extracted batch "
@@ -1498,6 +1598,15 @@ class ETLAccessor:
                 raw_watermark: datetime | int | str | None = None
                 col = pipeline.incremental_column
                 if col is not None:
+                    if not isinstance(col, str):
+                        # Composite watermark CAPTURE from run() is wired in
+                        # 49-04; the pure layer (49-03) builds/validates the
+                        # composite extract SQL but does not yet record a
+                        # composite watermark. Fail loud, not silent (D-04).
+                        raise ETLError(
+                            "composite incremental_column is not yet recorded by "
+                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
+                        )
                     if col not in df.columns:
                         raise ETLError(
                             f"incremental_column {col!r} not found in extracted batch "
@@ -2119,6 +2228,15 @@ class AsyncETLAccessor:
                 dry_raw_watermark: datetime | int | str | None = None
                 dry_col = pipeline.incremental_column
                 if dry_col is not None:
+                    if not isinstance(dry_col, str):
+                        # Composite watermark CAPTURE from run() is wired in
+                        # 49-04; the pure layer (49-03) builds/validates the
+                        # composite extract SQL but does not yet record a
+                        # composite watermark. Fail loud, not silent (D-04).
+                        raise ETLError(
+                            "composite incremental_column is not yet recorded by "
+                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
+                        )
                     if dry_col not in df.columns:
                         raise ETLError(
                             f"incremental_column {dry_col!r} not found in extracted batch "
@@ -2223,6 +2341,15 @@ class AsyncETLAccessor:
                 raw_watermark: datetime | int | str | None = None
                 col = pipeline.incremental_column
                 if col is not None:
+                    if not isinstance(col, str):
+                        # Composite watermark CAPTURE from run() is wired in
+                        # 49-04; the pure layer (49-03) builds/validates the
+                        # composite extract SQL but does not yet record a
+                        # composite watermark. Fail loud, not silent (D-04).
+                        raise ETLError(
+                            "composite incremental_column is not yet recorded by "
+                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
+                        )
                     if col not in df.columns:
                         raise ETLError(
                             f"incremental_column {col!r} not found in extracted batch "
