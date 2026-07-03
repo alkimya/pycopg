@@ -532,6 +532,45 @@ class TestAsyncPaginatePage:
             assert params == ["2026-01-01"]
             assert page.rows == [{"id": 1}]
 
+    async def test_paginate_page_empty_order_by_raises(self, config):
+        """order_by=[] raises ValueError before any DB round-trip (WR-01)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="order_by must contain at least one"):
+            await db.paginate_page("events", 10, order_by=[])
+
+    async def test_paginate_page_limit_zero_raises(self, config):
+        """limit=0 raises ValueError before any DB round-trip (IN-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await db.paginate_page("events", 0)
+
+    async def test_paginate_page_negative_limit_raises(self, config):
+        """A negative limit raises ValueError before any DB round-trip (IN-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await db.paginate_page("events", -1)
+
+    async def test_paginate_page_non_int_limit_normalized(self, config):
+        """A non-int limit (e.g. 5.0) is normalized to int before the SQL
+        LIMIT and the Python-side trim, so the slice never sees a float
+        (WR-02)."""
+        rows = [{"id": i} for i in range(6)]
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=rows
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_page("events", 5.0)
+
+            sql, _params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.events LIMIT 6 OFFSET 0"
+            assert page.rows == rows[:5]
+            assert page.has_next is True
+
 
 @pytest.mark.asyncio
 class TestAsyncPaginateKeyset:
@@ -689,6 +728,45 @@ class TestAsyncPaginateKeyset:
         db = AsyncDatabase(config)
         with pytest.raises(ValueError, match="after must have exactly"):
             await db.paginate_keyset("t", 10, order_by=["a", "b"], after=(1,))
+
+    async def test_paginate_keyset_empty_order_by_raises(self, config):
+        """order_by=[] raises ValueError before any DB round-trip (WR-01)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="order_by must contain at least one"):
+            await db.paginate_keyset("t", 10, order_by=[])
+
+    async def test_paginate_keyset_limit_zero_raises(self, config):
+        """limit=0 raises ValueError before any DB round-trip (IN-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await db.paginate_keyset("t", 0, order_by=["id"])
+
+    async def test_paginate_keyset_negative_limit_raises(self, config):
+        """A negative limit raises ValueError before any DB round-trip (IN-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            await db.paginate_keyset("t", -1, order_by=["id"])
+
+    async def test_paginate_keyset_non_int_limit_normalized(self, config):
+        """A non-int limit (e.g. 5.0) is normalized to int before the SQL
+        LIMIT and the Python-side trim, so the slice never sees a float
+        (WR-02)."""
+        rows = [{"id": i} for i in range(6)]
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=rows
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            page = await db.paginate_keyset("events", 5.0, order_by=["id"])
+
+            sql, _params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.events ORDER BY id LIMIT 6"
+            assert page.rows == rows[:5]
+            assert page.has_next is True
 
 
 @pytest.mark.asyncio

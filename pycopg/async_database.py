@@ -1313,13 +1313,19 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         ------
         ValueError
             If both ``where`` and ``where_sql`` are supplied (D-02); if
-            ``where_params`` is supplied without ``where_sql`` (D-04); or if
-            ``where_sql`` is empty/whitespace-only (D-03).
+            ``where_params`` is supplied without ``where_sql`` (D-04); if
+            ``where_sql`` is empty/whitespace-only (D-03); if ``order_by``
+            is an empty list (WR-01); or if ``limit`` is not a positive
+            integer (IN-02).
         InvalidIdentifierError
             If any column name in ``order_by`` or the table/schema
             identifier is invalid.
         """
         validate_identifiers(table, schema)
+
+        limit = int(limit)
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
 
         params: list[Any] = []
         frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
@@ -1332,6 +1338,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
                 order_by_cols = [order_by]
             else:
                 order_by_cols = list(order_by)
+            if not order_by_cols:
+                raise ValueError("order_by must contain at least one column")
             if any(not isinstance(c, str) or not c for c in order_by_cols):
                 raise ValueError("order_by columns must be non-empty strings")
             validate_identifiers(*order_by_cols)
@@ -1343,7 +1351,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             f"SELECT * FROM {schema}.{table}"
             f"{where_clause}"
             f"{order_clause}"
-            f" LIMIT {int(limit) + 1} OFFSET {int(offset)}"
+            f" LIMIT {limit + 1} OFFSET {int(offset)}"
         )
         async with self.cursor() as cur:
             await cur.execute(sql, params)
@@ -1384,7 +1392,10 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         unique/total order (append a unique column such as the primary key
         as a tiebreaker); no hidden PK-introspection round-trip is
         performed. **Forward-only** for this release — ``before=``/backward
-        paging is deferred.
+        paging is deferred. **Caveat (IN-01):** ``order_by`` columns should
+        be ``NOT NULL`` (or the caller must guarantee no ``NULL`` values) —
+        the row-value comparison follows SQL ``NULL`` semantics, so rows
+        with a ``NULL`` key are silently skipped by the seek predicate.
 
         Parameters
         ----------
@@ -1396,7 +1407,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         order_by : str or list of str
             Column name(s) defining the seek order. **Mandatory** (D-07) —
             raises ``ValueError`` if omitted. Each name is validated via
-            ``validate_identifiers`` before interpolation.
+            ``validate_identifiers`` before interpolation. Columns should be
+            ``NOT NULL`` (IN-01) — see caveat above.
         after : Sequence, optional
             Cursor values, positionally keyed to ``order_by`` (D-06). Omit
             (or pass ``None``) to fetch the first page — the keyset
@@ -1441,16 +1453,21 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
         Raises
         ------
         ValueError
-            If ``order_by`` is omitted (D-07); if ``after`` is supplied and
-            ``len(after) != len(order_by)``; if both ``where`` and
-            ``where_sql`` are supplied (D-02); if ``where_params`` is
-            supplied without ``where_sql`` (D-04); or if ``where_sql`` is
-            empty/whitespace-only (D-03).
+            If ``order_by`` is omitted or an empty list (D-07/WR-01); if
+            ``after`` is supplied and ``len(after) != len(order_by)``; if
+            both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); if
+            ``where_sql`` is empty/whitespace-only (D-03); or if ``limit``
+            is not a positive integer (IN-02).
         InvalidIdentifierError
             If any column name in ``order_by`` or the table/schema
             identifier is invalid.
         """
         validate_identifiers(table, schema)
+
+        limit = int(limit)
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer")
 
         if order_by is None:
             raise ValueError(
@@ -1461,6 +1478,8 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             order_cols = [order_by]
         else:
             order_cols = list(order_by)
+        if not order_cols:
+            raise ValueError("order_by must contain at least one column")
         if any(not isinstance(c, str) or not c for c in order_cols):
             raise ValueError("order_by columns must be non-empty strings")
         validate_identifiers(*order_cols)
@@ -1500,7 +1519,7 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             f"SELECT * FROM {schema}.{table}"
             f"{where_clause}"
             f"{order_clause}"
-            f" LIMIT {int(limit) + 1}"
+            f" LIMIT {limit + 1}"
         )
         async with self.cursor() as cur:
             await cur.execute(sql, params)

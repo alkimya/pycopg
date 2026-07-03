@@ -867,6 +867,44 @@ class TestPaginatePage:
         assert params == ["2026-01-01"]
         assert page.rows == [{"id": 1}]
 
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_empty_order_by_raises(self, mock_psycopg, config):
+        """order_by=[] raises ValueError before any DB round-trip (WR-01)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="order_by must contain at least one"):
+            db.paginate_page("events", 10, order_by=[])
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_limit_zero_raises(self, mock_psycopg, config):
+        """limit=0 raises ValueError before any DB round-trip (IN-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            db.paginate_page("events", 0)
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_negative_limit_raises(self, mock_psycopg, config):
+        """A negative limit raises ValueError before any DB round-trip (IN-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            db.paginate_page("events", -1)
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_page_non_int_limit_normalized(self, mock_psycopg, config):
+        """A non-int limit (e.g. 5.0) is normalized to int before the SQL
+        LIMIT and the Python-side trim, so the slice never sees a float
+        (WR-02)."""
+        rows = [{"id": i} for i in range(6)]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=rows
+        )
+
+        page = db.paginate_page("events", 5.0)
+
+        sql, _params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.events LIMIT 6 OFFSET 0"
+        assert page.rows == rows[:5]
+        assert page.has_next is True
+
 
 class TestPaginateKeyset:
     """CRUD-F02 (D-05..D-07): paginate_keyset mock SQL-shape + guard tests."""
@@ -1022,6 +1060,44 @@ class TestPaginateKeyset:
         db = Database(config)
         with pytest.raises(ValueError, match="after must have exactly"):
             db.paginate_keyset("t", 10, order_by=["a", "b"], after=(1,))
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_empty_order_by_raises(self, mock_psycopg, config):
+        """order_by=[] raises ValueError before any DB round-trip (WR-01)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="order_by must contain at least one"):
+            db.paginate_keyset("t", 10, order_by=[])
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_limit_zero_raises(self, mock_psycopg, config):
+        """limit=0 raises ValueError before any DB round-trip (IN-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            db.paginate_keyset("t", 0, order_by=["id"])
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_negative_limit_raises(self, mock_psycopg, config):
+        """A negative limit raises ValueError before any DB round-trip (IN-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="limit must be a positive integer"):
+            db.paginate_keyset("t", -1, order_by=["id"])
+
+    @patch("pycopg.database.psycopg")
+    def test_paginate_keyset_non_int_limit_normalized(self, mock_psycopg, config):
+        """A non-int limit (e.g. 5.0) is normalized to int before the SQL
+        LIMIT and the Python-side trim, so the slice never sees a float
+        (WR-02)."""
+        rows = [{"id": i} for i in range(6)]
+        db, mock_cursor = TestWhereSqlShape()._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=rows
+        )
+
+        page = db.paginate_keyset("events", 5.0, order_by=["id"])
+
+        sql, _params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.events ORDER BY id LIMIT 6"
+        assert page.rows == rows[:5]
+        assert page.has_next is True
 
 
 class TestDatabaseContextManager:
