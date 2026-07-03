@@ -55,6 +55,7 @@ completed: 2026-07-03
 - **Files modified:** 3
 
 ## Accomplishments
+
 - `TimescaleAccessor.drop_continuous_aggregate` / `AsyncTimescaleAccessor.drop_continuous_aggregate` — emits `DROP MATERIALIZED VIEW [IF EXISTS ]schema.view[ CASCADE]` via plain `self._db.execute`, `validate_identifiers` first, `ExtensionNotAvailableError` guard, keyword-only, returns `None`.
 - `TimescaleAccessor.remove_continuous_aggregate_policy` / async twin — emits `SELECT remove_continuous_aggregate_policy('schema.view', if_exists => true/false)` using the CURRENT `if_exists` param name (never the deprecated `if_not_exists`).
 - Full mock SQL-shape + guard + injection test coverage (10 new tests: 5 per method, sync + async + no-extension guard + injection guard).
@@ -68,11 +69,13 @@ Each task was committed atomically:
 2. **Task 2: Add F01 mock SQL-shape / guard / injection tests + seed test_timescale_v110_surface** - `26d2d3e` (test)
 
 ## Files Created/Modified
+
 - `pycopg/timescale.py` - 2 new methods x 2 classes (sync `TimescaleAccessor` + async `AsyncTimescaleAccessor`); both plain-execute, validate_identifiers-first, return None
 - `tests/test_timescale.py` - `TestDropContinuousAggregateMock` + `TestRemoveContinuousAggregatePolicyMock` (5 tests each, sync+async+guards+injection); `InvalidIdentifierError` added to the top-level import
 - `tests/test_parity.py` - `test_timescale_v110_surface` (new function, frozenset seed)
 
 ## Decisions Made
+
 - Both new methods use the plain `self._db.execute` path per RESEARCH D-05 (confirmed live against TSDB 2.28.2 — `DROP MATERIALIZED VIEW` is ordinary transaction-safe DDL; `remove_continuous_aggregate_policy` is a plain scalar function call, structurally identical to the already-shipped `add_continuous_aggregate_policy`). Neither uses the `connect(autocommit=True)` seam reserved for `create_continuous_aggregate`/`refresh_continuous_aggregate`.
 - `remove_continuous_aggregate_policy` binds `if_exists` (current TSDB 2.8+ name), not `if_not_exists` (deprecated) — verified by a dedicated negative SQL-shape assertion (Pitfall 1 guard).
 - `if_exists` defaults `False` on `drop_continuous_aggregate` (destructive, explicit per D-03) and `True` on `remove_continuous_aggregate_policy` (symmetric with `add_continuous_aggregate_policy`'s `if_not_exists=True`).
@@ -92,6 +95,7 @@ Running the plan's full `<verification>` command (`PGDATABASE=pycopg_test3 uv ru
 None - no external service configuration required.
 
 ## Next Phase Readiness
+
 - TSDB-F01 (continuous-aggregate teardown) fully complete: sync+async parity, mypy-strict clean (0 errors), interrogate 100%, ruff clean, injection-safe.
 - `test_timescale_v110_surface` frozenset is ready for 48-02 (F02 time_bucket origin/offset — no new method name, param-only) and 48-03 (F03 compress_chunk/decompress_chunk — will extend this frozenset with 2 more names) to build on.
 - No blockers for 48-02/48-03.
@@ -99,3 +103,11 @@ None - no external service configuration required.
 ---
 *Phase: 48-timescaledb-follow-ups*
 *Completed: 2026-07-03*
+
+## Self-Check: PASSED
+
+- FOUND: `.planning/phases/48-timescaledb-follow-ups/48-01-SUMMARY.md`
+- FOUND: `pycopg/timescale.py`
+- FOUND commit: `51cfd03` (Task 1 feat)
+- FOUND commit: `26d2d3e` (Task 2 test)
+- FOUND commit: `3992aa8` (docs: summary)
