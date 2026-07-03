@@ -4,8 +4,8 @@ milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: completed
 stopped_at: Completed 48-03-PLAN.md
-last_updated: "2026-07-03T10:48:53.273Z"
-last_activity: 2026-07-03 -- Phase 48 Plan 02 (time_bucket origin/offset, TSDB-F02) executed
+last_updated: "2026-07-03T11:24:57.618Z"
+last_activity: 2026-07-03
 progress:
   total_phases: 4
   completed_phases: 1
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 ## Current Position
 
-Phase: 48 (timescaledb-follow-ups) — EXECUTING
-Plan: 3 of 3
+Phase: 49
+Plan: Not started
 Status: Plan 02 complete (TSDB-F02 done) — Plan 03 (F03 compress_chunk/decompress_chunk) next
-Last activity: 2026-07-03 -- Phase 48 Plan 02 (time_bucket origin/offset, TSDB-F02) executed
+Last activity: 2026-07-03
 
 Progress: [███████░░░] 67%
 

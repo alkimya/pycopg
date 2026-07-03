@@ -25,7 +25,7 @@
 
 **Milestone Goal:** First additive **1.x** point release under the frozen SemVer 1.0 API — close 13 deferred family follow-ups across three already-shipped surfaces (`db.timescale.*`, `db.etl.*`/`Pipeline`, flat core + `db.schema.*`) and fold in the pending doc/metadata patch. Non-breaking, full sync/async parity (Core Value), zero new runtime dependencies, coverage ratchet ≥95% (baseline 96.45%), `mypy --strict` stays a blocking gate at 0 errors.
 
-- [ ] **Phase 48: TimescaleDB Follow-ups** - Complete the `db.timescale.*` cagg lifecycle, custom bucket alignment, per-chunk compression, and physical-time chunk filters
+- [x] **Phase 48: TimescaleDB Follow-ups** - Complete the `db.timescale.*` cagg lifecycle, custom bucket alignment, per-chunk compression, and physical-time chunk filters (completed 2026-07-03)
 - [ ] **Phase 49: Incremental ETL Follow-ups** - Bound the first incremental run, configurable boundary semantics, composite watermarks, and advisory-lock concurrency safety on `Pipeline`
 - [ ] **Phase 50: CRUD + Introspection Follow-ups** - Raw-SQL escape hatch, keyset pagination with a page envelope, and richer `db.schema.*` introspection (`describe` as dataclass/DataFrame, materialized views)
 - [ ] **Phase 51: Release v1.1.0** - Doc/metadata patch (classifier, api-reference, CLAUDE.md), version bump, CHANGELOG, 5 gates green, tag + PyPI publish
@@ -106,7 +106,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete   | 2026-07-03 |
+| 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
