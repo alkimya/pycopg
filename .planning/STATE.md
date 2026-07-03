@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: completed
-stopped_at: Completed 48-03-PLAN.md
-last_updated: "2026-07-03T11:24:57.618Z"
+status: verifying
+stopped_at: Phase 49 context gathered
+last_updated: "2026-07-03T12:16:11.849Z"
 last_activity: 2026-07-03
 progress:
   total_phases: 4
@@ -183,9 +183,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T10:48:53.264Z
-Stopped at: Completed 48-03-PLAN.md
-Resume file: None
+Last session: 2026-07-03T12:16:11.834Z
+Stopped at: Phase 49 context gathered
+Resume file: .planning/phases/49-incremental-etl-follow-ups/49-CONTEXT.md
 Next action: Phase 48 (TimescaleDB Follow-ups) complete (48-01/02/03 all shipped, TSDB-F01..F04 done) — run `/gsd-verify-work 48` or proceed to `/gsd-plan-phase 49` (ETL-INC-F01..04).
 
 ## Operator Next Steps
