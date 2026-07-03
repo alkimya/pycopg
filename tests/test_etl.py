@@ -3,6 +3,7 @@
 import functools
 from datetime import UTC, datetime, timedelta, timezone
 
+import pandas as pd
 import pytest
 
 from pycopg import queries
@@ -12,10 +13,12 @@ from pycopg.etl import (
     _build_incremental_extract_sql,
     _build_insert_sql,
     _build_upsert_sql,
+    _capture_watermark,
     _decode_watermark,
     _encode_composite_watermark,
     _encode_watermark,
     _is_sql_source,
+    _reconcile_watermark_binds,
     _row_to_result,
     _step_label,
     _validate_incremental,
@@ -490,6 +493,66 @@ class TestCompositeWatermark:
         """A bad composite element raises InvalidIdentifierError before interpolation."""
         with pytest.raises(InvalidIdentifierError):
             _build_incremental_extract_sql("t", ("day", "se q"), watermark=(1, 2))
+
+    # --- composite max-ROW capture (D-10, Pitfall 3/4) ---
+
+    def test_capture_composite_is_sorted_last_row_not_per_column_max(self):
+        """Composite capture takes the greatest ROW (2, 1), NOT per-column maxes (2, 99)."""
+        df = pd.DataFrame([{"day": 1, "seq": 99}, {"day": 2, "seq": 1}])
+        assert _capture_watermark(df, ("day", "seq")) == (2, 1)
+
+    def test_capture_scalar_is_column_max(self):
+        """Single-column capture is max(col) — byte-identical to the pre-composite path."""
+        df = pd.DataFrame([{"day": 1, "seq": 99}, {"day": 2, "seq": 1}])
+        assert _capture_watermark(df, "seq") == 99
+
+    def test_capture_composite_preserves_element_types(self):
+        """Composite capture keeps each element's native type (int stays int)."""
+        df = pd.DataFrame([{"day": 1, "seq": 99}, {"day": 2, "seq": 1}])
+        wm = _capture_watermark(df, ("day", "seq"))
+        assert isinstance(wm[0], int) and isinstance(wm[1], int)
+
+    def test_capture_composite_nan_element_voids_watermark(self):
+        """A NaN in any element of the max ROW voids the whole watermark (Pitfall 4)."""
+        df = pd.DataFrame([{"day": 1, "seq": 5}, {"day": 2, "seq": float("nan")}])
+        assert _capture_watermark(df, ("day", "seq")) is None
+
+    def test_capture_empty_batch_is_none(self):
+        """An empty batch records no composite watermark."""
+        df = pd.DataFrame({"day": [], "seq": []})
+        assert _capture_watermark(df, ("day", "seq")) is None
+
+    def test_capture_missing_composite_column_raises(self):
+        """A missing composite key column raises ETLError listing the missing name(s)."""
+        df = pd.DataFrame([{"day": 1}])
+        with pytest.raises(ETLError, match="seq"):
+            _capture_watermark(df, ("day", "seq"))
+
+    def test_capture_none_column_is_none(self):
+        """A non-incremental pipeline (col=None) captures no watermark."""
+        assert _capture_watermark(pd.DataFrame([{"x": 1}]), None) is None
+
+    # --- multi-placeholder named-bind reconciliation ---
+
+    def test_reconcile_scalar_keeps_wm_bind(self):
+        """A single watermark keeps the historical :wm bind (byte-identical)."""
+        sql, params = _reconcile_watermark_binds("WHERE col > %s", [5])
+        assert sql == "WHERE col > :wm"
+        assert params == {"wm": 5}
+
+    def test_reconcile_composite_maps_distinct_named_binds(self):
+        """Composite maps each %s to a distinct :wm{i} bind, order-preserving."""
+        sql, params = _reconcile_watermark_binds(
+            "WHERE (day, seq) > (%s, %s)", [5, 40]
+        )
+        assert sql == "WHERE (day, seq) > (:wm0, :wm1)"
+        assert params == {"wm0": 5, "wm1": 40}
+
+    def test_reconcile_no_params_is_empty(self):
+        """No watermark params yields an unchanged SQL and empty binds."""
+        sql, params = _reconcile_watermark_binds("SELECT * FROM t", [])
+        assert sql == "SELECT * FROM t"
+        assert params == {}
 
 
 class TestBuilders:

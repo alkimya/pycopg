@@ -30,7 +30,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from dataclasses import replace as dc_replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import pandas as pd
 from psycopg.rows import dict_row
@@ -991,6 +991,120 @@ def _decode_scalar_watermark(envelope: dict[str, Any]) -> datetime | int | str:
     )
 
 
+#: A composite (multi-column) watermark value — a tuple of scalars aligned
+#: with a composite ``incremental_column`` (ETL-INC-F03).
+CompositeWatermark: TypeAlias = tuple["datetime | int | str", ...]
+
+
+def _encode_watermark_value(
+    col: str | Sequence[str] | None,
+    value: datetime | int | str | CompositeWatermark,
+) -> dict[str, Any]:
+    """Encode a captured watermark for persistence — scalar or composite.
+
+    Dispatches on the column shape: a single ``str`` (or ``None``) column
+    encodes a scalar via :func:`_encode_watermark`; a composite (sequence)
+    column encodes the tuple via :func:`_encode_composite_watermark`. The
+    resulting envelope is persisted opaquely by ``_end_run`` (D-11).
+    """
+    if isinstance(col, str) or col is None:
+        return _encode_watermark(cast("datetime | int | str", value))
+    return _encode_composite_watermark(col, cast("Sequence[Any]", value))
+
+
+def _coerce_watermark_scalar(m: Any, col_label: str) -> datetime | int | str | None:
+    """Coerce one pandas/numpy max value to a plain watermark scalar.
+
+    Shared by the single-column and composite (per-element) capture paths.
+    Returns ``None`` when the value is ``NaN``/``NaT`` (record nothing this
+    run — C-03). The ``pd.isna`` check precedes the float check because ``NaN``
+    is itself a float (WR-02). A genuine float dtype raises :class:`ETLError`
+    (no defined watermark semantics — ``int()`` would silently truncate; D-06).
+    """
+    if pd.isna(m):
+        return None
+    if isinstance(m, pd.Timestamp):
+        return m.to_pydatetime()  # plain datetime, offset preserved
+    if isinstance(m, str):
+        return str(m)  # normalize numpy.str_ → str
+    if pd.api.types.is_float(m):
+        raise ETLError(
+            f"incremental_column {col_label!r} has float dtype; float "
+            f"watermarks are not supported (cast to INTEGER or TIMESTAMP). "
+            f"Supported types are {_WATERMARK_SUPPORTED}"
+        )
+    return int(m)  # numpy.int64 → plain int
+
+
+def _capture_watermark(
+    df: pd.DataFrame,
+    col: str | Sequence[str] | None,
+) -> datetime | int | str | CompositeWatermark | None:
+    """Capture the recorded high-water mark from a RAW extract batch.
+
+    Single-column (``str``): ``max(col)``. Composite (sequence): the true
+    greatest ROW — sort by the key columns and take the last row's tuple, NOT
+    per-column maxes (D-10; per-column maxes fabricate a row no data has —
+    RESEARCH Pitfall 3). A ``NaN``/``NaT`` in ANY captured element voids the
+    whole watermark for this run (record nothing, the prior watermark is
+    preserved — RESEARCH Pitfall 4 / C-03).
+
+    Returns ``None`` for a non-incremental pipeline (``col is None``) or an
+    empty batch. Raises :class:`ETLError` if any key column is missing from
+    the batch (D-06) or has float dtype.
+    """
+    if col is None:
+        return None
+    cols = [col] if isinstance(col, str) else list(col)
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        # Single-column keeps the scalar repr byte-identical (D-A3); composite
+        # reports the list of missing key columns.
+        label: str | list[str] = col if isinstance(col, str) else missing
+        raise ETLError(
+            f"incremental_column {label!r} not found in extracted batch "
+            f"columns {list(df.columns)} (ETL-INC-04)"  # D-06 — not a bare KeyError
+        )
+    if not len(df):  # guard: max()/iloc on an empty frame
+        return None
+    if isinstance(col, str):
+        return _coerce_watermark_scalar(df[col].max(), col)
+    # Composite: the greatest ROW under lexicographic key order — matches the
+    # native Postgres row-value compare (c1, c2) > (w1, w2) (D-10). Read each
+    # element from its OWN sorted column (`sorted_df[c].iloc[-1]`), never from a
+    # cross-column row Series: extracting a whole row promotes mixed int/float
+    # columns to a common dtype, which would falsely trip the float-reject on an
+    # int key when a sibling column is float.
+    sorted_df = df.sort_values(cols)
+    captured: list[datetime | int | str] = []
+    for c in cols:
+        scalar = _coerce_watermark_scalar(sorted_df[c].iloc[-1], c)
+        if scalar is None:  # any NaN element → void the whole tuple (Pitfall 4)
+            return None
+        captured.append(scalar)
+    return tuple(captured)
+
+
+def _reconcile_watermark_binds(
+    sql: str, params_list: list[Any]
+) -> tuple[str, dict[str, Any]]:
+    """Map the builder's positional ``%s`` watermark placeholders to named binds.
+
+    ``to_dataframe`` uses SQLAlchemy ``text()`` named parameters. A
+    single-column extract keeps the historical ``:wm`` bind (byte-identical);
+    a composite extract maps each ``%s`` in order to a distinct ``:wm{i}``
+    bind so the ``(c1, c2) > (:wm0, :wm1)`` row-value compare is fully
+    parameterized (never interpolated).
+    """
+    if len(params_list) == 1:
+        return sql.replace("%s", ":wm", 1), {"wm": params_list[0]}
+    if params_list:
+        for i in range(len(params_list)):
+            sql = sql.replace("%s", f":wm{i}", 1)
+        return sql, {f"wm{i}": v for i, v in enumerate(params_list)}
+    return sql, {}
+
+
 def _step_label(fn: object) -> str:
     """Return a human-readable label for a transform step function.
 
@@ -1307,7 +1421,9 @@ class ETLAccessor:
                 row = cur.fetchone()
         return _row_to_result(row) if row is not None else None
 
-    def _read_watermark(self, name: str) -> datetime | int | str | None:
+    def _read_watermark(
+        self, name: str
+    ) -> datetime | int | str | CompositeWatermark | None:
         """Return the last successful, non-NULL watermark for a pipeline, or None.
 
         Reads one row from ``pipeline_runs`` via
@@ -1345,16 +1461,12 @@ class ETLAccessor:
                 row = cur.fetchone()
         if row is None or row["watermark"] is None:
             return None
-        # 49-03 pure layer: a composite watermark is never STORED yet (run()
-        # capture is guarded off until 49-04), so a read here is always a
-        # scalar. 49-04 widens this return and wires the composite read
-        # end-to-end; the cast documents the current scalar-only contract.
-        return cast("datetime | int | str", _decode_watermark(row["watermark"]))
+        return _decode_watermark(row["watermark"])
 
     def _do_extract(
         self,
         pipeline: Pipeline,
-        watermark: datetime | int | str | None,
+        watermark: datetime | int | str | CompositeWatermark | None,
     ) -> pd.DataFrame:
         """Run the watermark-filtered extract step for *pipeline*.
 
@@ -1389,9 +1501,10 @@ class ETLAccessor:
             The extracted batch.
         """
         if pipeline.incremental_column is not None:
-            # Incremental path: build filtered SQL with bound watermark param.
-            # The builder emits %s positional; reconcile to :wm named bind
-            # for to_dataframe (which uses SQLAlchemy text() + named params).
+            # Incremental path: build filtered SQL with bound watermark param(s).
+            # The builder emits positional %s; reconcile to named :wm / :wm{i}
+            # binds for to_dataframe (SQLAlchemy text() + named params). A
+            # composite key emits multiple %s → one distinct named bind each.
             sql, _params = _build_incremental_extract_sql(
                 pipeline.source,
                 pipeline.incremental_column,
@@ -1399,12 +1512,7 @@ class ETLAccessor:
                 watermark=watermark,
                 inclusive=pipeline.incremental_inclusive,
             )
-            if _params:
-                # Replace the single positional %s with a named :wm bind
-                sql = sql.replace("%s", ":wm", 1)
-                params: dict[str, Any] = {"wm": _params[0]}
-            else:
-                params = {}
+            sql, params = _reconcile_watermark_binds(sql, _params)
             if pipeline.extract_limit is not None:
                 # Wrap as subquery so LIMIT applies to the filtered result
                 # and the :wm bind is still valid in the inner query
@@ -1529,54 +1637,35 @@ class ETLAccessor:
                 # Seed-floor fallback (D-01): first-run seed, explicit is-None.
                 if pipeline.incremental_column is not None and dry_wm is None:
                     dry_wm = cast(
-                        "datetime | int | str | None", pipeline.initial_watermark
+                        "datetime | int | str | CompositeWatermark | None",
+                        pipeline.initial_watermark,
                     )
 
                 # Shared filtered extract (D-A2a) — same path as real run.
                 # Lookback widens the READ floor here too so the dry-run
                 # previews the same overlap window (D-06/D-07).
-                dry_read_floor: datetime | int | str | None = dry_wm
+                dry_read_floor: datetime | int | str | CompositeWatermark | None = (
+                    dry_wm
+                )
                 if pipeline.incremental_lookback is not None and dry_wm is not None:
+                    if isinstance(dry_wm, tuple):
+                        raise ETLError(
+                            "incremental_lookback is not supported for a composite "
+                            "watermark key (ETL-INC-F03); apply a lookback only to a "
+                            "single-column watermark"
+                        )
                     dry_read_floor = _apply_lookback(
                         dry_wm, pipeline.incremental_lookback
                     )
                 df = self._do_extract(pipeline, dry_read_floor)
                 rows_extracted = len(df)
 
-                # Capture would-be watermark from RAW filtered batch (D-A2)
-                dry_raw_watermark: datetime | int | str | None = None
-                dry_col = pipeline.incremental_column
-                if dry_col is not None:
-                    if not isinstance(dry_col, str):
-                        # Composite watermark CAPTURE from run() is wired in
-                        # 49-04; the pure layer (49-03) builds/validates the
-                        # composite extract SQL but does not yet record a
-                        # composite watermark. Fail loud, not silent (D-04).
-                        raise ETLError(
-                            "composite incremental_column is not yet recorded by "
-                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
-                        )
-                    if dry_col not in df.columns:
-                        raise ETLError(
-                            f"incremental_column {dry_col!r} not found in extracted batch "
-                            f"columns {list(df.columns)} (ETL-INC-04)"
-                        )
-                    if len(df):
-                        m = df[dry_col].max()
-                        if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
-                            dry_raw_watermark = None
-                        elif isinstance(m, pd.Timestamp):
-                            dry_raw_watermark = m.to_pydatetime()
-                        elif isinstance(m, str):
-                            dry_raw_watermark = str(m)
-                        elif pd.api.types.is_float(m):
-                            raise ETLError(
-                                f"incremental_column {dry_col!r} has float dtype; float "
-                                f"watermarks are not supported (cast to INTEGER or "
-                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                            )
-                        else:
-                            dry_raw_watermark = int(m)
+                # Capture would-be watermark from RAW filtered batch (D-A2).
+                # Composite → the greatest sorted ROW (D-10); scalar → max(col);
+                # any NaN element voids the watermark for this run (Pitfall 4).
+                dry_raw_watermark: (
+                    datetime | int | str | CompositeWatermark | None
+                ) = _capture_watermark(df, pipeline.incremental_column)
 
                 # Transform chain (same as normal path)
                 transform = pipeline.transform
@@ -1630,7 +1719,10 @@ class ETLAccessor:
             # Composite (Sequence) seeding is wired in 49-04 — F01 is scalar-only,
             # so the cast documents the narrowed scalar contract.
             if pipeline.incremental_column is not None and wm is None:
-                wm = cast("datetime | int | str | None", pipeline.initial_watermark)
+                wm = cast(
+                    "datetime | int | str | CompositeWatermark | None",
+                    pipeline.initial_watermark,
+                )
 
             try:
                 # ------------------------------------------------------------------
@@ -1641,8 +1733,14 @@ class ETLAccessor:
                 # time. Overlap replay is a safe idempotent upsert no-op (D-08,
                 # C-01): incremental requires upsert, so re-read rows ON CONFLICT.
                 # ------------------------------------------------------------------
-                read_floor: datetime | int | str | None = wm
+                read_floor: datetime | int | str | CompositeWatermark | None = wm
                 if pipeline.incremental_lookback is not None and wm is not None:
+                    if isinstance(wm, tuple):
+                        raise ETLError(
+                            "incremental_lookback is not supported for a composite "
+                            "watermark key (ETL-INC-F03); apply a lookback only to a "
+                            "single-column watermark"
+                        )
                     read_floor = _apply_lookback(wm, pipeline.incremental_lookback)
                 df = self._do_extract(pipeline, read_floor)
 
@@ -1650,55 +1748,16 @@ class ETLAccessor:
 
                 # ------------------------------------------------------------------
                 # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
-                # Capture max(col) from the RAW batch BEFORE the transform chain
-                # (D-02: transforms may rename/drop the column).  Only when
-                # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
-                # to plain Python types so _encode_watermark's strict allowlist is
-                # satisfied (D-07 resolved by call-site coercion — do NOT reopen
-                # _encode_watermark).
+                # Capture the recorded high-water mark from the RAW batch BEFORE
+                # the transform chain (D-02: transforms may rename/drop columns).
+                # Single-column → max(col); composite → the greatest sorted ROW
+                # (D-10, NOT per-column maxes); any NaN element voids the
+                # watermark for this run (Pitfall 4 / C-03). Coercion to plain
+                # Python types keeps _encode_watermark's allowlist satisfied.
                 # ------------------------------------------------------------------
-                raw_watermark: datetime | int | str | None = None
-                col = pipeline.incremental_column
-                if col is not None:
-                    if not isinstance(col, str):
-                        # Composite watermark CAPTURE from run() is wired in
-                        # 49-04; the pure layer (49-03) builds/validates the
-                        # composite extract SQL but does not yet record a
-                        # composite watermark. Fail loud, not silent (D-04).
-                        raise ETLError(
-                            "composite incremental_column is not yet recorded by "
-                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
-                        )
-                    if col not in df.columns:
-                        raise ETLError(
-                            f"incremental_column {col!r} not found in extracted batch "
-                            f"columns {list(df.columns)} (ETL-INC-04)"
-                        )  # D-06 — clear ETLError, not a bare KeyError
-                    if len(df):  # guard: max() on empty df is NaN
-                        m = df[col].max()
-                        if pd.isna(m):
-                            # All values NULL (NaN/NaT) — record no watermark for
-                            # this run, same as the empty-batch path; the prior
-                            # successful watermark is preserved.  Must precede the
-                            # is_float branch below: NaN is itself a float.
-                            raw_watermark = None
-                        elif isinstance(m, pd.Timestamp):
-                            raw_watermark = (
-                                m.to_pydatetime()
-                            )  # plain datetime, offset preserved
-                        elif isinstance(m, str):
-                            raw_watermark = str(m)  # normalize numpy.str_ → str
-                        elif pd.api.types.is_float(m):
-                            # float/Decimal columns have no defined watermark
-                            # semantics — int() would silently truncate (99.99 → 99)
-                            # and regress the watermark.  Fail loud (D-06 contract).
-                            raise ETLError(
-                                f"incremental_column {col!r} has float dtype; float "
-                                f"watermarks are not supported (cast to INTEGER or "
-                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                            )
-                        else:
-                            raw_watermark = int(m)  # numpy.int64 → plain int
+                raw_watermark: datetime | int | str | CompositeWatermark | None = (
+                    _capture_watermark(df, pipeline.incremental_column)
+                )
 
                 # ------------------------------------------------------------------
                 # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
@@ -1822,7 +1881,9 @@ class ETLAccessor:
                 raise
 
             wm_env = (
-                _encode_watermark(raw_watermark) if raw_watermark is not None else None
+                _encode_watermark_value(pipeline.incremental_column, raw_watermark)
+                if raw_watermark is not None
+                else None
             )
             self._end_run(
                 run_id, "success", rows_extracted, rows_loaded, watermark=wm_env
@@ -2073,7 +2134,9 @@ class AsyncETLAccessor:
                 row = await cur.fetchone()
         return _row_to_result(row) if row is not None else None
 
-    async def _read_watermark(self, name: str) -> datetime | int | str | None:
+    async def _read_watermark(
+        self, name: str
+    ) -> datetime | int | str | CompositeWatermark | None:
         """Return the last successful, non-NULL watermark for a pipeline, or None.
 
         Reads one row from ``pipeline_runs`` via
@@ -2107,16 +2170,12 @@ class AsyncETLAccessor:
                 row = await cur.fetchone()
         if row is None or row["watermark"] is None:
             return None
-        # 49-03 pure layer: a composite watermark is never STORED yet (run()
-        # capture is guarded off until 49-04), so a read here is always a
-        # scalar. 49-04 widens this return and wires the composite read
-        # end-to-end; the cast documents the current scalar-only contract.
-        return cast("datetime | int | str", _decode_watermark(row["watermark"]))
+        return _decode_watermark(row["watermark"])
 
     async def _do_extract(
         self,
         pipeline: Pipeline,
-        watermark: datetime | int | str | None,
+        watermark: datetime | int | str | CompositeWatermark | None,
     ) -> pd.DataFrame:
         """Run the watermark-filtered async extract step for *pipeline*.
 
@@ -2151,9 +2210,10 @@ class AsyncETLAccessor:
             The extracted batch.
         """
         if pipeline.incremental_column is not None:
-            # Incremental path: build filtered SQL with bound watermark param.
-            # The builder emits %s positional; reconcile to :wm named bind
-            # for to_dataframe (which uses SQLAlchemy text() + named params).
+            # Incremental path: build filtered SQL with bound watermark param(s).
+            # The builder emits positional %s; reconcile to named :wm / :wm{i}
+            # binds for to_dataframe (SQLAlchemy text() + named params). A
+            # composite key emits multiple %s → one distinct named bind each.
             sql, _params = _build_incremental_extract_sql(
                 pipeline.source,
                 pipeline.incremental_column,
@@ -2161,12 +2221,7 @@ class AsyncETLAccessor:
                 watermark=watermark,
                 inclusive=pipeline.incremental_inclusive,
             )
-            if _params:
-                # Replace the single positional %s with a named :wm bind
-                sql = sql.replace("%s", ":wm", 1)
-                params: dict[str, Any] = {"wm": _params[0]}
-            else:
-                params = {}
+            sql, params = _reconcile_watermark_binds(sql, _params)
             if pipeline.extract_limit is not None:
                 # Wrap as subquery so LIMIT applies to the filtered result
                 # and the :wm bind is still valid in the inner query
@@ -2276,54 +2331,35 @@ class AsyncETLAccessor:
                 # Seed-floor fallback (D-01): first-run seed, explicit is-None.
                 if pipeline.incremental_column is not None and dry_wm is None:
                     dry_wm = cast(
-                        "datetime | int | str | None", pipeline.initial_watermark
+                        "datetime | int | str | CompositeWatermark | None",
+                        pipeline.initial_watermark,
                     )
 
                 # Shared filtered extract (D-A2a) — same path as real run.
                 # Lookback widens the READ floor here too so the dry-run
                 # previews the same overlap window (D-06/D-07).
-                dry_read_floor: datetime | int | str | None = dry_wm
+                dry_read_floor: datetime | int | str | CompositeWatermark | None = (
+                    dry_wm
+                )
                 if pipeline.incremental_lookback is not None and dry_wm is not None:
+                    if isinstance(dry_wm, tuple):
+                        raise ETLError(
+                            "incremental_lookback is not supported for a composite "
+                            "watermark key (ETL-INC-F03); apply a lookback only to a "
+                            "single-column watermark"
+                        )
                     dry_read_floor = _apply_lookback(
                         dry_wm, pipeline.incremental_lookback
                     )
                 df = await self._do_extract(pipeline, dry_read_floor)
                 rows_extracted = len(df)
 
-                # Capture would-be watermark from RAW filtered batch (D-A2)
-                dry_raw_watermark: datetime | int | str | None = None
-                dry_col = pipeline.incremental_column
-                if dry_col is not None:
-                    if not isinstance(dry_col, str):
-                        # Composite watermark CAPTURE from run() is wired in
-                        # 49-04; the pure layer (49-03) builds/validates the
-                        # composite extract SQL but does not yet record a
-                        # composite watermark. Fail loud, not silent (D-04).
-                        raise ETLError(
-                            "composite incremental_column is not yet recorded by "
-                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
-                        )
-                    if dry_col not in df.columns:
-                        raise ETLError(
-                            f"incremental_column {dry_col!r} not found in extracted batch "
-                            f"columns {list(df.columns)} (ETL-INC-04)"
-                        )
-                    if len(df):
-                        m = df[dry_col].max()
-                        if pd.isna(m):  # must precede is_float — NaN is a float (WR-02)
-                            dry_raw_watermark = None
-                        elif isinstance(m, pd.Timestamp):
-                            dry_raw_watermark = m.to_pydatetime()
-                        elif isinstance(m, str):
-                            dry_raw_watermark = str(m)
-                        elif pd.api.types.is_float(m):
-                            raise ETLError(
-                                f"incremental_column {dry_col!r} has float dtype; float "
-                                f"watermarks are not supported (cast to INTEGER or "
-                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                            )
-                        else:
-                            dry_raw_watermark = int(m)
+                # Capture would-be watermark from RAW filtered batch (D-A2).
+                # Composite → the greatest sorted ROW (D-10); scalar → max(col);
+                # any NaN element voids the watermark for this run (Pitfall 4).
+                dry_raw_watermark: (
+                    datetime | int | str | CompositeWatermark | None
+                ) = _capture_watermark(df, pipeline.incremental_column)
 
                 # Transform chain (same as normal path, but dispatched via to_thread — SC-2)
                 transform = pipeline.transform
@@ -2377,7 +2413,10 @@ class AsyncETLAccessor:
             # Composite (Sequence) seeding is wired in 49-04 — F01 is scalar-only,
             # so the cast documents the narrowed scalar contract.
             if pipeline.incremental_column is not None and wm is None:
-                wm = cast("datetime | int | str | None", pipeline.initial_watermark)
+                wm = cast(
+                    "datetime | int | str | CompositeWatermark | None",
+                    pipeline.initial_watermark,
+                )
 
             try:
                 # ------------------------------------------------------------------
@@ -2388,8 +2427,14 @@ class AsyncETLAccessor:
                 # time. Overlap replay is a safe idempotent upsert no-op (D-08,
                 # C-01): incremental requires upsert, so re-read rows ON CONFLICT.
                 # ------------------------------------------------------------------
-                read_floor: datetime | int | str | None = wm
+                read_floor: datetime | int | str | CompositeWatermark | None = wm
                 if pipeline.incremental_lookback is not None and wm is not None:
+                    if isinstance(wm, tuple):
+                        raise ETLError(
+                            "incremental_lookback is not supported for a composite "
+                            "watermark key (ETL-INC-F03); apply a lookback only to a "
+                            "single-column watermark"
+                        )
                     read_floor = _apply_lookback(wm, pipeline.incremental_lookback)
                 df = await self._do_extract(pipeline, read_floor)
 
@@ -2397,55 +2442,16 @@ class AsyncETLAccessor:
 
                 # ------------------------------------------------------------------
                 # 1b. INCREMENTAL WATERMARK CAPTURE (D-02 / D-06 / D-07 / ETL-INC-02)
-                # Capture max(col) from the RAW batch BEFORE the transform chain
-                # (D-02: transforms may rename/drop the column).  Only when
-                # pipeline.incremental_column is set.  Coerce pandas/numpy scalars
-                # to plain Python types so _encode_watermark's strict allowlist is
-                # satisfied (D-07 resolved by call-site coercion — do NOT reopen
-                # _encode_watermark).
+                # Capture the recorded high-water mark from the RAW batch BEFORE
+                # the transform chain (D-02: transforms may rename/drop columns).
+                # Single-column → max(col); composite → the greatest sorted ROW
+                # (D-10, NOT per-column maxes); any NaN element voids the
+                # watermark for this run (Pitfall 4 / C-03). Coercion to plain
+                # Python types keeps _encode_watermark's allowlist satisfied.
                 # ------------------------------------------------------------------
-                raw_watermark: datetime | int | str | None = None
-                col = pipeline.incremental_column
-                if col is not None:
-                    if not isinstance(col, str):
-                        # Composite watermark CAPTURE from run() is wired in
-                        # 49-04; the pure layer (49-03) builds/validates the
-                        # composite extract SQL but does not yet record a
-                        # composite watermark. Fail loud, not silent (D-04).
-                        raise ETLError(
-                            "composite incremental_column is not yet recorded by "
-                            "run(); ETL-INC-F03 run() wiring lands in plan 49-04"
-                        )
-                    if col not in df.columns:
-                        raise ETLError(
-                            f"incremental_column {col!r} not found in extracted batch "
-                            f"columns {list(df.columns)} (ETL-INC-04)"
-                        )  # D-06 — clear ETLError, not a bare KeyError
-                    if len(df):  # guard: max() on empty df is NaN
-                        m = df[col].max()
-                        if pd.isna(m):
-                            # All values NULL (NaN/NaT) — record no watermark for
-                            # this run, same as the empty-batch path; the prior
-                            # successful watermark is preserved.  Must precede the
-                            # is_float branch below: NaN is itself a float.
-                            raw_watermark = None
-                        elif isinstance(m, pd.Timestamp):
-                            raw_watermark = (
-                                m.to_pydatetime()
-                            )  # plain datetime, offset preserved
-                        elif isinstance(m, str):
-                            raw_watermark = str(m)  # normalize numpy.str_ → str
-                        elif pd.api.types.is_float(m):
-                            # float/Decimal columns have no defined watermark
-                            # semantics — int() would silently truncate (99.99 → 99)
-                            # and regress the watermark.  Fail loud (D-06 contract).
-                            raise ETLError(
-                                f"incremental_column {col!r} has float dtype; float "
-                                f"watermarks are not supported (cast to INTEGER or "
-                                f"TIMESTAMP). Supported types are {_WATERMARK_SUPPORTED}"
-                            )
-                        else:
-                            raw_watermark = int(m)  # numpy.int64 → plain int
+                raw_watermark: datetime | int | str | CompositeWatermark | None = (
+                    _capture_watermark(df, pipeline.incremental_column)
+                )
 
                 # ------------------------------------------------------------------
                 # 2. TRANSFORM CHAIN (D-05 / D-06 / ETL-16)
@@ -2570,7 +2576,9 @@ class AsyncETLAccessor:
                 raise
 
             wm_env = (
-                _encode_watermark(raw_watermark) if raw_watermark is not None else None
+                _encode_watermark_value(pipeline.incremental_column, raw_watermark)
+                if raw_watermark is not None
+                else None
             )
             await self._end_run(
                 run_id, "success", rows_extracted, rows_loaded, watermark=wm_env
