@@ -235,6 +235,109 @@ class TestPipeline:
         assert p.conflict_columns == ()
 
 
+class TestInitialWatermark:
+    """DB-free construction-guard tests for Pipeline.initial_watermark (F01, D-01/D-02).
+
+    Live-DB seed-floor sequence integration tests (D-01/D-03) land in Task 2
+    of this plan, once the ``run()`` call-site fallback is wired.
+    """
+
+    def test_scalar_initial_watermark_constructs(self):
+        """A valid int initial_watermark constructs with incremental_column set."""
+        p = Pipeline(
+            name="seeded",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="ts",
+            initial_watermark=100,
+        )
+        assert p.initial_watermark == 100
+
+    def test_default_initial_watermark_is_none(self):
+        """Default initial_watermark is None — byte-identical to pre-F01 behavior."""
+        p = Pipeline(
+            name="x",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="ts",
+        )
+        assert p.initial_watermark is None
+
+    def test_initial_watermark_without_incremental_column_raises(self):
+        """initial_watermark without incremental_column raises ValueError (D-02)."""
+        with pytest.raises(ValueError, match="initial_watermark"):
+            Pipeline(name="x", source="s", target="t", initial_watermark=100)
+
+    def test_initial_watermark_bool_raises(self):
+        """A bool initial_watermark raises — bool is an int subclass, rejected first (D-02/C-02)."""
+        with pytest.raises(ETLError):
+            Pipeline(
+                name="x",
+                source="t",
+                target="u",
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="ts",
+                initial_watermark=True,
+            )
+
+    def test_initial_watermark_float_raises(self):
+        """A float initial_watermark raises — float has no defined watermark semantics (D-02)."""
+        with pytest.raises(ETLError):
+            Pipeline(
+                name="x",
+                source="t",
+                target="u",
+                load_mode="upsert",
+                conflict_columns=["id"],
+                incremental_column="ts",
+                initial_watermark=1.5,
+            )
+
+    def test_initial_watermark_datetime_constructs(self):
+        """A datetime initial_watermark constructs (D-02 allowlist)."""
+        p = Pipeline(
+            name="x",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="ts",
+            initial_watermark=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        assert p.initial_watermark == datetime(2026, 1, 1, tzinfo=UTC)
+
+    def test_initial_watermark_str_constructs(self):
+        """A str initial_watermark constructs (D-02 allowlist)."""
+        p = Pipeline(
+            name="x",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="ts",
+            initial_watermark="v1",
+        )
+        assert p.initial_watermark == "v1"
+
+    def test_initial_watermark_zero_is_valid(self):
+        """initial_watermark=0 (falsy but valid) constructs without error (D-01 falsy trap)."""
+        p = Pipeline(
+            name="x",
+            source="t",
+            target="u",
+            load_mode="upsert",
+            conflict_columns=["id"],
+            incremental_column="ts",
+            initial_watermark=0,
+        )
+        assert p.initial_watermark == 0
+
+
 class TestBuilders:
     """Exact SQL string + params assertions for pure ETL builders."""
 
