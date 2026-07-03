@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 48 — timescaledb-follow-ups
+**Current focus:** Phase 48 complete — Phase 49 (incremental-etl-follow-ups) next
 
 ## Current Position
 
 Phase: 49
 Plan: Not started
-Status: Plan 02 complete (TSDB-F02 done) — Plan 03 (F03 compress_chunk/decompress_chunk) next
+Status: Phase 48 COMPLETE (verified PASSED 4/4; TSDB-F01..F04 shipped, code-review 0 crit/1 warn WR-01) — Phase 49 (incremental-etl-follow-ups) next
 Last activity: 2026-07-03
 
-Progress: [███████░░░] 67%
+Progress: [██░░░░░░░░] 25% (1/4 phases)
 
 ## Performance Metrics
 
