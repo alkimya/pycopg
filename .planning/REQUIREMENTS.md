@@ -33,7 +33,7 @@ Not separate requirements — the standing bar each feature REQ must meet at ver
 
 ### CRUD + Introspection Follow-ups (flat transactional core + `db.schema.*`)
 
-- [ ] **CRUD-F01**: User can pass a raw-SQL WHERE fragment (with bound params) as an escape hatch on the predicate helpers (`delete_where`/`update_where`/`count`/`exists`/`paginate`) for conditions the dict form can't express.
+- [x] **CRUD-F01**: User can pass a raw-SQL WHERE fragment (with bound params) as an escape hatch on the predicate helpers (`delete_where`/`update_where`/`count`/`exists`/`paginate`) for conditions the dict form can't express.
 - [ ] **CRUD-F02**: User can paginate by keyset/cursor (seek method) for stable, index-friendly deep pagination.
 - [ ] **CRUD-F03**: User can retrieve a page envelope carrying `total` count and `has_next` alongside the rows.
 - [ ] **INTRO-F01**: User can get `db.schema.describe()` output as a structured dataclass and/or DataFrame, not only a plain dict.
@@ -85,7 +85,7 @@ Which phases cover which requirements.
 | ETL-INC-F02 | Phase 49 | Pending |
 | ETL-INC-F03 | Phase 49 | Pending |
 | ETL-INC-F04 | Phase 49 | Pending |
-| CRUD-F01 | Phase 50 | Pending |
+| CRUD-F01 | Phase 50 | Complete |
 | CRUD-F02 | Phase 50 | Pending |
 | CRUD-F03 | Phase 50 | Pending |
 | INTRO-F01 | Phase 50 | Pending |

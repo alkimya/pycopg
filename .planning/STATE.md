@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: verifying
-stopped_at: Phase 50 context gathered
-last_updated: "2026-07-03T20:56:15.571Z"
-last_activity: 2026-07-03 -- 49-05 advisory-lock concurrency shipped; ETL-INC-F01..F04 done, full suite 1844@96.29%
+status: executing
+stopped_at: Phase 50 plan 01 complete (CRUD-F01 raw-SQL WHERE escape hatch); proceed to plan 02
+last_updated: "2026-07-03T21:37:21.617Z"
+last_activity: 2026-07-03 -- Phase 50 execution started
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 12
+  completed_plans: 9
   percent: 50
 ---
 
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 49 — incremental-etl-follow-ups
+**Current focus:** Phase 50 — crud-introspection-follow-ups
 
 ## Current Position
 
-Phase: 49 (incremental-etl-follow-ups) — ALL PLANS COMPLETE (5/5), pending verification
-Plan: 5 of 5 complete (F01 ✓, F02 ✓, F03 ✓ end-to-end, F04 ✓)
-Status: Phase 49 execution complete — run /gsd-verify-work 49 (or already inline-verified)
-Last activity: 2026-07-03 -- 49-05 advisory-lock concurrency shipped; ETL-INC-F01..F04 done, full suite 1844@96.29%
+Phase: 50 (crud-introspection-follow-ups) — EXECUTING
+Plan: 2 of 4 (50-01 CRUD-F01 complete; 50-02/03/04 pending)
+Status: Executing Phase 50
+Last activity: 2026-07-03 -- 50-01 CRUD-F01 raw-SQL WHERE escape hatch shipped; full suite 1898@96.64%
 
-Progress: [██░░░░░░░░] 25% (1/4 phases)
+Progress: [█████░░░░░] 50% (2/4 phases; 9/12 plans)
 
 ## Performance Metrics
 
@@ -92,6 +92,7 @@ Progress: [██░░░░░░░░] 25% (1/4 phases)
 | Phase 48 P01 | 15min | 2 tasks | 3 files |
 | Phase 48 P02 | 20min | 3 tasks | 2 files |
 | Phase 48 P03 | 25min | 3 tasks | 4 files |
+| Phase 50 P01 | 15min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 49-04]: composite watermark run() WIRING (F03 end-to-end). 4 pure helpers replace the 4 duplicated capture blocks + 49-03 fail-loud guards: _capture_watermark (scalar max / composite greatest-ROW via sort_values reading each element from its OWN sorted column sorted_df[c].iloc[-1] — NOT a row Series which promotes int→float, NOT per-column maxes D-10; per-element NaN void Pitfall 4), _coerce_watermark_scalar, _reconcile_watermark_binds (single %s→:wm byte-identical, composite→:wm{i}), _encode_watermark_value (scalar/composite persist). Wired all 4 forks C-04; _read_watermark + wm/read_floor widened to CompositeWatermark tuple; composite+lookback→ETLError (unsupported). Live proof: recorded (2,1) NOT (2,99), second-run (day,seq)>(recorded) filter, composite seed floor, async mirror. BUG FOUND+FIXED: .iloc[-1][c] row-Series int→float promotion false-tripped float-reject (caught by helper smoke test). Full suite 1828 passed @96.30%, etl.py 97%, mypy 0, Sphinx -W clean, interrogate 100%. docs/etl.md composite/boundary section corrected.
 - [Phase 49-03]: composite watermark PURE layer. incremental_column widened str|Sequence[str]|None (str stays scalar, sequence→tuple normalize in __post_init__, empty→ValueError, D-09); _validate_incremental splats validate_identifiers over elements (D-10); D-04 composite initial_watermark guard (same-length + per-element _encode_watermark allowlist + tuple-normalize; single-col now rejects sequence seed, closes 49-01 gap). Builder composite branch WHERE (c1,c2) op (%s,%s) row-value compare, 1 bound %s/element (pulled into Task-1 commit for mypy). New _encode_composite_watermark + 'composite' decode tag (dispatcher + _decode_scalar_watermark, per-element reuse, zero migration C-02); RunResult.watermark_used/recorded widened to tuple. DEVIATION: run() NOT untouched — 4 fail-loud composite-capture guards + _read_watermark cast are the 49-04 seam (no composite run() behavior yet). mypy strict green, 305 passed.
 - [Phase 49-02]: incremental_inclusive (bool, >= boundary) + incremental_lookback (timedelta|int, read-window overlap) frozen fields, defaults (False,None) byte-identical (D-05); _build_incremental_extract_sql gains kw-only inclusive (op literal from bool, validate_identifiers still line 1); new pure _apply_lookback helper (isinstance dispatch datetime→timedelta / int→int; str + type-mismatch → ETLError runtime, D-06). read_floor = wm - lookback at all 4 run() forks BEFORE _do_extract; recorded watermark stays true max(col) (D-07 — capture block untouched); RunResult.watermark_used = adjusted read floor. D-08 overlap replay = safe idempotent upsert no-op (C-01). C-04 both run()+both _do_extract same commit. Composite-watermark lookback semantics undefined → 49-04 to decide (likely reject). DEVIATION: live divergence tests in test_etl_accessor.py, builder+construction guards in test_etl.py
+- [Phase 50]: CRUD-F01: QueryMixin._resolve_predicate centralizes D-02/D-03/D-04 guards for all 5 predicate helpers x2 classes; destructive guard checks the resolved fragment (post-resolve), a non-empty where_sql satisfies it (D-03)
 
 ### Pending Todos
 
@@ -188,9 +190,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T15:51:40.931Z
-Stopped at: Phase 50 context gathered
-Resume file: .planning/phases/50-crud-introspection-follow-ups/50-CONTEXT.md
+Last session: 2026-07-03T21:37:21.602Z
+Stopped at: Phase 50 plan 01 complete (CRUD-F01 raw-SQL WHERE escape hatch); proceed to plan 02
+Resume file: .planning/phases/50-crud-introspection-follow-ups/50-02-PLAN.md
 Next action: Phase 49 (ETL-INC-F01..F04) fully closed out — proceed to `/gsd-discuss-phase 50` (CRUD-F01..03 + INTRO-F01..02).
 
 ## Operator Next Steps

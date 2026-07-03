@@ -107,7 +107,7 @@
 
 **Wave 1**
 
-- [ ] 50-01-PLAN.md — CRUD-F01 raw-SQL WHERE escape hatch (`where_sql`/`where_params` on delete_where/update_where/exists/count/paginate, both classes; `_resolve_predicate` guard)
+- [x] 50-01-PLAN.md — CRUD-F01 raw-SQL WHERE escape hatch (`where_sql`/`where_params` on delete_where/update_where/exists/count/paginate, both classes; `_resolve_predicate` guard)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -144,7 +144,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
-| 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/4 | Planned | - |
+| 50. CRUD + Introspection Follow-ups | v1.1.0 | 1/4 | In Progress|  |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
 <details>
