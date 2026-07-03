@@ -26,7 +26,11 @@ import pytest
 from psycopg.errors import FeatureNotSupported  # noqa: F401
 
 from pycopg import AsyncDatabase, Database
-from pycopg.exceptions import ExtensionNotAvailableError, TimescaleError  # noqa: F401
+from pycopg.exceptions import (  # noqa: F401
+    ExtensionNotAvailableError,
+    InvalidIdentifierError,
+    TimescaleError,
+)
 
 # =============================================================================
 # Fixtures — live-DB integration layer (D-10, D-11)
@@ -2088,6 +2092,203 @@ class TestAddContinuousAggregatePolicyLive:
                 sync_db = Database(async_ts_db.config)
             sync_db.execute(f"DROP MATERIALIZED VIEW IF EXISTS public.{view}")
             sync_db.execute(f"DROP TABLE IF EXISTS {table}")
+
+
+# =============================================================================
+# drop_continuous_aggregate — mock SQL-shape unit tests (TSDB-F01, no live DB)
+# =============================================================================
+
+
+class TestDropContinuousAggregateMock:
+    """Mock SQL-shape unit tests for drop_continuous_aggregate (sync + async).
+
+    Uses a plain db.execute (RESEARCH D-05 — NOT the autocommit seam):
+    assert db.execute is called for the DROP DDL.
+    """
+
+    def test_drop_continuous_aggregate_sql_shape(self, config):
+        """Default call emits plain DROP MATERIALIZED VIEW, no flags."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.drop_continuous_aggregate("hourly_avg")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert sql == "DROP MATERIALIZED VIEW public.hourly_avg"
+
+    def test_drop_continuous_aggregate_if_exists_cascade(self, config):
+        """if_exists=True, cascade=True emits IF EXISTS ... CASCADE."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.drop_continuous_aggregate(
+            "hourly_avg", if_exists=True, cascade=True
+        )
+
+        sql = db.execute.call_args[0][0]
+        assert sql == "DROP MATERIALIZED VIEW IF EXISTS public.hourly_avg CASCADE"
+
+    def test_drop_continuous_aggregate_no_extension_raises(self, config):
+        """Raises ExtensionNotAvailableError when TimescaleDB is absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.drop_continuous_aggregate("hourly_avg")
+
+        db.execute.assert_not_called()
+
+    def test_drop_continuous_aggregate_invalid_view_name_raises(self, config):
+        """Injection guard: malicious view_name raises InvalidIdentifierError
+        before any execute (T-48-01)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(InvalidIdentifierError):
+            db.timescale.drop_continuous_aggregate("bad; DROP TABLE users; --")
+
+        db.execute.assert_not_called()
+
+    async def test_drop_continuous_aggregate_async_sql_shape(self, config):
+        """Async mirror: plain await self._db.execute, same DROP shape."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.drop_continuous_aggregate("hourly_avg")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert sql == "DROP MATERIALIZED VIEW public.hourly_avg"
+
+
+# =============================================================================
+# remove_continuous_aggregate_policy — mock SQL-shape unit tests (TSDB-F01)
+# =============================================================================
+
+
+class TestRemoveContinuousAggregatePolicyMock:
+    """Mock SQL-shape unit tests for remove_continuous_aggregate_policy (sync + async).
+
+    Uses a plain db.execute (D-01 — NOT the autocommit seam). Asserts the
+    CURRENT ``if_exists`` param name, never the deprecated ``if_not_exists``
+    (RESEARCH Pitfall 1).
+    """
+
+    def test_remove_continuous_aggregate_policy_sql_shape(self, config):
+        """Default call (if_exists=True) emits if_exists => true, never if_not_exists."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.remove_continuous_aggregate_policy("hourly_avg")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert (
+            "remove_continuous_aggregate_policy('public.hourly_avg', if_exists => true)"
+            in sql
+        )
+        assert "if_not_exists" not in sql
+
+    def test_remove_continuous_aggregate_policy_if_exists_false(self, config):
+        """if_exists=False emits if_exists => false."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.remove_continuous_aggregate_policy("hourly_avg", if_exists=False)
+
+        sql = db.execute.call_args[0][0]
+        assert "if_exists => false" in sql
+
+    def test_remove_continuous_aggregate_policy_no_extension_raises(self, config):
+        """Raises ExtensionNotAvailableError when TimescaleDB is absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.remove_continuous_aggregate_policy("hourly_avg")
+
+        db.execute.assert_not_called()
+
+    def test_remove_continuous_aggregate_policy_invalid_view_name_raises(self, config):
+        """Injection guard: malicious view_name raises InvalidIdentifierError
+        before any execute (T-48-02)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(InvalidIdentifierError):
+            db.timescale.remove_continuous_aggregate_policy("bad; DROP TABLE users; --")
+
+        db.execute.assert_not_called()
+
+    async def test_remove_continuous_aggregate_policy_async_sql_shape(self, config):
+        """Async mirror: plain await self._db.execute, same if_exists shape."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.remove_continuous_aggregate_policy("hourly_avg")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql = db.execute.call_args[0][0]
+        assert (
+            "remove_continuous_aggregate_policy('public.hourly_avg', if_exists => true)"
+            in sql
+        )
+        assert "if_not_exists" not in sql
 
 
 # =============================================================================

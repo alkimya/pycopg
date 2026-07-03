@@ -98,6 +98,32 @@ def test_timescale_v080_surface():
         ), f"{cls.__name__} is missing v0.8.0 method(s): {sorted(missing)}"
 
 
+def test_timescale_v110_surface():
+    """Assert both timescale accessors expose the Phase 48 (v1.1.0) surface additions.
+
+    A named frozenset of the TSDB-F01 method names — seeded here, extended by
+    later plans in this phase (F03 compress_chunk/decompress_chunk) — must be
+    a subset of the public members of BOTH :class:`TimescaleAccessor` and
+    :class:`AsyncTimescaleAccessor`. Complements the bidirectional set-diff in
+    :func:`test_accessor_parity`. ``ACCESSOR_PAIRS`` is not touched.
+    """
+    v110_surface = frozenset(
+        {
+            "drop_continuous_aggregate",
+            "remove_continuous_aggregate_policy",
+        }
+    )
+
+    for cls in (TimescaleAccessor, AsyncTimescaleAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v110_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 48 method(s): {sorted(missing)}"
+
+
 def test_schema_v090_surface():
     """Assert both schema accessors expose the 5 new v0.9.0 introspection methods.
 
