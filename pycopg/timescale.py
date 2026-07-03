@@ -1350,6 +1350,8 @@ class TimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: Literal["df"] = "df",
     ) -> pd.DataFrame: ...
     @overload
@@ -1363,6 +1365,8 @@ class TimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: Literal["rows"],
     ) -> list[dict[str, Any]]: ...
     @overload
@@ -1376,6 +1380,8 @@ class TimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: str,
     ) -> pd.DataFrame | list[dict[str, Any]]: ...
     def time_bucket(
@@ -1388,6 +1394,8 @@ class TimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: str = "df",
     ) -> pd.DataFrame | list[dict[str, Any]]:
         """Run a ``time_bucket`` bucketed aggregation (TS-ADV-06).
@@ -1416,6 +1424,13 @@ class TimescaleAccessor:
             Deprecated. Use ``filter=`` instead.
         schema : str, optional
             Schema name, by default ``"public"``.
+        origin : datetime or None, optional
+            Absolute alignment anchor for the bucket boundaries, bound as a
+            bare typed ``%s``. Mutually exclusive with ``offset`` (TSDB-F02).
+        offset : str or None, optional
+            Relative interval shift for the bucket boundaries (e.g.
+            ``"30 minutes"``), bound as ``%s::interval``. Mutually exclusive
+            with ``origin`` (TSDB-F02).
         into : str, optional
             Output form — ``"df"`` (default) returns a
             :class:`pandas.DataFrame`; ``"rows"`` returns a ``list[dict]``.
@@ -1431,7 +1446,9 @@ class TimescaleAccessor:
         ------
         ValueError
             If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
-            call (D-03).
+            call (D-03). Also raised if both ``origin`` and ``offset`` are
+            non-``None`` — mutually exclusive, raised before any DB
+            round-trip (D-07, TSDB-F02).
         ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         """
@@ -1455,7 +1472,14 @@ class TimescaleAccessor:
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_sql(
-            table, time_column, bucket_width, aggregates, where=filter, schema=schema
+            table,
+            time_column,
+            bucket_width,
+            aggregates,
+            where=filter,
+            schema=schema,
+            origin=origin,
+            offset=offset,
         )
         return self._run(sql, params, into)
 
@@ -2572,6 +2596,8 @@ class AsyncTimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: Literal["df"] = "df",
     ) -> pd.DataFrame: ...
     @overload
@@ -2585,6 +2611,8 @@ class AsyncTimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: Literal["rows"],
     ) -> list[dict[str, Any]]: ...
     @overload
@@ -2598,6 +2626,8 @@ class AsyncTimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: str,
     ) -> pd.DataFrame | list[dict[str, Any]]: ...
     async def time_bucket(
@@ -2610,6 +2640,8 @@ class AsyncTimescaleAccessor:
         filter: str | None = None,
         where: str | None = None,
         schema: str = "public",
+        origin: datetime | None = None,
+        offset: str | None = None,
         into: str = "df",
     ) -> pd.DataFrame | list[dict[str, Any]]:
         """Run a ``time_bucket`` bucketed aggregation (TS-ADV-06, TS-ADV-10).
@@ -2638,6 +2670,13 @@ class AsyncTimescaleAccessor:
             Deprecated. Use ``filter=`` instead.
         schema : str, optional
             Schema name, by default ``"public"``.
+        origin : datetime or None, optional
+            Absolute alignment anchor for the bucket boundaries, bound as a
+            bare typed ``%s``. Mutually exclusive with ``offset`` (TSDB-F02).
+        offset : str or None, optional
+            Relative interval shift for the bucket boundaries (e.g.
+            ``"30 minutes"``), bound as ``%s::interval``. Mutually exclusive
+            with ``origin`` (TSDB-F02).
         into : str, optional
             Output form — ``"df"`` (default) returns a
             :class:`pandas.DataFrame`; ``"rows"`` returns a ``list[dict]``.
@@ -2653,7 +2692,9 @@ class AsyncTimescaleAccessor:
         ------
         ValueError
             If ``into`` is not ``"df"`` or ``"rows"`` — raised before any DB
-            call (D-03).
+            call (D-03). Also raised if both ``origin`` and ``offset`` are
+            non-``None`` — mutually exclusive, raised before any DB
+            round-trip (D-07, TSDB-F02).
         ExtensionNotAvailableError
             If the TimescaleDB extension is not installed.
         """
@@ -2677,7 +2718,14 @@ class AsyncTimescaleAccessor:
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
             )
         sql, params = _build_time_bucket_sql(
-            table, time_column, bucket_width, aggregates, where=filter, schema=schema
+            table,
+            time_column,
+            bucket_width,
+            aggregates,
+            where=filter,
+            schema=schema,
+            origin=origin,
+            offset=offset,
         )
         return await self._run(sql, params, into)
 
