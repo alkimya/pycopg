@@ -1520,6 +1520,98 @@ class TestMaterializedViewIntegration:
             await adb.execute(f'DROP TABLE IF EXISTS "{base}" CASCADE', autocommit=True)
 
 
+class TestDescribeIntoIntegration:
+    """INTRO-F01: live-DB proof that describe(into="dataclass"/"dataframe")
+    carry zero shape drift from describe(into="dict") (D-12 "wrap, don't
+    reshape"), on both Database and AsyncDatabase.
+    """
+
+    def _make_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" ('
+            "id SERIAL PRIMARY KEY, "
+            "name VARCHAR(50), "
+            "amount NUMERIC(10,2))",
+            autocommit=True,
+        )
+
+    def test_describe_into_dataclass_no_drift(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """into='dataclass' sub-values equal the into='dict' sub-values exactly."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        flat = db.schema.describe(temp_table_name)
+        td = db.schema.describe(temp_table_name, into="dataclass")
+
+        assert td.columns == flat["columns"]
+        assert td.primary_key == flat["primary_key"]
+        assert td.foreign_keys == flat["foreign_keys"]
+        assert td.indexes == flat["indexes"]
+
+    def test_describe_into_dataframe_one_row_per_column(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """into='dataframe' has one row per column, with the 8 table_info keys
+        as DataFrame columns (A3: nullable-int -> float64/NaN acceptable)."""
+        import pandas as pd
+
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        flat = db.schema.describe(temp_table_name)
+        df = db.schema.describe(temp_table_name, into="dataframe")
+
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == len(flat["columns"])
+        assert set(df.columns) == {
+            "column_name",
+            "data_type",
+            "is_nullable",
+            "column_default",
+            "ordinal_position",
+            "character_maximum_length",
+            "numeric_precision",
+            "numeric_scale",
+        }
+        assert list(df["column_name"]) == [
+            c["column_name"] for c in flat["columns"]
+        ]
+
+    async def test_describe_into_async(self, db_config):
+        """Async mirror: into='dataclass'/'dataframe' carry zero shape drift
+        from into='dict'."""
+        import pandas as pd
+
+        adb = AsyncDatabase(db_config)
+        table = f"test_describe_into_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{table}" ('
+                "id SERIAL PRIMARY KEY, "
+                "name VARCHAR(50), "
+                "amount NUMERIC(10,2))",
+                autocommit=True,
+            )
+            flat = await adb.schema.describe(table)
+            td = await adb.schema.describe(table, into="dataclass")
+            df = await adb.schema.describe(table, into="dataframe")
+
+            assert td.columns == flat["columns"]
+            assert td.primary_key == flat["primary_key"]
+            assert td.foreign_keys == flat["foreign_keys"]
+            assert td.indexes == flat["indexes"]
+
+            assert isinstance(df, pd.DataFrame)
+            assert len(df) == len(flat["columns"])
+            assert list(df["column_name"]) == [
+                c["column_name"] for c in flat["columns"]
+            ]
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE', autocommit=True)
+
+
 class TestWhereSqlEscapeHatchIntegration:
     """CRUD-F01: live-DB proof that the raw where_sql predicate executes and
     where_params bind server-side, on both Database and AsyncDatabase."""

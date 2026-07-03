@@ -184,7 +184,26 @@ Available on `db.schema.*` and `async_db.schema.*`.
 | `foreign_keys` | `table, schema="public"` | `list[dict]` |
 | `sequences` | `schema="public"` | `list[str]` |
 | `views` | `schema="public"` | `list[str]` |
-| `describe` | `table, schema="public"` | `dict` |
+| `describe` | `table, schema="public", into="dict"\|"dataclass"\|"dataframe"` | `dict \| TableDescription \| DataFrame` |
+
+`describe`'s `into=` selector (v1.1.0, D-11/D-12) defaults to `"dict"` — byte-identical to the
+frozen v0.9.0 flat dict (C-03). `into="dataclass"` wraps the same four sub-values in a typed
+`TableDescription` (no reshape); `into="dataframe"` returns the `columns` section as a
+one-row-per-column `pandas.DataFrame` (nullable integer columns are promoted to `float64` with
+`NaN`, a pandas dtype-inference artifact — not data loss). An unrecognized `into` value raises
+`ValueError`.
+
+#### `TableDescription` (frozen dataclass)
+
+| Field | Type | Description |
+|-------|------|--------------|
+| `columns` | `list[dict]` | Exact output of `table_info`. |
+| `primary_key` | `dict \| None` | Exact output of `primary_key`. |
+| `foreign_keys` | `list[dict]` | Exact output of `foreign_keys`. |
+| `indexes` | `list[dict]` | Exact output of `list_indexes`. |
+
+`TableDescription` is exported from `pycopg` (`from pycopg import TableDescription`), mirroring
+the `RunResult`/`Page` dataclass precedent (see [etl.md](etl.md)).
 
 ### Introspection Methods (v1.1.0)
 
