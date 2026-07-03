@@ -2464,6 +2464,114 @@ class TestTimeBucketMock:
         assert result is sentinel
 
 
+class TestTimeBucketOriginOffsetMock:
+    """Mock SQL-shape + guard tests for time_bucket origin/offset (TSDB-F02).
+
+    Mirrors :class:`TestTimeBucketMock`'s mock convention -- ``into="rows"``
+    routes through ``db.execute`` so the generated SQL/params are asserted
+    directly without a live DB.
+    """
+
+    def test_time_bucket_origin_sql_shape(self, config):
+        """origin= binds a bare typed %s (no ::interval) as the 3rd arg."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        anchor = datetime(2024, 1, 1)
+        db.timescale.time_bucket(
+            "events", "ts", "1 hour", "avg(v)", origin=anchor, into="rows"
+        )
+
+        sql, params = db.execute.call_args[0]
+        assert ", origin => %s" in sql
+        assert "::interval" not in sql
+        assert anchor in params
+
+    def test_time_bucket_offset_sql_shape(self, config):
+        """offset= binds %s::interval as the 3rd arg."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.time_bucket(
+            "events", "ts", "1 hour", "avg(v)", offset="30 minutes", into="rows"
+        )
+
+        sql, params = db.execute.call_args[0]
+        assert '"offset" => %s::interval' in sql
+        assert "30 minutes" in params
+
+    def test_time_bucket_both_none_unchanged(self, config):
+        """Both origin and offset None (default) emits the exact v0.8.0 SQL shape."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.time_bucket("events", "ts", "1 hour", "avg(v)", into="rows")
+
+        sql, params = db.execute.call_args[0]
+        assert "time_bucket(%s, ts) AS bucket" in sql
+        assert params == ["1 hour"]
+
+    def test_time_bucket_origin_offset_mutual_exclusion(self, config):
+        """Passing both origin and offset raises ValueError before any DB call (D-07)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+        db.to_dataframe = MagicMock()
+
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            db.timescale.time_bucket(
+                "events",
+                "ts",
+                "1 hour",
+                "avg(v)",
+                origin=datetime(2024, 1, 1),
+                offset="30 minutes",
+                into="rows",
+            )
+
+        db.execute.assert_not_called()
+        db.to_dataframe.assert_not_called()
+
+    async def test_time_bucket_origin_async_sql_shape(self, config):
+        """Async time_bucket(origin=...) binds a bare typed %s (mirror of sync)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        anchor = datetime(2024, 1, 1)
+        await db.timescale.time_bucket(
+            "events", "ts", "1 hour", "avg(v)", origin=anchor, into="rows"
+        )
+
+        sql, params = db.execute.call_args[0]
+        assert ", origin => %s" in sql
+        assert "::interval" not in sql
+        assert anchor in params
+
+
 # =============================================================================
 # time_bucket_gapfill — mock SQL-shape unit tests (Layer 2, no live DB)
 # =============================================================================
