@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: Context ready
-stopped_at: Phase 48 context gathered
-last_updated: "2026-07-02T21:15:53.742Z"
-last_activity: 2026-07-02 — Phase 48 context gathered (48-CONTEXT.md; F01/F02/F03 decided, F04 already-shipped → verify+doc)
+status: executing
+stopped_at: Completed 48-01-PLAN.md
+last_updated: "2026-07-03T10:28:23.148Z"
+last_activity: 2026-07-03 -- Phase 48 Plan 01 (cagg teardown pair, TSDB-F01) executed
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -22,16 +22,16 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** v1.1.0 "Follow-ups additifs" roadmap created 2026-07-02 — 4 phases (48-51), 15/15 requirements mapped (100% coverage). Ready to plan Phase 48 (TimescaleDB Follow-ups). Next: `/gsd-plan-phase 48`.
+**Current focus:** Phase 48 — timescaledb-follow-ups
 
 ## Current Position
 
-Phase: 48 of 51 (TimescaleDB Follow-ups) — context gathered, not yet planned
-Plan: — (awaiting /gsd-plan-phase 48)
-Status: Context ready
-Last activity: 2026-07-02 — Phase 48 context gathered (48-CONTEXT.md; F01/F02/F03 decided, F04 already-shipped → verify+doc)
+Phase: 48 (timescaledb-follow-ups) — EXECUTING
+Plan: 2 of 3
+Status: Plan 01 complete (TSDB-F01 done) — Plan 02 (F02 time_bucket origin/offset) next
+Last activity: 2026-07-03 -- Phase 48 Plan 01 (cagg teardown pair, TSDB-F01) executed
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -89,6 +89,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 47 P01 | 5min | 3 tasks | 4 files |
 | Phase 47 P02 | 15min | 3 tasks | 5 files |
 | Phase 47 P03 | 12min | 4 tasks | 0 files (gates + tag + OIDC publish + smoke) |
+| Phase 48 P01 | 15min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 46]: Phase 46-07: whole-package mypy --strict verified 0 errors/18 files, coverage held 96.45% on pycopg_test3, interrogate 100%, py.typed truthful (only geoalchemy2/tenacity overrides remain); CI mypy step flipped from continue-on-error to a blocking gate (D-04) -- FREEZE-05 complete, Phase 46 fully done 7/7
 - [Phase ?]: Phase 47 Plan 02: version bumped to 1.0.0 (pyproject.toml/docs/conf.py/uv.lock); pycopg/__init__.py stays dynamic via importlib.metadata
 - [Phase ?]: Phase 47 Plan 02: CHANGELOG [1.0.0] assembled code-exact (D-36-03 guard) from Phases 41-46; MIGRATION.md final-reviewed with a 5th breaking-change item (mypy-strict-blocking, non-runtime) added for CHANGELOG-breaking-set symmetry + type-checking consumer note
+- [Phase ?]: 48-01: drop_continuous_aggregate + remove_continuous_aggregate_policy use plain self._db.execute (RESEARCH D-05), not the autocommit seam reserved for create/refresh
+- [Phase ?]: 48-01: remove_continuous_aggregate_policy binds current if_exists param name (TSDB 2.8+), never deprecated if_not_exists (Pitfall 1)
 
 ### Pending Todos
 
@@ -173,11 +176,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-02T20:33:03.106Z
-Stopped at: Phase 48 context gathered
-Resume file: .planning/phases/48-timescaledb-follow-ups/48-CONTEXT.md
-Next action: `/gsd-plan-phase 48` to plan the first phase (TimescaleDB Follow-ups).
+Last session: 2026-07-03T10:28:23.133Z
+Stopped at: Completed 48-01-PLAN.md
+Resume file: None
+Next action: `/gsd-execute-phase 48` to continue with 48-02-PLAN.md (F02 time_bucket origin/offset).
 
 ## Operator Next Steps
 
-- Plan the first phase with /gsd-plan-phase 48
+- Continue Phase 48 execution with 48-02-PLAN.md (F02 time_bucket origin/offset) via /gsd-execute-phase 48

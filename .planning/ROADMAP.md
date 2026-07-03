@@ -46,7 +46,7 @@
 
 **Wave 1**
 
-- [ ] 48-01-PLAN.md — F01 continuous-aggregate teardown (drop_continuous_aggregate + remove_continuous_aggregate_policy, both accessors)
+- [x] 48-01-PLAN.md — F01 continuous-aggregate teardown (drop_continuous_aggregate + remove_continuous_aggregate_policy, both accessors)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -106,7 +106,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 48. TimescaleDB Follow-ups | v1.1.0 | 0/3 | Planned | - |
+| 48. TimescaleDB Follow-ups | v1.1.0 | 1/3 | In Progress | - |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
