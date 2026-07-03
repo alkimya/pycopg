@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: verifying
+status: executing
 stopped_at: Phase 49 context gathered
-last_updated: "2026-07-03T12:16:11.849Z"
-last_activity: 2026-07-03
+last_updated: "2026-07-03T13:15:28.397Z"
+last_activity: 2026-07-03 -- Phase 49 planning complete
 progress:
   total_phases: 4
   completed_phases: 1
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 Phase: 49
 Plan: Not started
-Status: Phase 48 COMPLETE (verified PASSED 4/4; TSDB-F01..F04 shipped, code-review 0 crit/1 warn WR-01) — Phase 49 (incremental-etl-follow-ups) next
-Last activity: 2026-07-03
+Status: Ready to execute
+Last activity: 2026-07-03 -- Phase 49 planning complete
 
 Progress: [██░░░░░░░░] 25% (1/4 phases)
 

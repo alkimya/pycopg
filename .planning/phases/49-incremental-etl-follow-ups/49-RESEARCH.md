@@ -587,9 +587,14 @@ change to a public signature").
 decisions requiring user reconfirmation (the CONTEXT.md decisions D-01..D-15 themselves are
 already locked and out of scope for renegotiation).
 
-## Open Questions
+## Open Questions (RESOLVED — recommendations adopted in the Phase 49 plans)
 
-1. **Should `_read_watermark`'s signature change to accept `pipeline` instead of `name: str`?**
+> Both questions below were functionally resolved at plan time by adopting the stated
+> recommendation: plan 49-01 keeps `_read_watermark` name-only and applies the seed fallback at
+> the call sites (option b), and plan 49-05 uses the `ETL_ADVISORY_LOCK`/`ETL_ADVISORY_TRY_LOCK`/
+> `ETL_ADVISORY_UNLOCK` constant names. Kept here for provenance.
+
+1. **Should `_read_watermark`'s signature change to accept `pipeline` instead of `name: str`?** (RESOLVED: option b — kept name-only, plan 49-01)
    - What we know: Implementing D-01 (seed fallback) needs `pipeline.initial_watermark` available
      somewhere in the watermark-read path; `_read_watermark(self, name: str)` currently only takes
      the pipeline name.
@@ -600,7 +605,7 @@ already locked and out of scope for renegotiation).
      DB say" query, keeping its existing unit tests valid unchanged. The planner should confirm
      this choice explicitly in the plan since it affects which existing tests need updating.
 
-2. **Exact `queries.py` constant names for the advisory-lock SQL.**
+2. **Exact `queries.py` constant names for the advisory-lock SQL.** (RESOLVED: `ETL_ADVISORY_LOCK`/`ETL_ADVISORY_TRY_LOCK`/`ETL_ADVISORY_UNLOCK`, plan 49-05)
    - What we know: D-15 fixes the SQL shape (`pg_try_advisory_lock(hashtextextended(%s, 0))` /
      `pg_advisory_lock(...)` / `pg_advisory_unlock(...)`); CONTEXT.md leaves the naming to
      discretion, "follow existing `ETL_*` style."
