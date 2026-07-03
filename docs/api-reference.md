@@ -122,12 +122,18 @@ Two additional pagination methods return a typed `Page` envelope instead of a pl
 `paginate_page` is the offset-pagination sibling of `paginate()`. `paginate_keyset` is stable,
 index-friendly *seek* pagination via a PostgreSQL row-value comparison
 (`(c1, c2) > (%s, %s)`) instead of `OFFSET` — `order_by` is mandatory (append a unique column
-such as the primary key as a tiebreaker), forward-only for this release. Feed
-`Page.next_cursor` back as the next call's `after=` to page forward:
+such as the primary key as a tiebreaker), forward-only for this release. `order_by` columns
+should be `NOT NULL` — the row-value comparison follows SQL `NULL` semantics, so rows with a
+`NULL` key are silently skipped by the seek predicate. Feed `Page.next_cursor` back as the next
+call's `after=` to page forward, processing each page's rows before advancing the cursor:
 
 ```python
 page = db.paginate_keyset("events", 50, order_by=["created_at", "id"])
-while page.has_next:
+while True:
+    for row in page.rows:
+        ...  # process
+    if not page.has_next:
+        break
     page = db.paginate_keyset(
         "events", 50, order_by=["created_at", "id"], after=page.next_cursor
     )

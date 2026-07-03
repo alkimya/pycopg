@@ -398,7 +398,11 @@ class QueryMixin:
         composite-watermark builder
         (:func:`pycopg.etl._build_incremental_extract_sql`). Row-value
         comparison is index-friendly: a btree index on ``(c1, c2)`` supports
-        it as a range scan.
+        it as a range scan. **Caveat (IN-01):** ``order_cols`` should be
+        ``NOT NULL`` (or the caller must guarantee no ``NULL`` values) — the
+        comparison follows SQL ``NULL`` semantics, so a row whose ordered
+        column is ``NULL`` makes the comparison evaluate to ``NULL`` and the
+        row is silently excluded from the seek predicate.
 
         Parameters
         ----------
