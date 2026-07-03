@@ -101,9 +101,8 @@ def test_timescale_v080_surface():
 def test_timescale_v110_surface():
     """Assert both timescale accessors expose the Phase 48 (v1.1.0) surface additions.
 
-    A named frozenset of the TSDB-F01 method names — seeded here, extended by
-    later plans in this phase (F03 compress_chunk/decompress_chunk) — must be
-    a subset of the public members of BOTH :class:`TimescaleAccessor` and
+    A named frozenset of the Phase 48 (F01 + F03) method names — must be a
+    subset of the public members of BOTH :class:`TimescaleAccessor` and
     :class:`AsyncTimescaleAccessor`. Complements the bidirectional set-diff in
     :func:`test_accessor_parity`. ``ACCESSOR_PAIRS`` is not touched.
     """
@@ -111,6 +110,8 @@ def test_timescale_v110_surface():
         {
             "drop_continuous_aggregate",
             "remove_continuous_aggregate_policy",
+            "compress_chunk",
+            "decompress_chunk",
         }
     )
 

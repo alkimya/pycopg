@@ -1920,9 +1920,7 @@ class AsyncTimescaleAccessor:
             [chunk, if_not_compressed],
         )
 
-    async def decompress_chunk(
-        self, chunk: str, *, if_compressed: bool = True
-    ) -> None:
+    async def decompress_chunk(self, chunk: str, *, if_compressed: bool = True) -> None:
         """Decompress a single named chunk (Community license feature).
 
         ``chunk`` is the fully-qualified chunk name as returned by

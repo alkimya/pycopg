@@ -178,6 +178,29 @@ class TestShowChunksMock:
         assert "::interval" not in sql
         assert params == [cutoff]
 
+    def test_show_chunks_sql_shape_datetime_newer_than(self, config):
+        """show_chunks with datetime newer_than emits bare %s fragment (TSDB-F04 symmetry).
+
+        Mirrors ``test_show_chunks_sql_shape_datetime_older_than`` (no
+        production change — ``_build_chunk_bound_fragments`` already
+        dispatches ``newer_than`` symmetrically to ``older_than``).
+        """
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        cutoff = datetime(2024, 1, 15)
+        db.timescale.show_chunks("events", newer_than=cutoff)
+
+        sql, params = db.execute.call_args[0]
+        assert ", newer_than => %s" in sql
+        assert "::interval" not in sql
+        assert params == [cutoff]
+
     def test_show_chunks_params_order_older_then_newer(self, config):
         """show_chunks params are [older_than, newer_than] — not swapped (D-02 footgun)."""
         from pycopg.schema import SchemaAccessor
@@ -2570,6 +2593,203 @@ class TestTimeBucketOriginOffsetMock:
         assert ", origin => %s" in sql
         assert "::interval" not in sql
         assert anchor in params
+
+
+# =============================================================================
+# compress_chunk / decompress_chunk — mock SQL-shape unit tests (TSDB-F03)
+# =============================================================================
+
+
+class TestCompressChunkMock:
+    """Mock SQL-shape unit tests for compress_chunk (sync + async, no live DB).
+
+    ``chunk`` is bound as %s::regclass -- NOT an identifier, so no
+    validate_identifiers call and no InvalidIdentifierError test here
+    (RESEARCH D-10/D-11 carve-out; binding is the injection defense).
+    """
+
+    def test_compress_chunk_sql_shape(self, config):
+        """Default call emits the exact bound-regclass SQL, if_not_compressed=True."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.compress_chunk("_timescaledb_internal._hyper_1_2_chunk")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert sql == "SELECT compress_chunk(%s::regclass, if_not_compressed => %s)"
+        assert params == ["_timescaledb_internal._hyper_1_2_chunk", True]
+
+    def test_compress_chunk_if_not_compressed_false(self, config):
+        """if_not_compressed=False is bound as params[1] is False."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.compress_chunk(
+            "_timescaledb_internal._hyper_1_2_chunk", if_not_compressed=False
+        )
+
+        _, params = db.execute.call_args[0]
+        assert params[1] is False
+
+    def test_compress_chunk_no_extension_raises(self, config):
+        """Raises ExtensionNotAvailableError when TimescaleDB is absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.compress_chunk("_timescaledb_internal._hyper_1_2_chunk")
+
+        db.execute.assert_not_called()
+
+    def test_compress_chunk_binds_not_interpolates(self, config):
+        """Injection-by-binding: malicious chunk string lands ONLY in params[0],
+        never interpolated into the raw sql template (T-48-08)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        malicious = "x'; DROP TABLE t; --"
+        db.timescale.compress_chunk(malicious)
+
+        sql, params = db.execute.call_args[0]
+        assert sql == "SELECT compress_chunk(%s::regclass, if_not_compressed => %s)"
+        assert malicious not in sql
+        assert params[0] == malicious
+
+    async def test_compress_chunk_async_sql_shape(self, config):
+        """Async mirror: same bound-regclass SQL shape."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.compress_chunk("_timescaledb_internal._hyper_1_2_chunk")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert sql == "SELECT compress_chunk(%s::regclass, if_not_compressed => %s)"
+        assert params == ["_timescaledb_internal._hyper_1_2_chunk", True]
+
+
+class TestDecompressChunkMock:
+    """Mock SQL-shape unit tests for decompress_chunk (sync + async, no live DB).
+
+    ``chunk`` is bound as %s::regclass -- NOT an identifier, so no
+    validate_identifiers call and no InvalidIdentifierError test here
+    (RESEARCH D-10/D-11 carve-out; binding is the injection defense).
+    """
+
+    def test_decompress_chunk_sql_shape(self, config):
+        """Default call emits the exact bound-regclass SQL, if_compressed=True."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.decompress_chunk("_timescaledb_internal._hyper_1_2_chunk")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert sql == "SELECT decompress_chunk(%s::regclass, if_compressed => %s)"
+        assert params == ["_timescaledb_internal._hyper_1_2_chunk", True]
+
+    def test_decompress_chunk_if_compressed_false(self, config):
+        """if_compressed=False is bound as params[1] is False."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        db.timescale.decompress_chunk(
+            "_timescaledb_internal._hyper_1_2_chunk", if_compressed=False
+        )
+
+        _, params = db.execute.call_args[0]
+        assert params[1] is False
+
+    def test_decompress_chunk_no_extension_raises(self, config):
+        """Raises ExtensionNotAvailableError when TimescaleDB is absent."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=False)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(
+            ExtensionNotAvailableError, match="TimescaleDB extension not installed"
+        ):
+            db.timescale.decompress_chunk("_timescaledb_internal._hyper_1_2_chunk")
+
+        db.execute.assert_not_called()
+
+    def test_decompress_chunk_binds_not_interpolates(self, config):
+        """Injection-by-binding: malicious chunk string lands ONLY in params[0],
+        never interpolated into the raw sql template (T-48-08)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock(return_value=[])
+
+        malicious = "x'; DROP TABLE t; --"
+        db.timescale.decompress_chunk(malicious)
+
+        sql, params = db.execute.call_args[0]
+        assert sql == "SELECT decompress_chunk(%s::regclass, if_compressed => %s)"
+        assert malicious not in sql
+        assert params[0] == malicious
+
+    async def test_decompress_chunk_async_sql_shape(self, config):
+        """Async mirror: same bound-regclass SQL shape."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock(return_value=[])
+
+        await db.timescale.decompress_chunk("_timescaledb_internal._hyper_1_2_chunk")
+
+        mock_schema.has_extension.assert_called_once_with("timescaledb")
+        sql, params = db.execute.call_args[0]
+        assert sql == "SELECT decompress_chunk(%s::regclass, if_compressed => %s)"
+        assert params == ["_timescaledb_internal._hyper_1_2_chunk", True]
 
 
 # =============================================================================
