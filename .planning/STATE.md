@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: verifying
-stopped_at: Phase 50 plan 04 complete (INTRO-F01 structured describe()); Phase 50 fully complete, all 4 plans shipped
-last_updated: "2026-07-03T22:24:55.317Z"
-last_activity: 2026-07-04 -- 50-04 INTRO-F01 structured describe() shipped; full suite 2003@96.61%
+status: planning
+stopped_at: Phase 50 COMPLETE + verified PASSED 5/5; code-review 0 crit/2 warn+3 info ALL fixed; next Phase 51 (release v1.1.0)
+last_updated: "2026-07-04T00:00:00.000Z"
+last_activity: 2026-07-04 -- Phase 50 (CRUD-F01/F02/F03 + INTRO-F01/F02) shipped + verified PASSED 5/5; suite 2019@96.67%, mypy 0, code-review 5/5 findings fixed
 progress:
   total_phases: 4
   completed_phases: 3
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 50 — crud-introspection-follow-ups
+**Current focus:** Phase 51 — release-v1.1.0 (Phase 50 complete)
 
 ## Current Position
 
-Phase: 50 (crud-introspection-follow-ups) — COMPLETE (all 4 plans shipped)
-Plan: 4 of 4 (50-01 CRUD-F01, 50-02 CRUD-F02/F03, 50-03 INTRO-F02, 50-04 INTRO-F01 all complete)
-Status: Phase 50 complete — ready for verification
-Last activity: 2026-07-04 -- 50-04 INTRO-F01 structured describe() shipped; full suite 2003@96.61%
+Phase: 51 (release-v1.1.0) — not started
+Plan: Not started
+Status: Phase 50 COMPLETE + verified PASSED (5/5 must-haves); next: Phase 51 release v1.1.0 (DOC-13 + REL-12)
+Last activity: 2026-07-04 -- Phase 50 CRUD + introspection follow-ups shipped + verified
 
 Progress: [████████░░] 75% (3/4 phases; 12/12 plans)
 
