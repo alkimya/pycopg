@@ -1177,6 +1177,110 @@ class TimescaleAccessor:
             f"{ne}) AS job_id"
         )
 
+    def drop_continuous_aggregate(
+        self,
+        view_name: str,
+        *,
+        cascade: bool = False,
+        if_exists: bool = False,
+        schema: str = "public",
+    ) -> None:
+        """Drop a TimescaleDB continuous aggregate materialized view.
+
+        Uses a plain ``self._db.execute`` call (TSDB-F01, RESEARCH D-05 —
+        ``DROP MATERIALIZED VIEW`` is ordinary transaction-safe DDL, unlike
+        :meth:`create_continuous_aggregate` / :meth:`refresh_continuous_aggregate`
+        which require the autocommit seam). Dropping a continuous aggregate
+        also removes its refresh policies.
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to drop.
+        cascade : bool, optional
+            If ``True``, adds ``CASCADE`` to the drop statement, also
+            dropping any dependent objects. By default ``False``.
+        if_exists : bool, optional
+            If ``True``, adds ``IF EXISTS`` so the drop is a no-op when the
+            view does not exist. By default ``False`` — a destructive
+            operation should be explicit about its target.
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+
+        Notes
+        -----
+        **DESTRUCTIVE / IRREVERSIBLE.** Dropped continuous aggregates and
+        their materialized data cannot be recovered unless you have a
+        backup.
+        """
+        validate_identifiers(view_name, schema)
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        ie = "IF EXISTS " if if_exists else ""
+        cas = " CASCADE" if cascade else ""
+        self._db.execute(f"DROP MATERIALIZED VIEW {ie}{schema}.{view_name}{cas}")
+
+    def remove_continuous_aggregate_policy(
+        self,
+        view_name: str,
+        *,
+        if_exists: bool = True,
+        schema: str = "public",
+    ) -> None:
+        """Remove the auto-refresh policy from a continuous aggregate.
+
+        Symmetric counterpart to :meth:`add_continuous_aggregate_policy`
+        (TSDB-F01). Uses a plain ``self._db.execute`` call (D-01 —
+        transaction-safe, like ``add_continuous_aggregate_policy``; NOT the
+        autocommit seam).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to remove the policy from.
+        if_exists : bool, optional
+            If ``True`` (default), silently skip if no policy exists for
+            this view. If ``False``, the DB raises an error when absent.
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch and tolerate it on
+            non-Community builds (see D-12).
+        """
+        validate_identifiers(view_name, schema)
+
+        if not self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        ie = "true" if if_exists else "false"
+        self._db.execute(
+            f"SELECT remove_continuous_aggregate_policy("
+            f"'{schema}.{view_name}', if_exists => {ie})"
+        )
+
     def _run(
         self, sql: str, params: list[Any], into: str
     ) -> pd.DataFrame | list[dict[str, Any]]:
@@ -2289,6 +2393,112 @@ class AsyncTimescaleAccessor:
             f"end_offset => {end_frag}, "
             f"schedule_interval => INTERVAL '{schedule_interval}'"
             f"{ne}) AS job_id"
+        )
+
+    async def drop_continuous_aggregate(
+        self,
+        view_name: str,
+        *,
+        cascade: bool = False,
+        if_exists: bool = False,
+        schema: str = "public",
+    ) -> None:
+        """Drop a TimescaleDB continuous aggregate materialized view.
+
+        Async mirror of :meth:`TimescaleAccessor.drop_continuous_aggregate`.
+        Uses a plain ``await self._db.execute`` call (TSDB-F01, RESEARCH D-05
+        — ``DROP MATERIALIZED VIEW`` is ordinary transaction-safe DDL, unlike
+        :meth:`create_continuous_aggregate` / :meth:`refresh_continuous_aggregate`
+        which require the autocommit seam). Dropping a continuous aggregate
+        also removes its refresh policies.
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to drop.
+        cascade : bool, optional
+            If ``True``, adds ``CASCADE`` to the drop statement, also
+            dropping any dependent objects. By default ``False``.
+        if_exists : bool, optional
+            If ``True``, adds ``IF EXISTS`` so the drop is a no-op when the
+            view does not exist. By default ``False`` — a destructive
+            operation should be explicit about its target.
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch this and tolerate it
+            on non-Community builds (see D-12).
+
+        Notes
+        -----
+        **DESTRUCTIVE / IRREVERSIBLE.** Dropped continuous aggregates and
+        their materialized data cannot be recovered unless you have a
+        backup.
+        """
+        validate_identifiers(view_name, schema)
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        ie = "IF EXISTS " if if_exists else ""
+        cas = " CASCADE" if cascade else ""
+        await self._db.execute(f"DROP MATERIALIZED VIEW {ie}{schema}.{view_name}{cas}")
+
+    async def remove_continuous_aggregate_policy(
+        self,
+        view_name: str,
+        *,
+        if_exists: bool = True,
+        schema: str = "public",
+    ) -> None:
+        """Remove the auto-refresh policy from a continuous aggregate.
+
+        Async mirror of
+        :meth:`TimescaleAccessor.remove_continuous_aggregate_policy`.
+        Symmetric counterpart to :meth:`add_continuous_aggregate_policy`
+        (TSDB-F01). Uses a plain ``await self._db.execute`` call (D-01 —
+        transaction-safe; NOT the autocommit seam).
+
+        Parameters
+        ----------
+        view_name : str
+            Name of the continuous-aggregate view to remove the policy from.
+        if_exists : bool, optional
+            If ``True`` (default), silently skip if no policy exists for
+            this view. If ``False``, the DB raises an error when absent.
+        schema : str, optional
+            Schema for the view, by default ``"public"``.
+
+        Raises
+        ------
+        ExtensionNotAvailableError
+            If TimescaleDB extension is not installed.
+        psycopg.errors.FeatureNotSupported
+            If the local TimescaleDB runs under the Apache license (Community
+            feature not available). Callers should catch and tolerate it on
+            non-Community builds (see D-12).
+        """
+        validate_identifiers(view_name, schema)
+
+        if not await self._db.schema.has_extension("timescaledb"):
+            raise ExtensionNotAvailableError(
+                "TimescaleDB extension not installed. "
+                "Run db.schema.create_extension('timescaledb')"
+            )
+
+        ie = "true" if if_exists else "false"
+        await self._db.execute(
+            f"SELECT remove_continuous_aggregate_policy("
+            f"'{schema}.{view_name}', if_exists => {ie})"
         )
 
     async def _run(
