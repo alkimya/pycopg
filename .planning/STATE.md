@@ -4,12 +4,12 @@ milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: executing
 stopped_at: Phase 49 context gathered
-last_updated: "2026-07-03T13:15:28.397Z"
-last_activity: 2026-07-03 -- Phase 49 planning complete
+last_updated: "2026-07-03T13:20:58.036Z"
+last_activity: 2026-07-03 -- Phase 49 execution started
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
+  total_plans: 8
   completed_plans: 3
   percent: 25
 ---
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 48 complete — Phase 49 (incremental-etl-follow-ups) next
+**Current focus:** Phase 49 — incremental-etl-follow-ups
 
 ## Current Position
 
-Phase: 49
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-03 -- Phase 49 planning complete
+Phase: 49 (incremental-etl-follow-ups) — EXECUTING
+Plan: 1 of 5 complete (49-01 ETL-INC-F01 ✓)
+Status: Executing Phase 49 (49-02 next)
+Last activity: 2026-07-03 -- 49-01 initial_watermark shipped (seed-floor first run)
 
 Progress: [██░░░░░░░░] 25% (1/4 phases)
 
@@ -152,6 +152,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 48-03]: compress_chunk/decompress_chunk skip validate_identifiers — chunk is a bound %s::regclass value, not an identifier (RESEARCH D-10/D-11 carve-out)
 - [Phase 48-03]: if_not_compressed/if_compressed bound as %s params (not literal-boolean like the cagg family) — confirmed correct idiom for these plain function calls
 - [Phase 48-03]: TSDB-F04 required zero production change — verified + documented already-shipped newer_than/older_than symmetry
+- [Phase 49-01]: Pipeline.initial_watermark frozen field (default None = byte-identical pre-F01); D-01 seed-floor-only (consulted only when no stored watermark, ignored after first max(col) recorded); D-02 guard requires incremental_column + scalar {datetime,int,str} allowlist via _encode_watermark; fallback applied at all 4 run() call sites (sync+async real+dry) with explicit is-None (0 is a valid floor), _read_watermark signature unchanged; Sequence branch of guard deferred to 49-03, composite run() seed to 49-04 (scalar cast placeholder). C-04 both run() edited same commit. DEVIATION: live-DB seed tests in test_etl_accessor.py (fixtures live there), guards in test_etl.py
 
 ### Pending Todos
 

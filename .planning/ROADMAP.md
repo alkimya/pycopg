@@ -72,7 +72,7 @@
 
 **Wave 1**
 
-- [ ] 49-01-PLAN.md — F01 initial_watermark seed floor (Pipeline field + construction guard + seed-floor fallback wired at all 4 run() call sites, both accessors)
+- [x] 49-01-PLAN.md — F01 initial_watermark seed floor (Pipeline field + construction guard + seed-floor fallback wired at all 4 run() call sites, both accessors)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -127,7 +127,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
-| 49. Incremental ETL Follow-ups | v1.1.0 | 0/5 | Planned | - |
+| 49. Incremental ETL Follow-ups | v1.1.0 | 1/5 | In Progress|  |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
