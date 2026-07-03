@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from pycopg import Database
+from pycopg import AsyncDatabase, Database
 from pycopg.exceptions import (
     DatabaseExistsError,
     ExtensionNotAvailableError,
@@ -1402,3 +1402,192 @@ class TestIntrospectionHelpers:
         missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
         with pytest.raises(TableNotFoundError):
             db.schema.truncate_table(missing)
+
+
+class TestWhereSqlEscapeHatchIntegration:
+    """CRUD-F01: live-DB proof that the raw where_sql predicate executes and
+    where_params bind server-side, on both Database and AsyncDatabase."""
+
+    def _make_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" '
+            "(id INTEGER PRIMARY KEY, name TEXT, val INTEGER, created_at TIMESTAMPTZ)"
+        )
+
+    def test_count_where_sql(self, db, temp_table_name, cleanup_table):
+        """count(where_sql=...) filters via the raw fragment, params bound."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "a", "val": 10, "created_at": None},
+                {"id": 2, "name": "b", "val": 20, "created_at": None},
+                {"id": 3, "name": "c", "val": 30, "created_at": None},
+            ],
+        )
+
+        total = db.count(temp_table_name, where_sql="val > %s", where_params=[15])
+
+        assert total == 2
+
+    def test_exists_where_sql(self, db, temp_table_name, cleanup_table):
+        """exists(where_sql=...) returns True/False from the raw fragment."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name, [{"id": 1, "name": "Alice", "val": 1, "created_at": None}]
+        )
+
+        assert (
+            db.exists(temp_table_name, where_sql="name = %s", where_params=["Alice"])
+            is True
+        )
+        assert (
+            db.exists(temp_table_name, where_sql="name = %s", where_params=["Bob"])
+            is False
+        )
+
+    def test_delete_where_sql_interval(self, db, temp_table_name, cleanup_table):
+        """delete_where(where_sql=...) with an interval expression deletes the
+        matching rows and returns the correct rowcount."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.execute(
+            f'INSERT INTO "{temp_table_name}" (id, name, val, created_at) VALUES '
+            "(1, 'old', 1, now() - interval '2 days'), "
+            "(2, 'new', 2, now())"
+        )
+
+        count = db.delete_where(
+            temp_table_name,
+            where_sql="created_at < now() - %s::interval",
+            where_params=["1 day"],
+        )
+
+        assert count == 1
+        remaining = db.execute(f'SELECT id FROM "{temp_table_name}"')
+        assert [r["id"] for r in remaining] == [2]
+
+    def test_paginate_where_sql(self, db, temp_table_name, cleanup_table):
+        """paginate(where_sql=...) returns the correctly-filtered, ordered page."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "a", "val": 10, "created_at": None},
+                {"id": 2, "name": "b", "val": 20, "created_at": None},
+                {"id": 3, "name": "c", "val": 30, "created_at": None},
+            ],
+        )
+
+        rows = db.paginate(
+            temp_table_name,
+            limit=10,
+            order_by="id",
+            where_sql="val >= %s",
+            where_params=[20],
+        )
+
+        assert [r["id"] for r in rows] == [2, 3]
+
+    def test_where_sql_mutual_exclusion_live(self, db, temp_table_name, cleanup_table):
+        """count(where=..., where_sql=...) raises ValueError before any DB call."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        with pytest.raises(ValueError):
+            db.count(
+                temp_table_name,
+                where={"id": 1},
+                where_sql="val > %s",
+                where_params=[1],
+            )
+
+    async def test_count_where_sql_async(self, db_config):
+        """Async mirror: count(where_sql=...) filters via the raw fragment."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_wsql_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, val INTEGER)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t, [{"id": 1, "val": 10}, {"id": 2, "val": 20}, {"id": 3, "val": 30}]
+            )
+
+            total = await adb.count(t, where_sql="val > %s", where_params=[15])
+
+            assert total == 2
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_exists_where_sql_async(self, db_config):
+        """Async mirror: exists(where_sql=...) returns True/False."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_wsql_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await adb.insert_many(t, [{"id": 1, "name": "Alice"}])
+
+            assert (
+                await adb.exists(t, where_sql="name = %s", where_params=["Alice"])
+                is True
+            )
+            assert (
+                await adb.exists(t, where_sql="name = %s", where_params=["Bob"])
+                is False
+            )
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_delete_where_sql_interval_async(self, db_config):
+        """Async mirror: delete_where(where_sql=...) with an interval expression."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_wsql_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, created_at TIMESTAMPTZ)',
+                autocommit=True,
+            )
+            await adb.execute(
+                f'INSERT INTO "{t}" (id, created_at) VALUES '
+                "(1, now() - interval '2 days'), (2, now())"
+            )
+
+            count = await adb.delete_where(
+                t,
+                where_sql="created_at < now() - %s::interval",
+                where_params=["1 day"],
+            )
+
+            assert count == 1
+            remaining = await adb.execute(f'SELECT id FROM "{t}"')
+            assert [r["id"] for r in remaining] == [2]
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_paginate_where_sql_async(self, db_config):
+        """Async mirror: paginate(where_sql=...) returns the filtered, ordered page."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_wsql_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, val INTEGER)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t, [{"id": 1, "val": 10}, {"id": 2, "val": 20}, {"id": 3, "val": 30}]
+            )
+
+            rows = await adb.paginate(
+                t, limit=10, order_by="id", where_sql="val >= %s", where_params=[20]
+            )
+
+            assert [r["id"] for r in rows] == [2, 3]
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
