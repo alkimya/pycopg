@@ -115,7 +115,7 @@
 
 **Wave 3** *(blocked on Wave 2 — shared test-suite files)*
 
-- [ ] 50-03-PLAN.md — INTRO-F02 materialized-view introspection (`materialized_views` + `materialized_view_columns`, both accessors; dedicated pg_catalog queries)
+- [x] 50-03-PLAN.md — INTRO-F02 materialized-view introspection (`materialized_views` + `materialized_view_columns`, both accessors; dedicated pg_catalog queries)
 
 **Wave 4** *(blocked on Wave 3 — shared schema.py + spine files)*
 
@@ -144,7 +144,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
-| 50. CRUD + Introspection Follow-ups | v1.1.0 | 2/4 | In Progress|  |
+| 50. CRUD + Introspection Follow-ups | v1.1.0 | 3/4 | In Progress|  |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
 <details>

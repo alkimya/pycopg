@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: executing
-stopped_at: Phase 50 plan 02 complete (CRUD-F02/F03 keyset pagination + Page envelope); proceed to plan 03
-last_updated: "2026-07-03T21:57:15.333Z"
-last_activity: 2026-07-03 -- 50-02 CRUD-F02/F03 keyset pagination + Page envelope shipped; full suite 1947@96.58%
+stopped_at: Phase 50 plan 03 complete (INTRO-F02 materialized-view introspection); proceed to plan 04
+last_updated: "2026-07-04T00:15:00.000Z"
+last_activity: 2026-07-04 -- 50-03 INTRO-F02 materialized-view introspection shipped; full suite 1990@96.59%
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 12
-  completed_plans: 10
-  percent: 50
+  completed_plans: 11
+  percent: 92
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 ## Current Position
 
 Phase: 50 (crud-introspection-follow-ups) — EXECUTING
-Plan: 3 of 4 (50-01 CRUD-F01, 50-02 CRUD-F02/F03 complete; 50-03/04 pending)
+Plan: 4 of 4 (50-01 CRUD-F01, 50-02 CRUD-F02/F03, 50-03 INTRO-F02 complete; 50-04 pending)
 Status: Ready to execute
-Last activity: 2026-07-03 -- 50-02 CRUD-F02/F03 keyset pagination + Page envelope shipped; full suite 1947@96.58%
+Last activity: 2026-07-04 -- 50-03 INTRO-F02 materialized-view introspection shipped; full suite 1990@96.59%
 
-Progress: [█████░░░░░] 50% (2/4 phases; 10/12 plans)
+Progress: [█████████░] 92% (2/4 phases; 11/12 plans)
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ Progress: [█████░░░░░] 50% (2/4 phases; 10/12 plans)
 | Phase 48 P03 | 25min | 3 tasks | 4 files |
 | Phase 50 P01 | 15min | 3 tasks | 7 files |
 | Phase 50 P02 | 18min | 3 tasks | 10 files |
+| Phase 50 P03 | 15min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 49-02]: incremental_inclusive (bool, >= boundary) + incremental_lookback (timedelta|int, read-window overlap) frozen fields, defaults (False,None) byte-identical (D-05); _build_incremental_extract_sql gains kw-only inclusive (op literal from bool, validate_identifiers still line 1); new pure _apply_lookback helper (isinstance dispatch datetime→timedelta / int→int; str + type-mismatch → ETLError runtime, D-06). read_floor = wm - lookback at all 4 run() forks BEFORE _do_extract; recorded watermark stays true max(col) (D-07 — capture block untouched); RunResult.watermark_used = adjusted read floor. D-08 overlap replay = safe idempotent upsert no-op (C-01). C-04 both run()+both _do_extract same commit. Composite-watermark lookback semantics undefined → 49-04 to decide (likely reject). DEVIATION: live divergence tests in test_etl_accessor.py, builder+construction guards in test_etl.py
 - [Phase 50]: CRUD-F01: QueryMixin._resolve_predicate centralizes D-02/D-03/D-04 guards for all 5 predicate helpers x2 classes; destructive guard checks the resolved fragment (post-resolve), a non-empty where_sql satisfies it (D-03)
 - [Phase 50]: 50-02: Page defined in database.py (RunResult precedent); paginate_page/paginate_keyset carry no @overload (Page is the unconditional return type)
+- [Phase 50-03]: D-13/D-14 confirmed as researched: dedicated pg_catalog queries required (pg_matviews for names, pg_attribute/pg_class relkind='m' for columns); views()/table_info() left unchanged
+- [Phase 50-03]: validate_identifiers kept as defense-in-depth on materialized_view_columns even though name/schema only ever reach the query as bound %s params (never interpolated)
 
 ### Pending Todos
 
@@ -192,13 +195,13 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-03T21:57:15.324Z
-Stopped at: Phase 50 plan 02 complete (CRUD-F02/F03 keyset pagination + Page envelope); proceed to plan 03
-Resume file: .planning/phases/50-crud-introspection-follow-ups/50-03-PLAN.md
-Next action: Phase 49 (ETL-INC-F01..F04) fully closed out — proceed to `/gsd-discuss-phase 50` (CRUD-F01..03 + INTRO-F01..02).
+Last session: 2026-07-04T00:15:00.000Z
+Stopped at: Phase 50 plan 03 complete (INTRO-F02 materialized-view introspection); proceed to plan 04
+Resume file: .planning/phases/50-crud-introspection-follow-ups/50-04-PLAN.md
+Next action: Execute 50-04 (INTRO-F01 — describe(into=dict|dataclass|dataframe)); last plan of Phase 50.
 
 ## Operator Next Steps
 
-- **Phase 49 fully complete (ETL-INC-F01..F04):** executed inline (executor rate-limited mid-plan), verified PASSED 4/4, code-review 0 crit/3 warn (all 3 fixed incl. real WR-01 `%s`-clobber bug), secured 19/19. Full suite 1844@96.29%, mypy 0, Sphinx -W + interrogate green.
-- Next: `/gsd-discuss-phase 50` (CRUD + introspection). Milestone v1.1.0 now 2/4 phases done.
+- **Phase 50 plans 01-03 complete (CRUD-F01, CRUD-F02/F03, INTRO-F02):** raw-SQL where_sql escape hatch, keyset pagination + Page envelope, materialized-view introspection — all shipped, full sync/async parity, injection-tested, live-DB-proven. Full suite 1990@96.59%, mypy 0/18, interrogate 100%, Sphinx -W clean.
+- Next: execute plan 50-04 (INTRO-F01 — `describe(into=...)` `@overload` quadruplet + `TableDescription`), the last plan of Phase 50. Milestone v1.1.0 will then be 3/4 phases done pending Phase 50's own verification/close.
 - Carry-forward for P51: P48 WR-01 (time_bucket origin/offset guard-hoist); optional 1.0.1-folded doc patches (DOC-13).
