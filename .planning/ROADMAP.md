@@ -111,7 +111,7 @@
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 50-02-PLAN.md — CRUD-F02 + CRUD-F03 pagination family (`Page` envelope + `paginate_page` offset→Page + `paginate_keyset` seek→Page, both classes; `_build_keyset_where`)
+- [x] 50-02-PLAN.md — CRUD-F02 + CRUD-F03 pagination family (`Page` envelope + `paginate_page` offset→Page + `paginate_keyset` seek→Page, both classes; `_build_keyset_where`)
 
 **Wave 3** *(blocked on Wave 2 — shared test-suite files)*
 
@@ -144,7 +144,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
-| 50. CRUD + Introspection Follow-ups | v1.1.0 | 1/4 | In Progress|  |
+| 50. CRUD + Introspection Follow-ups | v1.1.0 | 2/4 | In Progress|  |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
 <details>
