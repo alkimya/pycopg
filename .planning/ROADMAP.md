@@ -103,7 +103,23 @@
   4. User can get `db.schema.describe()` output as a structured dataclass and/or DataFrame, not only a plain dict
   5. User can introspect materialized views and their columns via `db.schema.materialized_views()` plus per-view column introspection, sync and async
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+**Wave 1**
+
+- [ ] 50-01-PLAN.md — CRUD-F01 raw-SQL WHERE escape hatch (`where_sql`/`where_params` on delete_where/update_where/exists/count/paginate, both classes; `_resolve_predicate` guard)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 50-02-PLAN.md — CRUD-F02 + CRUD-F03 pagination family (`Page` envelope + `paginate_page` offset→Page + `paginate_keyset` seek→Page, both classes; `_build_keyset_where`)
+
+**Wave 3** *(blocked on Wave 2 — shared test-suite files)*
+
+- [ ] 50-03-PLAN.md — INTRO-F02 materialized-view introspection (`materialized_views` + `materialized_view_columns`, both accessors; dedicated pg_catalog queries)
+
+**Wave 4** *(blocked on Wave 3 — shared schema.py + spine files)*
+
+- [ ] 50-04-PLAN.md — INTRO-F01 structured describe (`describe(into="dict"|"dataclass"|"dataframe")` + `TableDescription`, both accessors; @overload set)
 
 ### Phase 51: Release v1.1.0
 
@@ -128,7 +144,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 |-------|-----------|----------------|--------|-----------|
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
-| 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
+| 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/4 | Planned | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
 
 <details>
@@ -302,5 +318,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 47. Release v1.0.0 | v1.0.0 | 3/3 | Complete    | 2026-07-02 |
 | 48. TimescaleDB Follow-ups | v1.1.0 | 0/3 | Planned | - |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/5 | Planned | - |
-| 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/TBD | Not started | - |
+| 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/4 | Planned | - |
 | 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
