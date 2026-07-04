@@ -145,7 +145,7 @@
 
 **Wave 3** *(blocked on Wave 2 — green gates precede tag)*
 
-- [ ] 51-03-PLAN.md — annotated tag v1.1.0 + human-gated GitHub Release → OIDC publish (D-07) + clean-venv smoke
+- [x] 51-03-PLAN.md — annotated tag v1.1.0 + human-gated GitHub Release → OIDC publish (D-07) + clean-venv smoke
 
 ## Progress
 
@@ -157,7 +157,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete    | 2026-07-03 |
-| 51. Release v1.1.0 | v1.1.0 | 2/3 | In Progress|  |
+| 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete   | 2026-07-04 |
 
 <details>
 <summary>✅ v1.0.0 Spatial v2 + gel API (Phases 41-47) — SHIPPED 2026-07-02</summary>
