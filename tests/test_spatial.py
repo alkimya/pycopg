@@ -30,10 +30,12 @@ from pycopg.spatial import (
     build_make_valid_sql,
     build_mvt_sql,
     build_nearest_sql,
+    build_overlaps_sql,
     build_perimeter_sql,
     build_point_on_surface_sql,
     build_simplify_sql,
     build_text_sql,
+    build_touches_sql,
     build_transform_sql,
     build_union_aggregate_sql,
     build_union_sql,
@@ -270,6 +272,148 @@ class TestBuilders:
         )
         assert sql.startswith("SELECT id FROM public.roads AS t")
         assert sql.endswith("AND (lanes > 2)")
+
+    # -- overlaps (SPAT-F06/D-06) ---------------------------------------
+
+    def test_overlaps_point_form(self):
+        """overlaps with point= builds ST_Overlaps with %s coords."""
+        sql, params = build_overlaps_sql("parcels", point=(-122.4, 37.8))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE ST_Overlaps(t.geometry, "
+            "ST_SetSRID(ST_MakePoint(%s, %s), 4326))"
+        )
+        assert params == [-122.4, 37.8]
+
+    def test_overlaps_wkt_form(self):
+        """overlaps with wkt= parameterizes the WKT string."""
+        sql, params = build_overlaps_sql("parcels", wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))")
+        assert "ST_Overlaps(t.geometry, ST_GeomFromText(%s, 4326))" in sql
+        assert params == ["POLYGON((0 0,1 0,1 1,0 1,0 0))"]
+
+    def test_overlaps_geojson_form(self):
+        """overlaps with geojson= parameterizes the serialized JSON."""
+        sql, params = build_overlaps_sql("parcels", geojson=_GJ)
+        assert "ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)" in sql
+        assert params == [json.dumps(_GJ)]
+
+    def test_overlaps_ref_form_builds_exists(self):
+        """overlaps with ref= produces an EXISTS subquery (D-08)."""
+        sql, params = build_overlaps_sql("parcels", ref=("zones", "geom"))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE EXISTS "
+            "(SELECT 1 FROM zones AS _ref "
+            "WHERE ST_Overlaps(_ref.geom, t.geometry))"
+        )
+        assert params == []
+
+    def test_overlaps_ref_invalid_identifier(self):
+        """overlaps with an invalid ref table raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_overlaps_sql("t", ref=("bad-name", "g"))
+
+    def test_overlaps_invalid_table(self):
+        """An invalid table name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_overlaps_sql("bad-name", point=(1, 2))
+
+    def test_overlaps_invalid_schema(self):
+        """An invalid schema name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_overlaps_sql("parcels", schema="bad-schema", point=(1, 2))
+
+    def test_overlaps_invalid_geom(self):
+        """An invalid geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_overlaps_sql("parcels", geom="bad-geom", point=(1, 2))
+
+    def test_overlaps_invalid_column(self):
+        """An invalid column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_overlaps_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_overlaps_columns_where(self):
+        """overlaps supports columns= and filter= together."""
+        sql, _ = build_overlaps_sql(
+            "parcels", point=(1, 2), columns=["id"], filter="status = 'active'"
+        )
+        assert sql.startswith("SELECT id FROM public.parcels AS t")
+        assert sql.endswith("AND (status = 'active')")
+
+    def test_overlaps_order_by_and_limit(self):
+        """overlaps supports order_by= and limit=."""
+        sql, _ = build_overlaps_sql("parcels", point=(1, 2), order_by="id DESC", limit=10)
+        assert sql.endswith("ORDER BY id DESC LIMIT 10")
+
+    # -- touches (SPAT-F06/D-06) -----------------------------------------
+
+    def test_touches_point_form(self):
+        """touches with point= builds ST_Touches with %s coords."""
+        sql, params = build_touches_sql("parcels", point=(-122.4, 37.8))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE ST_Touches(t.geometry, "
+            "ST_SetSRID(ST_MakePoint(%s, %s), 4326))"
+        )
+        assert params == [-122.4, 37.8]
+
+    def test_touches_wkt_form(self):
+        """touches with wkt= parameterizes the WKT string."""
+        sql, params = build_touches_sql("parcels", wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))")
+        assert "ST_Touches(t.geometry, ST_GeomFromText(%s, 4326))" in sql
+        assert params == ["POLYGON((0 0,1 0,1 1,0 1,0 0))"]
+
+    def test_touches_geojson_form(self):
+        """touches with geojson= parameterizes the serialized JSON."""
+        sql, params = build_touches_sql("parcels", geojson=_GJ)
+        assert "ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)" in sql
+        assert params == [json.dumps(_GJ)]
+
+    def test_touches_ref_form_builds_exists(self):
+        """touches with ref= produces an EXISTS subquery (D-08)."""
+        sql, params = build_touches_sql("parcels", ref=("zones", "geom"))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE EXISTS "
+            "(SELECT 1 FROM zones AS _ref "
+            "WHERE ST_Touches(_ref.geom, t.geometry))"
+        )
+        assert params == []
+
+    def test_touches_ref_invalid_identifier(self):
+        """touches with an invalid ref table raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_touches_sql("t", ref=("bad-name", "g"))
+
+    def test_touches_invalid_table(self):
+        """An invalid table name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_touches_sql("bad-name", point=(1, 2))
+
+    def test_touches_invalid_schema(self):
+        """An invalid schema name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_touches_sql("parcels", schema="bad-schema", point=(1, 2))
+
+    def test_touches_invalid_geom(self):
+        """An invalid geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_touches_sql("parcels", geom="bad-geom", point=(1, 2))
+
+    def test_touches_invalid_column(self):
+        """An invalid column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_touches_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_touches_columns_where(self):
+        """touches supports columns= and filter= together."""
+        sql, _ = build_touches_sql(
+            "parcels", point=(1, 2), columns=["id"], filter="status = 'active'"
+        )
+        assert sql.startswith("SELECT id FROM public.parcels AS t")
+        assert sql.endswith("AND (status = 'active')")
+
+    def test_touches_order_by_and_limit(self):
+        """touches supports order_by= and limit=."""
+        sql, _ = build_touches_sql("parcels", point=(1, 2), order_by="id DESC", limit=10)
+        assert sql.endswith("ORDER BY id DESC LIMIT 10")
 
     # -- within (two-table join form) ----------------------------------
 
@@ -2110,6 +2254,8 @@ class _RecordingAsyncDb:
 _HELPER_CALLS = [
     ("contains", {"point": (1, 2)}),
     ("intersects", {"wkt": "POINT(0 0)"}),
+    ("overlaps", {"point": (1, 2)}),
+    ("touches", {"point": (1, 2)}),
     ("dwithin", {"point": (1, 2), "distance": 10}),
     ("distance", {"point": (1, 2)}),
     ("nearest", {"point": (1, 2), "k": 2}),
@@ -2140,6 +2286,8 @@ _HELPER_CALLS = [
 _GDF_CALLS = [
     ("contains", {"point": (1, 2)}, "geometry"),
     ("intersects", {"wkt": "POINT(0 0)"}, "geometry"),
+    ("overlaps", {"point": (1, 2)}, "geometry"),
+    ("touches", {"point": (1, 2)}, "geometry"),
     ("dwithin", {"point": (1, 2), "distance": 10}, "geometry"),
     ("nearest", {"point": (1, 2)}, "geometry"),
     ("buffer", {"distance": 5}, "buffer"),
