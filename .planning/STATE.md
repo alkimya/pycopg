@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
-status: executing
-stopped_at: Completed 52-05-PLAN.md
-last_updated: "2026-07-04T22:10:26.531Z"
-last_activity: 2026-07-04 -- Phase 52 Plan 05 (crosses/disjoint DE-9IM predicates, SPAT-F06 complete) complete
+status: verifying
+stopped_at: Completed 52-06-PLAN.md
+last_updated: "2026-07-04T22:20:06.985Z"
+last_activity: 2026-07-04 -- Phase 52 Plan 06 (documentation + phase closure, all 5 gates green) complete
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 33
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 ## Current Position
 
-Phase: 52 (spatial-finish) — EXECUTING
-Plan: 6 of 6 (Plan 01 SPAT-F01 gridSize= complete; Plan 02 SPAT-F02+SPAT-F05 complete; Plan 03 SPAT-F03+SPAT-F04 complete; Plan 04 SPAT-F06 overlaps/touches complete; Plan 05 SPAT-F06 crosses/disjoint complete — SPAT-F06 now fully shipped)
-Status: Ready to execute
-Last activity: 2026-07-04 -- Phase 52 Plan 05 (crosses/disjoint DE-9IM predicates, SPAT-F06 complete) complete
+Phase: 52 (spatial-finish) — COMPLETE
+Plan: 6 of 6 (Plan 01 SPAT-F01 gridSize= complete; Plan 02 SPAT-F02+SPAT-F05 complete; Plan 03 SPAT-F03+SPAT-F04 complete; Plan 04 SPAT-F06 overlaps/touches complete; Plan 05 SPAT-F06 crosses/disjoint complete; Plan 06 documentation + phase closure complete — all 6 requirements SPAT-F01..F06 shipped, all 5 release gates verified green)
+Status: Phase complete — ready for verification
+Last activity: 2026-07-04 -- Phase 52 Plan 06 (documentation + phase closure, all 5 gates green) complete
 
 ## Performance Metrics
 
@@ -99,6 +99,7 @@ Last activity: 2026-07-04 -- Phase 52 Plan 05 (crosses/disjoint DE-9IM predicate
 | Phase 52 P03 | 25min | 3 tasks | 2 files |
 | Phase 52 P04 | ~20min | 3 tasks | 2 files |
 | Phase 52 P05 | 11min | 3 tasks | 3 files |
+| Phase 52 P06 | ~25min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -179,6 +180,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 52]: D-11: envelope returns a geometry column valid for into='gdf' (not in _SCALAR_HELPERS)
 - [Phase ?]: Phase 52-04: overlaps/touches mirror build_intersects_sql mechanically (D-06 amended); into=rows/gdf overload triplet included, born-clean (no where= shim); not added to _SCALAR_HELPERS (row-filter predicates, gdf uses table's own geom column)
 - [Phase ?]: Phase 52-05: build_crosses_sql/build_disjoint_sql mirror build_intersects_sql/build_overlaps_sql mechanically (D-06); disjoint(ref=) keeps the uniform EXISTS form (D-07, no NOT EXISTS special-case), docstrings carry the ref= footgun + non-indexable postgis.net perf note (D-08); neither added to _SCALAR_HELPERS. SPAT-F06 now fully complete (overlaps/touches Plan 52-04 + crosses/disjoint Plan 52-05).
+- [Phase ?]: Phase 52-06: documented all 6 new spatial helper families (gridSize=, length/is_valid/is_valid_reason, envelope/point_on_surface, overlaps/touches/crosses/disjoint) in docs/spatial.md + docs/api-reference.md; added test_spatial_finish_surface (SPAT2-13 precedent); all 5 phase gates verified green (cov 96.78%, mypy 0/18, interrogate 100%, Sphinx -W clean, uv.lock diff empty). Phase 52 (SPAT-F01..F06) fully complete, ready for /gsd-verify-work. — Docs-only closure plan; no pycopg/spatial.py changes.
 
 ### Pending Todos
 
@@ -212,8 +214,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-04T22:10:26.520Z
-Stopped at: Completed 52-05-PLAN.md
+Last session: 2026-07-04T22:20:06.973Z
+Stopped at: Completed 52-06-PLAN.md
 Resume file: None
 Next action: Continue Phase 52 — execute Plan 03 (next SPAT-F0x plan in the 6-plan Spatial Finish sequence).
 

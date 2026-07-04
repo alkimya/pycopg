@@ -26,7 +26,7 @@
 
 **Milestone Goal:** Second additive point release under the frozen SemVer 1.0 API — a maturity cycle (no new subsystem): close the small API ergonomics/symmetry gaps, finish the spatial tail, and settle the docs/tooling debt. Non-breaking, full sync/async parity (Core Value), zero new runtime dependencies, coverage ratchet ≥95% (baseline 96.65%), `mypy --strict` stays a blocking gate.
 
-- [ ] **Phase 52: Spatial Finish** - Complete `db.spatial.*` with fixed-precision overlay control, remaining measurement/validity helpers, and the last four DE-9IM predicates
+- [x] **Phase 52: Spatial Finish** - Complete `db.spatial.*` with fixed-precision overlay control, remaining measurement/validity helpers, and the last four DE-9IM predicates
 - [ ] **Phase 53: CRUD Symmetry + Introspection Follow-ups** - Add the missing predicate-read and single-row-insert helpers to the flat core, and the last two `db.schema.*` introspection helpers
 - [ ] **Phase 54: Release v1.2.0** - Doc/tooling hygiene (deprecated-name residue, `vulture` wired into Makefile/CI), version bump, CHANGELOG, 5 gates green, tag + PyPI publish
 
@@ -69,7 +69,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 52-06-PLAN.md — Docs (`spatial.md` + `api-reference.md`) + surface test + 5-gate phase closure
+- [x] 52-06-PLAN.md — Docs (`spatial.md` + `api-reference.md`) + surface test + 5-gate phase closure
 
 **Cross-cutting constraints:**
 
@@ -110,7 +110,7 @@ Phases execute in numeric order: 52 → 53 → 54
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 52. Spatial Finish | v1.2.0 | 5/6 | In Progress|  |
+| 52. Spatial Finish | v1.2.0 | 6/6 | Complete   | 2026-07-04 |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
