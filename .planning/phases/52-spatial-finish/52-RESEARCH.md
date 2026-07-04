@@ -404,12 +404,11 @@ _HELPER_CALLS = [
 
 No other claims in this research are `[ASSUMED]` — the PostGIS function behaviors (gridSize version gate, ST_Disjoint index behavior, ST_Length polygon=0 behavior) were confirmed via official PostGIS documentation (`postgis.net`), and all `pycopg/spatial.py` line-anchor claims were confirmed by direct `Read` against the live file at research time.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should the 4 new DE-9IM predicates support `into="gdf"`?**
-   - What we know: `contains`/`intersects`/`dwithin` (siblings in the "predicate family" per SPAT-F06's own wording) all support it today; CONTEXT.md D-06 says "no into=" but also says "mirror mechanically."
-   - What's unclear: whether the CONTEXT.md author intended the narrower shape deliberately (e.g., to reduce phase scope) or whether "(no into=)" is simply an error/oversight.
-   - Recommendation: planner should make an explicit decision here (see Pitfall 1) — either is implementable, but it must be a conscious choice, not an accident. Given the emphasis on "completing the...family" in the requirement text, including `into=`/gdf is the more internally-consistent choice.
+1. **Should the 4 new DE-9IM predicates support `into="gdf"`? — RESOLVED 2026-07-04 (plan-phase, user decision): YES, full into=rows/gdf mirror. See CONTEXT.md amended D-06/D-07; implemented by plans 52-04/52-05.**
+   - What we know: `contains`/`intersects`/`dwithin` (siblings in the "predicate family" per SPAT-F06's own wording) all support it today; CONTEXT.md D-06 said "no into=" but also "mirror mechanically."
+   - Resolution: the "(no into=)" text was a factual error — the live siblings already ship `into=`, so "mirror mechanically" REQUIRES the overloads. User confirmed the full-mirror shape; CONTEXT.md D-06/D-07 amended accordingly.
 
 2. **Does `disjoint` need a `_SCALAR_HELPERS`-style special exclusion given its non-indexable nature?**
    - What we know: `disjoint` is a row-filter predicate (like `intersects`), not a scalar-column helper — it does NOT belong in `_SCALAR_HELPERS` regardless of the into= decision above (that frozenset governs geometry-vs-scalar shape, not index performance).

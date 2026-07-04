@@ -46,14 +46,34 @@
   5. User can test the `overlaps`/`touches`/`crosses`/`disjoint` DE-9IM predicates via `db.spatial.*`, completing the `contains`/`intersects`/`within`/`dwithin` predicate family
 
 **Plans**: 6 plans
-
 Plans:
+**Wave 1**
+
 - [ ] 52-01-PLAN.md — SPAT-F01 keyword-only `gridSize=` fixed-precision overlay (byte-identical `None` default)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 52-02-PLAN.md — SPAT-F02 `length` + SPAT-F05 `is_valid`/`is_valid_reason` (scalar helpers, `_SCALAR_HELPERS`)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 52-03-PLAN.md — SPAT-F03 `envelope` + SPAT-F04 `point_on_surface` (geometry helpers, `@overload` triplets)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 52-04-PLAN.md — SPAT-F06 `overlaps` + `touches` DE-9IM predicates (into=rows/gdf)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 52-05-PLAN.md — SPAT-F06 `crosses` + `disjoint` DE-9IM predicates (disjoint footgun + perf note)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 52-06-PLAN.md — Docs (`spatial.md` + `api-reference.md`) + surface test + 5-gate phase closure
+
+**Cross-cutting constraints:**
+
+- Both appear on SpatialAccessor and AsyncSpatialAccessor with identical kw-only signatures (parity), born-clean (no where=)
 
 ### Phase 53: CRUD Symmetry + Introspection Follow-ups
 
