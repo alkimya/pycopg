@@ -23,6 +23,9 @@ from pycopg.spatial import (
     build_geojson_sql,
     build_intersection_sql,
     build_intersects_sql,
+    build_is_valid_reason_sql,
+    build_is_valid_sql,
+    build_length_sql,
     build_make_valid_sql,
     build_mvt_sql,
     build_nearest_sql,
@@ -466,6 +469,120 @@ class TestBuilders:
         sql, _ = build_perimeter_sql("parcels", columns=["id"])
         assert sql.startswith("SELECT id, ST_Perimeter(")
 
+    # -- length ----------------------------------------------------------
+
+    def test_length_unit_m_geography(self):
+        """length unit='m' computes ST_Length on ::geography (D-09/D-10)."""
+        sql, params = build_length_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_Length(t.geometry::geography) AS length "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_length_unit_srid_native(self):
+        """length unit='srid' computes ST_Length without cast."""
+        sql, _ = build_length_sql("parcels", unit="srid")
+        assert "ST_Length(t.geometry) AS length" in sql
+        assert "::geography" not in sql
+
+    def test_length_invalid_unit(self):
+        """length with an unknown unit raises ValueError."""
+        with pytest.raises(ValueError, match="unit must be"):
+            build_length_sql("parcels", unit="ft")
+
+    def test_length_tail_clauses(self):
+        """length supports filter=/order_by=/limit=."""
+        sql, _ = build_length_sql(
+            "parcels", filter="id > 1", order_by="length DESC", limit=4
+        )
+        assert sql.endswith("WHERE id > 1 ORDER BY length DESC LIMIT 4")
+
+    def test_length_columns(self):
+        """length supports columns=."""
+        sql, _ = build_length_sql("parcels", columns=["id"])
+        assert sql.startswith("SELECT id, ST_Length(")
+
+    def test_length_invalid_table(self):
+        """length validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_length_sql("bad-name")
+
+    def test_length_invalid_geom(self):
+        """length validates the geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_length_sql("parcels", geom="bad-col; DROP TABLE")
+
+    def test_length_invalid_columns(self):
+        """length validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_length_sql("parcels", columns=["bad-col"])
+
+    # -- is_valid / is_valid_reason ---------------------------------------
+
+    def test_is_valid_emits_st_is_valid(self):
+        """is_valid emits ST_IsValid with a bare is_valid alias (D-09/D-12)."""
+        sql, params = build_is_valid_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_IsValid(t.geometry) AS is_valid FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_is_valid_tail_clauses(self):
+        """is_valid supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_is_valid_sql(
+            "parcels", columns=["id"], filter="id > 1", order_by="id", limit=3
+        )
+        assert sql.startswith("SELECT id, ST_IsValid(")
+        assert sql.endswith("WHERE id > 1 ORDER BY id LIMIT 3")
+
+    def test_is_valid_invalid_table(self):
+        """is_valid validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_is_valid_sql("bad-name")
+
+    def test_is_valid_invalid_geom(self):
+        """is_valid validates the geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_is_valid_sql("parcels", geom="bad-col; DROP TABLE")
+
+    def test_is_valid_invalid_columns(self):
+        """is_valid validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_is_valid_sql("parcels", columns=["bad-col"])
+
+    def test_is_valid_reason_emits_st_is_valid_reason(self):
+        """is_valid_reason emits ST_IsValidReason with a bare alias (D-09/D-12)."""
+        sql, params = build_is_valid_reason_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_IsValidReason(t.geometry) AS is_valid_reason "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_is_valid_reason_tail_clauses(self):
+        """is_valid_reason supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_is_valid_reason_sql(
+            "parcels", columns=["id"], filter="id > 1", order_by="id", limit=3
+        )
+        assert sql.startswith("SELECT id, ST_IsValidReason(")
+        assert sql.endswith("WHERE id > 1 ORDER BY id LIMIT 3")
+
+    def test_is_valid_reason_invalid_table(self):
+        """is_valid_reason validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_is_valid_reason_sql("bad-name")
+
+    def test_is_valid_reason_invalid_geom(self):
+        """is_valid_reason validates the geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_is_valid_reason_sql("parcels", geom="bad-col; DROP TABLE")
+
+    def test_is_valid_reason_invalid_columns(self):
+        """is_valid_reason validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_is_valid_reason_sql("parcels", columns=["bad-col"])
+
     # -- centroid ------------------------------------------------------
 
     def test_centroid_emits_x_y_columns(self):
@@ -891,9 +1008,20 @@ class TestGuard:
         with pytest.raises(ExtensionNotAvailableError, match="PostGIS extension"):
             await acc.contains("parcels", point=(1, 2))
 
-    @pytest.mark.parametrize("helper", ["area", "perimeter", "distance", "centroid"])
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            "area",
+            "perimeter",
+            "distance",
+            "centroid",
+            "length",
+            "is_valid",
+            "is_valid_reason",
+        ],
+    )
     def test_sync_scalar_helper_rejects_gdf(self, helper):
-        """into='gdf' on a scalar helper raises ValueError (D-02)."""
+        """into='gdf' on a scalar helper raises ValueError (D-02/D-12)."""
         acc = SpatialAccessor(_FakeSyncDb(has_postgis=True))
         kwargs = {"into": "gdf"}
         if helper == "distance":
@@ -906,6 +1034,27 @@ class TestGuard:
         acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=True))
         with pytest.raises(ValueError, match="into='gdf' is invalid for area"):
             await acc.area("parcels", into="gdf")
+
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            "area",
+            "perimeter",
+            "distance",
+            "centroid",
+            "length",
+            "is_valid",
+            "is_valid_reason",
+        ],
+    )
+    async def test_async_scalar_helper_rejects_gdf_parametrized(self, helper):
+        """into='gdf' on every scalar helper raises ValueError, async side (D-12)."""
+        acc = AsyncSpatialAccessor(_FakeAsyncDb(has_postgis=True))
+        kwargs = {"into": "gdf"}
+        if helper == "distance":
+            kwargs["point"] = (1, 2)
+        with pytest.raises(ValueError, match=f"into='gdf' is invalid for {helper}"):
+            await getattr(acc, helper)("parcels", **kwargs)
 
     def test_invalid_into_value_rejected(self):
         """An unknown into= value raises ValueError naming the allowed set."""
@@ -1034,6 +1183,75 @@ class TestIntegration:
             )
             rows = sdb.spatial.area(t, columns=["id"])
             assert rows[0]["area"] > 0
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_length_polygon_returns_zero(self, sdb):
+        """length on a polygon (areal, non-linear) geometry returns 0 (D-10)."""
+        t = _uniq("spat_length_poly")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))",
+                autocommit=True,
+            )
+            rows = sdb.spatial.length(t, columns=["id"])
+            assert rows[0]["length"] == 0
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_length_linestring_returns_positive_scalar(self, sdb):
+        """length unit='m' on a LineString returns a positive meter value."""
+        t = _uniq("spat_length_line")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(LineString, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('LINESTRING(0 0, 0 1)', 4326))",
+                autocommit=True,
+            )
+            rows = sdb.spatial.length(t, columns=["id"])
+            assert rows[0]["length"] > 0
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_is_valid_returns_boolean(self, sdb):
+        """is_valid returns a Python bool for a valid polygon."""
+        t = _uniq("spat_is_valid")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326))",
+                autocommit=True,
+            )
+            rows = sdb.spatial.is_valid(t, columns=["id"])
+            assert rows[0]["is_valid"] is True
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_is_valid_reason_returns_text(self, sdb):
+        """is_valid_reason returns descriptive text for a bowtie polygon."""
+        t = _uniq("spat_is_valid_reason")
+        try:
+            self._make_bowtie_table(sdb, t)
+            rows = sdb.spatial.is_valid_reason(t, columns=["id"])
+            assert len(rows) == 1
+            assert isinstance(rows[0]["is_valid_reason"], str)
+            assert rows[0]["is_valid_reason"] != ""
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
@@ -1737,6 +1955,9 @@ _HELPER_CALLS = [
     ("nearest", {"point": (1, 2), "k": 2}),
     ("area", {}),
     ("perimeter", {}),
+    ("length", {}),
+    ("is_valid", {}),
+    ("is_valid_reason", {}),
     ("centroid", {}),
     ("buffer", {"distance": 5}),
     ("transform", {"to_srid": 3857}),
