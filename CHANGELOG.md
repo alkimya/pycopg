@@ -539,7 +539,8 @@ examples, watermark-column requirements, and backfill/reset instructions.
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/alkimya/pycopg/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/alkimya/pycopg/compare/v0.10.1...v1.0.0
 [0.10.0]: https://github.com/alkimya/pycopg/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/alkimya/pycopg/compare/v0.8.0...v0.9.0
