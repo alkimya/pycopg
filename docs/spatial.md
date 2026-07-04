@@ -46,8 +46,9 @@ rows = db.spatial.dwithin("parcels", point=(-122.4, 37.8), distance=500)
 gdf = db.spatial.dwithin("parcels", point=(-122.4, 37.8), distance=500, into="gdf")
 ```
 
-Scalar helpers (`area`, `perimeter`, `distance`, `centroid`) only support `into="rows"`;
-passing `into="gdf"` raises `ValueError` because their result columns are not geometry.
+Scalar helpers (`area`, `perimeter`, `distance`, `centroid`, `length`, `is_valid`,
+`is_valid_reason`) only support `into="rows"`; passing `into="gdf"` raises `ValueError`
+because their result columns are not geometry.
 
 ## Geometry Input Forms
 
@@ -267,6 +268,138 @@ rows = db.spatial.transform(
 )
 # Result GeoDataFrame has a "geometry_transformed" geometry column.
 ```
+
+### Fixed-Precision Overlays: `gridSize=`
+
+The overlay helpers `union`, `difference`, and `intersection` accept a keyword-only
+`gridSize` parameter (`float | None`, default `None`) for fixed-precision (snap-rounding)
+overlay computation:
+
+```python
+rows = db.spatial.union(
+    "parcels",
+    geom="geometry",
+    other_geom="geometry_b",
+    gridSize=0.001,
+)
+```
+
+When set, `gridSize` becomes the 3rd argument of the underlying PostGIS overlay
+function (`ST_Union(a, b, gridSize)`, likewise `ST_Difference`/`ST_Intersection`) and is
+bound as a `%s` parameter (pure passthrough — no client-side range validation, since
+every float, including `0` and negative values, is meaningful to PostGIS). **Requires
+PostGIS >= 3.1 / GEOS >= 3.9**; on older servers PostGIS raises a native error. The
+default `gridSize=None` path emits the exact pre-existing 2-argument SQL — byte-identical
+to versions of pycopg without this parameter.
+
+### length
+
+Selects rows with a computed `length` column (scalar result; `into="gdf"` forbidden).
+Mirrors `area`/`perimeter` — same `unit=` parameter.
+
+```python
+rows = db.spatial.length(
+    "roads",
+    geom="geometry",
+    unit="m",
+    columns=["id", "name"],
+)
+# Each row has a "length" key with the computed length in metres.
+```
+
+`ST_Length` returns `0` for non-linear geometries (polygons, points) — it only measures
+the length of `LINESTRING`/`MULTILINESTRING` geometries.
+
+### is_valid
+
+Selects rows with a computed boolean `is_valid` column (scalar result; `into="gdf"`
+forbidden).
+
+```python
+rows = db.spatial.is_valid("parcels", geom="geometry", columns=["id"])
+# Each row has an "is_valid" key (True/False) per OGC validity rules.
+```
+
+### is_valid_reason
+
+Selects rows with a computed text `is_valid_reason` column describing why a geometry is
+invalid (scalar result; `into="gdf"` forbidden). Complements `make_valid` — use
+`is_valid`/`is_valid_reason` to diagnose, `make_valid` to repair.
+
+```python
+rows = db.spatial.is_valid_reason("parcels", geom="geometry", columns=["id"])
+# Each row has an "is_valid_reason" key, e.g. "Self-intersection at ...".
+```
+
+### envelope
+
+Selects rows with an `envelope` geometry column — the per-row minimum bounding
+rectangle (valid for `into="gdf"`).
+
+```python
+rows = db.spatial.envelope(
+    "parcels",
+    geom="geometry",
+    into="gdf",
+)
+# Result GeoDataFrame has an "envelope" geometry column.
+```
+
+### point_on_surface
+
+Selects rows with a `point_on_surface` geometry column — a guaranteed-inside
+representative point (valid for `into="gdf"`), suited for map labels/markers. Unlike
+`centroid` (which returns scalar `centroid_x`/`centroid_y` coordinates and is never
+guaranteed to lie inside a concave geometry), `point_on_surface` returns a real geometry
+column and always lies on the surface of the input geometry.
+
+```python
+rows = db.spatial.point_on_surface(
+    "parcels",
+    geom="geometry",
+    into="gdf",
+)
+# Result GeoDataFrame has a "point_on_surface" geometry column, guaranteed
+# to lie inside/on each polygon (unlike centroid, which can fall outside
+# a concave shape).
+```
+
+### overlaps / touches / crosses / disjoint
+
+Four DE-9IM predicates completing the `contains`/`intersects`/`within`/`dwithin`
+predicate family. Each mechanically mirrors `intersects`: same four geometry input
+forms (`point=`/`wkt=`/`geojson=`/`ref=`), same `ref=` EXISTS-subquery handling, same
+`into="rows"/"gdf"` support (row-filter predicates — `into="gdf"` uses the table's own
+geometry column, not a computed column).
+
+```python
+# overlaps — ST_Overlaps
+rows = db.spatial.overlaps("parcels", geom="geometry", point=(-122.4, 37.8))
+
+# touches — ST_Touches
+rows = db.spatial.touches("parcels", geom="geometry", ref=("zones", "boundary"))
+
+# crosses — ST_Crosses
+rows = db.spatial.crosses(
+    "roads", geom="geometry",
+    wkt="LINESTRING(-122.5 37.7, -122.3 37.9)",
+)
+
+# disjoint — ST_Disjoint
+rows = db.spatial.disjoint("parcels", geom="geometry", point=(-122.4, 37.8))
+```
+
+**`disjoint` footgun:** the `ref=` form means "EXISTS a ref row disjoint from t" — true
+as soon as **any** row in the reference table is disjoint from the current row (near-
+always true for a sparse reference table). It does **not** mean "disjoint from all"
+reference rows. This is the same uniform EXISTS quantifier used by every other
+predicate's `ref=` form (kept mechanically consistent rather than special-cased), so
+read the result semantics carefully when using `ref=` with `disjoint`.
+
+**`disjoint` performance note:** `ST_Disjoint` does not use indexes ("This function call
+does not use indexes" — postgis.net). For large indexed tables, prefer a negated
+`NOT ST_Intersects` predicate instead — e.g. via the `filter=` escape hatch — for an
+indexable, more performant equivalent.
 
 ## Async Usage
 
