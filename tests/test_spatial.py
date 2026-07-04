@@ -583,6 +583,15 @@ class TestBuilders:
         with pytest.raises(InvalidIdentifierError):
             build_union_sql("parcels", other_geom="bad-col; DROP TABLE")
 
+    def test_union_grid_size_appends_third_arg(self):
+        """union(grid_size=...) adds a 3rd ST_Union arg bound as %s (SPAT-F01/D-01)."""
+        sql, params = build_union_sql("parcels", other_geom="geom2", grid_size=0.001)
+        assert sql == (
+            "SELECT *, ST_Union(t.geometry, t.geom2, %s) AS union_geom "
+            "FROM public.parcels AS t"
+        )
+        assert params == [0.001]
+
     # -- difference ----------------------------------------------------
 
     def test_difference_emits_st_difference(self):
@@ -617,6 +626,17 @@ class TestBuilders:
         with pytest.raises(InvalidIdentifierError):
             build_difference_sql("parcels", other_geom="bad-col; DROP TABLE")
 
+    def test_difference_grid_size_appends_third_arg(self):
+        """difference(grid_size=...) adds a 3rd ST_Difference arg bound as %s (SPAT-F01/D-01)."""
+        sql, params = build_difference_sql(
+            "parcels", other_geom="geom2", grid_size=0.001
+        )
+        assert sql == (
+            "SELECT *, ST_Difference(t.geometry, t.geom2, %s) AS difference "
+            "FROM public.parcels AS t"
+        )
+        assert params == [0.001]
+
     # -- intersection --------------------------------------------------
 
     def test_intersection_emits_st_intersection(self):
@@ -650,6 +670,17 @@ class TestBuilders:
         """intersection validates the other_geom identifier."""
         with pytest.raises(InvalidIdentifierError):
             build_intersection_sql("parcels", other_geom="bad-col; DROP TABLE")
+
+    def test_intersection_grid_size_appends_third_arg(self):
+        """intersection(grid_size=...) adds a 3rd ST_Intersection arg bound as %s (SPAT-F01/D-01)."""
+        sql, params = build_intersection_sql(
+            "parcels", other_geom="geom2", grid_size=0.001
+        )
+        assert sql == (
+            "SELECT *, ST_Intersection(t.geometry, t.geom2, %s) AS intersection "
+            "FROM public.parcels AS t"
+        )
+        assert params == [0.001]
 
     # -- simplify -------------------------------------------------------
 
@@ -1121,6 +1152,23 @@ class TestIntegration:
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
+    def test_union_grid_size_live(self, sdb):
+        """union(gridSize=...) executes without error and returns geometry (SPAT-F01/D-01).
+
+        Live proof — this server's PostGIS 3.6.4 / GEOS 3.13.1 exceeds the
+        >=3.1/>=3.9 gridSize requirement (D-04, no version pre-check).
+        """
+        t = _uniq("spat_union_gridsize")
+        try:
+            self._make_two_geom_table(sdb, t)
+            rows = sdb.spatial.union(
+                t, geom="geom_a", other_geom="geom_b", gridSize=0.001
+            )
+            assert len(rows) == 1
+            assert rows[0]["union_geom"] is not None
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
     def test_difference_pairwise(self, sdb):
         """difference returns non-empty rows with the difference D-01 key."""
         t = _uniq("spat_diff")
@@ -1155,6 +1203,23 @@ class TestIntegration:
             self._make_mixed_srid_table(sdb, t)
             with pytest.raises(Exception):
                 sdb.spatial.difference(t, geom="geom_a", other_geom="geom_b")
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_difference_grid_size_live(self, sdb):
+        """difference(gridSize=...) executes without error and returns geometry (SPAT-F01/D-01).
+
+        Live proof — this server's PostGIS 3.6.4 / GEOS 3.13.1 exceeds the
+        >=3.1/>=3.9 gridSize requirement (D-04, no version pre-check).
+        """
+        t = _uniq("spat_diff_gridsize")
+        try:
+            self._make_two_geom_table(sdb, t)
+            rows = sdb.spatial.difference(
+                t, geom="geom_a", other_geom="geom_b", gridSize=0.001
+            )
+            assert len(rows) == 1
+            assert rows[0]["difference"] is not None
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
