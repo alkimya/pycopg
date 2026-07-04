@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-04
+
+Additive follow-ups on the frozen SemVer-1.0 public API: TimescaleDB continuous
+aggregate teardown and per-chunk compression, richer incremental-ETL controls,
+and CRUD/introspection ergonomics. Every new method and parameter below ships on
+both the sync (`Database`) and async (`AsyncDatabase`) accessors at parity.
+
+### Added
+
+- **TimescaleDB** (`pycopg/timescale.py`, `db.timescale.*`):
+  - `drop_continuous_aggregate(view_name, *, cascade=False, if_exists=False, schema="public")`
+    and `remove_continuous_aggregate_policy(view_name, *, if_exists=True, schema="public")`
+    — continuous aggregate teardown (plain transaction-safe DDL).
+  - `time_bucket(...)` gains keyword-only `origin=` / `offset=` bucket-alignment
+    parameters (mutually exclusive — passing both raises `ValueError`).
+  - `compress_chunk(chunk, *, if_not_compressed=True)` and
+    `decompress_chunk(chunk, *, if_compressed=True)` — per-chunk compression
+    (`chunk` bound as `%s::regclass`; TSL-only).
+  - `show_chunks(table, *, older_than=None, newer_than=None, schema="public")`
+    gains keyword-only `older_than=` / `newer_than=` physical-time filters.
+- **Incremental ETL** (`pycopg/etl.py`, `Pipeline`):
+  - `initial_watermark` — seed floor for the incremental `WHERE col > watermark`
+    predicate; accepts a same-length sequence for a composite watermark.
+  - `incremental_inclusive` (`>=` boundary) and `incremental_lookback`
+    (re-read window) knobs.
+  - `incremental_column` now also accepts a sequence of column names for a
+    composite multi-column watermark.
+  - `concurrency={"wait", "skip"}` — advisory-lock serialization of concurrent
+    pipeline runs.
+- **CRUD + introspection** (`pycopg/database.py`, `pycopg/schema.py`):
+  - Raw-SQL `where_sql=` / `where_params=` escape hatch on `delete_where`,
+    `update_where`, `exists`, `count`, and `paginate`.
+  - `Page` result envelope with `paginate_page(...)` (offset) and
+    `paginate_keyset(...)` (seek/keyset) pagination.
+  - `materialized_views(*, schema="public")` and
+    `materialized_view_columns(view, *, schema="public")` introspection.
+  - `describe(table, *, schema="public", into="dict"|"dataclass"|"dataframe")`
+    plus the `TableDescription` dataclass.
+
+### Fixed
+
+- `time_bucket` now raises the `origin`/`offset` mutual-exclusion `ValueError`
+  before any database round-trip (previously raised after the `has_extension()`
+  check), on both `Database` and `AsyncDatabase`.
+
 ## [1.0.0] - 2026-07-02
 
 Spatial v2 + gel API. First stable major release: `db.spatial.*` grows from
