@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
 status: executing
-stopped_at: Completed 52-01-PLAN.md
-last_updated: "2026-07-04T21:20:52.019Z"
-last_activity: 2026-07-04 -- Phase 52 Plan 01 (gridSize= overlay precision, SPAT-F01) complete
+stopped_at: Completed 52-02-PLAN.md
+last_updated: "2026-07-04T21:31:02.806Z"
+last_activity: 2026-07-04 -- Phase 52 Plan 02 (length/is_valid/is_valid_reason, SPAT-F02+SPAT-F05) complete
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 ## Current Position
 
 Phase: 52 (spatial-finish) — EXECUTING
-Plan: 2 of 6 (Plan 01 SPAT-F01 gridSize= complete, verified PASSED 3/3 tasks)
+Plan: 3 of 6 (Plan 01 SPAT-F01 gridSize= complete; Plan 02 SPAT-F02+SPAT-F05 length/is_valid/is_valid_reason complete, 3/3 tasks)
 Status: Ready to execute
-Last activity: 2026-07-04 -- Phase 52 Plan 01 (gridSize= overlay precision, SPAT-F01) complete
+Last activity: 2026-07-04 -- Phase 52 Plan 02 (length/is_valid/is_valid_reason, SPAT-F02+SPAT-F05) complete
 
 ## Performance Metrics
 
@@ -95,6 +95,7 @@ Last activity: 2026-07-04 -- Phase 52 Plan 01 (gridSize= overlay precision, SPAT
 | Phase 50 P03 | 15min | 2 tasks | 8 files |
 | Phase 50 P04 | ~25min | 3 tasks | 6 files |
 | Phase 52 P01 | 7min | 3 tasks | 2 files |
+| Phase 52 P02 | 20min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -170,6 +171,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 **v1.2.0 roadmap locked (2026-07-04):** 3 phases (52-54), continuing numbering from Phase 51. Phase 52 (Spatial Finish, SPAT-F01..F06) and Phase 53 (CRUD Symmetry + Introspection Follow-ups, CRUD-F04..F06 + INTRO-F03/F04) are independent surfaces (spatial.py vs database.py/schema.py) — either could run first, executed in numeric order. Phase 54 (Release v1.2.0) folds in the two low-risk hygiene requirements (DOC-14, TOOL-01) alongside REL-13, avoiding a 4th thin phase per standard-granularity guidance. 14/14 requirements mapped, 0 unmapped.
 
 - [Phase 52]: Phase 52-01: gridSize= threaded through _build_binary_geom_sql + union/difference/intersection builders and accessors (sync+async), byte-identical None path (D-03), pure passthrough no client guard (D-02), no server-version pre-check (D-04)
+- [Phase ?]: Phase 52-02: build_length_sql/build_is_valid_sql/build_is_valid_reason_sql mirror build_perimeter_sql exactly (validate_identifiers first, bare AS labels D-09); length reuses _validate_unit (D-10, ST_Length=0 for non-linear geometries); is_valid/is_valid_reason registered in _SCALAR_HELPERS so into=gdf fails fast (D-12)
 
 ### Pending Todos
 
@@ -203,11 +205,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-04T21:20:52.007Z
-Stopped at: Completed 52-01-PLAN.md
+Last session: 2026-07-04T21:31:02.796Z
+Stopped at: Completed 52-02-PLAN.md
 Resume file: None
-Next action: Run `/gsd-plan-phase 52` (Spatial Finish) — first phase of v1.2.0.
+Next action: Continue Phase 52 — execute Plan 03 (next SPAT-F0x plan in the 6-plan Spatial Finish sequence).
 
 ## Operator Next Steps
 
-- Plan Phase 52 (Spatial Finish) with /gsd-plan-phase 52
+- Continue executing Phase 52 (Spatial Finish) — Plans 01/02 of 6 complete (SPAT-F01, SPAT-F02+F05); 4 plans remaining (SPAT-F03/F04/F06).
