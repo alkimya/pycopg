@@ -141,7 +141,7 @@
 
 **Wave 2** *(blocked on Wave 1 — D-03 must land before the DeprecationWarning gate)*
 
-- [ ] 51-02-PLAN.md — version bump (D-01, pyproject/conf.py/uv.lock) + code-exact CHANGELOG [1.1.0] (D-06) + run all 5 release gates (D-08)
+- [x] 51-02-PLAN.md — version bump (D-01, pyproject/conf.py/uv.lock) + code-exact CHANGELOG [1.1.0] (D-06) + run all 5 release gates (D-08)
 
 **Wave 3** *(blocked on Wave 2 — green gates precede tag)*
 
@@ -157,7 +157,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete    | 2026-07-03 |
-| 51. Release v1.1.0 | v1.1.0 | 1/3 | In Progress|  |
+| 51. Release v1.1.0 | v1.1.0 | 2/3 | In Progress|  |
 
 <details>
 <summary>✅ v1.0.0 Spatial v2 + gel API (Phases 41-47) — SHIPPED 2026-07-02</summary>
