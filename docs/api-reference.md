@@ -274,7 +274,8 @@ access and raises `ExtensionNotAvailable` if PostGIS is not installed. All helpe
 one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 `ref=(table, col)`. The `into=` parameter controls output: `"rows"` returns
 `list[dict]` (default); `"gdf"` returns a `GeoDataFrame`. Scalar helpers (`area`,
-`perimeter`, `distance`, `centroid`) only support `into="rows"`.
+`perimeter`, `distance`, `centroid`, `length`, `is_valid`, `is_valid_reason`) only
+support `into="rows"`.
 
 | Method | Key Parameters | Returns |
 |--------|----------------|---------|
@@ -289,9 +290,9 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 | `centroid` | `table, geom="geometry", into="rows", columns=, filter=, order_by=, limit=` | `list[dict]` |
 | `buffer` | `table, geom="geometry", distance=, unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
 | `transform` | `table, geom="geometry", to_srid=, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `union` | `table, *, geom="geometry", schema="public", other_geom, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
-| `difference` | `table, *, geom="geometry", schema="public", other_geom, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
-| `intersection` | `table, *, geom="geometry", schema="public", other_geom, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `union` | `table, *, geom="geometry", schema="public", other_geom, gridSize=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `difference` | `table, *, geom="geometry", schema="public", other_geom, gridSize=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `intersection` | `table, *, geom="geometry", schema="public", other_geom, gridSize=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `simplify` | `table, *, geom="geometry", schema="public", tolerance, preserve_topology=True, preserve_collapsed=False, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `convex_hull` | `table, *, geom="geometry", schema="public", filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `make_valid` | `table, *, geom="geometry", schema="public", method=None, keep_collapsed=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
@@ -301,6 +302,15 @@ one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 | `as_geojson` | `table, *, geom="geometry", schema="public", max_decimal_digits=6, include_bbox=False, include_crs=False, into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
 | `as_text` | `table, *, geom="geometry", schema="public", max_decimal_digits=None, into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
 | `as_mvt` | `table, *, geom="geometry", schema="public", tile_z, tile_x, tile_y, layer_name="default", extent=4096, columns=None, feature_id_column=None, srid=None, filter=None` | `bytes` |
+| `length` | `table, *, geom="geometry", schema="public", unit="m", into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
+| `is_valid` | `table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
+| `is_valid_reason` | `table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict]` |
+| `envelope` | `table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `point_on_surface` | `table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `overlaps` | `table, geom="geometry", schema="public", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `touches` | `table, geom="geometry", schema="public", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `crosses` | `table, geom="geometry", schema="public", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
+| `disjoint` | `table, geom="geometry", schema="public", point=, wkt=, geojson=, ref=, srid=4326, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
 
 ### TimescaleDB Methods
 
