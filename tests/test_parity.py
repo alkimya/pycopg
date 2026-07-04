@@ -337,7 +337,7 @@ def test_spatial_finish_surface():
     with the generic parity + KIND-parity tests, the full P52 spatial surface
     is asserted at name-level AND kind-level parity.
 
-    ``gridSize=`` (the 6th Phase 52 helper family, added to the existing
+    ``grid_size=`` (the 6th Phase 52 helper family, added to the existing
     ``union``/``difference``/``intersection`` methods) is not a new method
     name, so it is not part of this frozenset — it is covered by
     :func:`test_accessor_parameter_kind_parity` instead.

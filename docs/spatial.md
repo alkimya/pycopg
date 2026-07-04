@@ -269,10 +269,10 @@ rows = db.spatial.transform(
 # Result GeoDataFrame has a "geometry_transformed" geometry column.
 ```
 
-### Fixed-Precision Overlays: `gridSize=`
+### Fixed-Precision Overlays: `grid_size=`
 
 The overlay helpers `union`, `difference`, and `intersection` accept a keyword-only
-`gridSize` parameter (`float | None`, default `None`) for fixed-precision (snap-rounding)
+`grid_size` parameter (`float | None`, default `None`) for fixed-precision (snap-rounding)
 overlay computation:
 
 ```python
@@ -280,16 +280,16 @@ rows = db.spatial.union(
     "parcels",
     geom="geometry",
     other_geom="geometry_b",
-    gridSize=0.001,
+    grid_size=0.001,
 )
 ```
 
-When set, `gridSize` becomes the 3rd argument of the underlying PostGIS overlay
-function (`ST_Union(a, b, gridSize)`, likewise `ST_Difference`/`ST_Intersection`) and is
+When set, `grid_size` becomes the 3rd argument of the underlying PostGIS overlay
+function (`ST_Union(a, b, grid_size)`, likewise `ST_Difference`/`ST_Intersection`) and is
 bound as a `%s` parameter (pure passthrough — no client-side range validation, since
 every float, including `0` and negative values, is meaningful to PostGIS). **Requires
 PostGIS >= 3.1 / GEOS >= 3.9**; on older servers PostGIS raises a native error. The
-default `gridSize=None` path emits the exact pre-existing 2-argument SQL — byte-identical
+default `grid_size=None` path emits the exact pre-existing 2-argument SQL — byte-identical
 to versions of pycopg without this parameter.
 
 ### length

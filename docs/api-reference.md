@@ -290,9 +290,9 @@ support `into="rows"`.
 | `centroid` | `table, geom="geometry", into="rows", columns=, filter=, order_by=, limit=` | `list[dict]` |
 | `buffer` | `table, geom="geometry", distance=, unit="m", into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
 | `transform` | `table, geom="geometry", to_srid=, into="rows", columns=, filter=, order_by=, limit=` | `list[dict] \| GeoDataFrame` |
-| `union` | `table, *, geom="geometry", schema="public", other_geom, gridSize=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
-| `difference` | `table, *, geom="geometry", schema="public", other_geom, gridSize=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
-| `intersection` | `table, *, geom="geometry", schema="public", other_geom, gridSize=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `union` | `table, *, geom="geometry", schema="public", other_geom, grid_size=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `difference` | `table, *, geom="geometry", schema="public", other_geom, grid_size=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
+| `intersection` | `table, *, geom="geometry", schema="public", other_geom, grid_size=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `simplify` | `table, *, geom="geometry", schema="public", tolerance, preserve_topology=True, preserve_collapsed=False, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `convex_hull` | `table, *, geom="geometry", schema="public", filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |
 | `make_valid` | `table, *, geom="geometry", schema="public", method=None, keep_collapsed=None, filter=None, into="rows", columns=None, order_by=None, limit=None` | `list[dict] \| GeoDataFrame` |

@@ -1821,16 +1821,16 @@ class TestIntegration:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
     def test_union_grid_size_live(self, sdb):
-        """union(gridSize=...) executes without error and returns geometry (SPAT-F01/D-01).
+        """union(grid_size=...) executes without error and returns geometry (SPAT-F01/D-01).
 
         Live proof — this server's PostGIS 3.6.4 / GEOS 3.13.1 exceeds the
-        >=3.1/>=3.9 gridSize requirement (D-04, no version pre-check).
+        >=3.1/>=3.9 grid_size requirement (D-04, no version pre-check).
         """
         t = _uniq("spat_union_gridsize")
         try:
             self._make_two_geom_table(sdb, t)
             rows = sdb.spatial.union(
-                t, geom="geom_a", other_geom="geom_b", gridSize=0.001
+                t, geom="geom_a", other_geom="geom_b", grid_size=0.001
             )
             assert len(rows) == 1
             assert rows[0]["union_geom"] is not None
@@ -1875,16 +1875,16 @@ class TestIntegration:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
     def test_difference_grid_size_live(self, sdb):
-        """difference(gridSize=...) executes without error and returns geometry (SPAT-F01/D-01).
+        """difference(grid_size=...) executes without error and returns geometry (SPAT-F01/D-01).
 
         Live proof — this server's PostGIS 3.6.4 / GEOS 3.13.1 exceeds the
-        >=3.1/>=3.9 gridSize requirement (D-04, no version pre-check).
+        >=3.1/>=3.9 grid_size requirement (D-04, no version pre-check).
         """
         t = _uniq("spat_diff_gridsize")
         try:
             self._make_two_geom_table(sdb, t)
             rows = sdb.spatial.difference(
-                t, geom="geom_a", other_geom="geom_b", gridSize=0.001
+                t, geom="geom_a", other_geom="geom_b", grid_size=0.001
             )
             assert len(rows) == 1
             assert rows[0]["difference"] is not None
