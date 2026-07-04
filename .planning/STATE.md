@@ -4,14 +4,14 @@ milestone: v1.1.0
 milestone_name: Follow-ups additifs
 status: executing
 stopped_at: Phase 50 plan 04 complete (INTRO-F01 structured describe()); Phase 50 fully complete, all 4 plans shipped
-last_updated: "2026-07-04T10:16:21.449Z"
-last_activity: 2026-07-04 -- Phase 51 execution started
+last_updated: "2026-07-04T12:28:10.924Z"
+last_activity: 2026-07-04
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 15
-  completed_plans: 12
-  percent: 75
+  completed_plans: 15
+  percent: 100
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
 
 ## Current Position
 
-Phase: 51 (release-v1-1-0) — EXECUTING
-Plan: 1 of 3
+Phase: 51
+Plan: Not started
 Status: Executing Phase 51
-Last activity: 2026-07-04 -- Phase 51 execution started
+Last activity: 2026-07-04
 
 Progress: [████████░░] 75% (3/4 phases; 12/12 plans)
 

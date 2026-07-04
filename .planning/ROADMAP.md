@@ -28,7 +28,7 @@
 - [x] **Phase 48: TimescaleDB Follow-ups** - Complete the `db.timescale.*` cagg lifecycle, custom bucket alignment, per-chunk compression, and physical-time chunk filters (completed 2026-07-03)
 - [x] **Phase 49: Incremental ETL Follow-ups** - Bound the first incremental run, configurable boundary semantics, composite watermarks, and advisory-lock concurrency safety on `Pipeline` (completed 2026-07-03)
 - [x] **Phase 50: CRUD + Introspection Follow-ups** - Raw-SQL escape hatch, keyset pagination with a page envelope, and richer `db.schema.*` introspection (`describe` as dataclass/DataFrame, materialized views) (completed 2026-07-04)
-- [ ] **Phase 51: Release v1.1.0** - Doc/metadata patch (classifier, api-reference, CLAUDE.md), version bump, CHANGELOG, 5 gates green, tag + PyPI publish
+- [x] **Phase 51: Release v1.1.0** - Doc/metadata patch (classifier, api-reference, CLAUDE.md), version bump, CHANGELOG, 5 gates green, tag + PyPI publish (completed 2026-07-04)
 
 ## Phase Details
 
@@ -157,7 +157,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete    | 2026-07-03 |
-| 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete   | 2026-07-04 |
+| 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete    | 2026-07-04 |
 
 <details>
 <summary>✅ v1.0.0 Spatial v2 + gel API (Phases 41-47) — SHIPPED 2026-07-02</summary>

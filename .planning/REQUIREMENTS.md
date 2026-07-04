@@ -41,8 +41,8 @@ Not separate requirements — the standing bar each feature REQ must meet at ver
 
 ### Docs / Metadata + Release
 
-- [ ] **DOC-13**: Published package metadata and docs are correct for a stable 1.x — `pyproject.toml` classifier `Development Status :: 5 - Production/Stable`; `docs/api-reference.md` uses the `*Error` exception names (no deprecated-name imports that trip `-W error::DeprecationWarning`); `CLAUDE.md` Version line reflects the shipped version.
-- [ ] **REL-12**: pycopg v1.1.0 released to PyPI — version bumped across all sources, Added-only CHANGELOG `[1.1.0]`, all 5 gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0 errors), annotated tag `v1.1.0`, human-gated OIDC publish, clean-venv smoke.
+- [x] **DOC-13**: Published package metadata and docs are correct for a stable 1.x — `pyproject.toml` classifier `Development Status :: 5 - Production/Stable`; `docs/api-reference.md` uses the `*Error` exception names (no deprecated-name imports that trip `-W error::DeprecationWarning`); `CLAUDE.md` Version line reflects the shipped version.
+- [x] **REL-12**: pycopg v1.1.0 released to PyPI — version bumped across all sources, Added-only CHANGELOG `[1.1.0]`, all 5 gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0 errors), annotated tag `v1.1.0`, human-gated OIDC publish, clean-venv smoke.
 
 ## Future Requirements (deferred to a later additive 1.x — non-breaking under the frozen API)
 
@@ -90,8 +90,8 @@ Which phases cover which requirements.
 | CRUD-F03 | Phase 50 | Complete |
 | INTRO-F01 | Phase 50 | Complete |
 | INTRO-F02 | Phase 50 | Complete |
-| DOC-13 | Phase 51 | Pending |
-| REL-12 | Phase 51 | Pending |
+| DOC-13 | Phase 51 | Complete |
+| REL-12 | Phase 51 | Complete |
 
 **Coverage:**
 
