@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1.0
-milestone_name: Follow-ups additifs
-status: Awaiting next milestone
-stopped_at: Milestone v1.1.0 CLOSED + archived (Phases 48-51 complete, 15/15 requirements, audit PASSED, pycopg 1.1.0 live on PyPI)
-last_updated: "2026-07-04T13:13:50.920Z"
-last_activity: 2026-07-04 — Milestone v1.1.0 completed and archived
+milestone: v1.2.0
+milestone_name: Polish & finitions additives
+status: planning
+last_updated: "2026-07-04T14:05:36.550Z"
+last_activity: 2026-07-04
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -26,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 ## Current Position
 
-Phase: Milestone v1.1.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-07-04 — Milestone v1.1.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-07-04 — Milestone v1.2.0 started
 
 ## Performance Metrics
 
