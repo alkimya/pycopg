@@ -65,7 +65,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 52-05-PLAN.md — SPAT-F06 `crosses` + `disjoint` DE-9IM predicates (disjoint footgun + perf note)
+- [x] 52-05-PLAN.md — SPAT-F06 `crosses` + `disjoint` DE-9IM predicates (disjoint footgun + perf note)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -110,7 +110,7 @@ Phases execute in numeric order: 52 → 53 → 54
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 52. Spatial Finish | v1.2.0 | 4/6 | In Progress|  |
+| 52. Spatial Finish | v1.2.0 | 5/6 | In Progress|  |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
