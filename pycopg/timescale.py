@@ -1549,6 +1549,12 @@ class TimescaleAccessor:
             )
             filter = where
         _check_into(into, "time_bucket")
+        if origin is not None and offset is not None:
+            raise ValueError(
+                "time_bucket: 'origin' and 'offset' are mutually exclusive "
+                "(TimescaleDB has no time_bucket overload accepting both); "
+                "pass one or neither."
+            )
         if not self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"
@@ -2879,6 +2885,12 @@ class AsyncTimescaleAccessor:
             )
             filter = where
         _check_into(into, "time_bucket")
+        if origin is not None and offset is not None:
+            raise ValueError(
+                "time_bucket: 'origin' and 'offset' are mutually exclusive "
+                "(TimescaleDB has no time_bucket overload accepting both); "
+                "pass one or neither."
+            )
         if not await self._db.schema.has_extension("timescaledb"):
             raise ExtensionNotAvailableError(
                 "TimescaleDB extension not installed. Run db.schema.create_extension('timescaledb')"

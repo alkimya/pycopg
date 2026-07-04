@@ -2573,6 +2573,56 @@ class TestTimeBucketOriginOffsetMock:
 
         db.execute.assert_not_called()
         db.to_dataframe.assert_not_called()
+        # WR-01 (D-05): guard fires before the has_extension() DB round-trip.
+        mock_schema.has_extension.assert_not_called()
+
+    def test_time_bucket_origin_offset_no_extension_check(self, config):
+        """time_bucket(origin+offset) raises BEFORE has_extension() — WR-01 (D-05)."""
+        from pycopg.schema import SchemaAccessor
+
+        db = Database(config)
+        mock_schema = MagicMock(spec=SchemaAccessor)
+        mock_schema.has_extension = MagicMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = MagicMock()
+
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            db.timescale.time_bucket(
+                "events",
+                "ts",
+                "1 hour",
+                "avg(v)",
+                origin=datetime(2024, 1, 1),
+                offset="30 minutes",
+                into="rows",
+            )
+
+        # Guard fires before any DB round-trip — has_extension untouched.
+        mock_schema.has_extension.assert_not_called()
+
+    async def test_time_bucket_origin_offset_async_no_extension_check(self, config):
+        """Async time_bucket(origin+offset) raises BEFORE await has_extension() — WR-01 (D-05)."""
+        from pycopg.schema import AsyncSchemaAccessor
+
+        db = AsyncDatabase(config)
+        mock_schema = MagicMock(spec=AsyncSchemaAccessor)
+        mock_schema.has_extension = AsyncMock(return_value=True)
+        db._schema = mock_schema
+        db.execute = AsyncMock()
+
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            await db.timescale.time_bucket(
+                "events",
+                "ts",
+                "1 hour",
+                "avg(v)",
+                origin=datetime(2024, 1, 1),
+                offset="30 minutes",
+                into="rows",
+            )
+
+        # Guard fires before any await — has_extension never awaited.
+        mock_schema.has_extension.assert_not_called()
 
     async def test_time_bucket_origin_async_sql_shape(self, config):
         """Async time_bucket(origin=...) binds a bare typed %s (mirror of sync)."""
