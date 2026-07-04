@@ -3461,6 +3461,199 @@ class SpatialAccessor:
         # so the runtime result is always list[dict[str, Any]] (D-03).
         return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
 
+    def length(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Select rows with the length of their geometry (ST_Length).
+
+        Scalar result (``length`` column); ``into="gdf"`` raises
+        ``ValueError`` (D-12). ``ST_Length`` returns ``0`` for non-linear
+        (areal/point) geometries (D-10). No ``where=`` deprecated alias
+        (born clean).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        unit : str, optional
+            ``"m"`` (meters) or ``"srid"``, by default "m" (D-10).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-12).
+        columns : list of str, optional
+            Columns to select alongside the length.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``length`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "length")
+        sql, params = build_length_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            unit=unit,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
+
+    def is_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Select rows with the OGC validity of their geometry (ST_IsValid).
+
+        Scalar result (boolean ``is_valid`` column); ``into="gdf"`` raises
+        ``ValueError`` (D-12). No ``where=`` deprecated alias (born clean).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-12).
+        columns : list of str, optional
+            Columns to select alongside the validity flag.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed boolean ``is_valid`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "is_valid")
+        sql, params = build_is_valid_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
+
+    def is_valid_reason(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Select rows with the OGC validity reason of their geometry.
+
+        Scalar result (text ``is_valid_reason`` column, ST_IsValidReason);
+        ``into="gdf"`` raises ``ValueError`` (D-12). No ``where=``
+        deprecated alias (born clean).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-12).
+        columns : list of str, optional
+            Columns to select alongside the validity reason.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed text ``is_valid_reason`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "is_valid_reason")
+        sql, params = build_is_valid_reason_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", self._run(sql, params, into, geom))
+
     def centroid(
         self,
         table: str,
@@ -6304,6 +6497,208 @@ class AsyncSpatialAccessor:
             geom=geom,
             schema=schema,
             unit=unit,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
+
+    async def length(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        unit: str = "m",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Select rows with the length of their geometry (async, ST_Length).
+
+        Scalar result (``length`` column); ``into="gdf"`` raises
+        ``ValueError`` (D-12). ``ST_Length`` returns ``0`` for non-linear
+        (areal/point) geometries (D-10). No ``where=`` deprecated alias
+        (born clean).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        unit : str, optional
+            ``"m"`` (meters) or ``"srid"``, by default "m" (D-10).
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-12).
+        columns : list of str, optional
+            Columns to select alongside the length.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed ``length`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper) or ``unit`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "length")
+        sql, params = build_length_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            unit=unit,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
+
+    async def is_valid(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Select rows with the OGC validity of their geometry (async, ST_IsValid).
+
+        Scalar result (boolean ``is_valid`` column); ``into="gdf"`` raises
+        ``ValueError`` (D-12). No ``where=`` deprecated alias (born clean).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-12).
+        columns : list of str, optional
+            Columns to select alongside the validity flag.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed boolean ``is_valid`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "is_valid")
+        sql, params = build_is_valid_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        # Scalar helper: _check_into() above already rejected into="gdf",
+        # so the runtime result is always list[dict[str, Any]] (D-03).
+        return cast("list[dict[str, Any]]", await self._run(sql, params, into, geom))
+
+    async def is_valid_reason(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Select rows with the OGC validity reason of their geometry (async).
+
+        Scalar result (text ``is_valid_reason`` column, ST_IsValidReason);
+        ``into="gdf"`` raises ``ValueError`` (D-12). No ``where=``
+        deprecated alias (born clean).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            Only ``"rows"`` is valid for this helper (D-12).
+        columns : list of str, optional
+            Columns to select alongside the validity reason.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict
+            Rows including the computed text ``is_valid_reason`` column.
+
+        Raises
+        ------
+        ValueError
+            If ``into="gdf"`` (scalar helper).
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "is_valid_reason")
+        sql, params = build_is_valid_reason_sql(
+            table,
+            geom=geom,
+            schema=schema,
             columns=columns,
             filter=filter,
             order_by=order_by,
