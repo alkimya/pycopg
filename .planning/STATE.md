@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
-status: verifying
-stopped_at: Completed 52-06-PLAN.md
-last_updated: "2026-07-04T22:20:06.985Z"
-last_activity: 2026-07-04 -- Phase 52 Plan 06 (documentation + phase closure, all 5 gates green) complete
+status: executing
+stopped_at: Phase 52 (Spatial Finish) complete + verified PASSED 5/5
+last_updated: "2026-07-05T00:00:00.000Z"
+last_activity: "2026-07-05 — Phase 52 (Spatial Finish, SPAT-F01..F06) executed 6/6 plans + verified PASSED 5/5; code-review clean (0 crit/0 warn/3 info-docs); D-01 reversed: public gridSize= renamed to grid_size (shapely/snake_case convention, cleared 24 ruff N803). Suite 2149@96.78%, mypy 0/18, ruff clean."
 progress:
   total_phases: 3
   completed_phases: 1
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 52 — spatial-finish
+**Current focus:** Phase 52 (Spatial Finish) COMPLETE + verified PASSED — Phase 53 (CRUD Symmetry + Introspection Follow-ups) next
 
 ## Current Position
 
-Phase: 52 (spatial-finish) — COMPLETE
-Plan: 6 of 6 (Plan 01 SPAT-F01 gridSize= complete; Plan 02 SPAT-F02+SPAT-F05 complete; Plan 03 SPAT-F03+SPAT-F04 complete; Plan 04 SPAT-F06 overlaps/touches complete; Plan 05 SPAT-F06 crosses/disjoint complete; Plan 06 documentation + phase closure complete — all 6 requirements SPAT-F01..F06 shipped, all 5 release gates verified green)
-Status: Phase complete — ready for verification
-Last activity: 2026-07-04 -- Phase 52 Plan 06 (documentation + phase closure, all 5 gates green) complete
+Phase: 53 of 54 (CRUD Symmetry + Introspection Follow-ups) — 2nd phase of v1.2.0
+Plan: Not started
+Status: Phase 52 complete + verified PASSED 5/5 — ready to plan Phase 53
+Last activity: 2026-07-05 — Phase 52 executed 6/6 plans, verified PASSED; gridSize→grid_size rename cleared 24 ruff N803
 
 ## Performance Metrics
 
@@ -171,6 +171,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 50-03]: validate_identifiers kept as defense-in-depth on materialized_view_columns even though name/schema only ever reach the query as bound %s params (never interpolated)
 - [Phase 50-04]: D-11/D-12 confirmed as researched: describe(into=...) keyword param, default 'dict' byte-identical to v0.9.0 (C-03); TableDescription typed wrapper for 'dataclass', columns-section DataFrame for 'dataframe'
 - [Phase 50-04]: pandas imported top-level in schema.py (import pandas as pd), matching the etl.py precedent for a hard runtime dependency -- not the lazy per-function import used by to_dataframe/time_bucket, since describe's dataframe branch needs pd.DataFrame at every call
+
+- [Phase 52]: SPAT-F01..F06 shipped — `db.spatial.*` completed. gridSize precision on overlays (D-03 byte-identical `None` path, re-verified by diffing pre-52 builder source); length/is_valid/is_valid_reason scalars (`_SCALAR_HELPERS`); envelope/point_on_surface geometry helpers (D-05 real-geometry, not centroid's scalar x/y); overlaps/touches/crosses/disjoint DE-9IM predicates (disjoint carries D-07 ref= existential-quantifier footgun + D-08 non-indexable perf note in docstrings). All 9 methods on BOTH accessors + @overload triplets.
+- [Phase 52]: **D-01 REVERSED at execution close (user decision 2026-07-05):** public overlay precision param is `grid_size` (snake_case), NOT the CONTEXT-locked camelCase `gridSize`. Rationale: matches shapely `set_precision(grid_size=...)`, pycopg's snake_case convention on every other param, and the already-snake_case internal funnel param; camelCase introduced 24 ruff N803 violations (codebase was 100% ruff-clean before P52) — rename cleared them with zero lint suppression. Internal `_build_binary_geom_sql` param was already `grid_size`.
 
 **v1.2.0 roadmap locked (2026-07-04):** 3 phases (52-54), continuing numbering from Phase 51. Phase 52 (Spatial Finish, SPAT-F01..F06) and Phase 53 (CRUD Symmetry + Introspection Follow-ups, CRUD-F04..F06 + INTRO-F03/F04) are independent surfaces (spatial.py vs database.py/schema.py) — either could run first, executed in numeric order. Phase 54 (Release v1.2.0) folds in the two low-risk hygiene requirements (DOC-14, TOOL-01) alongside REL-13, avoiding a 4th thin phase per standard-granularity guidance. 14/14 requirements mapped, 0 unmapped.
 
