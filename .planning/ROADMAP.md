@@ -49,7 +49,7 @@
 Plans:
 **Wave 1**
 
-- [ ] 52-01-PLAN.md — SPAT-F01 keyword-only `gridSize=` fixed-precision overlay (byte-identical `None` default)
+- [x] 52-01-PLAN.md — SPAT-F01 keyword-only `gridSize=` fixed-precision overlay (byte-identical `None` default)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -110,7 +110,7 @@ Phases execute in numeric order: 52 → 53 → 54
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 52. Spatial Finish | v1.2.0 | 0/6 | Planned | - |
+| 52. Spatial Finish | v1.2.0 | 1/6 | In Progress|  |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 

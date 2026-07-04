@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
 status: executing
-stopped_at: Phase 52 context gathered
-last_updated: "2026-07-04T20:05:50.311Z"
-last_activity: "2026-07-04 — ROADMAP.md created (Phases 52-54: Spatial Finish, CRUD Symmetry + Introspection Follow-ups, Release v1.2.0); REQUIREMENTS.md traceability filled 14/14"
+stopped_at: Completed 52-01-PLAN.md
+last_updated: "2026-07-04T21:20:52.019Z"
+last_activity: 2026-07-04 -- Phase 52 Plan 01 (gridSize= overlay precision, SPAT-F01) complete
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 6
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** ROADMAP.md created for v1.2.0 (Phases 52-54, 14/14 requirements mapped) — ready to run `/gsd-plan-phase 52`
+**Current focus:** Phase 52 — spatial-finish
 
 ## Current Position
 
-Phase: 52 of 54 (Spatial Finish) — first phase of v1.2.0
-Plan: — (not yet planned)
+Phase: 52 (spatial-finish) — EXECUTING
+Plan: 2 of 6 (Plan 01 SPAT-F01 gridSize= complete, verified PASSED 3/3 tasks)
 Status: Ready to execute
-Last activity: 2026-07-04 — ROADMAP.md created (Phases 52-54: Spatial Finish, CRUD Symmetry + Introspection Follow-ups, Release v1.2.0); REQUIREMENTS.md traceability filled 14/14
+Last activity: 2026-07-04 -- Phase 52 Plan 01 (gridSize= overlay precision, SPAT-F01) complete
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ Last activity: 2026-07-04 — ROADMAP.md created (Phases 52-54: Spatial Finish, 
 | Phase 50 P02 | 18min | 3 tasks | 10 files |
 | Phase 50 P03 | 15min | 2 tasks | 8 files |
 | Phase 50 P04 | ~25min | 3 tasks | 6 files |
+| Phase 52 P01 | 7min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -168,6 +169,8 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 **v1.2.0 roadmap locked (2026-07-04):** 3 phases (52-54), continuing numbering from Phase 51. Phase 52 (Spatial Finish, SPAT-F01..F06) and Phase 53 (CRUD Symmetry + Introspection Follow-ups, CRUD-F04..F06 + INTRO-F03/F04) are independent surfaces (spatial.py vs database.py/schema.py) — either could run first, executed in numeric order. Phase 54 (Release v1.2.0) folds in the two low-risk hygiene requirements (DOC-14, TOOL-01) alongside REL-13, avoiding a 4th thin phase per standard-granularity guidance. 14/14 requirements mapped, 0 unmapped.
 
+- [Phase 52]: Phase 52-01: gridSize= threaded through _build_binary_geom_sql + union/difference/intersection builders and accessors (sync+async), byte-identical None path (D-03), pure passthrough no client guard (D-02), no server-version pre-check (D-04)
+
 ### Pending Todos
 
 - The 1.0.1 doc/metadata patch (WR-01/WR-02/IN-01) was folded into v1.1.0 Phase 51 (DOC-13) — CLOSED, no longer pending.
@@ -200,9 +203,9 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-04T14:56:56.348Z
-Stopped at: Phase 52 context gathered
-Resume file: .planning/phases/52-spatial-finish/52-CONTEXT.md
+Last session: 2026-07-04T21:20:52.007Z
+Stopped at: Completed 52-01-PLAN.md
+Resume file: None
 Next action: Run `/gsd-plan-phase 52` (Spatial Finish) — first phase of v1.2.0.
 
 ## Operator Next Steps

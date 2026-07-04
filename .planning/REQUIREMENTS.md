@@ -11,7 +11,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (traceab
 
 ### Spatial (`db.spatial.*`)
 
-- [ ] **SPAT-F01**: User can pass a keyword-only `gridSize=` to `union` / `difference` / `intersection` for fixed-precision overlay output (PostGIS/GEOS ≥ 3.9); default `None` keeps the shipped SQL byte-identical.
+- [x] **SPAT-F01**: User can pass a keyword-only `gridSize=` to `union` / `difference` / `intersection` for fixed-precision overlay output (PostGIS/GEOS ≥ 3.9); default `None` keeps the shipped SQL byte-identical.
 - [ ] **SPAT-F02**: User can compute the length of linear geometries via `db.spatial.length` (ST_Length), complementing the existing `area` / `perimeter`.
 - [ ] **SPAT-F03**: User can get the per-row bounding-box geometry via `db.spatial.envelope` (ST_Envelope).
 - [ ] **SPAT-F04**: User can get a guaranteed-inside representative point via `db.spatial.point_on_surface` (ST_PointOnSurface), complementing `centroid`.
@@ -68,7 +68,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPAT-F01 | Phase 52 | Pending |
+| SPAT-F01 | Phase 52 | Complete |
 | SPAT-F02 | Phase 52 | Pending |
 | SPAT-F03 | Phase 52 | Pending |
 | SPAT-F04 | Phase 52 | Pending |
@@ -84,6 +84,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | REL-13 | Phase 54 | Pending |
 
 **Coverage:**
+
 - v1.2.0 requirements: 14 total
 - Mapped to phases: 14 (filled by roadmap)
 - Unmapped: 0
