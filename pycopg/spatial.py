@@ -1872,6 +1872,118 @@ def build_convex_hull_sql(
     return sql, []
 
 
+def build_envelope_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows with the bounding-box geometry of each row.
+
+    Adds an ``envelope`` geometry column via ``ST_Envelope(t.{geom})``
+    (D-11) — the per-row minimum bounding rectangle, preserving SRID.
+    Valid for ``into="gdf"``.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant
+    if columns:
+        validate_identifiers(*columns)
+    sql = (
+        f"SELECT {_cols_str(columns)}, ST_Envelope(t.{geom}) AS envelope "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
+def build_point_on_surface_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows with a guaranteed-inside representative point.
+
+    Adds a ``point_on_surface`` geometry column via
+    ``ST_PointOnSurface(t.{geom})`` (D-05/D-11). Unlike
+    :func:`build_centroid_sql`'s scalar ``x``/``y`` shape, this is a real
+    ``POINT`` geometry that is guaranteed to lie on the input geometry
+    (useful for labels/markers/mapping) and preserves SRID. Valid for
+    ``into="gdf"``.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry".
+    schema : str, optional
+        Schema name, by default "public".
+    columns : list of str, optional
+        Columns to select alongside the result, by default all.
+    filter : str, optional
+        Raw SQL filter fragment.
+    order_by : str, optional
+        ORDER BY clause body.
+    limit : int, optional
+        LIMIT value.
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and empty parameter list (``[]``).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)  # LINE 1 — security invariant
+    if columns:
+        validate_identifiers(*columns)
+    sql = (
+        f"SELECT {_cols_str(columns)}, "
+        f"ST_PointOnSurface(t.{geom}) AS point_on_surface "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
 def build_make_valid_sql(
     table: str,
     geom: str = "geometry",
