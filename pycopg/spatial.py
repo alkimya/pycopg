@@ -1283,22 +1283,41 @@ def _build_binary_geom_sql(
     schema: str,
     *,
     other_geom: str,
+    grid_size: float | None = None,
     columns: list[str] | None,
     filter: str | None,
     order_by: str | None,
     limit: int | None,
 ) -> tuple[str, list[Any]]:
-    """Build SQL for a pairwise (binary, 2-column) geometry operation."""
+    """Build SQL for a pairwise (binary, 2-column) geometry operation.
+
+    Parameters
+    ----------
+    grid_size : float, optional
+        Fixed-precision (snap-rounding) overlay grid size, by default None.
+        When set, becomes the 3rd positional arg of ``op_func``, bound as a
+        ``%s`` parameter (no client-side range guard, D-02). Requires
+        PostGIS >= 3.1 / GEOS >= 3.9 (D-04); older servers raise a native
+        PostGIS error, no version pre-check is performed. When None, the
+        emitted SQL and params are byte-identical to the no-gridSize form
+        (D-03).
+    """
     validate_identifiers(table, schema, geom, other_geom)
     if columns:
         validate_identifiers(*columns)
+    if grid_size is None:
+        expr = f"{op_func}(t.{geom}, t.{other_geom})"
+        params: list[Any] = []
+    else:
+        expr = f"{op_func}(t.{geom}, t.{other_geom}, %s)"
+        params = [grid_size]
     sql = (
         f"SELECT {_cols_str(columns)}, "
-        f"{op_func}(t.{geom}, t.{other_geom}) AS {result_col} "
+        f"{expr} AS {result_col} "
         f"FROM {schema}.{table} AS t"
     )
     sql = _append_tail(sql, filter, order_by, limit, has_where=False)
-    return sql, []
+    return sql, params
 
 
 def build_union_sql(
@@ -1307,6 +1326,7 @@ def build_union_sql(
     schema: str = "public",
     *,
     other_geom: str,
+    grid_size: float | None = None,
     columns: list[str] | None = None,
     filter: str | None = None,
     order_by: str | None = None,
@@ -1333,6 +1353,13 @@ def build_union_sql(
         Schema name, by default "public".
     other_geom : str
         Second geometry column name (required, keyword-only).
+    grid_size : float, optional
+        Fixed-precision (snap-rounding) overlay grid size, by default
+        None. When set, emits the 3-arg ``ST_Union(a, b, %s)`` form bound
+        to this value (pure passthrough, no range guard, D-02). Requires
+        PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a native
+        PostGIS error (D-04, no version pre-check performed). When None,
+        SQL and params are byte-identical to the pre-gridSize form (D-03).
     columns : list of str, optional
         Columns to select alongside the result, by default all.
     filter : str, optional
@@ -1345,7 +1372,8 @@ def build_union_sql(
     Returns
     -------
     tuple of (str, list)
-        SQL string and empty parameter list (``[]``).
+        SQL string and parameter list (``[]`` when ``grid_size`` is None,
+        ``[grid_size]`` otherwise).
 
     Raises
     ------
@@ -1360,6 +1388,7 @@ def build_union_sql(
         geom,
         schema,
         other_geom=other_geom,
+        grid_size=grid_size,
         columns=columns,
         filter=filter,
         order_by=order_by,
@@ -1373,6 +1402,7 @@ def build_difference_sql(
     schema: str = "public",
     *,
     other_geom: str,
+    grid_size: float | None = None,
     columns: list[str] | None = None,
     filter: str | None = None,
     order_by: str | None = None,
@@ -1399,6 +1429,14 @@ def build_difference_sql(
         Schema name, by default "public".
     other_geom : str
         Second geometry column name (subtrahend, required, keyword-only).
+    grid_size : float, optional
+        Fixed-precision (snap-rounding) overlay grid size, by default
+        None. When set, emits the 3-arg ``ST_Difference(a, b, %s)`` form
+        bound to this value (pure passthrough, no range guard, D-02).
+        Requires PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a
+        native PostGIS error (D-04, no version pre-check performed). When
+        None, SQL and params are byte-identical to the pre-gridSize form
+        (D-03).
     columns : list of str, optional
         Columns to select alongside the result, by default all.
     filter : str, optional
@@ -1411,7 +1449,8 @@ def build_difference_sql(
     Returns
     -------
     tuple of (str, list)
-        SQL string and empty parameter list (``[]``).
+        SQL string and parameter list (``[]`` when ``grid_size`` is None,
+        ``[grid_size]`` otherwise).
 
     Raises
     ------
@@ -1426,6 +1465,7 @@ def build_difference_sql(
         geom,
         schema,
         other_geom=other_geom,
+        grid_size=grid_size,
         columns=columns,
         filter=filter,
         order_by=order_by,
@@ -1439,6 +1479,7 @@ def build_intersection_sql(
     schema: str = "public",
     *,
     other_geom: str,
+    grid_size: float | None = None,
     columns: list[str] | None = None,
     filter: str | None = None,
     order_by: str | None = None,
@@ -1465,6 +1506,14 @@ def build_intersection_sql(
         Schema name, by default "public".
     other_geom : str
         Second geometry column name (required, keyword-only).
+    grid_size : float, optional
+        Fixed-precision (snap-rounding) overlay grid size, by default
+        None. When set, emits the 3-arg ``ST_Intersection(a, b, %s)``
+        form bound to this value (pure passthrough, no range guard, D-02).
+        Requires PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a
+        native PostGIS error (D-04, no version pre-check performed). When
+        None, SQL and params are byte-identical to the pre-gridSize form
+        (D-03).
     columns : list of str, optional
         Columns to select alongside the result, by default all.
     filter : str, optional
@@ -1477,7 +1526,8 @@ def build_intersection_sql(
     Returns
     -------
     tuple of (str, list)
-        SQL string and empty parameter list (``[]``).
+        SQL string and parameter list (``[]`` when ``grid_size`` is None,
+        ``[grid_size]`` otherwise).
 
     Raises
     ------
@@ -1492,6 +1542,7 @@ def build_intersection_sql(
         geom,
         schema,
         other_geom=other_geom,
+        grid_size=grid_size,
         columns=columns,
         filter=filter,
         order_by=order_by,
