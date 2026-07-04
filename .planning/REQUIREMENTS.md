@@ -68,26 +68,26 @@ Which phases cover which requirements. Populated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPAT-F01 | Phase [N] | Pending |
-| SPAT-F02 | Phase [N] | Pending |
-| SPAT-F03 | Phase [N] | Pending |
-| SPAT-F04 | Phase [N] | Pending |
-| SPAT-F05 | Phase [N] | Pending |
-| SPAT-F06 | Phase [N] | Pending |
-| CRUD-F04 | Phase [N] | Pending |
-| CRUD-F05 | Phase [N] | Pending |
-| CRUD-F06 | Phase [N] | Pending |
-| INTRO-F03 | Phase [N] | Pending |
-| INTRO-F04 | Phase [N] | Pending |
-| DOC-14 | Phase [N] | Pending |
-| TOOL-01 | Phase [N] | Pending |
-| REL-13 | Phase [N] | Pending |
+| SPAT-F01 | Phase 52 | Pending |
+| SPAT-F02 | Phase 52 | Pending |
+| SPAT-F03 | Phase 52 | Pending |
+| SPAT-F04 | Phase 52 | Pending |
+| SPAT-F05 | Phase 52 | Pending |
+| SPAT-F06 | Phase 52 | Pending |
+| CRUD-F04 | Phase 53 | Pending |
+| CRUD-F05 | Phase 53 | Pending |
+| CRUD-F06 | Phase 53 | Pending |
+| INTRO-F03 | Phase 53 | Pending |
+| INTRO-F04 | Phase 53 | Pending |
+| DOC-14 | Phase 54 | Pending |
+| TOOL-01 | Phase 54 | Pending |
+| REL-13 | Phase 54 | Pending |
 
 **Coverage:**
 - v1.2.0 requirements: 14 total
-- Mapped to phases: 0 (filled by roadmap)
-- Unmapped: 14 ⚠️ (resolved at roadmap creation)
+- Mapped to phases: 14 (filled by roadmap)
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-04*
-*Last updated: 2026-07-04 after initial definition (milestone v1.2.0 start)*
+*Last updated: 2026-07-04 after roadmap creation (14/14 requirements mapped to Phases 52-54)*

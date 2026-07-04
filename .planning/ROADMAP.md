@@ -13,15 +13,78 @@
 - ✅ **v0.10.0 Durcissement & Performance** — Phases 37-40 (shipped 2026-06-26)
 - ✅ **v1.0.0 Spatial v2 + gel API** — Phases 41-47 (shipped 2026-07-02)
 - ✅ **v1.1.0 Follow-ups additifs (TimescaleDB · ETL incrémental · CRUD/introspection)** — Phases 48-51 (shipped 2026-07-04)
+- 🚧 **v1.2.0 Polish & finitions additives** — Phases 52-54 (in progress)
 
 ## Phases
 
 **Phase Numbering:**
 
-- Integer phases (48, 49, 50, 51): Planned milestone work
-- Decimal phases (e.g. 48.1): Urgent insertions (marked with INSERTED)
+- Integer phases (52, 53, 54): Planned milestone work
+- Decimal phases (e.g. 52.1): Urgent insertions (marked with INSERTED)
+
+### 🚧 v1.2.0 Polish & finitions additives (In Progress)
+
+**Milestone Goal:** Second additive point release under the frozen SemVer 1.0 API — a maturity cycle (no new subsystem): close the small API ergonomics/symmetry gaps, finish the spatial tail, and settle the docs/tooling debt. Non-breaking, full sync/async parity (Core Value), zero new runtime dependencies, coverage ratchet ≥95% (baseline 96.65%), `mypy --strict` stays a blocking gate.
+
+- [ ] **Phase 52: Spatial Finish** - Complete `db.spatial.*` with fixed-precision overlay control, remaining measurement/validity helpers, and the last four DE-9IM predicates
+- [ ] **Phase 53: CRUD Symmetry + Introspection Follow-ups** - Add the missing predicate-read and single-row-insert helpers to the flat core, and the last two `db.schema.*` introspection helpers
+- [ ] **Phase 54: Release v1.2.0** - Doc/tooling hygiene (deprecated-name residue, `vulture` wired into Makefile/CI), version bump, CHANGELOG, 5 gates green, tag + PyPI publish
+
+## Phase Details
+
+### Phase 52: Spatial Finish
+
+**Goal**: `db.spatial.*` gains fixed-precision overlay control and completes its measurement/validity/predicate helper families, with the existing overlay default path staying byte-identical.
+**Depends on**: Nothing (first phase of v1.2.0; builds on shipped `db.spatial.*` from v1.0.0/v1.1.0)
+**Requirements**: SPAT-F01, SPAT-F02, SPAT-F03, SPAT-F04, SPAT-F05, SPAT-F06
+**Success Criteria** (what must be TRUE):
+
+  1. User can pass a keyword-only `gridSize=` to `union`/`difference`/`intersection` for fixed-precision overlay output, while the default `None` path produces SQL byte-identical to the shipped overlay builders
+  2. User can compute the length of linear geometries via `db.spatial.length`, alongside the existing `area`/`perimeter` measurement helpers
+  3. User can get the per-row bounding-box geometry via `db.spatial.envelope` and a guaranteed-inside representative point via `db.spatial.point_on_surface` (complementing `centroid`)
+  4. User can check geometry validity and get the invalidity reason via `db.spatial.is_valid`/`is_valid_reason`, complementing the existing `make_valid`
+  5. User can test the `overlaps`/`touches`/`crosses`/`disjoint` DE-9IM predicates via `db.spatial.*`, completing the `contains`/`intersects`/`within`/`dwithin` predicate family
+
+**Plans**: TBD
+
+### Phase 53: CRUD Symmetry + Introspection Follow-ups
+
+**Goal**: The flat transactional core gains its missing predicate-read and single-row-insert siblings, and `db.schema.*` completes its existence-check and size-introspection families.
+**Depends on**: Nothing (independent surface from Phase 52; builds on shipped CRUD helpers from v0.9.0/v1.1.0 + `db.schema.*`)
+**Requirements**: CRUD-F04, CRUD-F05, CRUD-F06, INTRO-F03, INTRO-F04
+**Success Criteria** (what must be TRUE):
+
+  1. User can read rows by predicate via `select_where`/`find` returning `list[dict]` — accepting both a dict-equality WHERE and a raw-SQL `where_sql`/`where_params` escape hatch through the shared `QueryMixin._resolve_predicate` guard
+  2. User can read a single matching row via `get`/`find_one` returning `dict | None`, on the same predicate surface as `select_where`/`find`
+  3. User can insert a single row via `insert` with `RETURNING *`, the singular twin of `insert_many`/`upsert`
+  4. User can check a column's existence via `db.schema.column_exists`, completing the `table_exists`/`schema_exists`/`database_exists` family
+  5. User can get a table's on-disk size via `db.schema.table_size` (`pg_total_relation_size`), complementing `row_count`
+
+**Plans**: TBD
+
+### Phase 54: Release v1.2.0
+
+**Goal**: Documentation prose is current, dead-code scanning is enforced automatically, and pycopg 1.2.0 is published to PyPI.
+**Depends on**: Phase 52, Phase 53 (release packages all prior phases' work)
+**Requirements**: DOC-14, TOOL-01, REL-13
+**Success Criteria** (what must be TRUE):
+
+  1. `docs/spatial.md` and `docs/api-reference.md` reference only current `*Error` exception names (the intentional deprecated-alias mentions in `docs/stability.md` are left as-is)
+  2. Developer can run `make deadcode` locally and CI runs the same `vulture` dead-code scan on every push, using the existing `vulture_whitelist.py`
+  3. `pip install pycopg==1.2.0` installs the new surface from PyPI with `__version__ == "1.2.0"` confirmed via clean-venv smoke, all 5 release gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), and a code-exact `[1.2.0]` CHANGELOG entry
+
+**Plans**: TBD
 
 ## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 52 → 53 → 54
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 52. Spatial Finish | v1.2.0 | TBD | Not started | - |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
+| 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
 <details>
 <summary>✅ v1.1.0 Follow-ups additifs (Phases 48-51) — SHIPPED 2026-07-04</summary>
@@ -208,3 +271,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete | 2026-07-04 |
 | 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete | 2026-07-04 |
+| 52. Spatial Finish | v1.2.0 | TBD | Not started | - |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
+| 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |

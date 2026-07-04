@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-07-04T14:05:36.550Z"
 last_activity: 2026-07-04
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Planning next milestone — run `/gsd-new-milestone` (phase numbering continues from 51 → next starts at Phase 52)
+**Current focus:** ROADMAP.md created for v1.2.0 (Phases 52-54, 14/14 requirements mapped) — ready to run `/gsd-plan-phase 52`
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-07-04 — Milestone v1.2.0 started
+Phase: 52 of 54 (Spatial Finish) — first phase of v1.2.0
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-07-04 — ROADMAP.md created (Phases 52-54: Spatial Finish, CRUD Symmetry + Introspection Follow-ups, Release v1.2.0); REQUIREMENTS.md traceability filled 14/14
 
 ## Performance Metrics
 
@@ -165,11 +165,13 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase 50-04]: D-11/D-12 confirmed as researched: describe(into=...) keyword param, default 'dict' byte-identical to v0.9.0 (C-03); TableDescription typed wrapper for 'dataclass', columns-section DataFrame for 'dataframe'
 - [Phase 50-04]: pandas imported top-level in schema.py (import pandas as pd), matching the etl.py precedent for a hard runtime dependency -- not the lazy per-function import used by to_dataframe/time_bucket, since describe's dataframe branch needs pd.DataFrame at every call
 
+**v1.2.0 roadmap locked (2026-07-04):** 3 phases (52-54), continuing numbering from Phase 51. Phase 52 (Spatial Finish, SPAT-F01..F06) and Phase 53 (CRUD Symmetry + Introspection Follow-ups, CRUD-F04..F06 + INTRO-F03/F04) are independent surfaces (spatial.py vs database.py/schema.py) — either could run first, executed in numeric order. Phase 54 (Release v1.2.0) folds in the two low-risk hygiene requirements (DOC-14, TOOL-01) alongside REL-13, avoiding a 4th thin phase per standard-granularity guidance. 14/14 requirements mapped, 0 unmapped.
+
 ### Pending Todos
 
-- **1.0.1 patch (ready now, non-blocking — baked into published 1.0.0):** WR-01 `docs/api-reference.md` still shows deprecated exception names (`ExtensionNotAvailable`/`TableNotFound`/`InvalidIdentifier`) as the import surface (trips `-W error::DeprecationWarning`); WR-02 `pyproject.toml:25` classifier `Development Status :: 4 - Beta` → `5 - Production/Stable`; IN-01 `CLAUDE.md:13` Version line stale (reads v0.9.0).
+- The 1.0.1 doc/metadata patch (WR-01/WR-02/IN-01) was folded into v1.1.0 Phase 51 (DOC-13) — CLOSED, no longer pending.
 - Optional: clear Nyquist VALIDATION.md artifact gaps via `/gsd-validate-phase 42|44|45` (draft) and `46|47` (missing) — functional VERIFICATION.md PASSED for all; discovery-only, see v1.0.0-MILESTONE-AUDIT.md.
-- Next milestone: `/gsd-new-milestone` (or ship the 1.0.1 patch directly first).
+- v1.2.0 roadmap created (Phases 52-54) — next: `/gsd-plan-phase 52`.
 
 ### Blockers/Concerns
 
@@ -190,16 +192,18 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 | v1.1.0 | ETL-INC-F01..F04: initial_watermark, configurable boundary, multi-column watermark, advisory-lock concurrency | MAPPED to Phase 49 (2026-07-02 roadmap) |
 | v1.1.0 | CRUD-F01..F03, INTRO-F01..F02: raw-SQL escape hatch, keyset pagination, page envelope, describe dataclass/DataFrame, materialized_views | MAPPED to Phase 50 (2026-07-02 roadmap) |
 | future | ETL-INC-F05: CDC / WAL change capture | deferred out of v1.1.0 (2026-07-02) — large distinct subsystem, future ETL milestone |
-| v2 | SPAT-F01: gridSize precision on overlay functions (GEOS ≥ 3.9) | deferred from v1.0.0 cadrage |
+| v1.2.0 | CRUD-F04..F06, INTRO-F03/F04: select_where/find, get/find_one, insert, column_exists, table_size | MAPPED to Phase 53 (2026-07-04 roadmap) |
+| v1.2.0 | DOC-14, TOOL-01, REL-13: doc prose fix, vulture wiring, release | MAPPED to Phase 54 (2026-07-04 roadmap) |
+| v1.2.0 | SPAT-F01: gridSize precision on overlay functions (GEOS ≥ 3.9) | MAPPED to Phase 52 (2026-07-04 roadmap) — no longer deferred |
 | v2 | RASTER-F01: PostGIS raster I/O | deferred post-1.0 per 2026-06-27 cadrage |
 
 ## Session Continuity
 
-Last session: 2026-07-03T22:24:55.317Z
-Stopped at: Phase 50 plan 04 complete (INTRO-F01 structured describe()); Phase 50 fully complete, all 4 plans shipped
+Last session: 2026-07-04
+Stopped at: v1.2.0 ROADMAP.md created (Phases 52-54) + REQUIREMENTS.md traceability filled 14/14 mapped, 0 unmapped
 Resume file: None
-Next action: Run `/gsd-validate-phase 50` (all 4 plans shipped) then proceed to Phase 51 (DOC-13 + REL-12) to close v1.1.0.
+Next action: Run `/gsd-plan-phase 52` (Spatial Finish) — first phase of v1.2.0.
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 52 (Spatial Finish) with /gsd-plan-phase 52
