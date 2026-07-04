@@ -512,12 +512,12 @@ Migrator(
 
 ```python
 from pycopg import (
-    PycopgError,        # Base exception
-    ConnectionError,    # Connection failed
-    ConfigurationError, # Bad config
-    ExtensionNotAvailable,  # Missing extension
-    TableNotFound,      # Table doesn't exist
-    InvalidIdentifier,  # SQL injection attempt
-    MigrationError,     # Migration failed
+    PycopgError,                # Base exception
+    ConnectionError,            # Connection failed
+    ConfigurationError,         # Bad config
+    ExtensionNotAvailableError, # Missing extension
+    TableNotFoundError,         # Table doesn't exist
+    InvalidIdentifierError,     # SQL injection attempt
+    MigrationError,             # Migration failed
 )
 ```
