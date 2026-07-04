@@ -3869,6 +3869,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["rows"] = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -3883,6 +3884,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["gdf"],
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -3897,6 +3899,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str,
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -3910,6 +3913,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -3935,6 +3939,12 @@ class SpatialAccessor:
             Schema name, by default "public".
         other_geom : str
             Second geometry column name (required, keyword-only).
+        gridSize : float, optional
+            Fixed-precision (snap-rounding) overlay grid size, by default
+            None. When set, emits the 3-arg ``ST_Union(a, b, %s)`` form
+            (pure passthrough, no range guard, D-02). Requires PostGIS
+            >= 3.1 / GEOS >= 3.9 — older servers raise a native PostGIS
+            error (D-04, no version pre-check performed).
         into : str, optional
             ``"rows"`` or ``"gdf"``, by default "rows".
         columns : list of str, optional
@@ -3964,6 +3974,7 @@ class SpatialAccessor:
             geom=geom,
             schema=schema,
             other_geom=other_geom,
+            grid_size=gridSize,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -3979,6 +3990,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["rows"] = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -3993,6 +4005,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["gdf"],
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4007,6 +4020,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str,
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4020,6 +4034,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4045,6 +4060,12 @@ class SpatialAccessor:
             Schema name, by default "public".
         other_geom : str
             Second geometry column name (subtrahend, required, keyword-only).
+        gridSize : float, optional
+            Fixed-precision (snap-rounding) overlay grid size, by default
+            None. When set, emits the 3-arg ``ST_Difference(a, b, %s)``
+            form (pure passthrough, no range guard, D-02). Requires
+            PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a native
+            PostGIS error (D-04, no version pre-check performed).
         into : str, optional
             ``"rows"`` or ``"gdf"``, by default "rows".
         columns : list of str, optional
@@ -4074,6 +4095,7 @@ class SpatialAccessor:
             geom=geom,
             schema=schema,
             other_geom=other_geom,
+            grid_size=gridSize,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -4089,6 +4111,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["rows"] = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4103,6 +4126,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["gdf"],
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4117,6 +4141,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str,
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4130,6 +4155,7 @@ class SpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -4156,6 +4182,12 @@ class SpatialAccessor:
             Schema name, by default "public".
         other_geom : str
             Second geometry column name (required, keyword-only).
+        gridSize : float, optional
+            Fixed-precision (snap-rounding) overlay grid size, by default
+            None. When set, emits the 3-arg ``ST_Intersection(a, b, %s)``
+            form (pure passthrough, no range guard, D-02). Requires
+            PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a native
+            PostGIS error (D-04, no version pre-check performed).
         into : str, optional
             ``"rows"`` or ``"gdf"``, by default "rows".
         columns : list of str, optional
@@ -4185,6 +4217,7 @@ class SpatialAccessor:
             geom=geom,
             schema=schema,
             other_geom=other_geom,
+            grid_size=gridSize,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -6694,6 +6727,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["rows"] = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6708,6 +6742,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["gdf"],
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6722,6 +6757,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str,
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6735,6 +6771,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6760,6 +6797,12 @@ class AsyncSpatialAccessor:
             Schema name, by default "public".
         other_geom : str
             Second geometry column name (required, keyword-only).
+        gridSize : float, optional
+            Fixed-precision (snap-rounding) overlay grid size, by default
+            None. When set, emits the 3-arg ``ST_Union(a, b, %s)`` form
+            (pure passthrough, no range guard, D-02). Requires PostGIS
+            >= 3.1 / GEOS >= 3.9 — older servers raise a native PostGIS
+            error (D-04, no version pre-check performed).
         into : str, optional
             ``"rows"`` or ``"gdf"``, by default "rows".
         columns : list of str, optional
@@ -6792,6 +6835,7 @@ class AsyncSpatialAccessor:
             geom=geom,
             schema=schema,
             other_geom=other_geom,
+            grid_size=gridSize,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -6807,6 +6851,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["rows"] = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6821,6 +6866,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["gdf"],
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6835,6 +6881,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str,
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6848,6 +6895,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6873,6 +6921,12 @@ class AsyncSpatialAccessor:
             Schema name, by default "public".
         other_geom : str
             Second geometry column name (subtrahend, required, keyword-only).
+        gridSize : float, optional
+            Fixed-precision (snap-rounding) overlay grid size, by default
+            None. When set, emits the 3-arg ``ST_Difference(a, b, %s)``
+            form (pure passthrough, no range guard, D-02). Requires
+            PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a native
+            PostGIS error (D-04, no version pre-check performed).
         into : str, optional
             ``"rows"`` or ``"gdf"``, by default "rows".
         columns : list of str, optional
@@ -6905,6 +6959,7 @@ class AsyncSpatialAccessor:
             geom=geom,
             schema=schema,
             other_geom=other_geom,
+            grid_size=gridSize,
             columns=columns,
             filter=filter,
             order_by=order_by,
@@ -6920,6 +6975,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["rows"] = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6934,6 +6990,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: Literal["gdf"],
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6948,6 +7005,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str,
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6961,6 +7019,7 @@ class AsyncSpatialAccessor:
         geom: str = "geometry",
         schema: str = "public",
         other_geom: str,
+        gridSize: float | None = None,
         into: str = "rows",
         columns: list[str] | None = None,
         filter: str | None = None,
@@ -6987,6 +7046,12 @@ class AsyncSpatialAccessor:
             Schema name, by default "public".
         other_geom : str
             Second geometry column name (required, keyword-only).
+        gridSize : float, optional
+            Fixed-precision (snap-rounding) overlay grid size, by default
+            None. When set, emits the 3-arg ``ST_Intersection(a, b, %s)``
+            form (pure passthrough, no range guard, D-02). Requires
+            PostGIS >= 3.1 / GEOS >= 3.9 — older servers raise a native
+            PostGIS error (D-04, no version pre-check performed).
         into : str, optional
             ``"rows"`` or ``"gdf"``, by default "rows".
         columns : list of str, optional
@@ -7019,6 +7084,7 @@ class AsyncSpatialAccessor:
             geom=geom,
             schema=schema,
             other_geom=other_geom,
+            grid_size=gridSize,
             columns=columns,
             filter=filter,
             order_by=order_by,
