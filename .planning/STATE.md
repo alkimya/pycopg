@@ -4,14 +4,14 @@ milestone: v1.2.0
 milestone_name: Polish & finitions additives
 status: executing
 stopped_at: Completed 52-03-PLAN.md
-last_updated: "2026-07-04T21:46:21.433Z"
+last_updated: "2026-07-04T21:56:10.329Z"
 last_activity: 2026-07-04 -- Phase 52 Plan 03 (envelope/point_on_surface, SPAT-F03+SPAT-F04) complete
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 0
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 ## Current Position
 
 Phase: 52 (spatial-finish) — EXECUTING
-Plan: 4 of 6 (Plan 01 SPAT-F01 gridSize= complete; Plan 02 SPAT-F02+SPAT-F05 complete; Plan 03 SPAT-F03+SPAT-F04 envelope/point_on_surface complete, 3/3 tasks)
+Plan: 5 of 6 (Plan 01 SPAT-F01 gridSize= complete; Plan 02 SPAT-F02+SPAT-F05 complete; Plan 03 SPAT-F03+SPAT-F04 envelope/point_on_surface complete, 3/3 tasks)
 Status: Ready to execute
 Last activity: 2026-07-04 -- Phase 52 Plan 03 (envelope/point_on_surface, SPAT-F03+SPAT-F04) complete
 
@@ -97,6 +97,7 @@ Last activity: 2026-07-04 -- Phase 52 Plan 03 (envelope/point_on_surface, SPAT-F
 | Phase 52 P01 | 7min | 3 tasks | 2 files |
 | Phase 52 P02 | 20min | 3 tasks | 2 files |
 | Phase 52 P03 | 25min | 3 tasks | 2 files |
+| Phase 52 P04 | ~20min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -175,6 +176,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 52-02: build_length_sql/build_is_valid_sql/build_is_valid_reason_sql mirror build_perimeter_sql exactly (validate_identifiers first, bare AS labels D-09); length reuses _validate_unit (D-10, ST_Length=0 for non-linear geometries); is_valid/is_valid_reason registered in _SCALAR_HELPERS so into=gdf fails fast (D-12)
 - [Phase 52]: D-05: point_on_surface returns a real GEOMETRY point column (NOT centroid's scalar x/y shape), preserving SRID for labels/markers/mapping
 - [Phase 52]: D-11: envelope returns a geometry column valid for into='gdf' (not in _SCALAR_HELPERS)
+- [Phase ?]: Phase 52-04: overlaps/touches mirror build_intersects_sql mechanically (D-06 amended); into=rows/gdf overload triplet included, born-clean (no where= shim); not added to _SCALAR_HELPERS (row-filter predicates, gdf uses table's own geom column)
 
 ### Pending Todos
 
@@ -208,7 +210,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-04T21:46:09.305Z
+Last session: 2026-07-04T21:55:56.435Z
 Stopped at: Completed 52-03-PLAN.md
 Resume file: None
 Next action: Continue Phase 52 — execute Plan 03 (next SPAT-F0x plan in the 6-plan Spatial Finish sequence).
