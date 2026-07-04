@@ -13,8 +13,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (traceab
 
 - [x] **SPAT-F01**: User can pass a keyword-only `gridSize=` to `union` / `difference` / `intersection` for fixed-precision overlay output (PostGIS/GEOS ≥ 3.9); default `None` keeps the shipped SQL byte-identical.
 - [x] **SPAT-F02**: User can compute the length of linear geometries via `db.spatial.length` (ST_Length), complementing the existing `area` / `perimeter`.
-- [ ] **SPAT-F03**: User can get the per-row bounding-box geometry via `db.spatial.envelope` (ST_Envelope).
-- [ ] **SPAT-F04**: User can get a guaranteed-inside representative point via `db.spatial.point_on_surface` (ST_PointOnSurface), complementing `centroid`.
+- [x] **SPAT-F03**: User can get the per-row bounding-box geometry via `db.spatial.envelope` (ST_Envelope).
+- [x] **SPAT-F04**: User can get a guaranteed-inside representative point via `db.spatial.point_on_surface` (ST_PointOnSurface), complementing `centroid`.
 - [x] **SPAT-F05**: User can check geometry validity and its reason via `db.spatial.is_valid` (ST_IsValid) and `db.spatial.is_valid_reason` (ST_IsValidReason), complementing `make_valid`.
 - [ ] **SPAT-F06**: User can test the `overlaps` / `touches` / `crosses` / `disjoint` DE-9IM predicates via `db.spatial.*`, completing the `contains` / `intersects` / `within` / `dwithin` predicate family.
 
@@ -70,8 +70,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 |-------------|-------|--------|
 | SPAT-F01 | Phase 52 | Complete |
 | SPAT-F02 | Phase 52 | Complete |
-| SPAT-F03 | Phase 52 | Pending |
-| SPAT-F04 | Phase 52 | Pending |
+| SPAT-F03 | Phase 52 | Complete |
+| SPAT-F04 | Phase 52 | Complete |
 | SPAT-F05 | Phase 52 | Complete |
 | SPAT-F06 | Phase 52 | Pending |
 | CRUD-F04 | Phase 53 | Pending |

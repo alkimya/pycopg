@@ -57,7 +57,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 52-03-PLAN.md — SPAT-F03 `envelope` + SPAT-F04 `point_on_surface` (geometry helpers, `@overload` triplets)
+- [x] 52-03-PLAN.md — SPAT-F03 `envelope` + SPAT-F04 `point_on_surface` (geometry helpers, `@overload` triplets)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -110,7 +110,7 @@ Phases execute in numeric order: 52 → 53 → 54
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 52. Spatial Finish | v1.2.0 | 2/6 | In Progress|  |
+| 52. Spatial Finish | v1.2.0 | 3/6 | In Progress|  |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
