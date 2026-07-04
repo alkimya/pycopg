@@ -26,10 +26,10 @@ Not separate requirements — the standing bar each feature REQ must meet at ver
 
 ### Incremental ETL Follow-ups (`db.etl.*` / `Pipeline`)
 
-- [ ] **ETL-INC-F01**: User can set an `initial_watermark` on a `Pipeline` to bound (or seed) the first incremental run instead of a full initial load.
-- [ ] **ETL-INC-F02**: User can configure the incremental boundary — inclusive `>=` and/or a lookback overlap — instead of the fixed exclusive `>`.
-- [ ] **ETL-INC-F03**: User can define multi-column watermarks (composite incremental keys) on a `Pipeline`.
-- [ ] **ETL-INC-F04**: User can serialize concurrent runs of the same pipeline via PostgreSQL advisory locks (no overlapping incremental loads).
+- [x] **ETL-INC-F01**: User can set an `initial_watermark` on a `Pipeline` to bound (or seed) the first incremental run instead of a full initial load.
+- [x] **ETL-INC-F02**: User can configure the incremental boundary — inclusive `>=` and/or a lookback overlap — instead of the fixed exclusive `>`.
+- [x] **ETL-INC-F03**: User can define multi-column watermarks (composite incremental keys) on a `Pipeline`.
+- [x] **ETL-INC-F04**: User can serialize concurrent runs of the same pipeline via PostgreSQL advisory locks (no overlapping incremental loads).
 
 ### CRUD + Introspection Follow-ups (flat transactional core + `db.schema.*`)
 
@@ -81,10 +81,10 @@ Which phases cover which requirements.
 | TSDB-F02 | Phase 48 | Complete |
 | TSDB-F03 | Phase 48 | Complete |
 | TSDB-F04 | Phase 48 | Complete |
-| ETL-INC-F01 | Phase 49 | Pending |
-| ETL-INC-F02 | Phase 49 | Pending |
-| ETL-INC-F03 | Phase 49 | Pending |
-| ETL-INC-F04 | Phase 49 | Pending |
+| ETL-INC-F01 | Phase 49 | Complete |
+| ETL-INC-F02 | Phase 49 | Complete |
+| ETL-INC-F03 | Phase 49 | Complete |
+| ETL-INC-F04 | Phase 49 | Complete |
 | CRUD-F01 | Phase 50 | Complete |
 | CRUD-F02 | Phase 50 | Complete |
 | CRUD-F03 | Phase 50 | Complete |
@@ -101,4 +101,4 @@ Which phases cover which requirements.
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-02 after roadmap creation (Phases 48-51 mapped, 100% coverage)*
+*Last updated: 2026-07-04 — milestone audit reconciled ETL-INC-F01..F04 [ ]→[x] / Pending→Complete (Phase 49 verified passed 4/4; 3-source cross-reference). All 15 requirements satisfied.*

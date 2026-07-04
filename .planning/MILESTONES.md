@@ -1,5 +1,39 @@
 # Milestones
 
+## v1.1.0 Follow-ups additifs (Shipped: 2026-07-04)
+
+**Phases completed:** 4 phases, 15 plans, 37 tasks
+
+**Delivered:** The first additive **1.x** point release under the frozen SemVer 1.0 API — closed 13 deferred family follow-ups across three already-shipped surfaces plus the pending doc/metadata patch, all non-breaking with every default path byte-identical and full sync/async parity. `db.timescale.*` gained cagg teardown + `time_bucket` `origin`/`offset` alignment + per-chunk `compress_chunk`/`decompress_chunk` + `show_chunks` physical-time filters (TSDB-F01..04); `Pipeline` gained `initial_watermark` seeding, inclusive/lookback boundary config, composite multi-column watermarks (native row-value compare + `"composite"` envelope + greatest-ROW capture), and advisory-lock `concurrency="wait"|"skip"` (ETL-INC-F01..04); the flat core + `db.schema.*` gained a raw-SQL `where_sql`/`where_params` escape hatch, keyset/offset `Page` pagination, materialized-view introspection, and `describe(into=dict|dataclass|dataframe)` + `TableDescription` (CRUD-F01..03, INTRO-F01..02); and the release folded in the classifier `4 - Beta`→`5 - Production/Stable` bump + api-reference `*Error` names + CLAUDE.md version + the WR-01 `time_bucket` guard-order fix (DOC-13, REL-12). Shipped to PyPI via OIDC with all 5 release gates green, zero new runtime dependencies. Milestone audit PASSED (15/15 requirements), integration WIRED.
+
+**Key accomplishments:**
+
+- Added `drop_continuous_aggregate` + `remove_continuous_aggregate_policy` to both `TimescaleAccessor` and `AsyncTimescaleAccessor`, completing the v0.8.0 cagg lifecycle with plain transaction-safe execute (not the autocommit seam).
+- Extended `db.timescale.time_bucket` with keyword-only `origin`/`offset` bucket-alignment params on both sync and async accessors, guarded by a client-side `ValueError` for the mutually-exclusive case, with the both-None default path byte-identical to the shipped v0.8.0 SQL shape.
+- Added `compress_chunk`/`decompress_chunk` (bound `%s::regclass`, no `validate_identifiers` — the plan's explicit reconciliation carve-out) to both accessor classes, completing Phase 48's TimescaleDB follow-up surface; verified and documented the already-shipped `show_chunks` physical-time filter (TSDB-F04) with a `newer_than`-datetime symmetry test and doc examples.
+- Added `Pipeline.initial_watermark` so the first incremental run is a bounded/seeded load (`WHERE col > initial_watermark`) instead of a full initial load — seed-floor-only semantics (D-01): consulted once, ignored after the first recorded watermark, with full sync/async parity and default-None byte-identical behavior.
+- Added `Pipeline.incremental_inclusive` (>= boundary) and `incremental_lookback` (read-window overlap for late-arriving rows) — the lookback subtracts from the read floor in Python while the recorded high-water mark stays the true `max(col)` (widen read, never regress record, D-07), with a runtime `ETLError` for str-typed watermarks, full sync/async parity, and default `(False, None)` byte-identical behavior.
+- Widened `incremental_column` to accept a composite (multi-column) key normalized to a tuple, added the native Postgres row-value compare `WHERE (c1, c2) > (%s, %s)` in the extract builder, and a `"composite"` JSONB envelope tag that reuses the frozen per-scalar codec element-wise — all the pure/testable surfaces of ETL-INC-F03, with the single-column path byte-identical and zero JSONB migration. `run()` composite wiring (capture + persist) is the fail-loud seam handed to 49-04.
+- Made the composite watermark observable end-to-end: `run()` (both accessors, real + dry) now captures the true greatest ROW (sorted last row, never per-column maxes, per-element NaN void), reconciles the multi-`%s` row-value filter into distinct named binds, and persists/decodes the composite envelope — proven live with the (2, 1)-not-(2, 99) correctness fixture, second-run strict-greater row-value filter, composite seed floor, and a sync/async-parity mirror.
+- Added `Pipeline.concurrency="wait"|"skip"` so a user can serialize concurrent runs of the same pipeline via a session-scoped PostgreSQL advisory lock keyed server-side on the bound pipeline name — `"wait"` blocks until a peer finishes, `"skip"` returns a transient `'skipped'` RunResult writing no `pipeline_runs` row — held on a dedicated connection for the whole run span, released in `finally` and auto-released on disconnect, full sync/async parity, default `None` byte-identical.
+- Added a keyword-only `where_sql`/`where_params` raw-SQL escape hatch to `delete_where`/`update_where`/`exists`/`count`/`paginate` on both `Database` and `AsyncDatabase`, routed through a single shared `QueryMixin._resolve_predicate` guard that enforces mutual-exclusion, non-empty-fragment, and param-desync invariants before any DB round-trip.
+- Added `paginate_page()`/`paginate_keyset()` on both `Database` and `AsyncDatabase` returning a frozen `Page` envelope, with `paginate_keyset` implementing stable, index-friendly seek pagination via a PostgreSQL row-value comparison `(c1, c2) > (%s, %s)` — while leaving the existing `paginate()` untouched (still `list[dict]`).
+- `db.schema.materialized_views()` + `materialized_view_columns()` close the `information_schema` gap for matviews via dedicated `pg_catalog` queries, byte-identical to `table_info`'s 8-key shape, on both sync and async accessors.
+- `db.schema.describe(into="dict"|"dataclass"|"dataframe")` adds a typed `TableDescription` dataclass and a one-row-per-column `pandas.DataFrame` view on top of the frozen v0.9.0 flat-dict default, on both sync and async accessors — completing Phase 50.
+- Version bumped to 1.1.0 across pyproject/docs/uv.lock, a code-exact `[1.1.0]` CHANGELOG (Added: Phases 48-50; one Fixed: WR-01), and all five release gates proven green — the REL-12 verification contract for tag/publish.
+- pycopg v1.1.0 shipped to PyPI: annotated tag `v1.1.0` on `6e47cf7` pushed to origin, user-published GitHub Release triggered OIDC trusted publishing, and a clean-venv smoke confirms the published wheel reports `__version__ == "1.1.0"` and exposes the Phase 48-50 surface.
+
+**Stats:**
+
+- Timeline: 2026-07-02 → 2026-07-04 (~2 days); milestone commits land after tag `v1.0.0`
+- Codebase: ~25,100 LOC lib (`pycopg/`); suite 2021 passed / 2 skipped @ 96.65% coverage
+- Additive-only surface: TimescaleDB (TSDB-F01..04), incremental ETL (ETL-INC-F01..04), CRUD/introspection (CRUD-F01..03, INTRO-F01..02); classifier `4 - Beta`→`5 - Production/Stable`; zero new runtime dependencies
+- Tag `v1.1.0` on `6e47cf7` (annotated, on origin as `ca354b4`), OIDC trusted publish, clean-venv smoke `smoke ok 1.1.0`
+
+**Known deferred items at close:** frozen backlog for a later additive 1.x — ETL-INC-F05 (CDC / WAL change capture), SPAT-F01 (`gridSize` overlay precision), RASTER-F01 (PostGIS raster). Non-blocking bookkeeping/cosmetic debt (see `v1.1.0-MILESTONE-AUDIT.md`): DOC-13 prose residue (`ExtensionNotAvailable` in `docs/api-reference.md:273` + `docs/spatial.md:30`, non-executed — does not trip the DeprecationWarning gate), Phase 48 Nyquist `48-VALIDATION.md` draft (`nyquist_compliant: false`), Phase 51 VALIDATION.md absent (release phase — N/A), and local `main` running ahead of `origin` (push at close).
+
+---
+
 ## v1.0.0 Spatial v2 + gel API (Shipped: 2026-07-02)
 
 **Phases completed:** 7 phases (41–47), 28 plans, 52 tasks

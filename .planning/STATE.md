@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1.0
 milestone_name: Follow-ups additifs
-status: executing
-stopped_at: Phase 50 plan 04 complete (INTRO-F01 structured describe()); Phase 50 fully complete, all 4 plans shipped
-last_updated: "2026-07-04T12:28:10.924Z"
-last_activity: 2026-07-04
+status: Awaiting next milestone
+stopped_at: Milestone v1.1.0 CLOSED + archived (Phases 48-51 complete, 15/15 requirements, audit PASSED, pycopg 1.1.0 live on PyPI)
+last_updated: "2026-07-04T13:13:50.920Z"
+last_activity: 2026-07-04 — Milestone v1.1.0 completed and archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,20 +18,18 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-02 after v1.0.0 milestone close)
+See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 51 — release-v1-1-0
+**Current focus:** Planning next milestone — run `/gsd-new-milestone` (phase numbering continues from 51 → next starts at Phase 52)
 
 ## Current Position
 
-Phase: 51
-Plan: Not started
-Status: Executing Phase 51
-Last activity: 2026-07-04
-
-Progress: [████████░░] 75% (3/4 phases; 12/12 plans)
+Phase: Milestone v1.1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-04 — Milestone v1.1.0 completed and archived
 
 ## Performance Metrics
 
@@ -205,6 +203,4 @@ Next action: Run `/gsd-validate-phase 50` (all 4 plans shipped) then proceed to 
 
 ## Operator Next Steps
 
-- **Phase 50 fully complete (CRUD-F01..F03, INTRO-F01..F02, all 4 plans):** raw-SQL where_sql escape hatch, keyset pagination + Page envelope, materialized-view introspection, structured describe(into=dict|dataclass|dataframe) + TableDescription — all shipped, full sync/async parity, injection-tested, live-DB-proven. Full suite 2003 passed/2 skipped@96.61%, mypy 0/18, interrogate 100%, Sphinx -W clean.
-- Next: `/gsd-validate-phase 50`, then Phase 51 (DOC-13 doc fixes folded from the 1.0.1 patch + REL-12 release) — the last phase of milestone v1.1.0.
-- Carry-forward for P51: P48 WR-01 (time_bucket origin/offset guard-hoist); optional 1.0.1-folded doc patches (DOC-13).
+- Start the next milestone with /gsd-new-milestone

@@ -399,6 +399,53 @@
 
 ---
 
+## Milestone: v1.1.0 — Follow-ups additifs (TimescaleDB · ETL incrémental · CRUD/introspection)
+
+**Shipped:** 2026-07-04
+**Phases:** 4 (48–51) | **Plans:** 15 | **Tasks:** 37
+
+### What Was Built
+
+- **TimescaleDB follow-ups (Phase 48, TSDB-F01..04):** completed the `db.timescale.*` surface opened in v0.8.0 — cagg teardown (`drop_continuous_aggregate`/`remove_continuous_aggregate_policy`, plain transaction-safe execute), `time_bucket` custom `origin`/`offset` alignment (kw-only, client-side mutual-exclusion `ValueError`, threaded through all 8 signatures at KIND-parity), per-chunk `compress_chunk`/`decompress_chunk` (TSL-only, bound `%s::regclass`), and `show_chunks` physical-time `newer_than`/`older_than` filters (verify+doc of a pre-existing v0.8.0 capability).
+- **Incremental-ETL follow-ups (Phase 49, ETL-INC-F01..04):** precise control over `Pipeline` boundaries + concurrency — `initial_watermark` seed floor (bounds/seeds the first run), inclusive `>=` and/or lookback-overlap boundary config (recorded watermark stays the true `max(col)`), composite multi-column watermark (native row-value `(c1,c2)>(%s,%s)` compare + `"composite"` JSONB envelope + greatest-ROW capture), and `concurrency="wait"|"skip"` session-scoped PostgreSQL advisory lock on a dedicated connection.
+- **CRUD + introspection follow-ups (Phase 50, CRUD-F01..03 / INTRO-F01..02):** raw-SQL `where_sql`/`where_params` escape hatch on the 5 predicate helpers (shared `_resolve_predicate` guard, fragment verbatim by design), keyset/offset deep pagination returning a `Page` envelope (`paginate_keyset`/`paginate_page`, `_build_keyset_where` row-value seek, `total`/`has_next`/`next_cursor`), materialized-view introspection (`materialized_views`/`materialized_view_columns`, byte-identical `table_info` shape), and structured `describe(into=dict|dataclass|dataframe)` with a `TableDescription` `@overload` quadruplet.
+- **Release (Phase 51, DOC-13 + REL-12):** classifier `4 - Beta`→`5 - Production/Stable`, api-reference `*Error` names, CLAUDE.md version; WR-01 `time_bucket` origin/offset guard hoisted before `has_extension()` folded into the release (3 byte-identical guards sync+async + `has_extension.assert_not_called()` regression tests); code-exact CHANGELOG `[1.1.0]` (Added + one Fixed), version bumped in 3 sources, 5 gates green (cov 96.65%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), annotated tag `v1.1.0`, human-gated OIDC publish, clean-venv smoke `smoke ok 1.1.0`.
+
+### What Worked
+
+- **"Additive under a frozen API" delivered exactly as scoped — every default path byte-identical.** All 13 feature follow-ups landed as keyword-only new params / new methods with no `DeprecationWarning`/MIGRATION churn; single-column watermark, dict-`where=`, and default `time_bucket` SQL shapes stayed byte-identical to their shipped forms. Full sync/async parity held throughout (`test_accessor_parity` + KIND-parity guard).
+- **Front-loading code review BEFORE the tag paid off twice.** Phase 50's review caught 3 real new-code robustness bugs in the keyset-pagination trim path that tests missed (empty `order_by=[]`→invalid SQL, float `limit`→TypeError, `limit≤0`→infinite-loop footgun); Phase 51's pre-tag review caught a real CHANGELOG compare-link-footer defect. Because both ran before the irreversible tag, the fixes landed with no force-push.
+- **A helper smoke test caught a subtle pandas coercion bug the builder tests didn't.** Composite greatest-ROW capture via `row-Series.iloc[-1][col]` silently promoted ints to float (int→float), false-tripping a float-reject guard; reading each element from its own sorted column fixed it. Same class as the v0.7.0 `pd.isna`/`is_float` coercion catches — pandas element access needs live-data probing, not just shape assertions.
+- **The milestone audit's 3-source cross-reference surfaced (and reconciled) the recurring REQUIREMENTS drift cleanly.** ETL-INC-F01..04 were `[ ]`/"Pending" despite Phase 49 verified passed 4/4; the audit confirmed satisfied and ticked them, so close-time bookkeeping was already done before archival.
+
+### What Was Inefficient
+
+- **The recurring GSD tooling taxes recurred yet again (13th+ milestone).** `milestone.complete` again warned it could not write STATE.md's "Last Activity Description" (hand-fixed); the REQUIREMENTS.md checkbox-vs-traceability-table drift hit ETL-INC-F01..04 (both `[ ]` inline and "Pending" in the table — reconciled during the audit, not at archive); STATE Current-focus/Project-Reference drift needed hand-fixing. Certainties to budget for, still unfixed at the tool level.
+- **A mid-plan rate limit forced Phase 49 (and later 51) to run inline instead of via `gsd-executor`.** The executor hit a rate limit mid-plan; rather than respawn, the work continued inline on Opus 4.8. It shipped clean, but the executor-parallelism budget again went unused (sequential-on-main is now the de-facto default for 7 milestones).
+- **The clean-venv smoke has a cwd-shadowing trap.** Running the import assertion from the repo root let the local `pycopg/` source shadow the installed wheel; the fix was to assert from a neutral cwd (`/tmp`). Also, the sandbox blocks network `pip install`, so the smoke's install step needed a standalone call with `dangerouslyDisableSandbox`. Both are environment gotchas worth pre-noting for the next release phase.
+- **Phase 48 Nyquist sign-off slipped again — same pattern as v0.10.0/v1.0.0.** `48-VALIDATION.md` shipped `nyquist_compliant: false` (draft) even though the functional VERIFICATION.md PASSED 4/4; Phase 51 (release) has no VALIDATION.md (expected). The validation-artifact gate stays half-open at close.
+
+### Patterns Established
+
+- **New surface = new attack/robustness surface, even when the milestone is "just additive."** The `Page`-envelope pagination path introduced trim footguns (`rows[:limit]` with empty `order_by`, float/≤0 `limit`) that the dict-only `paginate` never had. Additive-under-freeze lowers *API* risk, not *implementation* risk — review new code paths adversarially regardless of how safe the milestone framing sounds.
+- **Run the release smoke's import assertion from a neutral cwd.** Repo-root cwd shadows the installed wheel with local source; assert from `/tmp` (or any non-repo dir) so the smoke actually exercises the published artifact.
+- **For multi-key ordering, capture the greatest ROW, never per-column maxes.** A tuple of independent column maxes can synthesize a boundary that no row ever had; PostgreSQL's native row-value comparison + sorted-last-row capture is the correct composite-watermark primitive (reused the `_build_keyset_where` row-value shape).
+
+### Key Lessons
+
+1. **"Additive/non-breaking" is a statement about the API contract, not about implementation safety.** The three real pagination bugs and the pandas coercion bug all shipped inside purely-additive new methods — a green suite plus a "low-risk additive" framing is exactly when to lean *harder* on adversarial code review, not lighter.
+2. **Front-load code review before the irreversible tag.** Catching the CHANGELOG defect and the pagination footguns pre-tag meant zero force-pushes. Review is cheapest and safest immediately before, not after, the release boundary.
+3. **The recurring tooling taxes are now 13+ milestones deep and identical every time.** STATE.md "Last Activity Description", REQUIREMENTS checkbox-vs-table drift, and STATE focus/reference drift are certainties — the CLI fix has been "overdue" for many milestones running; until then, budget the hand-fixes explicitly at close.
+4. **Environment gotchas repeat per release phase — pre-note them.** Clean-venv smoke cwd-shadowing + sandbox-blocked `pip install` bit again; capturing them as a release-phase checklist item would save the rediscovery cost each time.
+
+### Cost Observations
+
+- Model mix: Opus for orchestration/planning/review/audit; Phases 48 & 50 via `gsd-executor` (Sonnet-tier), Phases 49 & 51 ran **inline on Opus 4.8** after the executor hit a mid-plan rate limit.
+- Sessions: 2026-07-02 (milestone launch, same day as v1.0.0 ship) → 2026-07-03 (Phases 48–49) → 2026-07-04 (Phase 50 + Phase 51 ship + close).
+- Notable: 4 phases, 15 plans, 37 tasks in ~2 days — a compact additive point release. The heaviest cognitive load was Phase 49's composite-watermark run() wiring (the pandas greatest-ROW coercion bug) and the two review passes (Phase 50 pagination + Phase 51 pre-tag), which together caught 4 real defects tests missed.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -414,6 +461,7 @@
 | v0.9.0 | 3 (34–36) | 7 | Ergonomic CRUD + enriched introspection (12 methods, full parity) via one shared `_build_where_dict` builder + `describe` pure-composition; near-zero design churn from mature patterns; resolved the v0.6.0 `db.meta.*` carve question (decided against) |
 | v0.10.0 | 4 (37–40) | 12 | First hardening/perf (non-additive) milestone: tooled audit found+fixed 5 real injection/CLI BLOCKERS in mature code; volume inserts routed via COPY (no API change, parity held); coverage ratchet 94→95 with first `# pragma: no cover` use; stdlib `benchmarks/` guard; code-review gate caught a `validate_identifiers` regression in the COPY rewrite |
 | v1.0.0 | 7 (41–47) | 28 | The freeze: homogenize-first (where→filter, N818 renames, kw-only) → Spatial v2 (`db.spatial.*` 13→25) → API gaps (txn/savepoint/health/logging) → **mypy-strict LAST, blocking CI** (356→0, ~108 @overload, found 2 latent bugs incl. missing-await); public API frozen under SemVer 1.0; structural KIND-parity guard added after review caught a name-only-test-invisible BLOCKER |
+| v1.1.0 | 4 (48–51) | 15 | First **additive 1.x** point release under the frozen API: TimescaleDB (cagg teardown, `time_bucket` origin/offset, per-chunk compress, physical-time chunks), incremental ETL (`initial_watermark`, inclusive/lookback, composite row-value watermark, advisory-lock concurrency), CRUD/introspection (raw-SQL escape hatch, keyset `Page` pagination, matview introspection, `describe(into=)`); classifier 4-Beta→5-Production/Stable; pre-tag review caught a CHANGELOG defect + 3 new-surface pagination footguns tests missed; all defaults byte-identical, zero DeprecationWarning churn |
 
 ### Cumulative Quality
 
@@ -428,6 +476,7 @@
 | v0.9.0 | 31+ (~1331 tests) | 94.11% | Ratchet held at 94; +CRUD unit/integration (`_build_where_dict` + 7 helpers × sync/async) + schema-introspection mock+live + `TestAsyncSchemaIntrospection` to clear the ratchet + `test_schema_v090_surface`; `-W error::DeprecationWarning` green; interrogate 100% |
 | v0.10.0 | 33+ (~1426 tests) | 96.32% | **Ratchet lifted 94→95**; +`TestAsyncInsertBatch` live-DB + 11 ETL `dry_run` + COPY-path tests (`TestFromDataframeCopy`/`TestETLCopyPath`/validation) + `insert_batch` hoist non-regression + 53 AUDIT-01 regression tests; first `# pragma: no cover` use (6 em-dash-justified); `-W error::DeprecationWarning` green; interrogate 100% |
 | v1.0.0 | 35+ (1736 tests) | 96.45% | Ratchet held at 95; +52 `where=`→`filter=` deprecation-shim tests + per-builder spatial injection/SQL-shape tests (12 new methods) + `test_accessor_parameter_kind_parity` structural guard + txn/savepoint/health/named-param/logging suites; **`mypy --strict` 0/18 now a blocking gate**; `py.typed` truthful; `-W error::DeprecationWarning` green; interrogate 100% |
+| v1.1.0 | 35+ (2021 tests) | 96.65% | Ratchet held at 95; +composite-watermark/advisory-lock live-DB ETL tests + inclusive/lookback boundary + keyset/`Page` pagination + `where_sql` escape-hatch guards + matview introspection + `describe(into=)` overloads + WR-01 `has_extension.assert_not_called()` regression; `mypy --strict` 0/18 blocking held; `-W error::DeprecationWarning` green; interrogate 100% |
 
 ### Top Lessons (Verified Across Milestones)
 
