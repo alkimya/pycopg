@@ -133,7 +133,19 @@
   3. CHANGELOG `[1.1.0]` is Added-only and code-exact against Phases 48-50
   4. All 5 release gates are green: coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0 errors
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 51-01-PLAN.md — DOC-13 corrections (D-02 classifier, D-03 api-reference *Error names, D-04 CLAUDE.md version) + WR-01 guard hoist (D-05, sync+async + regression test)
+
+**Wave 2** *(blocked on Wave 1 — D-03 must land before the DeprecationWarning gate)*
+
+- [ ] 51-02-PLAN.md — version bump (D-01, pyproject/conf.py/uv.lock) + code-exact CHANGELOG [1.1.0] (D-06) + run all 5 release gates (D-08)
+
+**Wave 3** *(blocked on Wave 2 — green gates precede tag)*
+
+- [ ] 51-03-PLAN.md — annotated tag v1.1.0 + human-gated GitHub Release → OIDC publish (D-07) + clean-venv smoke
 
 ## Progress
 
@@ -145,7 +157,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete    | 2026-07-03 |
-| 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
+| 51. Release v1.1.0 | v1.1.0 | 0/3 | Planned | - |
 
 <details>
 <summary>✅ v1.0.0 Spatial v2 + gel API (Phases 41-47) — SHIPPED 2026-07-02</summary>
@@ -319,4 +331,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 48. TimescaleDB Follow-ups | v1.1.0 | 0/3 | Planned | - |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 0/5 | Planned | - |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 0/4 | Planned | - |
-| 51. Release v1.1.0 | v1.1.0 | 0/TBD | Not started | - |
+| 51. Release v1.1.0 | v1.1.0 | 0/3 | Planned | - |
