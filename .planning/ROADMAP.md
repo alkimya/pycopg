@@ -137,7 +137,7 @@
 
 **Wave 1**
 
-- [ ] 51-01-PLAN.md — DOC-13 corrections (D-02 classifier, D-03 api-reference *Error names, D-04 CLAUDE.md version) + WR-01 guard hoist (D-05, sync+async + regression test)
+- [x] 51-01-PLAN.md — DOC-13 corrections (D-02 classifier, D-03 api-reference *Error names, D-04 CLAUDE.md version) + WR-01 guard hoist (D-05, sync+async + regression test)
 
 **Wave 2** *(blocked on Wave 1 — D-03 must land before the DeprecationWarning gate)*
 
@@ -157,7 +157,7 @@ Phases execute in numeric order: 48 → 49 → 50 → 51
 | 48. TimescaleDB Follow-ups | v1.1.0 | 3/3 | Complete    | 2026-07-03 |
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete   | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete    | 2026-07-03 |
-| 51. Release v1.1.0 | v1.1.0 | 0/3 | Planned | - |
+| 51. Release v1.1.0 | v1.1.0 | 1/3 | In Progress|  |
 
 <details>
 <summary>✅ v1.0.0 Spatial v2 + gel API (Phases 41-47) — SHIPPED 2026-07-02</summary>
