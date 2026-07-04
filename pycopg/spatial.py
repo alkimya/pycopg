@@ -788,6 +788,180 @@ def build_perimeter_sql(
     return sql, []
 
 
+def build_length_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    unit: str = "m",
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows with the length of their geometry.
+
+    Adds a scalar ``ST_Length(...) AS length`` column computed on the
+    table's own geometry column. With ``unit="m"`` (default) the geometry
+    is cast to ``::geography`` so the length is in meters (D-09/D-10).
+    ``ST_Length`` returns ``0`` for non-linear (areal/point) geometries
+    (D-10) — this is a PostGIS pass-through, not a pycopg guard.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry" (D-06).
+    schema : str, optional
+        Schema name, by default "public".
+    unit : str, optional
+        ``"m"`` or ``"srid"``, by default "m" (D-09/D-10).
+    columns : list of str, optional
+        Columns to select alongside the length, by default all (D-03).
+    filter : str, optional
+        Raw SQL filter fragment (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list (always empty for this builder).
+
+    Raises
+    ------
+    ValueError
+        If ``unit`` is invalid.
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    _validate_unit(unit)
+    cast = "::geography" if unit == "m" else ""
+    sql = (
+        f"SELECT {_cols_str(columns)}, "
+        f"ST_Length(t.{geom}{cast}) AS length "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
+def build_is_valid_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows with the OGC validity of their geometry.
+
+    Adds a scalar ``ST_IsValid(...) AS is_valid`` boolean column computed
+    on the table's own geometry column (D-09/D-12).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry" (D-06).
+    schema : str, optional
+        Schema name, by default "public".
+    columns : list of str, optional
+        Columns to select alongside the validity flag, by default all
+        (D-03).
+    filter : str, optional
+        Raw SQL filter fragment (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list (always empty for this builder).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    sql = (
+        f"SELECT {_cols_str(columns)}, ST_IsValid(t.{geom}) AS is_valid "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
+def build_is_valid_reason_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows with the OGC validity reason of their geometry.
+
+    Adds a scalar ``ST_IsValidReason(...) AS is_valid_reason`` text column
+    computed on the table's own geometry column (D-09/D-12) — describes
+    why a geometry is invalid, or ``"Valid Geometry"`` when it is valid.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry" (D-06).
+    schema : str, optional
+        Schema name, by default "public".
+    columns : list of str, optional
+        Columns to select alongside the validity reason, by default all
+        (D-03).
+    filter : str, optional
+        Raw SQL filter fragment (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list (always empty for this builder).
+
+    Raises
+    ------
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    sql = (
+        f"SELECT {_cols_str(columns)}, "
+        f"ST_IsValidReason(t.{geom}) AS is_valid_reason "
+        f"FROM {schema}.{table} AS t"
+    )
+    sql = _append_tail(sql, filter, order_by, limit, has_where=False)
+    return sql, []
+
+
 def build_geojson_sql(
     table: str,
     geom: str = "geometry",
@@ -2140,7 +2314,17 @@ def build_extent_sql(
 #: Helpers whose result set has no geometry column — ``into="gdf"`` is
 #: rejected for these (D-02).
 _SCALAR_HELPERS = frozenset(
-    {"area", "perimeter", "distance", "centroid", "as_geojson", "as_text"}
+    {
+        "area",
+        "perimeter",
+        "distance",
+        "centroid",
+        "as_geojson",
+        "as_text",
+        "length",
+        "is_valid",
+        "is_valid_reason",
+    }
 )
 
 #: Accepted ``into=`` values (D-01; ``into="query"`` deferred to the ETL
