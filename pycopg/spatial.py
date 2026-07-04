@@ -4942,6 +4942,208 @@ class SpatialAccessor:
         return self._run(sql, params, into, "convex_hull")
 
     @overload
+    def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows with the bounding-box geometry of each row (ST_Envelope).
+
+        Adds an ``envelope`` geometry column (D-11) — the per-row minimum
+        bounding rectangle, preserving SRID. Valid for ``into="gdf"``. No
+        ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``envelope`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "envelope")
+        sql, params = build_envelope_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "envelope")
+
+    @overload
+    def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows with a guaranteed-inside representative point (ST_PointOnSurface).
+
+        Adds a ``point_on_surface`` geometry column (D-05/D-11). Unlike
+        :meth:`centroid`'s scalar ``x``/``y`` shape, this is a real
+        ``POINT`` geometry guaranteed to lie on the input geometry (useful
+        for labels/markers/mapping), preserving SRID. Valid for
+        ``into="gdf"``. No ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``point_on_surface`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "point_on_surface")
+        sql, params = build_point_on_surface_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, "point_on_surface")
+
+    @overload
     def make_valid(
         self,
         table: str,
@@ -8015,6 +8217,215 @@ class AsyncSpatialAccessor:
             limit=limit,
         )
         return await self._run(sql, params, into, "convex_hull")
+
+    @overload
+    async def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def envelope(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows with the bounding-box geometry of each row — async (ST_Envelope).
+
+        Async mirror of :meth:`SpatialAccessor.envelope`. Adds an
+        ``envelope`` geometry column (D-11) — the per-row minimum bounding
+        rectangle, preserving SRID. Valid for ``into="gdf"``. No ``where=``
+        deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``envelope`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "envelope")
+        sql, params = build_envelope_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "envelope")
+
+    @overload
+    async def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def point_on_surface(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows with a guaranteed-inside representative point — async (ST_PointOnSurface).
+
+        Async mirror of :meth:`SpatialAccessor.point_on_surface`. Unlike
+        :meth:`centroid`'s scalar ``x``/``y`` shape, this is a real
+        ``POINT`` geometry guaranteed to lie on the input geometry (useful
+        for labels/markers/mapping), preserving SRID. Valid for
+        ``into="gdf"``. No ``where=`` deprecated alias (born clean, D-10).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry".
+        schema : str, optional
+            Schema name, by default "public".
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows".
+        columns : list of str, optional
+            Columns to select alongside the result.
+        filter : str, optional
+            Raw SQL filter fragment.
+        order_by : str, optional
+            ORDER BY clause body.
+        limit : int, optional
+            LIMIT value.
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Rows including the ``point_on_surface`` geometry column.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "point_on_surface")
+        sql, params = build_point_on_surface_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, "point_on_surface")
 
     @overload
     async def make_valid(
