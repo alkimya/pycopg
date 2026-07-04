@@ -130,7 +130,7 @@
 
   1. `pyproject.toml` classifier reads `Development Status :: 5 - Production/Stable` and `docs/api-reference.md` uses only the `*Error` exception names (no deprecated-name imports), and `CLAUDE.md` Version line reflects v1.1.0
   2. `pip install pycopg==1.1.0` installs the new surface from PyPI with `__version__ == "1.1.0"` confirmed via clean-venv smoke
-  3. CHANGELOG `[1.1.0]` is Added-only and code-exact against Phases 48-50
+  3. CHANGELOG `[1.1.0]` is code-exact against Phases 48-50 — `Added` entries plus exactly one `Fixed` entry for the WR-01 `time_bucket` origin/offset guard-order fix folded into this phase (D-05)
   4. All 5 release gates are green: coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0 errors
 
 **Plans**: 3 plans
