@@ -45,7 +45,15 @@
   4. User can check geometry validity and get the invalidity reason via `db.spatial.is_valid`/`is_valid_reason`, complementing the existing `make_valid`
   5. User can test the `overlaps`/`touches`/`crosses`/`disjoint` DE-9IM predicates via `db.spatial.*`, completing the `contains`/`intersects`/`within`/`dwithin` predicate family
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 52-01-PLAN.md — SPAT-F01 keyword-only `gridSize=` fixed-precision overlay (byte-identical `None` default)
+- [ ] 52-02-PLAN.md — SPAT-F02 `length` + SPAT-F05 `is_valid`/`is_valid_reason` (scalar helpers, `_SCALAR_HELPERS`)
+- [ ] 52-03-PLAN.md — SPAT-F03 `envelope` + SPAT-F04 `point_on_surface` (geometry helpers, `@overload` triplets)
+- [ ] 52-04-PLAN.md — SPAT-F06 `overlaps` + `touches` DE-9IM predicates (into=rows/gdf)
+- [ ] 52-05-PLAN.md — SPAT-F06 `crosses` + `disjoint` DE-9IM predicates (disjoint footgun + perf note)
+- [ ] 52-06-PLAN.md — Docs (`spatial.md` + `api-reference.md`) + surface test + 5-gate phase closure
 
 ### Phase 53: CRUD Symmetry + Introspection Follow-ups
 
@@ -82,7 +90,7 @@ Phases execute in numeric order: 52 → 53 → 54
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 52. Spatial Finish | v1.2.0 | TBD | Not started | - |
+| 52. Spatial Finish | v1.2.0 | 0/6 | Planned | - |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
@@ -271,6 +279,6 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 49. Incremental ETL Follow-ups | v1.1.0 | 5/5 | Complete | 2026-07-03 |
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete | 2026-07-04 |
 | 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete | 2026-07-04 |
-| 52. Spatial Finish | v1.2.0 | TBD | Not started | - |
+| 52. Spatial Finish | v1.2.0 | 0/6 | Planned | - |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
