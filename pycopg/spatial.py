@@ -3177,6 +3177,278 @@ class SpatialAccessor:
         return self._run(sql, params, into, geom)
 
     @overload
+    def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows whose geometry overlaps the input geometry.
+
+        Generates ``ST_Overlaps(t.{geom}, <geom_in>)`` (DE-9IM predicate,
+        SPAT-F06/D-06). Mechanically mirrors :meth:`intersects` — only the
+        ST_* function name differs. No ``where=`` deprecated alias (born
+        clean, D-06).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        filter : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "overlaps")
+        sql, params = build_overlaps_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    @overload
+    def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows whose geometry touches the input geometry.
+
+        Generates ``ST_Touches(t.{geom}, <geom_in>)`` (DE-9IM predicate,
+        SPAT-F06/D-06). Mechanically mirrors :meth:`intersects` — only the
+        ST_* function name differs. No ``where=`` deprecated alias (born
+        clean, D-06).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        filter : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        """
+        _check_into(into, "touches")
+        sql, params = build_touches_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return self._run(sql, params, into, geom)
+
+    @overload
     def dwithin(
         self,
         table: str,
@@ -6393,6 +6665,282 @@ class AsyncSpatialAccessor:
         await self._check_postgis()
         _check_into(into, "intersects")
         sql, params = build_intersects_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    @overload
+    async def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def overlaps(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows whose geometry overlaps the input geometry (async).
+
+        Async mirror of :meth:`SpatialAccessor.overlaps`. Generates
+        ``ST_Overlaps(t.{geom}, <geom_in>)`` (DE-9IM predicate,
+        SPAT-F06/D-06). No ``where=`` deprecated alias (born clean, D-06).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        filter : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "overlaps")
+        sql, params = build_overlaps_sql(
+            table,
+            geom=geom,
+            schema=schema,
+            point=point,
+            wkt=wkt,
+            geojson=geojson,
+            ref=ref,
+            srid=srid,
+            columns=columns,
+            filter=filter,
+            order_by=order_by,
+            limit=limit,
+        )
+        return await self._run(sql, params, into, geom)
+
+    @overload
+    async def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["rows"] = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]: ...
+    @overload
+    async def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: Literal["gdf"],
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> gpd.GeoDataFrame: ...
+    @overload
+    async def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str,
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame: ...
+    async def touches(
+        self,
+        table: str,
+        *,
+        geom: str = "geometry",
+        schema: str = "public",
+        point: tuple[float, float] | None = None,
+        wkt: str | None = None,
+        geojson: dict[str, Any] | None = None,
+        ref: tuple[str, str] | None = None,
+        srid: int = 4326,
+        into: str = "rows",
+        columns: list[str] | None = None,
+        filter: str | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]] | gpd.GeoDataFrame:
+        """Select rows whose geometry touches the input geometry (async).
+
+        Async mirror of :meth:`SpatialAccessor.touches`. Generates
+        ``ST_Touches(t.{geom}, <geom_in>)`` (DE-9IM predicate,
+        SPAT-F06/D-06). No ``where=`` deprecated alias (born clean, D-06).
+
+        Parameters
+        ----------
+        table : str
+            Table to query.
+        geom : str, optional
+            Geometry column name, by default "geometry" (D-06).
+        schema : str, optional
+            Schema name, by default "public".
+        point : tuple of float, optional
+            ``(x, y)`` input geometry (one of the four D-05 forms).
+        wkt : str, optional
+            WKT input geometry.
+        geojson : dict, optional
+            GeoJSON input geometry.
+        ref : tuple of str, optional
+            ``(ref_table, ref_col)`` input geometry (EXISTS, D-08).
+        srid : int, optional
+            SRID of the input geometry, by default 4326 (D-07).
+        into : str, optional
+            ``"rows"`` or ``"gdf"``, by default "rows" (D-01).
+        columns : list of str, optional
+            Columns to select, by default all (D-03).
+        filter : str, optional
+            Additional raw SQL filter (D-11).
+        order_by : str, optional
+            ORDER BY clause body (D-12).
+        limit : int, optional
+            LIMIT value (D-12).
+
+        Returns
+        -------
+        list of dict or gpd.GeoDataFrame
+            Matching rows in the requested form.
+
+        Raises
+        ------
+        ValueError
+            If ``into`` is invalid or geometry forms are not exclusive.
+        InvalidIdentifierError
+            If any identifier is invalid.
+        ExtensionNotAvailableError
+            If PostGIS is not installed (first-call guard).
+        """
+        await self._check_postgis()
+        _check_into(into, "touches")
+        sql, params = build_touches_sql(
             table,
             geom=geom,
             schema=schema,
