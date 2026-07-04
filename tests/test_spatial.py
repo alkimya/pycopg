@@ -16,7 +16,9 @@ from pycopg.spatial import (
     build_collect_geometries_sql,
     build_contains_sql,
     build_convex_hull_sql,
+    build_crosses_sql,
     build_difference_sql,
+    build_disjoint_sql,
     build_distance_sql,
     build_dwithin_sql,
     build_envelope_sql,
@@ -413,6 +415,150 @@ class TestBuilders:
     def test_touches_order_by_and_limit(self):
         """touches supports order_by= and limit=."""
         sql, _ = build_touches_sql("parcels", point=(1, 2), order_by="id DESC", limit=10)
+        assert sql.endswith("ORDER BY id DESC LIMIT 10")
+
+    # -- crosses (SPAT-F06/D-06) -------------------------------------------
+
+    def test_crosses_point_form(self):
+        """crosses with point= builds ST_Crosses with %s coords."""
+        sql, params = build_crosses_sql("parcels", point=(-122.4, 37.8))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE ST_Crosses(t.geometry, "
+            "ST_SetSRID(ST_MakePoint(%s, %s), 4326))"
+        )
+        assert params == [-122.4, 37.8]
+
+    def test_crosses_wkt_form(self):
+        """crosses with wkt= parameterizes the WKT string."""
+        sql, params = build_crosses_sql("parcels", wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))")
+        assert "ST_Crosses(t.geometry, ST_GeomFromText(%s, 4326))" in sql
+        assert params == ["POLYGON((0 0,1 0,1 1,0 1,0 0))"]
+
+    def test_crosses_geojson_form(self):
+        """crosses with geojson= parameterizes the serialized JSON."""
+        sql, params = build_crosses_sql("parcels", geojson=_GJ)
+        assert "ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)" in sql
+        assert params == [json.dumps(_GJ)]
+
+    def test_crosses_ref_form_builds_exists(self):
+        """crosses with ref= produces an EXISTS subquery (D-08)."""
+        sql, params = build_crosses_sql("parcels", ref=("zones", "geom"))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE EXISTS "
+            "(SELECT 1 FROM zones AS _ref "
+            "WHERE ST_Crosses(_ref.geom, t.geometry))"
+        )
+        assert params == []
+
+    def test_crosses_ref_invalid_identifier(self):
+        """crosses with an invalid ref table raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_crosses_sql("t", ref=("bad-name", "g"))
+
+    def test_crosses_invalid_table(self):
+        """An invalid table name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_crosses_sql("bad-name", point=(1, 2))
+
+    def test_crosses_invalid_schema(self):
+        """An invalid schema name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_crosses_sql("parcels", schema="bad-schema", point=(1, 2))
+
+    def test_crosses_invalid_geom(self):
+        """An invalid geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_crosses_sql("parcels", geom="bad-geom", point=(1, 2))
+
+    def test_crosses_invalid_column(self):
+        """An invalid column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_crosses_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_crosses_columns_where(self):
+        """crosses supports columns= and filter= together."""
+        sql, _ = build_crosses_sql(
+            "parcels", point=(1, 2), columns=["id"], filter="status = 'active'"
+        )
+        assert sql.startswith("SELECT id FROM public.parcels AS t")
+        assert sql.endswith("AND (status = 'active')")
+
+    def test_crosses_order_by_and_limit(self):
+        """crosses supports order_by= and limit=."""
+        sql, _ = build_crosses_sql("parcels", point=(1, 2), order_by="id DESC", limit=10)
+        assert sql.endswith("ORDER BY id DESC LIMIT 10")
+
+    # -- disjoint (SPAT-F06/D-07) ------------------------------------------
+
+    def test_disjoint_point_form(self):
+        """disjoint with point= builds ST_Disjoint with %s coords."""
+        sql, params = build_disjoint_sql("parcels", point=(-122.4, 37.8))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE ST_Disjoint(t.geometry, "
+            "ST_SetSRID(ST_MakePoint(%s, %s), 4326))"
+        )
+        assert params == [-122.4, 37.8]
+
+    def test_disjoint_wkt_form(self):
+        """disjoint with wkt= parameterizes the WKT string."""
+        sql, params = build_disjoint_sql("parcels", wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))")
+        assert "ST_Disjoint(t.geometry, ST_GeomFromText(%s, 4326))" in sql
+        assert params == ["POLYGON((0 0,1 0,1 1,0 1,0 0))"]
+
+    def test_disjoint_geojson_form(self):
+        """disjoint with geojson= parameterizes the serialized JSON."""
+        sql, params = build_disjoint_sql("parcels", geojson=_GJ)
+        assert "ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)" in sql
+        assert params == [json.dumps(_GJ)]
+
+    def test_disjoint_ref_form_builds_exists(self):
+        """disjoint with ref= produces the SAME uniform EXISTS subquery
+        as the other predicates (D-07) — NOT a NOT EXISTS special-case."""
+        sql, params = build_disjoint_sql("parcels", ref=("zones", "geom"))
+        assert sql == (
+            "SELECT * FROM public.parcels AS t WHERE EXISTS "
+            "(SELECT 1 FROM zones AS _ref "
+            "WHERE ST_Disjoint(_ref.geom, t.geometry))"
+        )
+        assert "NOT EXISTS" not in sql
+        assert params == []
+
+    def test_disjoint_ref_invalid_identifier(self):
+        """disjoint with an invalid ref table raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_disjoint_sql("t", ref=("bad-name", "g"))
+
+    def test_disjoint_invalid_table(self):
+        """An invalid table name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_disjoint_sql("bad-name", point=(1, 2))
+
+    def test_disjoint_invalid_schema(self):
+        """An invalid schema name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_disjoint_sql("parcels", schema="bad-schema", point=(1, 2))
+
+    def test_disjoint_invalid_geom(self):
+        """An invalid geom column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_disjoint_sql("parcels", geom="bad-geom", point=(1, 2))
+
+    def test_disjoint_invalid_column(self):
+        """An invalid column name raises InvalidIdentifierError."""
+        with pytest.raises(InvalidIdentifierError):
+            build_disjoint_sql("parcels", point=(1, 2), columns=["bad-col"])
+
+    def test_disjoint_columns_where(self):
+        """disjoint supports columns= and filter= together."""
+        sql, _ = build_disjoint_sql(
+            "parcels", point=(1, 2), columns=["id"], filter="status = 'active'"
+        )
+        assert sql.startswith("SELECT id FROM public.parcels AS t")
+        assert sql.endswith("AND (status = 'active')")
+
+    def test_disjoint_order_by_and_limit(self):
+        """disjoint supports order_by= and limit=."""
+        sql, _ = build_disjoint_sql("parcels", point=(1, 2), order_by="id DESC", limit=10)
         assert sql.endswith("ORDER BY id DESC LIMIT 10")
 
     # -- within (two-table join form) ----------------------------------
@@ -2197,6 +2343,55 @@ class TestIntegration:
         finally:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
+    def test_disjoint_ref_existence_quantifier_footgun(self, sdb):
+        """disjoint(ref=...) proves the EXISTS-quantifier footgun live (D-07).
+
+        A row that INTERSECTS one reference zone is still returned by
+        disjoint(ref=...), because a SECOND, unrelated reference zone is
+        disjoint from it — "EXISTS a ref row disjoint from t" is true
+        near-always for a sparse reference table, NOT "disjoint from
+        ALL reference rows".
+        """
+        t = _uniq("spat_disjoint_pts")
+        zones = _uniq("spat_disjoint_zones")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Point, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POINT(0.5 0.5)', 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'CREATE TABLE "{zones}" (id INT PRIMARY KEY, '
+                "geom geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{zones}" VALUES '
+                # zone A: intersects the point at (0.5, 0.5)
+                "(1, ST_GeomFromText('POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))', 4326)), "
+                # zone B: far away, disjoint from the point
+                "(2, ST_GeomFromText('POLYGON((50 50, 51 50, 51 51, 50 51, 50 50))', 4326))",
+                autocommit=True,
+            )
+            # Sanity: the point genuinely intersects zone A (not disjoint from it).
+            intersects_zone_a = sdb.spatial.intersects(
+                t, ref=(zones, "geom"), columns=["id"]
+            )
+            assert [r["id"] for r in intersects_zone_a] == [1]
+
+            # The footgun: disjoint(ref=...) STILL returns row 1, because
+            # zone B (id=2) is disjoint from it — EXISTS, not ALL.
+            disjoint_rows = sdb.spatial.disjoint(t, ref=(zones, "geom"), columns=["id"])
+            assert [r["id"] for r in disjoint_rows] == [1]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+            sdb.execute(f'DROP TABLE IF EXISTS "{zones}" CASCADE', autocommit=True)
+
 
 class _SyncSchemaStub:
     """Minimal schema stub so SpatialAccessor.__init__ passes without a real DB."""
@@ -2256,6 +2451,8 @@ _HELPER_CALLS = [
     ("intersects", {"wkt": "POINT(0 0)"}),
     ("overlaps", {"point": (1, 2)}),
     ("touches", {"point": (1, 2)}),
+    ("crosses", {"point": (1, 2)}),
+    ("disjoint", {"point": (1, 2)}),
     ("dwithin", {"point": (1, 2), "distance": 10}),
     ("distance", {"point": (1, 2)}),
     ("nearest", {"point": (1, 2), "k": 2}),
@@ -2288,6 +2485,8 @@ _GDF_CALLS = [
     ("intersects", {"wkt": "POINT(0 0)"}, "geometry"),
     ("overlaps", {"point": (1, 2)}, "geometry"),
     ("touches", {"point": (1, 2)}, "geometry"),
+    ("crosses", {"point": (1, 2)}, "geometry"),
+    ("disjoint", {"point": (1, 2)}, "geometry"),
     ("dwithin", {"point": (1, 2), "distance": 10}, "geometry"),
     ("nearest", {"point": (1, 2)}, "geometry"),
     ("buffer", {"distance": 5}, "buffer"),
