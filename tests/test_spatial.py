@@ -19,6 +19,7 @@ from pycopg.spatial import (
     build_difference_sql,
     build_distance_sql,
     build_dwithin_sql,
+    build_envelope_sql,
     build_extent_sql,
     build_geojson_sql,
     build_intersection_sql,
@@ -30,6 +31,7 @@ from pycopg.spatial import (
     build_mvt_sql,
     build_nearest_sql,
     build_perimeter_sql,
+    build_point_on_surface_sql,
     build_simplify_sql,
     build_text_sql,
     build_transform_sql,
@@ -887,6 +889,91 @@ class TestBuilders:
         with pytest.raises(InvalidIdentifierError):
             build_convex_hull_sql("parcels", columns=["bad-col"])
 
+    # -- envelope ---------------------------------------------------------
+
+    def test_envelope_emits_st_envelope(self):
+        """envelope emits ST_Envelope with envelope alias and empty params."""
+        sql, params = build_envelope_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_Envelope(t.geometry) AS envelope FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_envelope_tail_clauses(self):
+        """envelope supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_envelope_sql(
+            "parcels",
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=3,
+        )
+        assert sql.startswith("SELECT id, ST_Envelope(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 3")
+
+    def test_envelope_invalid_table(self):
+        """envelope validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_envelope_sql("bad-name")
+
+    def test_envelope_invalid_schema(self):
+        """envelope validates the schema identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_envelope_sql("parcels", schema="bad-schema; DROP TABLE")
+
+    def test_envelope_invalid_geom(self):
+        """envelope validates the geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_envelope_sql("parcels", geom="bad-geom; DROP TABLE")
+
+    def test_envelope_invalid_columns(self):
+        """envelope validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_envelope_sql("parcels", columns=["bad-col"])
+
+    # -- point_on_surface -------------------------------------------------
+
+    def test_point_on_surface_emits_st_point_on_surface(self):
+        """point_on_surface emits ST_PointOnSurface with point_on_surface alias and empty params."""
+        sql, params = build_point_on_surface_sql("parcels")
+        assert sql == (
+            "SELECT *, ST_PointOnSurface(t.geometry) AS point_on_surface "
+            "FROM public.parcels AS t"
+        )
+        assert params == []
+
+    def test_point_on_surface_tail_clauses(self):
+        """point_on_surface supports columns=/filter=/order_by=/limit=."""
+        sql, _ = build_point_on_surface_sql(
+            "parcels",
+            columns=["id"],
+            filter="id < 9",
+            order_by="id",
+            limit=3,
+        )
+        assert sql.startswith("SELECT id, ST_PointOnSurface(")
+        assert sql.endswith("WHERE id < 9 ORDER BY id LIMIT 3")
+
+    def test_point_on_surface_invalid_table(self):
+        """point_on_surface validates the table identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_point_on_surface_sql("bad-name")
+
+    def test_point_on_surface_invalid_schema(self):
+        """point_on_surface validates the schema identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_point_on_surface_sql("parcels", schema="bad-schema; DROP TABLE")
+
+    def test_point_on_surface_invalid_geom(self):
+        """point_on_surface validates the geom identifier."""
+        with pytest.raises(InvalidIdentifierError):
+            build_point_on_surface_sql("parcels", geom="bad-geom; DROP TABLE")
+
+    def test_point_on_surface_invalid_columns(self):
+        """point_on_surface validates columns= identifiers."""
+        with pytest.raises(InvalidIdentifierError):
+            build_point_on_surface_sql("parcels", columns=["bad-col"])
+
     # -- make_valid -----------------------------------------------------
 
     def test_make_valid_no_method(self):
@@ -1252,6 +1339,79 @@ class TestIntegration:
             assert len(rows) == 1
             assert isinstance(rows[0]["is_valid_reason"], str)
             assert rows[0]["is_valid_reason"] != ""
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_envelope_into_gdf_returns_bbox_geometry(self, sdb):
+        """envelope with into='gdf' returns a GeoDataFrame of bounding-box polygons (D-11)."""
+        import geopandas as gpd
+        from shapely.geometry import box
+
+        t = _uniq("spat_envelope")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(LineString, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('LINESTRING(0 0, 1 1)', 4326))",
+                autocommit=True,
+            )
+            gdf = sdb.spatial.envelope(t, columns=["id"], into="gdf")
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert gdf.geometry.name == "envelope"
+            assert gdf.iloc[0]["envelope"].equals(box(0, 0, 1, 1))
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_point_on_surface_returns_geometry_not_scalar(self, sdb):
+        """point_on_surface returns a GEOMETRY point column — NOT centroid's scalar x/y (D-05)."""
+        t = _uniq("spat_pos")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))', 4326))",
+                autocommit=True,
+            )
+            rows = sdb.spatial.point_on_surface(t, columns=["id"])
+            assert "point_on_surface" in rows[0]
+            geom = rows[0]["point_on_surface"]
+            assert isinstance(geom, (bytes, str))  # WKB/WKT geometry, not a float pair
+
+            # Contrast with centroid's scalar x/y shape (D-05)
+            centroid_rows = sdb.spatial.centroid(t, columns=["id"])
+            assert "centroid_x" in centroid_rows[0] and "centroid_y" in centroid_rows[0]
+            assert "point_on_surface" not in centroid_rows[0]
+        finally:
+            sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    def test_point_on_surface_into_gdf_guaranteed_inside(self, sdb):
+        """point_on_surface with into='gdf' returns a Point geometry inside the polygon."""
+        import geopandas as gpd
+
+        t = _uniq("spat_pos_gdf")
+        try:
+            sdb.execute(
+                f'CREATE TABLE "{t}" (id INT PRIMARY KEY, '
+                "geometry geometry(Polygon, 4326))",
+                autocommit=True,
+            )
+            sdb.execute(
+                f'INSERT INTO "{t}" VALUES '
+                "(1, ST_GeomFromText('POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))', 4326))",
+                autocommit=True,
+            )
+            gdf = sdb.spatial.point_on_surface(t, columns=["id"], into="gdf")
+            assert isinstance(gdf, gpd.GeoDataFrame)
+            assert gdf.geometry.name == "point_on_surface"
+            assert gdf.iloc[0]["point_on_surface"].geom_type == "Point"
         finally:
             sdb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
@@ -1966,6 +2126,8 @@ _HELPER_CALLS = [
     ("intersection", {"other_geom": "geometry2"}),
     ("simplify", {"tolerance": 0.01}),
     ("convex_hull", {}),
+    ("envelope", {}),
+    ("point_on_surface", {}),
     ("make_valid", {}),
     ("collect_geometries", {}),
     ("union_aggregate", {}),
@@ -1987,6 +2149,8 @@ _GDF_CALLS = [
     ("intersection", {"other_geom": "geometry2"}, "intersection"),
     ("simplify", {"tolerance": 0.01}, "simplified"),
     ("convex_hull", {}, "convex_hull"),
+    ("envelope", {}, "envelope"),
+    ("point_on_surface", {}, "point_on_surface"),
     ("make_valid", {}, "made_valid"),
     ("collect_geometries", {}, "collected"),
     ("union_aggregate", {}, "dissolved"),
