@@ -325,6 +325,54 @@ def test_spatial_serialization_surface():
         ), f"{cls.__name__} is missing Phase 44 method(s): {sorted(missing)}"
 
 
+def test_spatial_finish_surface():
+    """Assert both spatial accessors expose the 9 Phase 52 (Spatial Finish) methods.
+
+    A named frozenset of the v1.2.0 spatial-finish surface — the Phase 52
+    additions (``length``, ``envelope``, ``point_on_surface``, ``is_valid``,
+    ``is_valid_reason``, ``overlaps``, ``touches``, ``crosses``, ``disjoint``)
+    — must be a subset of the public members of BOTH :class:`SpatialAccessor`
+    and :class:`AsyncSpatialAccessor`, so a silently dropped or renamed method
+    fails loudly. This is the SPAT2-13 precedent applied to Phase 52: together
+    with the generic parity + KIND-parity tests, the full P52 spatial surface
+    is asserted at name-level AND kind-level parity.
+
+    ``gridSize=`` (the 6th Phase 52 helper family, added to the existing
+    ``union``/``difference``/``intersection`` methods) is not a new method
+    name, so it is not part of this frozenset — it is covered by
+    :func:`test_accessor_parameter_kind_parity` instead.
+
+    This complements the bidirectional set-diff in :func:`test_accessor_parity`
+    (which only checks sync/async symmetry, not that the methods exist at all)
+    and the per-parameter kind check in
+    :func:`test_accessor_parameter_kind_parity`.
+
+    ``ACCESSOR_PAIRS`` is not touched.
+    """
+    v52_surface = frozenset(
+        {
+            "length",
+            "envelope",
+            "point_on_surface",
+            "is_valid",
+            "is_valid_reason",
+            "overlaps",
+            "touches",
+            "crosses",
+            "disjoint",
+        }
+    )
+
+    for cls in (SpatialAccessor, AsyncSpatialAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v52_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 52 method(s): {sorted(missing)}"
+
+
 class TestAsyncParity:
     """Test that AsyncDatabase maintains parity with Database API."""
 
