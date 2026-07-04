@@ -528,6 +528,183 @@ def build_touches_sql(
     return sql, params
 
 
+def build_crosses_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    point: tuple[float, float] | None = None,
+    wkt: str | None = None,
+    geojson: dict[str, Any] | None = None,
+    ref: tuple[str, str] | None = None,
+    srid: int = 4326,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows whose geometry crosses the input geometry.
+
+    Generates ``ST_Crosses(t.{geom}, <geom_in>)`` (DE-9IM predicate,
+    SPAT-F06/D-06). The ``ref=`` form uses an EXISTS subquery (D-08).
+    Mechanically mirrors :func:`build_intersects_sql` — only the ST_*
+    function name differs.
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry" (D-06).
+    schema : str, optional
+        Schema name, by default "public".
+    point : tuple of float, optional
+        ``(x, y)`` input geometry (one of the four D-05 forms).
+    wkt : str, optional
+        WKT input geometry.
+    geojson : dict, optional
+        GeoJSON input geometry.
+    ref : tuple of str, optional
+        ``(ref_table, ref_col)`` input geometry (EXISTS semantics).
+    srid : int, optional
+        SRID of the input geometry, by default 4326 (D-07).
+    columns : list of str, optional
+        Columns to select, by default all (D-03).
+    filter : str, optional
+        Additional raw SQL filter combined as ``AND (...)`` (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list.
+
+    Raises
+    ------
+    ValueError
+        If the geometry input forms are not mutually exclusive.
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    fragment, frag_params = _resolve_geometry(
+        point=point, wkt=wkt, geojson=geojson, ref=ref, srid=srid
+    )
+    params: list[Any] = []
+    if fragment == _REF_SENTINEL:
+        ref_table, ref_col = frag_params
+        cond = (
+            f"EXISTS (SELECT 1 FROM {ref_table} AS _ref "
+            f"WHERE ST_Crosses(_ref.{ref_col}, t.{geom}))"
+        )
+    else:
+        cond = f"ST_Crosses(t.{geom}, {fragment})"
+        params.extend(frag_params)
+    sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t WHERE {cond}"
+    sql = _append_tail(sql, filter, order_by, limit, has_where=True)
+    return sql, params
+
+
+def build_disjoint_sql(
+    table: str,
+    geom: str = "geometry",
+    schema: str = "public",
+    *,
+    point: tuple[float, float] | None = None,
+    wkt: str | None = None,
+    geojson: dict[str, Any] | None = None,
+    ref: tuple[str, str] | None = None,
+    srid: int = 4326,
+    columns: list[str] | None = None,
+    filter: str | None = None,
+    order_by: str | None = None,
+    limit: int | None = None,
+) -> tuple[str, list[Any]]:
+    """Build SQL selecting rows whose geometry is disjoint from the input.
+
+    Generates ``ST_Disjoint(t.{geom}, <geom_in>)`` (DE-9IM predicate,
+    SPAT-F06/D-07). The ``ref=`` form uses the SAME uniform EXISTS
+    subquery pattern as every other predicate in this family — it is
+    NOT special-cased into a ``NOT EXISTS`` set-complement form (D-07).
+    Mechanically mirrors :func:`build_intersects_sql` — only the ST_*
+    function name differs.
+
+    Warnings
+    --------
+    The ``ref=`` form means "EXISTS a ref row disjoint from t" (true as
+    soon as ANY row in the reference table is disjoint from the current
+    row — near-always true for a sparse reference table), NOT "disjoint
+    from ALL reference rows" (D-07). ``ST_Disjoint`` also does not use
+    spatial indexes [postgis.net/docs/ST_Disjoint.html]; a negated
+    ``NOT ST_Intersects`` predicate (via ``filter=``) is the indexable,
+    performant alternative for large tables (D-08).
+
+    Parameters
+    ----------
+    table : str
+        Table to query (aliased ``t``).
+    geom : str, optional
+        Geometry column name, by default "geometry" (D-06).
+    schema : str, optional
+        Schema name, by default "public".
+    point : tuple of float, optional
+        ``(x, y)`` input geometry (one of the four D-05 forms).
+    wkt : str, optional
+        WKT input geometry.
+    geojson : dict, optional
+        GeoJSON input geometry.
+    ref : tuple of str, optional
+        ``(ref_table, ref_col)`` input geometry (EXISTS semantics —
+        see the ``ref=`` footgun warning above, D-07).
+    srid : int, optional
+        SRID of the input geometry, by default 4326 (D-07).
+    columns : list of str, optional
+        Columns to select, by default all (D-03).
+    filter : str, optional
+        Additional raw SQL filter combined as ``AND (...)`` (D-11).
+    order_by : str, optional
+        ORDER BY clause body (D-12).
+    limit : int, optional
+        LIMIT value (D-12).
+
+    Returns
+    -------
+    tuple of (str, list)
+        SQL string and parameter list.
+
+    Raises
+    ------
+    ValueError
+        If the geometry input forms are not mutually exclusive.
+    InvalidIdentifierError
+        If any identifier is invalid.
+    """
+    validate_identifiers(table, schema, geom)
+    if columns:
+        validate_identifiers(*columns)
+    fragment, frag_params = _resolve_geometry(
+        point=point, wkt=wkt, geojson=geojson, ref=ref, srid=srid
+    )
+    params: list[Any] = []
+    if fragment == _REF_SENTINEL:
+        ref_table, ref_col = frag_params
+        cond = (
+            f"EXISTS (SELECT 1 FROM {ref_table} AS _ref "
+            f"WHERE ST_Disjoint(_ref.{ref_col}, t.{geom}))"
+        )
+    else:
+        cond = f"ST_Disjoint(t.{geom}, {fragment})"
+        params.extend(frag_params)
+    sql = f"SELECT {_cols_str(columns)} FROM {schema}.{table} AS t WHERE {cond}"
+    sql = _append_tail(sql, filter, order_by, limit, has_where=True)
+    return sql, params
+
+
 def build_within_sql(
     left_table: str,
     left_geom: str,
