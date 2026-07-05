@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
-status: executing
+status: completed
 stopped_at: Completed 54-01-PLAN.md
-last_updated: "2026-07-05T18:29:00.031Z"
+last_updated: "2026-07-05T18:51:21.610Z"
 last_activity: 2026-07-05 -- Completed 54-01-PLAN.md (DOC-14, TOOL-01)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 12
-  completed_plans: 10
-  percent: 83
+  completed_plans: 11
+  percent: 67
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 ## Current Position
 
 Phase: 54 (Release v1.2.0) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: 54-01 complete (DOC-14, TOOL-01); 54-02 next
 Last activity: 2026-07-05 -- Completed 54-01-PLAN.md (DOC-14, TOOL-01)
 
@@ -104,6 +104,7 @@ Last activity: 2026-07-05 -- Completed 54-01-PLAN.md (DOC-14, TOOL-01)
 | Phase 53 P02 | 20min | 2 tasks | 7 files |
 | Phase 53 P03 | ~20min | 3 tasks | 9 files |
 | Phase 54 P01 | 16min | 2 tasks | 5 files |
+| Phase 54 P02 | ~35min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 53-03: column_exists mirrors table_exists mechanically (D-08) -- 3 values bound %s against information_schema.columns, no validate_identifiers call needed
 - [Phase ?]: Phase 53-03: table_size is guarded (table_exists check + TableNotFoundError on missing, D-09), returns raw pg_total_relation_size bytes, reuses existing queries.TABLE_SIZE (no duplicate constant). Phase 53 (CRUD-F04..F06 + INTRO-F03/F04) now fully complete.
 - [Phase ?]: 54-01: DOC-14 verified already-committed from prior session; TOOL-01 wired vulture into make deadcode + CI, whitelisted 2 Hashable false positives (cast() string annotation load-bearing for mypy --strict)
+- [Phase 54]: REL-13: version bumped to 1.2.0 in 3 sources (pyproject.toml, docs/conf.py, uv.lock); CHANGELOG [1.2.0] added code-exact against source signatures (zero drift confirmed by front-loaded code-review); all 5 release gates green
 
 ### Pending Todos
 
@@ -226,7 +228,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-05T18:27:53.638Z
+Last session: 2026-07-05T18:50:10.215Z
 Stopped at: Completed 54-01-PLAN.md
 Resume file: None
 Next action: Execute 54-02-PLAN.md (CHANGELOG [1.2.0] entry), then 54-03 (version bump, tag, release).

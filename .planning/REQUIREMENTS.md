@@ -36,7 +36,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (traceab
 
 ### Release
 
-- [ ] **REL-13**: pycopg 1.2.0 is published to PyPI — version bumped across `pyproject.toml` / `docs/conf.py` / `uv.lock`, a code-exact `[1.2.0]` Added CHANGELOG entry, all 5 release gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), annotated tag + human-gated OIDC publish + clean-venv smoke.
+- [x] **REL-13**: pycopg 1.2.0 is published to PyPI — version bumped across `pyproject.toml` / `docs/conf.py` / `uv.lock`, a code-exact `[1.2.0]` Added CHANGELOG entry, all 5 release gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), annotated tag + human-gated OIDC publish + clean-venv smoke.
 
 ## Future Requirements
 
@@ -81,7 +81,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | INTRO-F04 | Phase 53 | Complete |
 | DOC-14 | Phase 54 | Complete |
 | TOOL-01 | Phase 54 | Complete |
-| REL-13 | Phase 54 | Pending |
+| REL-13 | Phase 54 | Complete |
 
 **Coverage:**
 

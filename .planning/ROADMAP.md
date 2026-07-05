@@ -123,7 +123,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 — release commit must include the hygiene fixes)*
 
-- [ ] 54-02-PLAN.md — REL-13 prep: version bump (pyproject/conf.py/uv.lock) + code-exact `[1.2.0]` CHANGELOG + 5 gates green + front-loaded code-review
+- [x] 54-02-PLAN.md — REL-13 prep: version bump (pyproject/conf.py/uv.lock) + code-exact `[1.2.0]` CHANGELOG + 5 gates green + front-loaded code-review
 
 **Wave 3** *(blocked on Wave 2 — tags the release commit)*
 
@@ -138,7 +138,7 @@ Phases execute in numeric order: 52 → 53 → 54
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 3/3 | Complete    | 2026-07-05 |
-| 54. Release v1.2.0 | v1.2.0 | 1/3 | In Progress|  |
+| 54. Release v1.2.0 | v1.2.0 | 2/3 | In Progress|  |
 
 <details>
 <summary>✅ v1.1.0 Follow-ups additifs (Phases 48-51) — SHIPPED 2026-07-04</summary>
