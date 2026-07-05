@@ -117,3 +117,15 @@ None. The working tree was confirmed clean at the start of this plan (a prior mi
 *Phase: 53-crud-symmetry-introspection-follow-ups*
 *Plan: 02*
 *Completed: 2026-07-05*
+
+## Self-Check: PASSED
+
+- FOUND: pycopg/database.py
+- FOUND: pycopg/async_database.py
+- FOUND: tests/test_database.py
+- FOUND: tests/test_async_database.py
+- FOUND: tests/test_sql_injection.py
+- FOUND: tests/test_database_integration.py
+- FOUND: tests/test_parity.py
+- FOUND commit: b374e6a (Task 1: insert single-row + unit + injection tests)
+- FOUND commit: d08047b (Task 2: live-DB insert integration tests + v1.2.0 surface test)
