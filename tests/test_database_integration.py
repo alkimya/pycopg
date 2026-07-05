@@ -2072,6 +2072,141 @@ class TestSelectWhereGetIntegration:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
 
+class TestInsertSingleRowIntegration:
+    """CRUD-F06: live-DB proof of single-row insert (RETURNING * dict +
+    on_conflict='DO NOTHING' -> None), on both Database and AsyncDatabase.
+    """
+
+    def _make_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" '
+            "(id INTEGER PRIMARY KEY, name TEXT, active BOOLEAN)"
+        )
+
+    def test_insert_returns_row_dict(self, db, temp_table_name, cleanup_table):
+        """insert(row) returns the inserted row as a dict (RETURNING *)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        row = db.insert(
+            temp_table_name, {"id": 1, "name": "Alice", "active": True}
+        )
+
+        assert row == {"id": 1, "name": "Alice", "active": True}
+
+    def test_insert_on_conflict_do_nothing_conflicting_row_returns_none(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """insert(row, on_conflict='DO NOTHING') on a conflicting row returns
+        None, does not raise (D-07)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert(temp_table_name, {"id": 1, "name": "Alice", "active": True})
+
+        row = db.insert(
+            temp_table_name,
+            {"id": 1, "name": "Alice2", "active": False},
+            on_conflict="DO NOTHING",
+        )
+
+        assert row is None
+        # The pre-existing row is untouched.
+        assert db.get(temp_table_name, {"id": 1}) == {
+            "id": 1,
+            "name": "Alice",
+            "active": True,
+        }
+
+    def test_insert_on_conflict_do_nothing_non_conflicting_row_returns_dict(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """insert(row, on_conflict='DO NOTHING') on a non-conflicting row
+        still returns the inserted row dict."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert(temp_table_name, {"id": 1, "name": "Alice", "active": True})
+
+        row = db.insert(
+            temp_table_name,
+            {"id": 2, "name": "Bob", "active": False},
+            on_conflict="DO NOTHING",
+        )
+
+        assert row == {"id": 2, "name": "Bob", "active": False}
+
+    async def test_insert_returns_row_dict_async(self, db_config):
+        """Async mirror: insert(row) returns the inserted row as a dict."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_insert_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" '
+                "(id INTEGER PRIMARY KEY, name TEXT, active BOOLEAN)",
+                autocommit=True,
+            )
+
+            row = await adb.insert(t, {"id": 1, "name": "Alice", "active": True})
+
+            assert row == {"id": 1, "name": "Alice", "active": True}
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_insert_on_conflict_do_nothing_conflicting_row_returns_none_async(
+        self, db_config
+    ):
+        """Async mirror: insert(row, on_conflict='DO NOTHING') on a
+        conflicting row returns None, does not raise (D-07)."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_insert_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" '
+                "(id INTEGER PRIMARY KEY, name TEXT, active BOOLEAN)",
+                autocommit=True,
+            )
+            await adb.insert(t, {"id": 1, "name": "Alice", "active": True})
+
+            row = await adb.insert(
+                t,
+                {"id": 1, "name": "Alice2", "active": False},
+                on_conflict="DO NOTHING",
+            )
+
+            assert row is None
+            assert await adb.get(t, {"id": 1}) == {
+                "id": 1,
+                "name": "Alice",
+                "active": True,
+            }
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_insert_on_conflict_do_nothing_non_conflicting_row_returns_dict_async(
+        self, db_config
+    ):
+        """Async mirror: insert(row, on_conflict='DO NOTHING') on a
+        non-conflicting row still returns the inserted row dict."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_insert_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" '
+                "(id INTEGER PRIMARY KEY, name TEXT, active BOOLEAN)",
+                autocommit=True,
+            )
+            await adb.insert(t, {"id": 1, "name": "Alice", "active": True})
+
+            row = await adb.insert(
+                t,
+                {"id": 2, "name": "Bob", "active": False},
+                on_conflict="DO NOTHING",
+            )
+
+            assert row == {"id": 2, "name": "Bob", "active": False}
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+
 class TestPaginationV110Integration:
     """CRUD-F02/F03: live-DB proof of keyset/offset pagination + Page envelope,
     on both Database and AsyncDatabase.

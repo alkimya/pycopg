@@ -155,6 +155,39 @@ def test_crud_v110_surface():
         ), f"{cls.__name__} is missing Phase 50-02 method(s): {sorted(missing)}"
 
 
+def test_crud_v120_surface():
+    """Assert both Database/AsyncDatabase expose the Phase 53 flat-core additions.
+
+    A named frozenset of the Phase 53 (CRUD-F04/F05/F06) method names —
+    ``select_where``, ``find``, ``get``, ``find_one``, ``insert`` — must be
+    a subset of the public members of BOTH :class:`Database` and
+    :class:`AsyncDatabase`, so a silently dropped or renamed method fails
+    loudly. These methods live on the flat core (not an accessor), so this
+    checks the classes directly rather than an ``ACCESSOR_PAIRS`` entry.
+
+    Per-method signature parity is covered by
+    :func:`test_accessor_parameter_kind_parity`.
+    """
+    v120_crud_surface = frozenset(
+        {
+            "select_where",
+            "find",
+            "get",
+            "find_one",
+            "insert",
+        }
+    )
+
+    for cls in (Database, AsyncDatabase):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v120_crud_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 53 method(s): {sorted(missing)}"
+
+
 def test_schema_v090_surface():
     """Assert both schema accessors expose the 5 new v0.9.0 introspection methods.
 
