@@ -22,7 +22,7 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (traceab
 
 - [x] **CRUD-F04**: User can read rows by predicate via `select_where` / `find` returning `list[dict]` — accepting both a dict-equality WHERE and a raw-SQL `where_sql` / `where_params` escape hatch through the shared `QueryMixin._resolve_predicate` guard (the missing read sibling of `delete_where` / `update_where` / `exists` / `count`).
 - [x] **CRUD-F05**: User can read a single matching row via `get` / `find_one` returning `dict | None` (same predicate surface as CRUD-F04).
-- [ ] **CRUD-F06**: User can insert a single row via `insert` with `RETURNING *` — the singular twin of the existing `insert_many` / `upsert`.
+- [x] **CRUD-F06**: User can insert a single row via `insert` with `RETURNING *` — the singular twin of the existing `insert_many` / `upsert`.
 
 ### Introspection (`db.schema.*`)
 
@@ -76,7 +76,7 @@ Which phases cover which requirements. Populated during roadmap creation.
 | SPAT-F06 | Phase 52 | Complete (overlaps/touches Plan 52-04; crosses/disjoint Plan 52-05) |
 | CRUD-F04 | Phase 53 | Complete |
 | CRUD-F05 | Phase 53 | Complete |
-| CRUD-F06 | Phase 53 | Pending |
+| CRUD-F06 | Phase 53 | Complete |
 | INTRO-F03 | Phase 53 | Pending |
 | INTRO-F04 | Phase 53 | Pending |
 | DOC-14 | Phase 54 | Pending |

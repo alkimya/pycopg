@@ -97,7 +97,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 — shares database.py/async_database.py + test files)*
 
-- [ ] 53-02-PLAN.md — CRUD-F06 single-row `insert` (RETURNING *, `on_conflict=` passthrough, dict|None) + `test_crud_v120_surface`
+- [x] 53-02-PLAN.md — CRUD-F06 single-row `insert` (RETURNING *, `on_conflict=` passthrough, dict|None) + `test_crud_v120_surface`
 
 **Wave 3** *(blocked on Wave 2 — shares test files)*
 
@@ -124,7 +124,7 @@ Phases execute in numeric order: 52 → 53 → 54
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
-| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 1/3 | In Progress|  |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 2/3 | In Progress|  |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
 <details>
