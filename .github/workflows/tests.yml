@@ -74,3 +74,6 @@ jobs:
 
       - name: mypy type check
         run: uv run mypy pycopg/
+
+      - name: Dead-code scan (vulture)
+        run: uv run vulture pycopg/ vulture_whitelist.py --min-confidence 80

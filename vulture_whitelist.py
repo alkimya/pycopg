@@ -59,3 +59,14 @@ exc_tb
 # parameter must exist to preserve the API contract.
 #   pycopg/config.py:20  load_dotenv fallback stub
 override
+
+# ── collections.abc.Hashable used only in cast() string annotation ────────────
+# `Hashable` is imported in database.py and async_database.py solely to satisfy
+# the string-literal forward reference inside `cast("dict[Hashable, Any] | None",
+# dtype)`. vulture's ast.parse scan cannot see identifiers referenced only inside
+# a string-literal type annotation, so it reports the import as unused at 90%
+# confidence. The import cannot be removed: mypy --strict resolves the string
+# annotation lazily and would fail with an undefined-name error without it.
+#   pycopg/database.py:11 (cast at database.py:2299)
+#   pycopg/async_database.py:11 (cast at async_database.py:1941)
+Hashable
