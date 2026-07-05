@@ -351,6 +351,26 @@ class SchemaAccessor:
         result = self._db.execute(queries.TABLE_EXISTS, [schema, name])
         return len(result) > 0
 
+    def column_exists(self, table: str, column: str, *, schema: str = "public") -> bool:
+        """Check if a column exists on a table.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        column : str
+            Column name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        bool
+            True if the column exists on the table.
+        """
+        result = self._db.execute(queries.COLUMN_EXISTS, [schema, table, column])
+        return len(result) > 0
+
     def list_columns(self, table: str, *, schema: str = "public") -> list[str]:
         """Get list of column names for a table.
 
@@ -477,6 +497,42 @@ class SchemaAccessor:
         """
         result = self._db.execute(queries.ROW_COUNT, [schema, name])
         return result[0]["count"] if result else 0
+
+    def table_size(self, name: str, *, schema: str = "public") -> int:
+        """Get the total on-disk size of a table, in bytes.
+
+        Uses ``pg_total_relation_size``, which includes the table's indexes
+        and TOAST data in addition to the base heap size. Returns the raw
+        byte count with no pretty formatting.
+
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        int
+            Total table size in bytes (heap + indexes + TOAST).
+
+        Raises
+        ------
+        TableNotFoundError
+            If the table does not exist in the given schema.
+
+        See Also
+        --------
+        db.maint.table_size : human-readable/pretty size alternative
+            (``pretty=True`` by default), a different accessor with
+            different semantics and no existence guard.
+        """
+        validate_identifiers(name, schema)
+        if not self.table_exists(name, schema=schema):
+            raise TableNotFoundError(f"Table '{schema}.{name}' does not exist.")
+        result = self._db.execute(queries.TABLE_SIZE, [f"{schema}.{name}"])
+        return int(result[0]["size"])
 
     # =========================================================================
     # CONSTRAINTS & INDEXES
@@ -1252,6 +1308,28 @@ class AsyncSchemaAccessor:
         result = await self._db.execute(queries.TABLE_EXISTS, [schema, name])
         return len(result) > 0
 
+    async def column_exists(
+        self, table: str, column: str, *, schema: str = "public"
+    ) -> bool:
+        """Check if a column exists on a table.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        column : str
+            Column name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        bool
+            True if the column exists on the table.
+        """
+        result = await self._db.execute(queries.COLUMN_EXISTS, [schema, table, column])
+        return len(result) > 0
+
     async def list_columns(self, table: str, *, schema: str = "public") -> list[str]:
         """Get list of column names for a table.
 
@@ -1329,6 +1407,42 @@ class AsyncSchemaAccessor:
         """
         result = await self._db.execute(queries.ROW_COUNT, [schema, name])
         return result[0]["count"] if result else 0
+
+    async def table_size(self, name: str, *, schema: str = "public") -> int:
+        """Get the total on-disk size of a table, in bytes.
+
+        Uses ``pg_total_relation_size``, which includes the table's indexes
+        and TOAST data in addition to the base heap size. Returns the raw
+        byte count with no pretty formatting.
+
+        Parameters
+        ----------
+        name : str
+            Table name.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        int
+            Total table size in bytes (heap + indexes + TOAST).
+
+        Raises
+        ------
+        TableNotFoundError
+            If the table does not exist in the given schema.
+
+        See Also
+        --------
+        db.maint.table_size : human-readable/pretty size alternative
+            (``pretty=True`` by default), a different accessor with
+            different semantics and no existence guard.
+        """
+        validate_identifiers(name, schema)
+        if not await self.table_exists(name, schema=schema):
+            raise TableNotFoundError(f"Table '{schema}.{name}' does not exist.")
+        result = await self._db.execute(queries.TABLE_SIZE, [f"{schema}.{name}"])
+        return int(result[0]["size"])
 
     async def drop_table(
         self,

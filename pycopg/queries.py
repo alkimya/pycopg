@@ -60,6 +60,11 @@ GET_COLUMNS = """
     ORDER BY ordinal_position
 """
 
+COLUMN_EXISTS = """
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = %s AND table_name = %s AND column_name = %s
+"""
+
 ROW_COUNT = """
     SELECT reltuples::bigint AS count
     FROM pg_class c

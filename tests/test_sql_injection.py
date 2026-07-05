@@ -401,6 +401,116 @@ class TestInsertIdentifierInjection:
             await async_db.insert("t", {evil: 1})
 
 
+class TestColumnExistsValueInjection:
+    """INTRO-F03 (T-53-01/T-53-02): column_exists binds table/schema/column
+    as ``%s`` values against ``information_schema.columns`` — never
+    interpolated as SQL identifiers (D-08). Unlike table_size (below), there
+    is intentionally no ``validate_identifiers`` guard on this call shape
+    (it mirrors table_exists, which is safe purely by parameterization).
+    These tests prove an EVIL_IDENTIFIERS payload passed as any of the three
+    positional binds is safely parameterized and never reaches the SQL text.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_column_exists_table_bound_sync(self, config, evil):
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("exists",)]
+            mock_cursor.fetchall.return_value = []
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.schema.column_exists(evil, "col")
+
+            assert result is False
+            sql, params = mock_cursor.execute.call_args[0]
+            assert params == ["public", evil, "col"]
+            assert evil not in sql
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_column_exists_schema_bound_sync(self, config, evil):
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("exists",)]
+            mock_cursor.fetchall.return_value = []
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.schema.column_exists("t", "col", schema=evil)
+
+            assert result is False
+            sql, params = mock_cursor.execute.call_args[0]
+            assert params == [evil, "t", "col"]
+            assert evil not in sql
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_column_exists_column_bound_sync(self, config, evil):
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("exists",)]
+            mock_cursor.fetchall.return_value = []
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.schema.column_exists("t", evil)
+
+            assert result is False
+            sql, params = mock_cursor.execute.call_args[0]
+            assert params == ["public", "t", evil]
+            assert evil not in sql
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_column_exists_bound_async(self, async_db, evil):
+        result = await async_db.schema.column_exists(evil, evil, schema=evil)
+
+        assert result is False
+        sql, params = async_db.execute.call_args[0]
+        assert params == [evil, evil, evil]
+        assert evil not in sql
+
+
+class TestTableSizeIdentifierInjection:
+    """INTRO-F04 (T-53-01): table_size validates name/schema via
+    validate_identifiers before any SQL executes (mirrors truncate_table's
+    existence guard, D-09).
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_table_size_name_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.schema.table_size(evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_table_size_schema_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.schema.table_size("t", schema=evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_table_size_name_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.schema.table_size(evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_table_size_schema_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.schema.table_size("t", schema=evil)
+
+
 class TestWhereSqlValueInjection:
     """CRUD-F01 (T-50-02): where_sql fragment passthrough + where_params
     binding. The raw ``where_sql`` fragment is a documented escape hatch

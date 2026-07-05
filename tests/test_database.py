@@ -7,7 +7,7 @@ import pytest
 
 from pycopg import Config, Database, queries
 from pycopg.base import QueryMixin
-from pycopg.exceptions import InvalidIdentifierError
+from pycopg.exceptions import InvalidIdentifierError, TableNotFoundError
 from pycopg.utils import validate_identifier
 
 
@@ -346,6 +346,75 @@ class TestDatabaseTables:
         exists = db.schema.table_exists("users")
 
         assert exists is True
+
+    @patch("pycopg.database.psycopg")
+    def test_column_exists_true(self, mock_psycopg, config):
+        """Test column_exists returns True when the column exists."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("exists",)]
+        mock_cursor.fetchall.return_value = [{"exists": 1}]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        exists = db.schema.column_exists("users", "id")
+
+        assert exists is True
+
+    @patch("pycopg.database.psycopg")
+    def test_column_exists_false(self, mock_psycopg, config):
+        """Test column_exists returns False when the column does not exist."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("exists",)]
+        mock_cursor.fetchall.return_value = []
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        exists = db.schema.column_exists("users", "nonexistent")
+
+        assert exists is False
+
+    @patch("pycopg.database.psycopg")
+    def test_table_size(self, mock_psycopg, config):
+        """Test table_size returns raw byte count for an existing table."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("exists",)]
+        # First call (table_exists guard) returns a row; second call (TABLE_SIZE) returns size.
+        mock_cursor.fetchall.side_effect = [[{"exists": 1}], [{"size": 8192}]]
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        size = db.schema.table_size("users")
+
+        assert size == 8192
+        assert isinstance(size, int)
+
+    @patch("pycopg.database.psycopg")
+    def test_table_size_missing_raises_table_not_found(self, mock_psycopg, config):
+        """Test table_size raises TableNotFoundError for a nonexistent table (D-09)."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = [("exists",)]
+        mock_cursor.fetchall.return_value = []
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+
+        db = Database(config)
+        with pytest.raises(TableNotFoundError):
+            db.schema.table_size("missing_table")
 
 
 class TestDatabaseRoles:

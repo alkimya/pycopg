@@ -1137,6 +1137,67 @@ class TestAsyncDatabaseTables:
 
             assert exists is True
 
+    async def test_column_exists_true(self, config):
+        """Test column_exists returns True when the column exists."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("exists",)], fetchall_result=[{"exists": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            exists = await db.schema.column_exists("users", "id")
+
+            assert exists is True
+
+    async def test_column_exists_false(self, config):
+        """Test column_exists returns False when the column does not exist."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("exists",)], fetchall_result=[]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            exists = await db.schema.column_exists("users", "nonexistent")
+
+            assert exists is False
+
+    async def test_table_size(self, config):
+        """Test table_size returns raw byte count for an existing table."""
+        cursor_mock = create_async_cursor_mock(description=[("exists",)])
+        cursor_mock.fetchall = AsyncMock(
+            side_effect=[[{"exists": 1}], [{"size": 8192}]]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            size = await db.schema.table_size("users")
+
+            assert size == 8192
+            assert isinstance(size, int)
+
+    async def test_table_size_missing_raises_table_not_found(self, config):
+        """Test table_size raises TableNotFoundError for a nonexistent table (D-09)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("exists",)], fetchall_result=[]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            with pytest.raises(TableNotFoundError):
+                await db.schema.table_size("missing_table")
+
 
 @pytest.mark.asyncio
 class TestAsyncDatabaseBatch:
