@@ -88,7 +88,20 @@ Plans:
   4. User can check a column's existence via `db.schema.column_exists`, completing the `table_exists`/`schema_exists`/`database_exists` family
   5. User can get a table's on-disk size via `db.schema.table_size` (`pg_total_relation_size`), complementing `row_count`
 
-**Plans**: TBD
+**Plans**: 3 plans (sequential-on-main, one wave each)
+Plans:
+
+**Wave 1**
+
+- [ ] 53-01-PLAN.md — CRUD-F04/F05 predicate reads: `select_where`/`find` (list[dict]) + `get`/`find_one` (dict|None) on both flat-core classes
+
+**Wave 2** *(blocked on Wave 1 — shares database.py/async_database.py + test files)*
+
+- [ ] 53-02-PLAN.md — CRUD-F06 single-row `insert` (RETURNING *, `on_conflict=` passthrough, dict|None) + `test_crud_v120_surface`
+
+**Wave 3** *(blocked on Wave 2 — shares test files)*
+
+- [ ] 53-03-PLAN.md — INTRO-F03/F04 `db.schema.column_exists`/`table_size` (+ `COLUMN_EXISTS` constant) + docs surfaces + full phase-gate closure
 
 ### Phase 54: Release v1.2.0
 
@@ -111,7 +124,7 @@ Phases execute in numeric order: 52 → 53 → 54
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
-| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 0/3 | Planned | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
 <details>
@@ -300,5 +313,5 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 50. CRUD + Introspection Follow-ups | v1.1.0 | 4/4 | Complete | 2026-07-04 |
 | 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete | 2026-07-04 |
 | 52. Spatial Finish | v1.2.0 | 0/6 | Planned | - |
-| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | TBD | Not started | - |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 0/3 | Planned | - |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
