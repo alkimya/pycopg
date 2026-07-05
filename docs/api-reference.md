@@ -328,7 +328,7 @@ deduplicated.
 ### Spatial Helpers (db.spatial.*)
 
 Accessed via `db.spatial.<method>(...)`. The accessor is initialized lazily on first
-access and raises `ExtensionNotAvailable` if PostGIS is not installed. All helpers accept
+access and raises `ExtensionNotAvailableError` if PostGIS is not installed. All helpers accept
 one of four geometry input forms: `point=(x, y)`, `wkt="..."`, `geojson={...}`,
 `ref=(table, col)`. The `into=` parameter controls output: `"rows"` returns
 `list[dict]` (default); `"gdf"` returns a `GeoDataFrame`. Scalar helpers (`area`,

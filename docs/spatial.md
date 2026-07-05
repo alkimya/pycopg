@@ -27,7 +27,7 @@ rows = await async_db.spatial.contains("parcels", geom="geometry", point=(-122.4
 ```
 
 The accessor verifies that PostGIS is installed on first access. If the extension is
-absent, `ExtensionNotAvailable` is raised before any query runs.
+absent, `ExtensionNotAvailableError` is raised before any query runs.
 
 ## Output: the `into=` Parameter
 
