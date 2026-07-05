@@ -556,6 +556,24 @@ class TestAsyncSelectWhereFind:
             assert sql == "SELECT * FROM public.t WHERE active = %s ORDER BY id LIMIT 1"
             assert params == [True]
 
+    async def test_select_where_negative_limit_raises(self, config):
+        """A negative limit raises ValueError before any DB round-trip (WR-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="limit must not be negative"):
+            await db.select_where("t", limit=-1)
+
+    async def test_select_where_negative_offset_raises(self, config):
+        """A negative offset raises ValueError before any DB round-trip (WR-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="offset must not be negative"):
+            await db.select_where("t", offset=-1)
+
+    async def test_find_negative_limit_raises(self, config):
+        """find(...) inherits the negative-limit guard via select_where (WR-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="limit must not be negative"):
+            await db.find("t", limit=-1)
+
 
 @pytest.mark.asyncio
 class TestAsyncGetFindOne:

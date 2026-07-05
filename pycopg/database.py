@@ -1375,11 +1375,20 @@ class Database(DatabaseBase, QueryMixin):
         ------
         ValueError
             If both ``where`` and ``where_sql`` are supplied (D-02); if
-            ``where_params`` is supplied without ``where_sql`` (D-04); or if
-            ``where_sql`` is empty/whitespace-only (D-03).
+            ``where_params`` is supplied without ``where_sql`` (D-04); if
+            ``where_sql`` is empty/whitespace-only (D-03); or if ``limit``
+            or ``offset`` is negative (WR-02).
         InvalidIdentifierError
             If any column name or the table/schema identifier is invalid.
         """
+        if limit is not None:
+            limit = int(limit)
+            if limit < 0:
+                raise ValueError("limit must not be negative")
+        if offset is not None:
+            offset = int(offset)
+            if offset < 0:
+                raise ValueError("offset must not be negative")
         frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
         sql = self._build_select_sql(
             table,

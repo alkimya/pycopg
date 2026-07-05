@@ -841,6 +841,24 @@ class TestSelectWhereFind:
         assert sql == "SELECT * FROM public.t WHERE active = %s ORDER BY id LIMIT 1"
         assert params == [True]
 
+    def test_select_where_negative_limit_raises(self, config):
+        """A negative limit raises ValueError before any DB round-trip (WR-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="limit must not be negative"):
+            db.select_where("t", limit=-1)
+
+    def test_select_where_negative_offset_raises(self, config):
+        """A negative offset raises ValueError before any DB round-trip (WR-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="offset must not be negative"):
+            db.select_where("t", offset=-1)
+
+    def test_find_negative_limit_raises(self, config):
+        """find(...) inherits the negative-limit guard via select_where (WR-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="limit must not be negative"):
+            db.find("t", limit=-1)
+
 
 class TestGetFindOne:
     """CRUD-F05: get / find_one (dict | None single-row reads, D-04/D-05)."""
