@@ -1801,6 +1801,277 @@ class TestWhereSqlEscapeHatchIntegration:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
 
+class TestSelectWhereGetIntegration:
+    """CRUD-F04/F05: live-DB proof of select_where/find (list[dict]) and
+    get/find_one (dict | None) predicate reads, on both Database and
+    AsyncDatabase.
+    """
+
+    def _make_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY, name TEXT, active BOOLEAN)'
+        )
+
+    def test_select_where_dict_filters(self, db, temp_table_name, cleanup_table):
+        """select_where(where=dict) filters correctly and returns list[dict]."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": False},
+                {"id": 3, "name": "Carol", "active": True},
+            ],
+        )
+
+        rows = db.select_where(temp_table_name, {"active": True})
+
+        assert isinstance(rows, list)
+        assert {r["id"] for r in rows} == {1, 3}
+
+    def test_select_where_no_predicate_returns_all_rows(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """select_where with no predicate returns ALL seeded rows (D-03)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": False},
+                {"id": 3, "name": "Carol", "active": True},
+            ],
+        )
+
+        rows = db.select_where(temp_table_name)
+
+        assert {r["id"] for r in rows} == {1, 2, 3}
+
+    def test_select_where_order_by_limit_offset(self, db, temp_table_name, cleanup_table):
+        """select_where honors order_by/limit/offset (D-01)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": True},
+                {"id": 3, "name": "Carol", "active": True},
+            ],
+        )
+
+        page = db.select_where(
+            temp_table_name, order_by="id DESC", limit=2, offset=1
+        )
+
+        assert [r["id"] for r in page] == [2, 1]
+
+    def test_select_where_via_where_sql(self, db, temp_table_name, cleanup_table):
+        """select_where(where_sql=..., where_params=...) binds values server-side."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": False},
+            ],
+        )
+
+        rows = db.select_where(
+            temp_table_name, where_sql="name = %s", where_params=["Alice"]
+        )
+
+        assert [r["id"] for r in rows] == [1]
+
+    def test_get_returns_single_dict(self, db, temp_table_name, cleanup_table):
+        """get returns a single dict for a unique-matching predicate."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name, [{"id": 1, "name": "Alice", "active": True}]
+        )
+
+        row = db.get(temp_table_name, {"id": 1})
+
+        assert row == {"id": 1, "name": "Alice", "active": True}
+
+    def test_get_no_match_returns_none(self, db, temp_table_name, cleanup_table):
+        """get returns None when no row matches."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        assert db.get(temp_table_name, {"id": 999}) is None
+
+    def test_get_multi_match_returns_one_no_exception(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """get on a >1-match predicate returns exactly one row, no exception (D-04);
+        with order_by the returned row is deterministically the first."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Alice", "active": True},
+                {"id": 3, "name": "Alice", "active": True},
+            ],
+        )
+
+        row = db.get(temp_table_name, {"name": "Alice"}, order_by="id ASC")
+
+        assert row is not None
+        assert row["id"] == 1
+
+    def test_find_matches_select_where(self, db, temp_table_name, cleanup_table):
+        """find(...) returns the exact same result as select_where(...) (D-02 twin)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name,
+            [
+                {"id": 1, "name": "Alice", "active": True},
+                {"id": 2, "name": "Bob", "active": False},
+            ],
+        )
+
+        assert db.find(temp_table_name, {"active": True}) == db.select_where(
+            temp_table_name, {"active": True}
+        )
+
+    def test_find_one_matches_get(self, db, temp_table_name, cleanup_table):
+        """find_one(...) returns the exact same result as get(...) (D-02 twin)."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+        db.insert_many(
+            temp_table_name, [{"id": 1, "name": "Alice", "active": True}]
+        )
+
+        assert db.find_one(temp_table_name, {"id": 1}) == db.get(
+            temp_table_name, {"id": 1}
+        )
+
+    async def test_select_where_dict_filters_async(self, db_config):
+        """Async mirror: select_where(where=dict) filters correctly."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_swget_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, active BOOLEAN)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t,
+                [
+                    {"id": 1, "active": True},
+                    {"id": 2, "active": False},
+                    {"id": 3, "active": True},
+                ],
+            )
+
+            rows = await adb.select_where(t, {"active": True})
+
+            assert {r["id"] for r in rows} == {1, 3}
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_select_where_no_predicate_returns_all_rows_async(self, db_config):
+        """Async mirror: select_where with no predicate returns ALL rows (D-03)."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_swget_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY)', autocommit=True
+            )
+            await adb.insert_many(t, [{"id": 1}, {"id": 2}, {"id": 3}])
+
+            rows = await adb.select_where(t)
+
+            assert {r["id"] for r in rows} == {1, 2, 3}
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_get_returns_single_dict_async(self, db_config):
+        """Async mirror: get returns a single dict for a unique-matching predicate."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_swget_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await adb.insert_many(t, [{"id": 1, "name": "Alice"}])
+
+            row = await adb.get(t, {"id": 1})
+
+            assert row == {"id": 1, "name": "Alice"}
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_get_multi_match_returns_one_no_exception_async(self, db_config):
+        """Async mirror: get on a >1-match predicate returns exactly one row, no
+        exception (D-04), deterministic first match with order_by."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_swget_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t,
+                [
+                    {"id": 1, "name": "Alice"},
+                    {"id": 2, "name": "Alice"},
+                    {"id": 3, "name": "Alice"},
+                ],
+            )
+
+            row = await adb.get(t, {"name": "Alice"}, order_by="id ASC")
+
+            assert row is not None
+            assert row["id"] == 1
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_find_matches_select_where_async(self, db_config):
+        """Async mirror: find(...) == select_where(...) (D-02 twin)."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_swget_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, active BOOLEAN)',
+                autocommit=True,
+            )
+            await adb.insert_many(
+                t, [{"id": 1, "active": True}, {"id": 2, "active": False}]
+            )
+
+            assert await adb.find(t, {"active": True}) == await adb.select_where(
+                t, {"active": True}
+            )
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_find_one_matches_get_async(self, db_config):
+        """Async mirror: find_one(...) == get(...) (D-02 twin)."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_swget_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await adb.insert_many(t, [{"id": 1, "name": "Alice"}])
+
+            assert await adb.find_one(t, {"id": 1}) == await adb.get(t, {"id": 1})
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+
 class TestPaginationV110Integration:
     """CRUD-F02/F03: live-DB proof of keyset/offset pagination + Page envelope,
     on both Database and AsyncDatabase.
