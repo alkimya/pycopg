@@ -2250,6 +2250,51 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             await cur.execute(sql, params)
             return await cur.fetchone()
 
+    async def insert(
+        self,
+        table: str,
+        row: dict[str, Any],
+        *,
+        schema: str = "public",
+        on_conflict: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Insert a single row and return the inserted row.
+
+        The singular twin of :meth:`insert_many` / :meth:`upsert` — for
+        inserting exactly one row without forcing a 1-element list through
+        :meth:`insert_many`. Unlike :meth:`upsert`, ``on_conflict`` is a raw
+        passthrough string (mirroring :meth:`insert_many`'s shape, D-06),
+        not computed from a conflict/update column list.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        row : dict
+            Row data as column-name to value mapping.
+        schema : str, optional
+            Schema name, by default "public".
+        on_conflict : str, optional
+            ON CONFLICT clause (e.g., "DO NOTHING", "DO UPDATE SET ..."),
+            threaded verbatim into the INSERT statement.
+
+        Returns
+        -------
+        dict or None
+            The inserted row as a dict (via ``RETURNING *``). Under
+            ``on_conflict="DO NOTHING"``, if a pre-existing row conflicts, no
+            row is returned by ``RETURNING *`` and this method returns
+            ``None`` (D-07).
+        """
+        columns = list(row.keys())
+        sql, _ = self._build_insert_sql(table, columns, schema, on_conflict)
+        sql += " RETURNING *"
+        params = [row[c] for c in columns]
+
+        async with self.cursor() as cur:
+            await cur.execute(sql, params)
+            return await cur.fetchone()
+
     async def delete_where(
         self,
         table: str,

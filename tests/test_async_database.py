@@ -655,6 +655,67 @@ class TestAsyncGetFindOne:
             assert params == [5]
 
 
+class TestAsyncInsertSingleRow:
+    """CRUD-F06: async mirror insert (single row RETURNING *, D-06/D-07)."""
+
+    async def test_insert_returns_row(self, config):
+        """insert(table, row) executes INSERT ... RETURNING * and returns the row."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"a": 1, "b": 2})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.insert("t", {"a": 1, "b": 2})
+
+            assert result == {"a": 1, "b": 2}
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "INSERT INTO public.t (a, b) VALUES (%s, %s) RETURNING *"
+            assert params == [1, 2]
+
+    async def test_insert_threads_on_conflict(self, config):
+        """insert(..., on_conflict='DO NOTHING') is threaded verbatim (D-06)."""
+        cursor_mock = create_async_cursor_mock(fetchone_result=None)
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.insert("t", {"a": 1}, on_conflict="DO NOTHING")
+
+            assert result is None
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "INSERT INTO public.t (a) VALUES (%s) ON CONFLICT DO NOTHING RETURNING *"
+            )
+            assert params == [1]
+
+    async def test_insert_no_conflict_columns_computed(self, config):
+        """insert's SQL never contains a conflict/update-column computation (D-06)."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"a": 1})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            await db.insert("t", {"a": 1}, schema="custom")
+
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "INSERT INTO custom.t (a) VALUES (%s) RETURNING *"
+            assert params == [1]
+
+    def test_insert_source_has_no_conflict_column_computation(self):
+        """insert's source uses _build_insert_sql + RETURNING *, no conflict_columns/update_columns (D-06)."""
+        source = inspect.getsource(AsyncDatabase.insert)
+        assert "_build_insert_sql" in source
+        assert "RETURNING *" in source
+        assert "conflict_columns" not in source
+        assert "update_columns" not in source
+
+
 @pytest.mark.asyncio
 class TestAsyncPaginatePage:
     """CRUD-F03 (D-09/D-10): async mirror mock SQL-shape tests for

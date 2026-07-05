@@ -862,6 +862,69 @@ class TestGetFindOne:
         assert params == [5]
 
 
+class TestInsertSingleRow:
+    """CRUD-F06: insert (single row RETURNING *, D-06/D-07)."""
+
+    def _cursor_db(self, mock_psycopg, config, *, fetchone=None):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = fetchone
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+        return Database(config), mock_cursor
+
+    @patch("pycopg.database.psycopg")
+    def test_insert_returns_row(self, mock_psycopg, config):
+        """insert(table, row) executes INSERT ... RETURNING * and returns the row."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, fetchone={"a": 1, "b": 2}
+        )
+
+        result = db.insert("t", {"a": 1, "b": 2})
+
+        assert result == {"a": 1, "b": 2}
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "INSERT INTO public.t (a, b) VALUES (%s, %s) RETURNING *"
+        assert params == [1, 2]
+
+    @patch("pycopg.database.psycopg")
+    def test_insert_threads_on_conflict(self, mock_psycopg, config):
+        """insert(..., on_conflict='DO NOTHING') is threaded verbatim (D-06)."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config, fetchone=None)
+
+        result = db.insert("t", {"a": 1}, on_conflict="DO NOTHING")
+
+        assert result is None
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "INSERT INTO public.t (a) VALUES (%s) ON CONFLICT DO NOTHING RETURNING *"
+        )
+        assert params == [1]
+
+    @patch("pycopg.database.psycopg")
+    def test_insert_no_conflict_columns_computed(self, mock_psycopg, config):
+        """insert's SQL never contains a conflict/update-column computation (D-06)."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config, fetchone={"a": 1})
+
+        db.insert("t", {"a": 1}, schema="custom")
+
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "INSERT INTO custom.t (a) VALUES (%s) RETURNING *"
+        assert params == [1]
+
+    def test_insert_source_has_no_conflict_column_computation(self):
+        """insert's source uses _build_insert_sql + RETURNING *, no conflict_columns/update_columns (D-06)."""
+        import inspect
+
+        source = inspect.getsource(Database.insert)
+        assert "_build_insert_sql" in source
+        assert "RETURNING *" in source
+        assert "conflict_columns" not in source
+        assert "update_columns" not in source
+
+
 class TestPageDataclass:
     """CRUD-F03 (D-08): Page frozen dataclass fields + export precedent."""
 

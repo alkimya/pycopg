@@ -361,6 +361,46 @@ class TestGetFindOneIdentifierInjection:
             await async_db.find_one(evil, {"a": 1})
 
 
+class TestInsertIdentifierInjection:
+    """CRUD-F06 (T-53-01): single-row insert must reject malicious
+    table/schema/row-key identifiers via validate_identifiers, which runs
+    inside _build_insert_sql before any SQL executes.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_insert_table_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.insert(evil, {"a": 1})
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_insert_schema_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.insert("t", {"a": 1}, schema=evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_insert_row_key_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.insert("t", {evil: 1})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_insert_table_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.insert(evil, {"a": 1})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_insert_schema_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.insert("t", {"a": 1}, schema=evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_insert_row_key_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.insert("t", {evil: 1})
+
+
 class TestWhereSqlValueInjection:
     """CRUD-F01 (T-50-02): where_sql fragment passthrough + where_params
     binding. The raw ``where_sql`` fragment is a documented escape hatch
