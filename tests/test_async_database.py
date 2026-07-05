@@ -441,6 +441,123 @@ class TestAsyncWhereSqlGuards:
 
 
 @pytest.mark.asyncio
+class TestAsyncSelectWhereFind:
+    """CRUD-F04: async mirror select_where / find (D-01..D-03)."""
+
+    async def test_select_where_dict_filters(self, config):
+        """select_where(where=dict) builds a WHERE clause from the dict."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.select_where("t", {"active": True})
+
+            assert result == [{"id": 1}]
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t WHERE active = %s"
+            assert params == [True]
+
+    async def test_select_where_no_predicate_reads_all(self, config):
+        """select_where with no predicate emits no WHERE clause (D-03)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}, {"id": 2}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.select_where("t")
+
+            assert result == [{"id": 1}, {"id": 2}]
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t"
+            assert params == []
+
+    async def test_select_where_columns_order_by_limit_offset(self, config):
+        """select_where honors columns=/order_by=/limit=/offset= (D-01)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.select_where(
+                "t",
+                {"active": True},
+                columns=["id", "name"],
+                order_by="id DESC",
+                limit=5,
+                offset=2,
+            )
+
+            assert result == [{"id": 1}]
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == (
+                "SELECT id, name FROM public.t WHERE active = %s"
+                " ORDER BY id DESC LIMIT 5 OFFSET 2"
+            )
+            assert params == [True]
+
+    async def test_select_where_where_sql_escape_hatch(self, config):
+        """select_where(where_sql=...) binds where_params verbatim (D-01)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.select_where("t", where_sql="age > %s", where_params=[18])
+
+            assert result == [{"id": 1}]
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t WHERE age > %s"
+            assert params == [18]
+
+    async def test_select_where_mutual_exclusion_raises(self, config):
+        """select_where(where=..., where_sql=...) raises ValueError (D-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="not both"):
+            await db.select_where("t", {"a": 1}, where_sql="a > %s", where_params=[1])
+
+    async def test_select_where_params_without_where_sql_raises(self, config):
+        """select_where(where_params=...) without where_sql raises ValueError (D-04)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="where_params requires where_sql"):
+            await db.select_where("t", where_params=[1])
+
+    async def test_find_delegates_to_select_where(self, config):
+        """find(...) returns the exact same result as select_where(...) (D-02 twin)."""
+        cursor_mock = create_async_cursor_mock(
+            description=[("id",)], fetchall_result=[{"id": 1}]
+        )
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.find("t", {"active": True}, order_by="id", limit=1)
+
+            assert result == [{"id": 1}]
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t WHERE active = %s ORDER BY id LIMIT 1"
+            assert params == [True]
+
+
+@pytest.mark.asyncio
 class TestAsyncPaginatePage:
     """CRUD-F03 (D-09/D-10): async mirror mock SQL-shape tests for
     paginate_page / Page envelope."""

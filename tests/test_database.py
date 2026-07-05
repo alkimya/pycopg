@@ -670,6 +670,109 @@ class TestWhereSqlGuards:
             db.exists("t")
 
 
+class TestSelectWhereFind:
+    """CRUD-F04: select_where / find (list[dict] predicate reads, D-01..D-03)."""
+
+    def _cursor_db(self, mock_psycopg, config, *, description=None, fetchall=None):
+        return TestWhereSqlShape()._cursor_db(
+            mock_psycopg, config, description=description, fetchall=fetchall
+        )
+
+    @patch("pycopg.database.psycopg")
+    def test_select_where_dict_filters(self, mock_psycopg, config):
+        """select_where(where=dict) builds a WHERE clause from the dict."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        result = db.select_where("t", {"active": True})
+
+        assert result == [{"id": 1}]
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE active = %s"
+        assert params == [True]
+
+    @patch("pycopg.database.psycopg")
+    def test_select_where_no_predicate_reads_all(self, mock_psycopg, config):
+        """select_where with no predicate emits no WHERE clause (D-03)."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}, {"id": 2}]
+        )
+
+        result = db.select_where("t")
+
+        assert result == [{"id": 1}, {"id": 2}]
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t"
+        assert params == []
+
+    @patch("pycopg.database.psycopg")
+    def test_select_where_columns_order_by_limit_offset(self, mock_psycopg, config):
+        """select_where honors columns=/order_by=/limit=/offset= (D-01)."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        result = db.select_where(
+            "t",
+            {"active": True},
+            columns=["id", "name"],
+            order_by="id DESC",
+            limit=5,
+            offset=2,
+        )
+
+        assert result == [{"id": 1}]
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == (
+            "SELECT id, name FROM public.t WHERE active = %s"
+            " ORDER BY id DESC LIMIT 5 OFFSET 2"
+        )
+        assert params == [True]
+
+    @patch("pycopg.database.psycopg")
+    def test_select_where_where_sql_escape_hatch(self, mock_psycopg, config):
+        """select_where(where_sql=...) binds where_params verbatim (D-01)."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        result = db.select_where("t", where_sql="age > %s", where_params=[18])
+
+        assert result == [{"id": 1}]
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE age > %s"
+        assert params == [18]
+
+    @patch("pycopg.database.psycopg")
+    def test_select_where_mutual_exclusion_raises(self, mock_psycopg, config):
+        """select_where(where=..., where_sql=...) raises ValueError (D-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="not both"):
+            db.select_where("t", {"a": 1}, where_sql="a > %s", where_params=[1])
+
+    @patch("pycopg.database.psycopg")
+    def test_select_where_params_without_where_sql_raises(self, mock_psycopg, config):
+        """select_where(where_params=...) without where_sql raises ValueError (D-04)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="where_params requires where_sql"):
+            db.select_where("t", where_params=[1])
+
+    @patch("pycopg.database.psycopg")
+    def test_find_delegates_to_select_where(self, mock_psycopg, config):
+        """find(...) returns the exact same result as select_where(...) (D-02 twin)."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, description=[("id",)], fetchall=[{"id": 1}]
+        )
+
+        result = db.find("t", {"active": True}, order_by="id", limit=1)
+
+        assert result == [{"id": 1}]
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE active = %s ORDER BY id LIMIT 1"
+        assert params == [True]
+
+
 class TestPageDataclass:
     """CRUD-F03 (D-08): Page frozen dataclass fields + export precedent."""
 

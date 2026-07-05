@@ -259,6 +259,57 @@ class TestAsyncValueInjection:
             await async_db.upsert_many("t", rows, conflict_columns=["id; DROP TABLE x"])
 
 
+class TestSelectWhereFindIdentifierInjection:
+    """CRUD-F04 (T-53-01): select_where/find must reject malicious
+    table/schema/columns identifiers via validate_identifiers, which runs
+    inside _build_select_sql before any SQL executes.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_select_where_table_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.select_where(evil, {"a": 1})
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_select_where_schema_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.select_where("t", {"a": 1}, schema=evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_select_where_columns_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.select_where("t", {"a": 1}, columns=[evil])
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_find_table_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.find(evil, {"a": 1})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_select_where_table_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.select_where(evil, {"a": 1})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_select_where_schema_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.select_where("t", {"a": 1}, schema=evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_select_where_columns_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.select_where("t", {"a": 1}, columns=[evil])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_find_table_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.find(evil, {"a": 1})
+
+
 class TestWhereSqlValueInjection:
     """CRUD-F01 (T-50-02): where_sql fragment passthrough + where_params
     binding. The raw ``where_sql`` fragment is a documented escape hatch
@@ -308,6 +359,84 @@ class TestWhereSqlValueInjection:
         assert sql == "SELECT COUNT(*) FROM public.t WHERE name = %s"
         assert params == [evil]
         assert evil not in sql
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_select_where_where_sql_params_bound_sync(self, config, evil):
+        """Sync: select_where(where_sql=...) binds an evil payload as %s."""
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("id",)]
+            mock_cursor.fetchall.return_value = []
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.select_where("t", where_sql="name = %s", where_params=[evil])
+
+            assert result == []
+            sql, params = mock_cursor.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t WHERE name = %s"
+            assert params == [evil]
+            assert evil not in sql
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_select_where_where_sql_params_bound_async(self, config, evil):
+        """Async mirror: select_where(where_sql=...) binds an evil payload as %s."""
+        db = AsyncDatabase(config)
+        db.fetch_all = AsyncMock(return_value=[])
+
+        result = await db.select_where("t", where_sql="name = %s", where_params=[evil])
+
+        assert result == []
+        sql, params = db.fetch_all.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE name = %s"
+        assert params == [evil]
+        assert evil not in sql
+
+
+class TestOrderByEscapeHatch:
+    """CRUD-F04 (T-53-03): order_by is a documented, intentional escape
+    hatch on select_where/find — it is appended verbatim and is NOT run
+    through validate_identifiers. This is not a validation bypass: it proves
+    typical multi-column ORDER BY syntax (which validate_identifiers would
+    reject as a bare identifier) passes through by design.
+    """
+
+    def test_select_where_multi_column_order_by_not_rejected_sync(self, config):
+        """A multi-column order_by string is accepted, not rejected, on select_where."""
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("id",)]
+            mock_cursor.fetchall.return_value = []
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            # Not raising InvalidIdentifierError proves the escape hatch.
+            result = db.select_where("t", order_by="a DESC, b ASC")
+
+            assert result == []
+            sql, _ = mock_cursor.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t ORDER BY a DESC, b ASC"
+
+    @pytest.mark.asyncio
+    async def test_select_where_multi_column_order_by_not_rejected_async(self, config):
+        """Async mirror: a multi-column order_by string is accepted on select_where."""
+        db = AsyncDatabase(config)
+        db.fetch_all = AsyncMock(return_value=[])
+
+        result = await db.select_where("t", order_by="a DESC, b ASC")
+
+        assert result == []
+        sql, _ = db.fetch_all.call_args[0]
+        assert sql == "SELECT * FROM public.t ORDER BY a DESC, b ASC"
 
 
 class TestKeysetInjection:

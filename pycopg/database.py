@@ -1258,6 +1258,145 @@ class Database(DatabaseBase, QueryMixin):
             sql = f"SELECT COUNT(*) FROM {schema}.{table}"
         return int(self.fetch_val(sql, pred_params))
 
+    def select_where(
+        self,
+        table: str,
+        where: dict[str, Any] | None = None,
+        *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        schema: str = "public",
+    ) -> list[dict[str, Any]]:
+        """Select rows matching the given equality conditions.
+
+        The predicate read sibling of :meth:`delete_where` / :meth:`update_where`
+        / :meth:`exists` / :meth:`count`. Unlike those, an empty predicate is
+        legal here: with no ``where``/``where_sql``, all rows are returned
+        (still honoring ``order_by``/``limit``/``offset``) — reads are
+        non-destructive, so there is no empty-predicate guard (D-03).
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. When neither
+            ``where`` nor ``where_sql`` is given, all rows are returned
+            without a WHERE clause (D-03). Mutually exclusive with
+            ``where_sql`` (D-02).
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express (e.g.
+            ``"age > %s AND status = ANY(%s)"``). This is a documented escape
+            hatch: the fragment is passed through **verbatim** and is **not**
+            run through identifier validation — the caller owns the SQL text.
+            Only ``where_params`` are treated as untrusted values and bound
+            as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
+        columns : list of str, optional
+            Column names to project, by default None (``SELECT *``).
+        order_by : str, optional
+            ``ORDER BY`` clause. Like ``where_sql``, this is a documented,
+            caller-owned raw-SQL escape hatch — it is appended verbatim and
+            is **not** run through identifier validation, so multi-column
+            syntax such as ``"col1 DESC, col2 ASC"`` is accepted by design.
+        limit : int, optional
+            Maximum number of rows to return.
+        offset : int, optional
+            Number of rows to skip.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            Matching rows (or all rows if no predicate), as dicts.
+
+        Raises
+        ------
+        ValueError
+            If both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
+        InvalidIdentifierError
+            If any column name or the table/schema identifier is invalid.
+        """
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        sql = self._build_select_sql(
+            table,
+            columns,
+            schema,
+            where=frag or None,
+            order_by=order_by,
+            limit=limit,
+            offset=offset,
+        )
+        return self.fetch_all(sql, pred_params)
+
+    def find(
+        self,
+        table: str,
+        where: dict[str, Any] | None = None,
+        *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        schema: str = "public",
+    ) -> list[dict[str, Any]]:
+        """Select rows matching the given equality conditions (alias of :meth:`select_where`).
+
+        A real, concrete, delegating twin of :meth:`select_where` (D-02) —
+        not a deprecated alias and not a module-level alias — provided as a
+        shorter, familiar name for the same read. See :meth:`select_where`
+        for the full parameter and behavior documentation.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict, optional
+            Equality conditions as column-name to value mapping.
+        where_sql : str, optional
+            Raw SQL WHERE fragment escape hatch (see :meth:`select_where`).
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+        columns : list of str, optional
+            Column names to project, by default None (``SELECT *``).
+        order_by : str, optional
+            ``ORDER BY`` clause (caller-owned raw-SQL escape hatch).
+        limit : int, optional
+            Maximum number of rows to return.
+        offset : int, optional
+            Number of rows to skip.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        list of dict
+            Matching rows (or all rows if no predicate), as dicts.
+        """
+        return self.select_where(
+            table,
+            where,
+            where_sql=where_sql,
+            where_params=where_params,
+            columns=columns,
+            order_by=order_by,
+            limit=limit,
+            offset=offset,
+            schema=schema,
+        )
+
     def stream(
         self,
         sql: str,
