@@ -254,6 +254,37 @@ def test_schema_v110_surface():
         ), f"{cls.__name__} is missing Phase 50-03 method(s): {sorted(missing)}"
 
 
+def test_schema_v120_surface():
+    """Assert both schema accessors expose the Phase 53-03 introspection additions.
+
+    A named frozenset of the Phase 53-03 (INTRO-F03/F04) method names —
+    ``column_exists`` and ``table_size`` — must be a subset of the public
+    members of BOTH :class:`SchemaAccessor` and :class:`AsyncSchemaAccessor`,
+    so a silently dropped or renamed method fails loudly. This complements
+    the bidirectional set-diff in :func:`test_accessor_parity` (which only
+    checks sync/async symmetry, not that the methods exist at all).
+
+    Per-method signature parity is covered by
+    :func:`test_accessor_parameter_kind_parity`. ``ACCESSOR_PAIRS`` is not
+    touched.
+    """
+    v120_surface = frozenset(
+        {
+            "column_exists",
+            "table_size",
+        }
+    )
+
+    for cls in (SchemaAccessor, AsyncSchemaAccessor):
+        public = {
+            name for name, _ in inspect.getmembers(cls) if not name.startswith("_")
+        }
+        missing = v120_surface - public
+        assert (
+            not missing
+        ), f"{cls.__name__} is missing Phase 53-03 method(s): {sorted(missing)}"
+
+
 def test_spatial_v1_processing_surface():
     """Assert both spatial accessors expose the 6 Phase 42 processing methods.
 

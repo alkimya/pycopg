@@ -2207,6 +2207,105 @@ class TestInsertSingleRowIntegration:
             await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
 
 
+class TestColumnExistsTableSizeIntegration:
+    """INTRO-F03/F04: live-DB proof of column_exists (bool) and table_size
+    (guarded int, TableNotFoundError on missing), on both Database and
+    AsyncDatabase.
+    """
+
+    def _make_table(self, db, table):
+        db.execute(
+            f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY, name TEXT)'
+        )
+        db.insert_many(table, [{"id": 1, "name": "Alice"}])
+
+    def test_column_exists_true(self, db, temp_table_name, cleanup_table):
+        """column_exists returns True for a real column."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        assert db.schema.column_exists(temp_table_name, "name") is True
+
+    def test_column_exists_false(self, db, temp_table_name, cleanup_table):
+        """column_exists returns False for a nonexistent column."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        assert db.schema.column_exists(temp_table_name, "nonexistent_col") is False
+
+    def test_table_size_positive_for_populated_table(
+        self, db, temp_table_name, cleanup_table
+    ):
+        """table_size returns a positive int for a populated table."""
+        cleanup_table(temp_table_name)
+        self._make_table(db, temp_table_name)
+
+        size = db.schema.table_size(temp_table_name)
+
+        assert isinstance(size, int)
+        assert size > 0
+
+    def test_table_size_missing_raises_table_not_found(self, db):
+        """table_size raises TableNotFoundError for a nonexistent table (D-09)."""
+        missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
+        with pytest.raises(TableNotFoundError):
+            db.schema.table_size(missing)
+
+    async def test_column_exists_true_async(self, db_config):
+        """Async mirror: column_exists returns True for a real column."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_col_exists_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+
+            assert await adb.schema.column_exists(t, "name") is True
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_column_exists_false_async(self, db_config):
+        """Async mirror: column_exists returns False for a nonexistent column."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_col_exists_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+
+            assert await adb.schema.column_exists(t, "nonexistent_col") is False
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_table_size_positive_for_populated_table_async(self, db_config):
+        """Async mirror: table_size returns a positive int for a populated table."""
+        adb = AsyncDatabase(db_config)
+        t = f"test_table_size_async_{uuid.uuid4().hex[:8]}"
+        try:
+            await adb.execute(
+                f'CREATE TABLE "{t}" (id INTEGER PRIMARY KEY, name TEXT)',
+                autocommit=True,
+            )
+            await adb.insert_many(t, [{"id": 1, "name": "Alice"}])
+
+            size = await adb.schema.table_size(t)
+
+            assert isinstance(size, int)
+            assert size > 0
+        finally:
+            await adb.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE', autocommit=True)
+
+    async def test_table_size_missing_raises_table_not_found_async(self, db_config):
+        """Async mirror: table_size raises TableNotFoundError for a
+        nonexistent table (D-09)."""
+        adb = AsyncDatabase(db_config)
+        missing = f"no_such_table_{uuid.uuid4().hex[:12]}"
+        with pytest.raises(TableNotFoundError):
+            await adb.schema.table_size(missing)
+
+
 class TestPaginationV110Integration:
     """CRUD-F02/F03: live-DB proof of keyset/offset pagination + Page envelope,
     on both Database and AsyncDatabase.
