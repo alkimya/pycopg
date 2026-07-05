@@ -993,6 +993,12 @@ class TestInsertSingleRow:
         assert "conflict_columns" not in source
         assert "update_columns" not in source
 
+    def test_insert_empty_row_raises_before_db_round_trip(self, config):
+        """insert(table, {}) raises ValueError before hitting the DB (WR-01)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="non-empty dict"):
+            db.insert("t", {})
+
 
 class TestPageDataclass:
     """CRUD-F03 (D-08): Page frozen dataclass fields + export precedent."""

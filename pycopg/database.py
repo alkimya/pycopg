@@ -1047,7 +1047,15 @@ class Database(DatabaseBase, QueryMixin):
             ``on_conflict="DO NOTHING"``, if a pre-existing row conflicts, no
             row is returned by ``RETURNING *`` and this method returns
             ``None`` (D-07).
+
+        Raises
+        ------
+        ValueError
+            If ``row`` is empty (WR-01) — an empty dict would otherwise emit
+            invalid SQL (``INSERT INTO t () VALUES ()``).
         """
+        if not row:
+            raise ValueError("insert: 'row' must be a non-empty dict.")
         columns = list(row.keys())
         sql, _ = self._build_insert_sql(table, columns, schema, on_conflict)
         sql += " RETURNING *"

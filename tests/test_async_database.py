@@ -715,6 +715,12 @@ class TestAsyncInsertSingleRow:
         assert "conflict_columns" not in source
         assert "update_columns" not in source
 
+    async def test_insert_empty_row_raises_before_db_round_trip(self, config):
+        """insert(table, {}) raises ValueError before hitting the DB (WR-01)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="non-empty dict"):
+            await db.insert("t", {})
+
 
 @pytest.mark.asyncio
 class TestAsyncPaginatePage:
