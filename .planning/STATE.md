@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
 status: executing
-stopped_at: Phase 53 context gathered
-last_updated: "2026-07-05T06:51:24.592Z"
+stopped_at: Completed 53-01-PLAN.md
+last_updated: "2026-07-05T07:08:38.353Z"
 last_activity: 2026-07-05 -- Phase 53 execution started
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
-  percent: 33
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 ## Current Position
 
 Phase: 53 (crud-symmetry-introspection-follow-ups) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 53
-Last activity: 2026-07-05 -- Phase 53 execution started
+Plan: 2 of 3
+Status: Plan 01 complete (CRUD-F04/F05 shipped); ready to execute Plan 02
+Last activity: 2026-07-05 -- Phase 53 Plan 01 complete (select_where/find + get/find_one)
 
 ## Performance Metrics
 
@@ -100,6 +100,7 @@ Last activity: 2026-07-05 -- Phase 53 execution started
 | Phase 52 P04 | ~20min | 3 tasks | 2 files |
 | Phase 52 P05 | 11min | 3 tasks | 3 files |
 | Phase 52 P06 | ~25min | 3 tasks | 3 files |
+| Phase 53 P01 | ~25min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 52-04: overlaps/touches mirror build_intersects_sql mechanically (D-06 amended); into=rows/gdf overload triplet included, born-clean (no where= shim); not added to _SCALAR_HELPERS (row-filter predicates, gdf uses table's own geom column)
 - [Phase ?]: Phase 52-05: build_crosses_sql/build_disjoint_sql mirror build_intersects_sql/build_overlaps_sql mechanically (D-06); disjoint(ref=) keeps the uniform EXISTS form (D-07, no NOT EXISTS special-case), docstrings carry the ref= footgun + non-indexable postgis.net perf note (D-08); neither added to _SCALAR_HELPERS. SPAT-F06 now fully complete (overlaps/touches Plan 52-04 + crosses/disjoint Plan 52-05).
 - [Phase ?]: Phase 52-06: documented all 6 new spatial helper families (gridSize=, length/is_valid/is_valid_reason, envelope/point_on_surface, overlaps/touches/crosses/disjoint) in docs/spatial.md + docs/api-reference.md; added test_spatial_finish_surface (SPAT2-13 precedent); all 5 phase gates verified green (cov 96.78%, mypy 0/18, interrogate 100%, Sphinx -W clean, uv.lock diff empty). Phase 52 (SPAT-F01..F06) fully complete, ready for /gsd-verify-work. — Docs-only closure plan; no pycopg/spatial.py changes.
+- [Phase ?]: Phase 53-01: select_where/find + get/find_one shipped on Database/AsyncDatabase (CRUD-F04/F05) via _resolve_predicate + _build_select_sql + fetch_all/fetch_one composition; find/find_one are real delegating twins (D-02), empty predicate legal for reads (D-03), get/find_one force server-side LIMIT 1 with no raise on >1 match and no limit=/offset= exposure (D-04/D-05).
 
 ### Pending Todos
 
@@ -217,11 +219,11 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 
 ## Session Continuity
 
-Last session: 2026-07-04T23:34:44.617Z
-Stopped at: Phase 53 context gathered
-Resume file: .planning/phases/53-crud-symmetry-introspection-follow-ups/53-CONTEXT.md
-Next action: Continue Phase 52 — execute Plan 03 (next SPAT-F0x plan in the 6-plan Spatial Finish sequence).
+Last session: 2026-07-05T07:08:38.343Z
+Stopped at: Completed 53-01-PLAN.md
+Resume file: None
+Next action: Continue Phase 53 — execute Plan 02 (single-row insert, CRUD-F06).
 
 ## Operator Next Steps
 
-- Continue executing Phase 52 (Spatial Finish) — Plans 01/02 of 6 complete (SPAT-F01, SPAT-F02+F05); 4 plans remaining (SPAT-F03/F04/F06).
+- Continue executing Phase 53 (CRUD Symmetry + Introspection Follow-ups) — Plan 01/3 complete (CRUD-F04/F05); 2 plans remaining (Plan 02: CRUD-F06 insert; Plan 03: INTRO-F03/F04 column_exists/table_size).

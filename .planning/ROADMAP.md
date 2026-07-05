@@ -93,7 +93,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 53-01-PLAN.md — CRUD-F04/F05 predicate reads: `select_where`/`find` (list[dict]) + `get`/`find_one` (dict|None) on both flat-core classes
+- [x] 53-01-PLAN.md — CRUD-F04/F05 predicate reads: `select_where`/`find` (list[dict]) + `get`/`find_one` (dict|None) on both flat-core classes
 
 **Wave 2** *(blocked on Wave 1 — shares database.py/async_database.py + test files)*
 
@@ -124,7 +124,7 @@ Phases execute in numeric order: 52 → 53 → 54
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
-| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 0/3 | Planned | - |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 1/3 | In Progress|  |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
 <details>
