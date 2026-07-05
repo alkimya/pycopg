@@ -31,8 +31,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (traceab
 
 ### Hygiene & tooling
 
-- [ ] **DOC-14**: Documentation prose references the current `*Error` exception names — the deprecated `ExtensionNotAvailable` residue is removed from `docs/spatial.md` and `docs/api-reference.md` (the intentional deprecated-alias mentions in `docs/stability.md` are left as-is).
-- [ ] **TOOL-01**: The `vulture` dead-code scan runs via a `make deadcode` target and in CI, settling the deferred AUDIT-02 (`vulture_whitelist.py` + dev-dep already exist but only run manually today).
+- [x] **DOC-14**: Documentation prose references the current `*Error` exception names — the deprecated `ExtensionNotAvailable` residue is removed from `docs/spatial.md` and `docs/api-reference.md` (the intentional deprecated-alias mentions in `docs/stability.md` are left as-is).
+- [x] **TOOL-01**: The `vulture` dead-code scan runs via a `make deadcode` target and in CI, settling the deferred AUDIT-02 (`vulture_whitelist.py` + dev-dep already exist but only run manually today).
 
 ### Release
 
@@ -79,8 +79,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CRUD-F06 | Phase 53 | Complete |
 | INTRO-F03 | Phase 53 | Complete |
 | INTRO-F04 | Phase 53 | Complete |
-| DOC-14 | Phase 54 | Pending |
-| TOOL-01 | Phase 54 | Pending |
+| DOC-14 | Phase 54 | Complete |
+| TOOL-01 | Phase 54 | Complete |
 | REL-13 | Phase 54 | Pending |
 
 **Coverage:**

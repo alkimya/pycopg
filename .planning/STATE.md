@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2.0
 milestone_name: Polish & finitions additives
 status: executing
-stopped_at: Completed 53-03-PLAN.md
-last_updated: "2026-07-05T17:52:45.756Z"
-last_activity: 2026-07-05 -- Phase 54 planning complete
+stopped_at: Completed 54-01-PLAN.md
+last_updated: "2026-07-05T18:29:00.031Z"
+last_activity: 2026-07-05 -- Completed 54-01-PLAN.md (DOC-14, TOOL-01)
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
-  percent: 67
+  total_plans: 12
+  completed_plans: 10
+  percent: 83
 ---
 
 # Project State
@@ -22,14 +22,14 @@ See: .planning/PROJECT.md (updated 2026-07-04 after v1.1.0 milestone close)
 
 **Core value:** Every public method in Database must have a working, tested equivalent in AsyncDatabase — full sync/async parity with consistent, clean API.
 
-**Current focus:** Phase 54 — Release v1.2.0 (not yet planned)
+**Current focus:** Phase 54 — Release v1.2.0
 
 ## Current Position
 
-Phase: 54
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-07-05 -- Phase 54 planning complete
+Phase: 54 (Release v1.2.0) — EXECUTING
+Plan: 2 of 3
+Status: 54-01 complete (DOC-14, TOOL-01); 54-02 next
+Last activity: 2026-07-05 -- Completed 54-01-PLAN.md (DOC-14, TOOL-01)
 
 ## Performance Metrics
 
@@ -103,6 +103,7 @@ Last activity: 2026-07-05 -- Phase 54 planning complete
 | Phase 53 P01 | ~25min | 3 tasks | 6 files |
 | Phase 53 P02 | 20min | 2 tasks | 7 files |
 | Phase 53 P03 | ~20min | 3 tasks | 9 files |
+| Phase 54 P01 | 16min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -191,6 +192,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 - [Phase ?]: Phase 53-02: insert(table, row, *, schema='public', on_conflict=None) mirrors insert_many's raw on_conflict passthrough shape (D-06), not upsert's conflict-column computation; returns dict | None with None under on_conflict='DO NOTHING' conflict (D-07)
 - [Phase ?]: Phase 53-03: column_exists mirrors table_exists mechanically (D-08) -- 3 values bound %s against information_schema.columns, no validate_identifiers call needed
 - [Phase ?]: Phase 53-03: table_size is guarded (table_exists check + TableNotFoundError on missing, D-09), returns raw pg_total_relation_size bytes, reuses existing queries.TABLE_SIZE (no duplicate constant). Phase 53 (CRUD-F04..F06 + INTRO-F03/F04) now fully complete.
+- [Phase ?]: 54-01: DOC-14 verified already-committed from prior session; TOOL-01 wired vulture into make deadcode + CI, whitelisted 2 Hashable false positives (cast() string annotation load-bearing for mypy --strict)
 
 ### Pending Todos
 
@@ -201,7 +203,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 ### Blockers/Concerns
 
 - **Local test DB env (carries forward):** default `pycopg_test`/`pycopg_test2` both broken since 2026-06-24 (TimescaleDB `.so` version drift — server expects 2.28.0/2.28.1, only 2.28.2 installed; even bare `SELECT 1` fails). Run all DB/parity tests with `PGDATABASE=pycopg_test3` (the working scratch DB). Environmental, not a code issue.
-- Non-blocking carry-forward (tracked in Deferred Items below): `vulture` not wired into Makefile/CI (AUDIT-02); phases 38/39 + 42/44/45/46/47 Nyquist VALIDATION.md draft/missing; DEBT-03b + `copy_insert` session-bypass (recorded in `37-DECISIONS.md`).
+- Non-blocking carry-forward (tracked in Deferred Items below): phases 38/39 + 42/44/45/46/47 Nyquist VALIDATION.md draft/missing; DEBT-03b + `copy_insert` session-bypass (recorded in `37-DECISIONS.md`). AUDIT-02 (`vulture` not wired into Makefile/CI) RESOLVED 2026-07-05 via Phase 54 Plan 01 (TOOL-01) — `make deadcode` + CI step live, green.
 
 ## Deferred Items
 
@@ -210,7 +212,7 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 | docs (1.0.1) | WR-01 api-reference deprecated exception names; WR-02 pyproject classifier `4 - Beta`→`5`; IN-01 CLAUDE.md stale Version | NEW (v1.0.0 audit) — non-blocking, baked into published 1.0.0; ship in a 1.0.1 patch |
 | nyquist | Phases 42/44/45 VALIDATION.md draft (`nyquist_compliant: false`) + 46/47 missing | NEW (v1.0.0 audit) — functional VERIFICATION.md PASSED with live evidence for all; clear via `/gsd-validate-phase 42\|44\|45\|46\|47` |
 | nyquist | Phases 38/39 VALIDATION.md draft (`nyquist_compliant: false` for 38) | NEW (v0.10.0 audit) — functional VERIFICATION.md PASSED with live evidence; clear retroactively via `/gsd-validate-phase 38` (and `39`) |
-| toolchain | AUDIT-02: `vulture` not wired into Makefile/CI target | NEW (v0.10.0 audit) — `vulture_whitelist.py` + dev-dep exist but must be run manually; dead-code scan can't drift-detect |
+| toolchain | AUDIT-02: `vulture` not wired into Makefile/CI target | **RESOLVED 2026-07-05** (Phase 54 Plan 01, TOOL-01) — `make deadcode` target + CI quality-gate step both run the canonical command; 2 `Hashable` false positives whitelisted; scan green |
 | tech_debt | DEBT-03b + 37-REVIEW WR-03 `copy_insert` session bypass | **CLOSED-with-justification, deferred to v1.0.0** — WR-03 INTERVAL-literal, %/structural-SQL UX, IN-03 `chunk_seq`, copy_insert session semantics; recorded in `37-DECISIONS.md` §1/§2 |
 | process | Phase 40 (release) has no VERIFICATION.md | Verified via the ship gate (tag + OIDC publish + clean-venv smoke) — release-phase convention, not a coverage gap |
 | v1.1.0 | TSDB-F01..F04: cagg lifecycle removal, time_bucket origin/offset, compress/decompress_chunk, show_chunks physical-time filters | MAPPED to Phase 48 (2026-07-02 roadmap) |
@@ -218,17 +220,17 @@ v0.10.0 SHIPPED + CLOSED 2026-06-26/27: internal hardening + COPY performance, n
 | v1.1.0 | CRUD-F01..F03, INTRO-F01..F02: raw-SQL escape hatch, keyset pagination, page envelope, describe dataclass/DataFrame, materialized_views | MAPPED to Phase 50 (2026-07-02 roadmap) |
 | future | ETL-INC-F05: CDC / WAL change capture | deferred out of v1.1.0 (2026-07-02) — large distinct subsystem, future ETL milestone |
 | v1.2.0 | CRUD-F04..F06, INTRO-F03/F04: select_where/find, get/find_one, insert, column_exists, table_size | MAPPED to Phase 53 (2026-07-04 roadmap) |
-| v1.2.0 | DOC-14, TOOL-01, REL-13: doc prose fix, vulture wiring, release | MAPPED to Phase 54 (2026-07-04 roadmap) |
+| v1.2.0 | DOC-14, TOOL-01, REL-13: doc prose fix, vulture wiring, release | DOC-14 + TOOL-01 SHIPPED (Phase 54 Plan 01, 2026-07-05); REL-13 remains (54-02/54-03) |
 | v1.2.0 | SPAT-F01: gridSize precision on overlay functions (GEOS ≥ 3.9) | MAPPED to Phase 52 (2026-07-04 roadmap) — no longer deferred |
 | v2 | RASTER-F01: PostGIS raster I/O | deferred post-1.0 per 2026-06-27 cadrage |
 
 ## Session Continuity
 
-Last session: 2026-07-05T07:43:21.802Z
-Stopped at: Completed 53-03-PLAN.md
+Last session: 2026-07-05T18:27:53.638Z
+Stopped at: Completed 54-01-PLAN.md
 Resume file: None
-Next action: Run /gsd-verify-work on Phase 53, then /gsd-plan-phase 54 (Release v1.2.0).
+Next action: Execute 54-02-PLAN.md (CHANGELOG [1.2.0] entry), then 54-03 (version bump, tag, release).
 
 ## Operator Next Steps
 
-- Phase 53 (CRUD Symmetry + Introspection Follow-ups) fully complete — 3/3 plans, 5 requirements (CRUD-F04/F05/F06, INTRO-F03/F04) all shipped. Next: `/gsd-verify-work` on Phase 53, then `/gsd-plan-phase 54` (Release v1.2.0 — DOC-14, TOOL-01, REL-13).
+- Phase 54 Plan 01 (DOC-14 + TOOL-01) complete — docs prose corrected, `vulture` wired into `make deadcode` + CI (AUDIT-02 resolved), scan green, mypy --strict still 0/18. Next: execute 54-02-PLAN.md and 54-03-PLAN.md to close Phase 54 and ship v1.2.0.

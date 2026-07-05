@@ -119,7 +119,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 54-01-PLAN.md — DOC-14 doc prose fix (`ExtensionNotAvailable`→`*Error`) + TOOL-01 vulture wired into `make deadcode` + CI (whitelist 2 `Hashable` false positives)
+- [x] 54-01-PLAN.md — DOC-14 doc prose fix (`ExtensionNotAvailable`→`*Error`) + TOOL-01 vulture wired into `make deadcode` + CI (whitelist 2 `Hashable` false positives)
 
 **Wave 2** *(blocked on Wave 1 — release commit must include the hygiene fixes)*
 
@@ -138,7 +138,7 @@ Phases execute in numeric order: 52 → 53 → 54
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 3/3 | Complete    | 2026-07-05 |
-| 54. Release v1.2.0 | v1.2.0 | 0/3 | Planned | - |
+| 54. Release v1.2.0 | v1.2.0 | 1/3 | In Progress|  |
 
 <details>
 <summary>✅ v1.1.0 Follow-ups additifs (Phases 48-51) — SHIPPED 2026-07-04</summary>
