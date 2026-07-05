@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-05
+
+Additive follow-ups on the frozen SemVer-1.0 public API: spatial finishing
+touches (fixed-precision overlays, scalar/geometry helpers, DE-9IM
+predicates) and CRUD/introspection symmetry (predicate reads, single-row
+insert, column/size introspection). Every new method and parameter below
+ships on both the sync (`Database`) and async (`AsyncDatabase`) accessors
+(and `SpatialAccessor`/`AsyncSpatialAccessor`, `SchemaAccessor`/
+`AsyncSchemaAccessor`) at parity.
+
+### Added
+
+- **Spatial** (`pycopg/spatial.py`, `db.spatial.*`):
+  - `union`/`difference`/`intersection` gain a keyword-only `grid_size=None`
+    fixed-precision overlay parameter (`ST_Union`/`ST_Difference`/
+    `ST_Intersection` with a GEOS fixed-precision grid); SQL and bound
+    parameters are byte-identical to the pre-`grid_size` form when left at
+    the default `None` (SPAT-F01).
+  - `length(table, *, geom="geometry", schema="public", unit="m", into="rows", columns=None, filter=None, order_by=None, limit=None) -> list[dict]`
+    — `ST_Length` scalar (SPAT-F02).
+  - `envelope(table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None) -> list[dict] | GeoDataFrame`
+    — `ST_Envelope` bounding-box geometry, adds an `envelope` column, valid
+    for `into="gdf"` (SPAT-F03).
+  - `point_on_surface(table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None) -> list[dict] | GeoDataFrame`
+    — `ST_PointOnSurface` guaranteed-inside representative point, adds a
+    `point_on_surface` column, valid for `into="gdf"` (SPAT-F04).
+  - `is_valid(table, *, geom="geometry", schema="public", into="rows", columns=None, filter=None, order_by=None, limit=None) -> list[dict]`
+    and `is_valid_reason(...)` (same signature) — `ST_IsValid` /
+    `ST_IsValidReason` scalars; `into="gdf"` raises `ValueError` (SPAT-F05).
+  - `overlaps`/`touches`/`crosses`/`disjoint(table, *, geom="geometry", schema="public", point=None, wkt=None, geojson=None, ref=None, srid=4326, into="rows", columns=None, filter=None, order_by=None, limit=None) -> list[dict] | GeoDataFrame`
+    — `ST_Overlaps`/`ST_Touches`/`ST_Crosses`/`ST_Disjoint` DE-9IM predicates,
+    mechanically mirroring `intersects` (SPAT-F06).
+- **CRUD** (`pycopg/database.py`, flat core on `Database`/`AsyncDatabase`):
+  - `select_where(table, where=None, *, where_sql=None, where_params=None, columns=None, order_by=None, limit=None, offset=None, schema="public") -> list[dict]`
+    and its shorter alias `find(...)` (identical signature) — predicate
+    reads; an empty predicate returns all rows (no empty-predicate guard,
+    reads are non-destructive) (CRUD-F04).
+  - `get(table, where=None, *, where_sql=None, where_params=None, columns=None, order_by=None, schema="public") -> dict | None`
+    and its shorter alias `find_one(...)` (identical signature) — single-row
+    predicate read, forces a server-side `LIMIT 1`, no exception on multiple
+    matches (CRUD-F05).
+  - `insert(table, row, *, schema="public", on_conflict=None) -> dict | None`
+    — single-row insert with `RETURNING *`; `on_conflict` is a raw
+    passthrough string (e.g. `"DO NOTHING"`), mirroring `insert_many`'s
+    shape (CRUD-F06).
+- **Introspection** (`pycopg/schema.py`, `db.schema.*`):
+  - `column_exists(table, column, *, schema="public") -> bool` — mirrors
+    `table_exists` mechanically; all three values bound as `%s` params
+    against `information_schema.columns`, no identifier interpolation
+    (INTRO-F03).
+  - `table_size(name, *, schema="public") -> int` — raw
+    `pg_total_relation_size` byte count (no pretty formatting); raises
+    `TableNotFoundError` on a missing table; distinct from
+    `db.maint.table_size` (`pretty=True` default, no existence guard)
+    (INTRO-F04).
+
 ## [1.1.0] - 2026-07-04
 
 Additive follow-ups on the frozen SemVer-1.0 public API: TimescaleDB continuous
@@ -539,7 +595,8 @@ examples, watermark-column requirements, and backfill/reset instructions.
 
 Initial release with sync/async Database, connection pooling, migrations, PostGIS, TimescaleDB support.
 
-[Unreleased]: https://github.com/alkimya/pycopg/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/alkimya/pycopg/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/alkimya/pycopg/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/alkimya/pycopg/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/alkimya/pycopg/compare/v0.10.1...v1.0.0
 [0.10.0]: https://github.com/alkimya/pycopg/compare/v0.9.0...v0.10.0
