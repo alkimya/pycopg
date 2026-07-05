@@ -165,8 +165,12 @@ def test_crud_v120_surface():
     loudly. These methods live on the flat core (not an accessor), so this
     checks the classes directly rather than an ``ACCESSOR_PAIRS`` entry.
 
-    Per-method signature parity is covered by
-    :func:`test_accessor_parameter_kind_parity`.
+    Per-method KIND (positional-or-keyword vs. keyword-only) parity for
+    these 5 methods is asserted explicitly by
+    :func:`test_crud_v120_kind_parity` (WR-03) — NOT by
+    :func:`test_accessor_parameter_kind_parity`, which is parametrized only
+    over ``ACCESSOR_PAIRS`` and does not include ``(Database,
+    AsyncDatabase)``.
     """
     v120_crud_surface = frozenset(
         {
@@ -186,6 +190,61 @@ def test_crud_v120_surface():
         assert (
             not missing
         ), f"{cls.__name__} is missing Phase 53 method(s): {sorted(missing)}"
+
+
+def test_crud_v120_kind_parity():
+    """Assert per-parameter KIND is identical for the 5 Phase 53 flat-core methods (WR-03).
+
+    ``test_crud_v120_surface`` previously claimed this was covered by
+    :func:`test_accessor_parameter_kind_parity`, but that test is
+    parametrized only over ``ACCESSOR_PAIRS``, which excludes ``(Database,
+    AsyncDatabase)`` — so the flat-core methods added this phase
+    (``select_where``, ``find``, ``get``, ``find_one``, ``insert``) had no
+    dedicated automated protection against the CR-01 class of bug (an async
+    mirror silently missing the kw-only ``*`` boundary its sync twin has;
+    Phase 41 FREEZE-03 gap). Mirrors the comparison logic in
+    :func:`test_accessor_parameter_kind_parity`, scoped to
+    :class:`Database` / :class:`AsyncDatabase` and this named method set.
+
+    (Note: :func:`test_database_core_parameter_kind_parity` already
+    generically covers ALL shared Database/AsyncDatabase methods —
+    including these 5 — via set-intersection; this test additionally locks
+    down the specific Phase 53 names so a future refactor cannot narrow
+    that generic coverage without being caught here too.)
+    """
+    v120_crud_surface = (
+        "select_where",
+        "find",
+        "get",
+        "find_one",
+        "insert",
+    )
+    mismatches: list[str] = []
+
+    for method_name in v120_crud_surface:
+        s_sig = inspect.signature(getattr(Database, method_name))
+        a_sig = inspect.signature(getattr(AsyncDatabase, method_name))
+
+        s_kinds = {p: v.kind for p, v in s_sig.parameters.items() if p != "self"}
+        a_kinds = {p: v.kind for p, v in a_sig.parameters.items() if p != "self"}
+
+        if s_kinds != a_kinds:
+            diff_params = {
+                p
+                for p in set(s_kinds) | set(a_kinds)
+                if s_kinds.get(p) != a_kinds.get(p)
+            }
+            details = "; ".join(
+                f"{p}: sync={s_kinds.get(p, 'MISSING')} "
+                f"async={a_kinds.get(p, 'MISSING')}"
+                for p in sorted(diff_params)
+            )
+            mismatches.append(f"  {method_name}: {details}")
+
+    assert not mismatches, (
+        "Parameter-kind divergence between Database and AsyncDatabase for "
+        "Phase 53 flat-core methods (WR-03):\n" + "\n".join(mismatches)
+    )
 
 
 def test_schema_v090_surface():
