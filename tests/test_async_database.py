@@ -558,6 +558,104 @@ class TestAsyncSelectWhereFind:
 
 
 @pytest.mark.asyncio
+class TestAsyncGetFindOne:
+    """CRUD-F05: async mirror get / find_one (D-04/D-05)."""
+
+    async def test_get_dict_filters_forces_limit_1(self, config):
+        """get(where=dict) builds a WHERE clause and forces LIMIT 1 (D-04)."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"id": 5})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.get("t", {"id": 5})
+
+            assert result == {"id": 5}
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t WHERE id = %s LIMIT 1"
+            assert params == [5]
+
+    async def test_get_no_match_returns_none(self, config):
+        """get returns None when fetchone finds nothing."""
+        cursor_mock = create_async_cursor_mock(fetchone_result=None)
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.get("t", {"id": 999})
+
+            assert result is None
+
+    async def test_get_no_predicate_legal(self, config):
+        """get with no predicate emits no WHERE clause but still LIMIT 1 (D-03/D-05)."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"id": 1})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.get("t")
+
+            assert result == {"id": 1}
+            sql, params = cursor_mock.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t LIMIT 1"
+            assert params == []
+
+    async def test_get_columns_and_order_by(self, config):
+        """get exposes columns=/order_by= but no limit=/offset= (D-05)."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"id": 1})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.get("t", {"active": True}, columns=["id"], order_by="id ASC")
+
+            assert result == {"id": 1}
+            sql, params = cursor_mock.execute.call_args[0]
+            assert (
+                sql == "SELECT id FROM public.t WHERE active = %s ORDER BY id ASC LIMIT 1"
+            )
+            assert params == [True]
+
+    async def test_get_signature_has_no_limit_or_offset(self, config):
+        """get's public signature contains no limit/offset parameter (D-05)."""
+        sig = inspect.signature(AsyncDatabase.get)
+        assert "limit" not in sig.parameters
+        assert "offset" not in sig.parameters
+
+    async def test_get_mutual_exclusion_raises(self, config):
+        """get(where=..., where_sql=...) raises ValueError (D-02)."""
+        db = AsyncDatabase(config)
+        with pytest.raises(ValueError, match="not both"):
+            await db.get("t", {"a": 1}, where_sql="a > %s", where_params=[1])
+
+    async def test_find_one_delegates_to_get(self, config):
+        """find_one(...) returns the exact same result as get(...) (D-02 twin)."""
+        cursor_mock = create_async_cursor_mock(fetchone_result={"id": 5})
+        conn_mock = create_async_conn_mock(cursor_mock)
+
+        with patch("pycopg.async_database.psycopg.AsyncConnection") as mock_class:
+            mock_class.connect = AsyncMock(return_value=conn_mock)
+
+            db = AsyncDatabase(config)
+            result = await db.find_one("t", {"id": 5}, order_by="id ASC")
+
+            assert result == {"id": 5}
+            sql, params = cursor_mock.execute.call_args[0]
+            assert (
+                sql == "SELECT * FROM public.t WHERE id = %s ORDER BY id ASC LIMIT 1"
+            )
+            assert params == [5]
+
+
+@pytest.mark.asyncio
 class TestAsyncPaginatePage:
     """CRUD-F03 (D-09/D-10): async mirror mock SQL-shape tests for
     paginate_page / Page envelope."""

@@ -773,6 +773,95 @@ class TestSelectWhereFind:
         assert params == [True]
 
 
+class TestGetFindOne:
+    """CRUD-F05: get / find_one (dict | None single-row reads, D-04/D-05)."""
+
+    def _cursor_db(self, mock_psycopg, config, *, description=None, fetchone=None):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.description = description
+        mock_cursor.fetchone.return_value = fetchone
+        mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value = mock_cursor
+        mock_psycopg.connect.return_value = mock_conn
+        return Database(config), mock_cursor
+
+    @patch("pycopg.database.psycopg")
+    def test_get_dict_filters_forces_limit_1(self, mock_psycopg, config):
+        """get(where=dict) builds a WHERE clause and forces LIMIT 1 (D-04)."""
+        db, mock_cursor = self._cursor_db(
+            mock_psycopg, config, fetchone={"id": 5}
+        )
+
+        result = db.get("t", {"id": 5})
+
+        assert result == {"id": 5}
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE id = %s LIMIT 1"
+        assert params == [5]
+
+    @patch("pycopg.database.psycopg")
+    def test_get_no_match_returns_none(self, mock_psycopg, config):
+        """get returns None when fetchone finds nothing."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config, fetchone=None)
+
+        result = db.get("t", {"id": 999})
+
+        assert result is None
+
+    @patch("pycopg.database.psycopg")
+    def test_get_no_predicate_legal(self, mock_psycopg, config):
+        """get with no predicate emits no WHERE clause but still LIMIT 1 (D-03/D-05)."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config, fetchone={"id": 1})
+
+        result = db.get("t")
+
+        assert result == {"id": 1}
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t LIMIT 1"
+        assert params == []
+
+    @patch("pycopg.database.psycopg")
+    def test_get_columns_and_order_by(self, mock_psycopg, config):
+        """get exposes columns=/order_by= but no limit=/offset= (D-05)."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config, fetchone={"id": 1})
+
+        result = db.get("t", {"active": True}, columns=["id"], order_by="id ASC")
+
+        assert result == {"id": 1}
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT id FROM public.t WHERE active = %s ORDER BY id ASC LIMIT 1"
+        assert params == [True]
+
+    def test_get_signature_has_no_limit_or_offset(self):
+        """get's public signature contains no limit/offset parameter (D-05)."""
+        import inspect
+
+        sig = inspect.signature(Database.get)
+        assert "limit" not in sig.parameters
+        assert "offset" not in sig.parameters
+
+    @patch("pycopg.database.psycopg")
+    def test_get_mutual_exclusion_raises(self, mock_psycopg, config):
+        """get(where=..., where_sql=...) raises ValueError (D-02)."""
+        db = Database(config)
+        with pytest.raises(ValueError, match="not both"):
+            db.get("t", {"a": 1}, where_sql="a > %s", where_params=[1])
+
+    @patch("pycopg.database.psycopg")
+    def test_find_one_delegates_to_get(self, mock_psycopg, config):
+        """find_one(...) returns the exact same result as get(...) (D-02 twin)."""
+        db, mock_cursor = self._cursor_db(mock_psycopg, config, fetchone={"id": 5})
+
+        result = db.find_one("t", {"id": 5}, order_by="id ASC")
+
+        assert result == {"id": 5}
+        sql, params = mock_cursor.execute.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE id = %s ORDER BY id ASC LIMIT 1"
+        assert params == [5]
+
+
 class TestPageDataclass:
     """CRUD-F03 (D-08): Page frozen dataclass fields + export precedent."""
 

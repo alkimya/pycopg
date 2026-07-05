@@ -1286,6 +1286,133 @@ class AsyncDatabase(DatabaseBase, QueryMixin):
             schema=schema,
         )
 
+    async def get(
+        self,
+        table: str,
+        where: dict[str, Any] | None = None,
+        *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        schema: str = "public",
+    ) -> dict[str, Any] | None:
+        """Select the first row matching the given equality conditions.
+
+        The single-row predicate read sibling of :meth:`select_where`. Forces
+        a server-side ``LIMIT 1`` — never truncates in Python. On more than
+        one match, the first row (per ``order_by`` if given, otherwise
+        implementation-defined) is returned with **no exception raised**
+        (D-04); uniqueness is the caller's responsibility (a UNIQUE
+        constraint, or :meth:`exists`/:meth:`count`). Does **not** expose
+        ``limit``/``offset`` — they would be contradictory with the forced
+        ``LIMIT 1`` (D-05).
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict, optional
+            Equality conditions as column-name to value mapping. When
+            neither ``where`` nor ``where_sql`` is given, any one row (or
+            None if the table is empty) is returned. Mutually exclusive with
+            ``where_sql`` (D-02).
+        where_sql : str, optional
+            Raw SQL WHERE fragment (without the ``WHERE`` keyword), for
+            predicates the ``where`` dict cannot express. This is a
+            documented escape hatch: the fragment is passed through
+            **verbatim** and is **not** run through identifier validation —
+            the caller owns the SQL text. Only ``where_params`` are treated
+            as untrusted values and bound as ``%s``.
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+            Requires ``where_sql`` to be present (D-04).
+        columns : list of str, optional
+            Column names to project, by default None (``SELECT *``).
+        order_by : str, optional
+            ``ORDER BY`` clause, making the "first" match deterministic. Like
+            ``where_sql``, this is a documented, caller-owned raw-SQL escape
+            hatch — not run through identifier validation.
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict or None
+            The first matching row as a dict, or None if no row matches.
+
+        Raises
+        ------
+        ValueError
+            If both ``where`` and ``where_sql`` are supplied (D-02); if
+            ``where_params`` is supplied without ``where_sql`` (D-04); or if
+            ``where_sql`` is empty/whitespace-only (D-03).
+        InvalidIdentifierError
+            If any column name or the table/schema identifier is invalid.
+        """
+        frag, pred_params = self._resolve_predicate(where, where_sql, where_params)
+        sql = self._build_select_sql(
+            table,
+            columns,
+            schema,
+            where=frag or None,
+            order_by=order_by,
+            limit=1,
+            offset=None,
+        )
+        return await self.fetch_one(sql, pred_params)
+
+    async def find_one(
+        self,
+        table: str,
+        where: dict[str, Any] | None = None,
+        *,
+        where_sql: str | None = None,
+        where_params: Sequence[Any] | None = None,
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        schema: str = "public",
+    ) -> dict[str, Any] | None:
+        """Select the first row matching the given equality conditions (alias of :meth:`get`).
+
+        A real, concrete, delegating twin of :meth:`get` (D-02) — not a
+        deprecated alias and not a module-level alias — provided as a
+        shorter, familiar name for the same single-row read. See :meth:`get`
+        for the full parameter and behavior documentation.
+
+        Parameters
+        ----------
+        table : str
+            Table name.
+        where : dict, optional
+            Equality conditions as column-name to value mapping.
+        where_sql : str, optional
+            Raw SQL WHERE fragment escape hatch (see :meth:`get`).
+        where_params : Sequence, optional
+            Positional ``%s`` parameters bound against ``where_sql``.
+        columns : list of str, optional
+            Column names to project, by default None (``SELECT *``).
+        order_by : str, optional
+            ``ORDER BY`` clause, making the "first" match deterministic
+            (caller-owned raw-SQL escape hatch).
+        schema : str, optional
+            Schema name, by default "public".
+
+        Returns
+        -------
+        dict or None
+            The first matching row as a dict, or None if no row matches.
+        """
+        return await self.get(
+            table,
+            where,
+            where_sql=where_sql,
+            where_params=where_params,
+            columns=columns,
+            order_by=order_by,
+            schema=schema,
+        )
+
     async def paginate(
         self,
         table: str,

@@ -310,6 +310,57 @@ class TestSelectWhereFindIdentifierInjection:
             await async_db.find(evil, {"a": 1})
 
 
+class TestGetFindOneIdentifierInjection:
+    """CRUD-F05 (T-53-01): get/find_one must reject malicious table/schema/
+    columns identifiers via validate_identifiers, which runs inside
+    _build_select_sql before any SQL executes.
+    """
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_get_table_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.get(evil, {"a": 1})
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_get_schema_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.get("t", {"a": 1}, schema=evil)
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_get_columns_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.get("t", {"a": 1}, columns=[evil])
+
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_find_one_table_sync(self, sync_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            sync_db.find_one(evil, {"a": 1})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_get_table_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.get(evil, {"a": 1})
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_get_schema_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.get("t", {"a": 1}, schema=evil)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_get_columns_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.get("t", {"a": 1}, columns=[evil])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_find_one_table_async(self, async_db, evil):
+        with pytest.raises(InvalidIdentifierError):
+            await async_db.find_one(evil, {"a": 1})
+
+
 class TestWhereSqlValueInjection:
     """CRUD-F01 (T-50-02): where_sql fragment passthrough + where_params
     binding. The raw ``where_sql`` fragment is a documented escape hatch
@@ -397,6 +448,43 @@ class TestWhereSqlValueInjection:
         assert params == [evil]
         assert evil not in sql
 
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    def test_get_where_sql_params_bound_sync(self, config, evil):
+        """Sync: get(where_sql=...) binds an evil payload as %s."""
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("id",)]
+            mock_cursor.fetchone.return_value = None
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.get("t", where_sql="name = %s", where_params=[evil])
+
+            assert result is None
+            sql, params = mock_cursor.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t WHERE name = %s LIMIT 1"
+            assert params == [evil]
+            assert evil not in sql
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("evil", EVIL_IDENTIFIERS)
+    async def test_get_where_sql_params_bound_async(self, config, evil):
+        """Async mirror: get(where_sql=...) binds an evil payload as %s."""
+        db = AsyncDatabase(config)
+        db.fetch_one = AsyncMock(return_value=None)
+
+        result = await db.get("t", where_sql="name = %s", where_params=[evil])
+
+        assert result is None
+        sql, params = db.fetch_one.call_args[0]
+        assert sql == "SELECT * FROM public.t WHERE name = %s LIMIT 1"
+        assert params == [evil]
+        assert evil not in sql
+
 
 class TestOrderByEscapeHatch:
     """CRUD-F04 (T-53-03): order_by is a documented, intentional escape
@@ -437,6 +525,25 @@ class TestOrderByEscapeHatch:
         assert result == []
         sql, _ = db.fetch_all.call_args[0]
         assert sql == "SELECT * FROM public.t ORDER BY a DESC, b ASC"
+
+    def test_get_multi_column_order_by_not_rejected_sync(self, config):
+        """A multi-column order_by string is accepted, not rejected, on get."""
+        with patch("pycopg.database.psycopg") as mock_psycopg:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.description = [("id",)]
+            mock_cursor.fetchone.return_value = None
+            mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_cursor.__exit__ = MagicMock(return_value=False)
+            mock_conn.cursor.return_value = mock_cursor
+            mock_psycopg.connect.return_value = mock_conn
+
+            db = Database(config)
+            result = db.get("t", order_by="a DESC, b ASC")
+
+            assert result is None
+            sql, _ = mock_cursor.execute.call_args[0]
+            assert sql == "SELECT * FROM public.t ORDER BY a DESC, b ASC LIMIT 1"
 
 
 class TestKeysetInjection:
