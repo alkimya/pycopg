@@ -114,7 +114,20 @@ Plans:
   2. Developer can run `make deadcode` locally and CI runs the same `vulture` dead-code scan on every push, using the existing `vulture_whitelist.py`
   3. `pip install pycopg==1.2.0` installs the new surface from PyPI with `__version__ == "1.2.0"` confirmed via clean-venv smoke, all 5 release gates green (coverage ≥95%, interrogate 100%, Sphinx `-W`, `-W error::DeprecationWarning`, `mypy --strict` 0/18), and a code-exact `[1.2.0]` CHANGELOG entry
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+
+**Wave 1**
+
+- [ ] 54-01-PLAN.md — DOC-14 doc prose fix (`ExtensionNotAvailable`→`*Error`) + TOOL-01 vulture wired into `make deadcode` + CI (whitelist 2 `Hashable` false positives)
+
+**Wave 2** *(blocked on Wave 1 — release commit must include the hygiene fixes)*
+
+- [ ] 54-02-PLAN.md — REL-13 prep: version bump (pyproject/conf.py/uv.lock) + code-exact `[1.2.0]` CHANGELOG + 5 gates green + front-loaded code-review
+
+**Wave 3** *(blocked on Wave 2 — tags the release commit)*
+
+- [ ] 54-03-PLAN.md — REL-13 ship: annotated tag `v1.2.0` + human-gated OIDC PyPI publish + clean-venv smoke
 
 ## Progress
 
@@ -125,7 +138,7 @@ Phases execute in numeric order: 52 → 53 → 54
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 3/3 | Complete    | 2026-07-05 |
-| 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
+| 54. Release v1.2.0 | v1.2.0 | 0/3 | Planned | - |
 
 <details>
 <summary>✅ v1.1.0 Follow-ups additifs (Phases 48-51) — SHIPPED 2026-07-04</summary>
@@ -314,4 +327,4 @@ Full details: [milestones/v0.3.0-ROADMAP.md](milestones/v0.3.0-ROADMAP.md)
 | 51. Release v1.1.0 | v1.1.0 | 3/3 | Complete | 2026-07-04 |
 | 52. Spatial Finish | v1.2.0 | 0/6 | Planned | - |
 | 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 0/3 | Planned | - |
-| 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
+| 54. Release v1.2.0 | v1.2.0 | 0/3 | Planned | - |
