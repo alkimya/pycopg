@@ -151,6 +151,43 @@ while True:
 `Page` is exported from `pycopg` (`from pycopg import Page`), mirroring the `RunResult`
 dataclass (see [etl.md](etl.md)).
 
+### CRUD Methods (v1.2.0)
+
+The predicate-read siblings of `delete_where`/`update_where`/`exists`/`count`, plus a
+single-row `insert`. Full sync/async parity on `AsyncDatabase`.
+
+| Method | Parameters | Returns |
+|--------|------------|---------|
+| `select_where` | `table, where=None, *, where_sql=None, where_params=None, columns=None, order_by=None, limit=None, offset=None, schema="public"` | `list[dict]` |
+| `find` | `table, where=None, *, where_sql=None, where_params=None, columns=None, order_by=None, limit=None, offset=None, schema="public"` | `list[dict]` |
+| `get` | `table, where=None, *, where_sql=None, where_params=None, columns=None, order_by=None, schema="public"` | `dict \| None` |
+| `find_one` | `table, where=None, *, where_sql=None, where_params=None, columns=None, order_by=None, schema="public"` | `dict \| None` |
+| `insert` | `table, row, *, schema="public", on_conflict=None` | `dict \| None` |
+
+`select_where` reuses the `_build_select_sql` builder shared with `paginate` (so `order_by`/
+`limit`/`offset` are near-free) and, like `count`, treats an empty predicate as legal — with no
+`where`/`where_sql`, all rows are returned (D-03), unlike the destructive-guard helpers
+(`delete_where`/`update_where`/`exists`). `find` is a real, concrete, delegating twin of
+`select_where` (D-02) — not a `@deprecated_alias` or module-level alias — provided as a
+shorter, familiar name for the same read.
+
+`get`/`find_one` force a server-side `LIMIT 1` and return the first matching row (or `None`)
+without raising on multiple matches (D-04); they expose `columns=`/`order_by=` but
+deliberately omit `limit=`/`offset=`, since exposing them would contradict the forced
+`LIMIT 1` (D-05). `find_one` is `get`'s real, concrete, delegating twin, same rule as `find`.
+
+`insert` is the singular twin of `insert_many`/`upsert` — a single-row `RETURNING *` insert.
+`on_conflict` is a raw passthrough string (e.g. `"DO NOTHING"`, `"DO UPDATE SET ..."`)
+mirroring `insert_many`'s shape (D-06), not `upsert`'s conflict/update-column computation.
+Returns the inserted row as a `dict`; under `on_conflict="DO NOTHING"` with a pre-existing
+conflicting row, no row is returned and `insert` returns `None` (D-07).
+
+```python
+rows = db.select_where("users", {"active": True}, order_by="created_at DESC", limit=10)
+user = db.get("users", {"email": "alice@example.com"})
+new_row = db.insert("users", {"email": "bob@example.com", "active": True})
+```
+
 ### Context Managers
 
 | Method | Parameters | Yields | Description |
@@ -224,6 +261,27 @@ faithful to what a materialized view actually is, not a bug.
 |--------|------------|---------|
 | `materialized_views` | `schema="public"` | `list[str]` |
 | `materialized_view_columns` | `name, schema="public"` | `list[dict]` |
+
+### Introspection Methods (v1.2.0)
+
+Available on `db.schema.*` and `async_db.schema.*`.
+
+| Method | Parameters | Returns |
+|--------|------------|---------|
+| `column_exists` | `table, column, schema="public"` | `bool` |
+| `table_size` | `name, schema="public"` | `int` |
+
+`column_exists` mirrors `table_exists` mechanically (D-08): `table`/`column`/`schema` are
+bound as `%s` values against `information_schema.columns`, never interpolated as SQL
+identifiers.
+
+`table_size` returns the raw `pg_total_relation_size` byte count (heap + indexes + TOAST) —
+no pretty formatting. It checks `table_exists` first and raises `TableNotFoundError` on a
+missing table rather than leaking a raw psycopg `UndefinedTable` or silently returning `0`
+(D-09). This is a different accessor with different semantics than `db.maint.table_size`
+(see "Size/Stats Methods" below), which returns a human-readable/pretty size
+(`pretty=True` by default) with no existence guard — the two are intentionally not
+deduplicated.
 
 ### Extension Methods
 

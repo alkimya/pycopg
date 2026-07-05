@@ -90,7 +90,8 @@ pycopg organizes database operations into typed accessor namespaces:
 | `db.etl.*` | ETL pipelines | `run`, `history`, `last_run`, `init` (4 methods) |
 
 `Database` and `AsyncDatabase` also expose flat CRUD helpers directly (v0.9.0): `upsert`,
-`delete_where`, `update_where`, `exists`, `count`, `fetch_all`, `paginate`.
+`delete_where`, `update_where`, `exists`, `count`, `fetch_all`, `paginate`. v1.2.0 adds the
+predicate-read siblings `select_where`/`find`, `get`/`find_one`, and single-row `insert`.
 
 All accessors expose an identical async surface on `AsyncDatabase` (e.g. `async_db.admin.*`).
 Flat methods are deprecated as of v0.6.0; see [MIGRATION.md](MIGRATION.md).
@@ -107,6 +108,25 @@ db.schema.list_columns("users")    # ['id', 'name', 'email']
 db.schema.columns_with_types("users") # [('id', 'integer'), ('name', 'text')]
 db.maint.size()                    # '256 MB'
 db.maint.table_sizes("public")     # Size of each table
+
+# Introspection follow-ups (v1.2.0)
+db.schema.column_exists("users", "email")  # True
+db.schema.table_size("users")              # 8192 (raw bytes, guarded)
+```
+
+### CRUD Reads + Single-Row Insert (v1.2.0)
+
+```python
+# Predicate reads
+users = db.select_where("users", {"active": True}, order_by="created_at DESC", limit=10)
+users = db.find("users", {"active": True})           # real delegating twin of select_where
+
+# Single-row reads (forced LIMIT 1, no raise on multiple matches)
+user = db.get("users", {"email": "alice@example.com"})
+user = db.find_one("users", {"email": "alice@example.com"})  # real delegating twin of get
+
+# Single-row insert (RETURNING *)
+new_row = db.insert("users", {"email": "bob@example.com", "active": True})
 ```
 
 ### Query Execution
