@@ -26,8 +26,8 @@ Requirements for this milestone. Each maps to exactly one roadmap phase (traceab
 
 ### Introspection (`db.schema.*`)
 
-- [ ] **INTRO-F03**: User can check a column's existence via `db.schema.column_exists`, completing the `table_exists` / `schema_exists` / `database_exists` family.
-- [ ] **INTRO-F04**: User can get a table's on-disk size via `db.schema.table_size` (`pg_total_relation_size`), complementing `row_count`.
+- [x] **INTRO-F03**: User can check a column's existence via `db.schema.column_exists`, completing the `table_exists` / `schema_exists` / `database_exists` family.
+- [x] **INTRO-F04**: User can get a table's on-disk size via `db.schema.table_size` (`pg_total_relation_size`), complementing `row_count`.
 
 ### Hygiene & tooling
 
@@ -77,8 +77,8 @@ Which phases cover which requirements. Populated during roadmap creation.
 | CRUD-F04 | Phase 53 | Complete |
 | CRUD-F05 | Phase 53 | Complete |
 | CRUD-F06 | Phase 53 | Complete |
-| INTRO-F03 | Phase 53 | Pending |
-| INTRO-F04 | Phase 53 | Pending |
+| INTRO-F03 | Phase 53 | Complete |
+| INTRO-F04 | Phase 53 | Complete |
 | DOC-14 | Phase 54 | Pending |
 | TOOL-01 | Phase 54 | Pending |
 | REL-13 | Phase 54 | Pending |

@@ -101,7 +101,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 — shares test files)*
 
-- [ ] 53-03-PLAN.md — INTRO-F03/F04 `db.schema.column_exists`/`table_size` (+ `COLUMN_EXISTS` constant) + docs surfaces + full phase-gate closure
+- [x] 53-03-PLAN.md — INTRO-F03/F04 `db.schema.column_exists`/`table_size` (+ `COLUMN_EXISTS` constant) + docs surfaces + full phase-gate closure
 
 ### Phase 54: Release v1.2.0
 
@@ -124,7 +124,7 @@ Phases execute in numeric order: 52 → 53 → 54
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 52. Spatial Finish | v1.2.0 | 6/6 | Complete    | 2026-07-04 |
-| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 2/3 | In Progress|  |
+| 53. CRUD Symmetry + Introspection Follow-ups | v1.2.0 | 3/3 | Complete   | 2026-07-05 |
 | 54. Release v1.2.0 | v1.2.0 | TBD | Not started | - |
 
 <details>
